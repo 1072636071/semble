@@ -212,5 +212,10 @@ graphify-out/
 # semble-js build output
 semble-js/
 
+# CodeArts / IDE 工具缓存
+.arts/
+.codeartsdoer/
+.codebuddy/teams/
+
 # CodeArts
 
