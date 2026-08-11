@@ -1,16 +1,15 @@
 ---
 name: jxx-to-tickets
-description: 将计划、spec 或当前对话拆解为一组 tracer-bullet（追踪弹）工单，每个声明其 blocking edges（阻塞边），发布到已配置的 issue 跟踪器——本地文件中以文本表示，或真实 tracker（如 GitHub、Linear）上的原生阻塞链接。当需将计划或规格文档分解为可执行工作项时使用。
-disable-model-invocation: true
+description: 将计划、spec 或当前对话拆解为一组 tracer-bullet（追踪弹）工单，每个声明其 blocking edges（阻塞边），发布到已配置的 issue 跟踪器。当需将计划或规格文档分解为可执行工作项时使用。触发词："拆工单""拆 ticket""分解任务""把计划拆成 issue"。不适用于尚无计划只有模糊想法的场景（先改用 jxx-grill-me 或 jxx-to-spec 技能），也不负责逐个实现工单（改用 jxx-implement 技能）。
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # 转化工单
 
-将计划、规格文档或对话拆解为一组**工单**——追踪弹式（tracer-bullet）垂直切片（vertical slice），每个声明**阻塞它的**工单。
+将计划、规格文档或对话拆解为一组**工单**——追踪弹式（tracer-bullet）垂直切片（vertical slice），每个声明**阻塞它的**工单。本地文件 tracker 中以文本表示阻塞边，真实 tracker（如 GitHub、Linear）上使用原生阻塞链接。
 
-issue tracker 和 triage 标签词汇表应该已提供给你——如果没有，运行 `/jxx-setup-matt-pocock-skills`。
+issue tracker 和 triage 标签词汇表应已配置——若未配置，先使用 jxx-setup-matt-pocock-skills 技能。
 
 ## 流程
 
@@ -103,4 +102,9 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 
 无论哪种形式，避免具体文件路径或代码片段——它们很快过时。例外：如果 prototype 产出了一个比文字更精确地编码决策的片段（状态机、reducer、schema、类型形状），在此内联并简要注明它来自 prototype。只保留决策密集部分——不是可运行的演示，只是关键信息。
 
-按前沿逐个工单推进，使用 `/jxx-implement`，在工单之间清理上下文。
+按前沿逐个工单推进，使用 jxx-implement 技能，在工单之间清理上下文。
+
+## 与其他技能的关系
+
+- 尚无计划、只有模糊想法：先用 jxx-grill-me 技能收敛，或用 jxx-to-spec 技能固化规格，再回到本技能。
+- 拆解后逐个实现：改用 jxx-implement 技能。

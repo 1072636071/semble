@@ -1,9 +1,6 @@
 ---
-name: jxx-grill-with-docs
-description: 通过 grill（穷追不舍的访谈）打磨计划或设计，同时随进程创建文档（ADR 与词汇表 glossary）。
-metadata:
-  version: 1.1.0
-disable-model-invocation: true
+name: "jxx-grill-with-docs"
+description: "通过 grill 打磨计划同时创建领域文档。当用户想讨论方案并同步建文档时使用。"
 ---
 
 # Grill with Docs

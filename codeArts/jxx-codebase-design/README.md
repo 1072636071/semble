@@ -1,4 +1,4 @@
-﻿﻿# jxx-codebase-design
+# jxx-codebase-design
 
 设计深模块（deep module）的共享词汇 — 模块、接口、深度、接缝（seam）、适配器（adapter）、杠杆（leverage）、局部性（locality）。大量行为隐藏在干净接缝处的小接口之后。
 

@@ -1,4 +1,4 @@
-﻿﻿# jxx-domain-modeling
+# jxx-domain-modeling
 
 主动构建和锐化项目的领域模型。挑战术语歧义、发明边界场景、在术语结晶时立即写下词汇表和架构决策记录（ADR）。
 

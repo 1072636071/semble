@@ -1,9 +1,6 @@
 ---
-name: jxx-implement
-description: 基于 spec 或一组 ticket 实现（implement）用户描述的工作。
-disable-model-invocation: true
-metadata:
-  version: 1.0.0
+name: "jxx-implement"
+description: "基于 spec 或工单实现用户描述的工作。当用户想按规格文档编码时使用。"
 ---
 
 实现用户在 spec 或工单中描述的工作。

@@ -1,9 +1,6 @@
 ---
-name: jxx-goal-execute
-description: >
-  目标自主执行循环（goal execution loop）——基于已固化的 GOAL.md 契约，自主拆解、执行、自检并循环至达标，支持多目标隔离（.goals/{name}/）与断点继续。前提：.goals/{name}/GOAL.md 必须存在。
-metadata:
-  version: 4.2.0
+name: "jxx-goal-execute"
+description: "基于已固化 GOAL.md 契约自主拆解、执行、自检至达标。当用户想启动目标执行循环时使用。"
 ---
 
 # 目标自主执行循环

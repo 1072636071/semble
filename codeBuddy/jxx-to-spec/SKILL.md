@@ -3,7 +3,7 @@ name: jxx-to-spec
 description: 将当前对话转化为 spec（规格文档）并发布到项目 issue tracker——无需访谈，仅综合已有讨论内容。
 disable-model-invocation: true
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 本技能将当前对话上下文和代码库理解转化为规格文档（你可能称之为 PRD）。不要访谈用户——仅综合你已知的内容。
@@ -77,3 +77,18 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 关于功能的任何进一步说明。
 
 </spec-template>
+
+## 反模式
+
+- **访谈用户** — 本技能不访谈，仅综合已知讨论内容。缺信息时基于已有上下文推断并标注。
+- **spec 含具体文件路径 / 代码片段** — 它们很快过时。保留模块 / 接口 / 决策层面的描述。
+- **seam 复用不足** — 优先用已有 seam，代码库中 seam 越少越好（理想是一）。
+- **不应用领域词汇** — spec 全文应用项目领域词汇表，遵守相关 ADR。
+
+## 异常处理
+
+| 场景 | 处理方式 |
+|------|---------|
+| issue tracker / triage 标签未配置 | 提示先运行 `/jxx-setup-matt-pocock-skills` |
+| prototype 产出决策片段 | 在相关决策内联，注明来源，只保留决策密集部分 |
+| 不确定 seam 是否符合预期 | 与用户确认 seam 再继续 |

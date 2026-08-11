@@ -1,8 +1,6 @@
 ---
-name: jxx-research
-description: 调研主题、收集资料。默认自由模式：不规定流程，agent 自主决定如何调研和呈现。严格模式（用户说"生成报告""严格模式""按模板"时触发）：按模板生成结构化 Markdown 报告到 docs/report/，详情见 references/strict-mode.md。当用户需要调研、研究、查资料、写报告、技术选型评估时使用。
-metadata:
-  version: 2.2.0
+name: "jxx-research"
+description: "调研主题、收集资料。当用户需要调研、查资料、写报告或技术选型评估时使用。"
 ---
 
 # 调研与报告生成

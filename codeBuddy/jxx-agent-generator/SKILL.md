@@ -92,7 +92,7 @@ metadata:
 
 - `references/frontmatter.md` — frontmatter 字段逐项约定与示例。
 - `references/identity.md` — 姜姓身份模板 + 写作规范 + 各模块写法。
-- `references/examples.md` — 8 个姜姓 agent 的完整范例摘要，复制粘贴改即可。
+- `references/examples.md` — 9 个姜姓 agent 的范例摘要，复制粘贴改即可。
 - `references/agent-examples/` — **9 个已完成 agent 的完整文件**，可直接复制到 `~/.codebuddy/agents/` 使用，也可作为适配安装的模板。清单：
   - `姜捕头-神机阁探事郎.md`（探索侦查）
   - `姜清规-标准审查官.md`（编码规范 + Fowler 异味审查）
@@ -104,3 +104,20 @@ metadata:
   - `姜审计-御史台监察御史.md`（跨维度静态审计）
   - `姜简-玉作司琢玉匠.md`（代码精炼/简化）
   - 适配安装：复制文件到 `~/.codebuddy/agents/`，改 `name`/`description`/`tools` 即可投入生产；新 agent 可从任一范例复制结构、替换职责/角色/触发词。
+
+## 反模式
+
+- **一次抛问题清单** — 先反推 agent 定位，再只追问仍缺的信息。一次最多问 1-2 个。
+- **描述缺触发词** — `description` 必须含职责 + 扮演角色 + 触发词 + 与相邻 agent 的分工边界。
+- **tools 列无关项** — 探索/审查类 agent 去掉 `connect_cloud_service`、`automation_update` 等无关工具。
+- **改名留残留** — 改名时先写新文件、删旧文件，避免残留。
+- **不回读验证** — 写完后不向用户复述 agent 的职责/句式/触发词，无法确认反推正确。
+
+## 异常处理
+
+| 场景 | 处理方式 |
+|------|---------|
+| 用户没给姜名字 | 用默认角色兜底，只追问关键缺口 |
+| 用户要统一一批 agent | 先列出现有 agents 目录，逐个改造后统一汇报 |
+| 需改名 | 先写新文件、删除旧文件，或用 write/delete，避免残留 |
+| frontmatter 字段缺失 | 对照 references/frontmatter.md 检查字段完整 |

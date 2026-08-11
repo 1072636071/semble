@@ -1,14 +1,13 @@
 ---
 name: jxx-to-spec
-description: 将当前对话转化为 spec（规格文档）并发布到项目 issue tracker——无需访谈，仅综合已有讨论内容。
-disable-model-invocation: true
+description: 将当前对话转化为 spec（规格文档/PRD）并发布到项目 issue tracker——无需访谈，仅综合已有讨论内容。当对话已充分讨论某功能、需要固化为可执行规格文档时使用。触发词："写成 spec""出个 PRD""把讨论整理成规格""spec 化"。不适用于需要先追问收敛需求的场景（改用 jxx-grill-me 技能）或拆解为工单（改用 jxx-to-tickets 技能）。
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
-本技能将当前对话上下文和代码库理解转化为规格文档（你可能称之为 PRD）。不要访谈用户——仅综合你已知的内容。
+将当前对话上下文和代码库理解转化为规格文档（PRD）。不要访谈用户——仅综合你已知的内容。
 
-issue tracker 和 triage 标签词汇表应该已提供给你——如果没有，运行 `/jxx-setup-matt-pocock-skills`。
+issue tracker 和 triage 标签词汇表应已配置——若未配置，先使用 jxx-setup-matt-pocock-skills 技能。
 
 ## 流程
 
@@ -20,7 +19,7 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 
 3. 使用下面的模板编写规格文档，然后发布到项目 issue tracker。应用 `ready-for-agent` triage 标签——无需额外 triage。
 
-发布路径：在仓库根目录的 `.scratch/` 下创建功能目录 `<NN>-<feature-slug>/`，将规格文档写入 `.scratch/<NN>-<feature-slug>/PRD.md`。`<NN>` 为从 `01` 起的全局递增顺序号，按创建先后排列（如第一个功能为 `01-login/`）。具体目录与文件约定见 issue tracker 定义（`/jxx-setup-matt-pocock-skills`）。
+发布路径：在仓库根目录的 `.scratch/` 下创建功能目录 `<NN>-<feature-slug>/`，将规格文档写入 `.scratch/<NN>-<feature-slug>/PRD.md`。`<NN>` 为从 `01` 起的全局递增顺序号，按创建先后排列（如第一个功能为 `01-login/`）。具体目录与文件约定见 issue tracker 定义（jxx-setup-matt-pocock-skills 技能）。
 
 <spec-template>
 
@@ -77,3 +76,9 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 关于功能的任何进一步说明。
 
 </spec-template>
+
+## 与其他技能的关系
+
+- 需求尚未收敛、需要追问打磨：改用 jxx-grill-me 技能，追问完成后再回到本技能。
+- spec 写好后要拆解执行：改用 jxx-to-tickets 技能。
+- spec 完成后需审查：改用 jxx-plan-review 技能。

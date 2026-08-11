@@ -1,8 +1,6 @@
 ---
-name: jxx-resolving-merge-conflicts
-description: "解决进行中的 git merge/rebase 冲突时使用。"
-metadata:
-  version: 1.0.0
+name: "jxx-resolving-merge-conflicts"
+description: "解决进行中的 git merge/rebase 冲突。当用户遇到合并冲突时使用。"
 ---
 
 1. **查看 merge/rebase 的当前状态**。检查 git 历史和冲突文件。

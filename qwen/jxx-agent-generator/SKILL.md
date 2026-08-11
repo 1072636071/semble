@@ -1,8 +1,8 @@
 ---
 name: jxx-agent-generator
-description: 按"姜姓身份 + 统一 frontmatter + 既有写作风格"生成或改造 CodeBuddy agent 文件。当用户想新建 agent、给 agent 加身份设定（姓姜 + 扮演角色）、或统一一批 agent 的风格/规范时使用。触发词："生成一个 agent""创建 agent""改造这个 agent""给 agent 加身份""统一 agent 风格"。产物为 `~/.codebuddy/agents/名字.md`。
+description: 按"姜姓身份 + 统一 frontmatter + 既有写作风格"生成或改造 CodeBuddy agent 文件，产物为 ~/.codebuddy/agents/名字.md。当用户想新建 agent、给 agent 加身份设定（姓姜 + 扮演角色）、或统一一批 agent 的风格/规范时使用。触发词："生成一个 agent""创建 agent""改造这个 agent""给 agent 加身份""统一 agent 风格"。不适用于编写 agent 要读的文档规范（改用 jxx-writing-for-agents 技能）或生成技能（改用 skill-creator 技能）。
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # 生成姜姓 Agent
@@ -17,7 +17,7 @@ metadata:
 
 ## 工作流
 
-### 第 1 步 — 从用户描述反推 agent 定位
+### 第 1 步——从用户描述反推 agent 定位
 
 不要先抛问题清单。**先读用户这句话，反推出 agent 定位**，再只追问仍缺的信息。
 
@@ -38,7 +38,7 @@ metadata:
 
 **反问规则**：一次最多问 1-2 个，从最关键的缺口开始；能用默认规范（references/identity.md）兜底的就不问。
 
-### 第 2 步 — 选句式 + 组装 frontmatter
+### 第 2 步——选句式 + 组装 frontmatter
 
 句式**由第 1 步反推的职责类型自动决定**，无需使用者再查表：
 
@@ -50,7 +50,7 @@ metadata:
 - `description` 必须含：职责 + 扮演角色 + 触发词 + 与相邻 agent/技能的分工边界。
 - `tools` 只列该 agent 实际会用到的；探索/审查类去掉 `connect_cloud_service`、`automation_update` 等无关项。
 
-### 第 3 步 — 写正文（按模板）
+### 第 3 步——写正文（按模板）
 
 按 references/identity.md 的模板与写作规范填充。**句式 A / B 对应的正文模块不同**——见下表按需选用：
 
@@ -67,11 +67,11 @@ metadata:
 
 **正文组织顺序**：身份开场 → 定位/分工 → 核心工作方法 → 护栏 → 反模式 → 输出规范/汇报模板 → 工作流集成 → 异常处理。各模块 `---` 分隔。
 
-### 第 4 步 — 写入与校验
+### 第 4 步——写入与校验
 
 - 文件写入 `~/.codebuddy/agents/名字.md`。
 - **改名时**：先写新文件、删除旧文件，或统一用 write/delete，避免残留。
-- 校验：`read_file` 复查 frontmatter 与正文；对照 references/frontmatter.md 检查字段完整。
+- 校验：读取文件复查 frontmatter 与正文；对照 references/frontmatter.md 检查字段完整。
 - **回读验证**：向用户复述"我创建了 X agent，职责是 Y，句式 A/B，触发词是……"——确认反推正确。
 - 提示用户新建/改造完成，并列出相邻 agent 是否需同步调整分工描述。
 
@@ -90,10 +90,10 @@ metadata:
 
 ## 参考资源
 
-- `references/frontmatter.md` — frontmatter 字段逐项约定与示例。
-- `references/identity.md` — 姜姓身份模板 + 写作规范 + 各模块写法。
-- `references/examples.md` — 8 个姜姓 agent 的完整范例摘要，复制粘贴改即可。
-- `references/agent-examples/` — **9 个已完成 agent 的完整文件**，可直接复制到 `~/.codebuddy/agents/` 使用，也可作为适配安装的模板。清单：
+- `references/frontmatter.md`——frontmatter 字段逐项约定与示例。
+- `references/identity.md`——姜姓身份模板 + 写作规范 + 各模块写法。
+- `references/examples.md`——8 个姜姓 agent 的完整范例摘要，复制粘贴改即可。
+- `references/agent-examples/`——**9 个已完成 agent 的完整文件**，可直接复制到 `~/.codebuddy/agents/` 使用，也可作为适配安装的模板。清单：
   - `姜捕头-神机阁探事郎.md`（探索侦查）
   - `姜清规-标准审查官.md`（编码规范 + Fowler 异味审查）
   - `姜履约-spec验收官.md`（spec 需求匹配验收）

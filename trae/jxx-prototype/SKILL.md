@@ -1,8 +1,6 @@
 ---
-name: jxx-prototype
-description: 构建一次性（throwaway）prototype 来回答设计问题。当用户想 sanity-check 某个 state model 或逻辑是否合理，或探索 UI 该长什么样时使用。
-metadata:
-  version: 1.0.0
+name: "jxx-prototype"
+description: "构建一次性 prototype 回答设计问题。当用户想验证状态模型或探索 UI 长什么样时使用。"
 ---
 
 # Prototype

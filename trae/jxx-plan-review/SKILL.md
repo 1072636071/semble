@@ -1,9 +1,6 @@
 ---
-name: jxx-plan-review
-description: >
-  语义方案审查（门下省封驳）——在 goal-contract 和 goal-execute 之间独立审阅 GOAL.md 契约，检查方案可行性、覆盖完整性、风险盲区，输出准奏/封驳/附条件准奏。与 goal-contract 的否决门（语法层）互补——本技能审语义，否决门审形式。
-metadata:
-  version: 1.0.0
+name: "jxx-plan-review"
+description: "语义方案审查，独立审阅 GOAL.md 契约的可行性。当用户想在执行前审查方案时使用。"
 ---
 
 # 语义方案审查（门下省）

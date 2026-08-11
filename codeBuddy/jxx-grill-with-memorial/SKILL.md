@@ -4,13 +4,14 @@ description: >
   通过 grill（穷追不舍的访谈）打磨计划或设计，全过程持久化到 memorial 奏报目录。
   当用户想讨论方案、梳理需求、澄清设计、做技术决策时使用。
   触发词: memorial, 奏报, grill 方案, 讨论设计, 梳理需求, 分析需求。
+disable-model-invocation: true
 metadata:
   version: 1.0.0
 ---
 
 # Grill with Memorial
 
-通过 grill 打磨计划，全过程持久化到 memorial 目录。解决 jxx-grill-with-docs 的假设误判（不可回溯）和会话中断（决策丢失）。
+通过 grill 打磨计划，全过程持久化到 memorial 目录。补充 grill-with-docs 未覆盖的场景：跨会话续接（决策不丢）与全过程可回溯。
 
 ## 理念
 
@@ -129,6 +130,16 @@ docs/memorial/NNN-slug/
 ## 相关技能
 
 - `jxx-grill-with-docs` — 轻量 grill（本技能前身）
-- `jxx-research` — 调查委派目标
+- `jxx-research` — 调查委派目标（委派其 `调研Agent-姜小研`）
 - `jxx-plan-review` — 可选独立审查
 - `jxx-grilling` — 纯追问（最简）
+
+## 异常处理
+
+| 场景 | 处理方式 |
+|------|---------|
+| memorial 目录序号冲突 | 扫描已有 memorial 取最大 +1 |
+| 会话中断后续接 | 旧决策视为待验证假设，从头重新验证，不默认接受 |
+| 事实可通过代码库查到 | 自己去查，或委派 `调研Agent-姜小研` |
+| 决策是用户的 | 按方案对比范式提问，等待回答 |
+| 内置 checklist 通过后仍不放心 | 手动调 `jxx-plan-review` 做独立语义审查 |

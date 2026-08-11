@@ -1,8 +1,6 @@
 ---
-name: jxx-improve-codebase-architecture
-description: 扫描代码库（codebase）寻找深化（deepening）机会，以可视化 HTML 报告呈现，再 grill 你选中的那一个。
-
-disable-model-invocation: true
+name: "jxx-improve-codebase-architecture"
+description: "扫描代码库寻找深化机会，以 HTML 报告呈现并 grill 选中的候选。当用户想改善架构时使用。"
 ---
 
 # 改善代码库架构

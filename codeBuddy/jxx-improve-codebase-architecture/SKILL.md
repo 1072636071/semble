@@ -1,8 +1,9 @@
 ---
 name: jxx-improve-codebase-architecture
 description: 扫描代码库（codebase）寻找深化（deepening）机会，以可视化 HTML 报告呈现，再 grill 你选中的那一个。
-
 disable-model-invocation: true
+metadata:
+  version: 1.0.0
 ---
 
 # 改善代码库架构
@@ -65,3 +66,18 @@ disable-model-invocation: true
 - **在对话中锐化模糊术语？** 立即更新 `CONTEXT.md`。
 - **用户以支撑性理由拒绝候选者？** 提供 ADR，措辞为：_"要我将其记录为 ADR，使未来的架构 review 不再重新建议它吗？"_ 仅当理由确实会被未来探索者需要以避免重新建议相同东西时才提供——跳过短暂的理由（"现在不值得"）和显而易见的理由。
 - **想为深化模块探索替代接口？** 运行 `/jxx-codebase-design` 技能并使用其设计两次并行子 agent 模式。
+
+## 反模式
+
+- **用错误词汇表达架构** — 用"组件/服务/API/边界"代替深模块术语。用 CONTEXT.md 词汇表达领域，用 codebase-design 词汇表达架构。
+- **列出 ADR 禁止的重构** — 候选者与 ADR 冲突时，仅当摩擦足够真实值得重新审视时才提出，并清楚标记。
+- **报告留在仓库** — HTML 报告写入临时目录，仓库不留任何东西。
+- **直接提出接口** — 报告写好后先问用户"你想探索哪一个？"，不擅自深入。
+
+## 异常处理
+
+| 场景 | 处理方式 |
+|------|---------|
+| harness 无只读探索 agent | 用子 agent 遍历，有机地探索并注意摩擦 |
+| 候选者与 ADR 矛盾 | 仅当摩擦足够真实才提出，卡片清楚标记（如"与 ADR-0007 矛盾——但值得重新审议"） |
+| 无 `CONTEXT.md` | 用 codebase-design 词汇表达架构，领域词汇缺失时提示建立 |

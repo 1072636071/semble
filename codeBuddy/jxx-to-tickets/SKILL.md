@@ -3,7 +3,7 @@ name: jxx-to-tickets
 description: 将计划、spec 或当前对话拆解为一组 tracer-bullet（追踪弹）工单，每个声明其 blocking edges（阻塞边），发布到已配置的 issue 跟踪器——本地文件中以文本表示，或真实 tracker（如 GitHub、Linear）上的原生阻塞链接。当需将计划或规格文档分解为可执行工作项时使用。
 disable-model-invocation: true
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # 转化工单
@@ -84,6 +84,8 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 
 > 本地工单存放于 `.scratch/<NN>-<工作简称-slug>/issues/`，每个工单一个独立文件。目录与文件如不存在则创建。功能目录的 `<NN>` 为从 `01` 起的全局递增顺序号；工单编号从 `01` 起，文件名为 `<NN>-<slug>.md`（例如 `01-add-schema.md`、`02-wire-api.md`）。上下文指针与所做决策可汇总到 `.scratch/<NN>-<工作简称-slug>/map.md`。
 
+> 若改用远程 tracker（GitHub / Linear 等），以 tracker 原生 issue 形式发布，使用下方通用模板（标题 + 构建内容 + 验收标准 + 阻塞于），阻塞边用 tracker 原生依赖链接。
+
 <issue-template>
 
 ## 构建内容
@@ -104,3 +106,19 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 无论哪种形式，避免具体文件路径或代码片段——它们很快过时。例外：如果 prototype 产出了一个比文字更精确地编码决策的片段（状态机、reducer、schema、类型形状），在此内联并简要注明它来自 prototype。只保留决策密集部分——不是可运行的演示，只是关键信息。
 
 按前沿逐个工单推进，使用 `/jxx-implement`，在工单之间清理上下文。
+
+## 反模式
+
+- **水平切片** — 按层拆（先 schema 后 UI），而非窄而完整的垂直路径。每个切片应独立可演示。
+- **强塞广泛重构** — 影响半径遍及全库的机械变更不放进追踪弹。按扩展-收缩顺序分批。
+- **不设阻塞边** — 工单不声明依赖，导致并行时破坏。每个工单明确其阻塞它的工单。
+- **含具体文件路径 / 代码片段** — 工单描述用领域词汇，避免易过时的路径细节。
+
+## 异常处理
+
+| 场景 | 处理方式 |
+|------|---------|
+| issue tracker / triage 标签未配置 | 提示先运行 `/jxx-setup-matt-pocock-skills` |
+| 用户传入引用（spec 路径 / issue 编号） | 先获取并阅读其完整内容和评论 |
+| 广泛重构无法单批保持绿色 | 共享集成分支，阻塞最终集成验证工单，绿色只在那个工单上承诺 |
+| prototype 产出决策片段 | 内联到相关工单并注明来源，只保留决策密集部分 |

@@ -1,4 +1,4 @@
-﻿﻿# jxx-code-review
+# jxx-code-review
 
 沿两个轴 review 自固定点以来的变更 — 标准（代码是否遵循仓库的编码标准？）和 spec（代码是否匹配原始 issue/PRD 的要求？）。两个 review 作为并行子 agent 运行并并排报告。
 

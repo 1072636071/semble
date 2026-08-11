@@ -1,9 +1,11 @@
 ---
 name: jxx-resolving-merge-conflicts
-description: "解决进行中的 git merge/rebase 冲突时使用。"
+description: 解决进行中的 git merge/rebase 冲突，逐 hunk 追溯双方意图并保留。当用户正在处理合并或变基冲突时使用。触发词："merge conflict""rebase conflict""解决冲突""合并冲突""变基冲突"。不适用于代码审查（改用 jxx-code-review 技能）、不适用于方案设计（改用 jxx-plan-review 技能）。
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
+
+# 解决合并冲突
 
 1. **查看 merge/rebase 的当前状态**。检查 git 历史和冲突文件。
 

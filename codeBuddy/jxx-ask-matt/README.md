@@ -11,8 +11,8 @@
 - `/jxx-grill-with-docs` — 有代码库时打磨想法
 - `/jxx-grill-me` — 无代码库时打磨想法
 - `/jxx-prototype` — 一次性 prototype 验证设计问题
-- `/jxx-to-prd` — 将线程转为 PRD
-- `/jxx-to-issues` — 将 PRD 拆分为 issue
+- `/jxx-to-spec` — 将线程转为 spec（规格文档）
+- `/jxx-to-tickets` — 将 spec 拆分为工单
 - `/jxx-implement` — 实现单个 issue
 - `/jxx-tdd` — 测试驱动开发
 - `/jxx-code-review` — 双轴代码 review

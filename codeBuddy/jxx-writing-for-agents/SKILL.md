@@ -71,3 +71,20 @@ Cognitive load 在 system prompt 就已付了：harness 指令、常驻文件、
 - [ ] 没有复制别处的段落——inline 或 pointer，没有第三选项
 - [ ] 常驻文件只有一句话 + 一个指针
 - [ ] 每句都挣得位置——无法辩护就删
+
+## 反模式
+
+- **复制别处已有的内容** — 内容别处已有就 pointer 指向，不复制。除非它参与当前讨论。
+- **把"何时使用"写进正文而非 description** — description 是唯一触发面，"when to use"必须放那里。
+- **无 leading word 的指针** — 通用词淹没在其他指针里，模型不会主动触达。嵌入独特触发词。
+- **常驻文件写长** — 常驻指令文件永远占 context load，保持一句陈述 + 指针。
+- **忽略 cognitive load** — 只算 context load 不算要记住的链接数。指针也有认知成本。
+
+## 异常处理
+
+| 场景 | 处理方式 |
+|------|---------|
+| 内容别处已有且参与讨论 | inline 包含 |
+| 内容别处已有且不参与 | pointer 指向，只给坐标不携带信息 |
+| 写错 harness 的常驻文件名 | 按目标 harness 用 `CLAUDE.md`/`AGENTS.md`/`GEMINI.md` 之一 |
+| description 无法精炼 | 从触发词入手，写面向人的"何时调用" + 面向模型的"能做什么" |

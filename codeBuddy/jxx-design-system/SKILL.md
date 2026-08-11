@@ -84,6 +84,15 @@ CLI 用法详见 [references/lint-export.md](references/lint-export.md)；DESIGN
 
 ## 调用关系
 
-- 与 `/frontend-design` 协作：本技能确立令牌边界，frontend-design 在边界内生成美观代码。
+- 与 `/jxx-implement`、`/jxx-prototype` 协作：本技能确立令牌边界，它们生成 UI 代码时引用 `DESIGN.md` 令牌。
 - 风格确立需追问时：`/jxx-grill-me` 纪律（一次一问、每问附推荐）。
 - 导出 Tailwind 后的组件开发衔接 `/jxx-tdd`、`/jxx-implement`。
+
+## 异常处理
+
+| 场景 | 处理方式 |
+|------|---------|
+| `DESIGN.md` 不存在 | 进入步骤 2，引导用户确立设计系统 |
+| 缺 `primary` 颜色 | lint 警告，代理自动生成 |
+| `npx @google/design.md` 与 `.md` 冲突 | 用 `designmd lint DESIGN.md`（Windows PowerShell 下） |
+| 需要追问风格选择 | 用 `/jxx-grill-me` 纪律：一次一问、每问附推荐 |

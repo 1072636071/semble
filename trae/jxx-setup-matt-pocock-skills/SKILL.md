@@ -1,9 +1,6 @@
 ---
-name: jxx-setup-matt-pocock-skills
-description: 为仓库配置工程技能环境——设置 issue tracker、triage 标签词汇表与领域文档布局。首次使用其他工程技能前运行一次。
-disable-model-invocation: true
-metadata:
-  version: 1.0.0
+name: "jxx-setup-matt-pocock-skills"
+description: "为仓库配置工程技能环境。首次使用其他工程技能前运行一次。"
 ---
 
 # 设置 Matt Pocock 的工程技能

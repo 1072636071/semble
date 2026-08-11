@@ -1,13 +1,11 @@
 ---
 name: jxx-loop-me
-description: 在工作区内 grill 用户，明确其想构建的工作流 workflow 的 spec。
-disable-model-invocation: true
-argument-hint: "要设计的工作流，或留空自动发现"
+description: 在工作区内通过 grill 追问明确用户想构建的工作流 workflow spec。当用户想梳理日常工作中的重复模式、设计可委托的工作流、或将模糊的循环习惯转化为可执行 spec 时使用。触发词："loop me""梳理工作流""设计 workflow""把这件事 spec 化""帮我理清这个循环"。不适用于非工作流的计划打磨（改用 jxx-grill-me 或 jxx-grill-with-docs）、不需要 spec 化的简单任务（直接执行即可）。当 jxx-goal-mode 需要 spec 化工作流时，由此进入。
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
-运行一个有状态的 `/jxx-grilling` 会话，唯一输出是 **workflow** spec。使用 grilling 纪律——毫不留情，一次一个问题，每个问题附带推荐答案——针对下面的词汇和目标。随着 grilling 逐步澄清问题，创建、编辑和删除 spec。
+运行一个有状态的 jxx-grilling 会话，唯一输出是 **workflow** spec。使用 grilling 纪律——毫不留情，一次一个问题，每个问题附带推荐答案——针对下面的词汇和目标。随着 grilling 逐步澄清问题，创建、编辑和删除 spec。
 
 ## 循环透镜
 
@@ -32,3 +30,9 @@ metadata:
 
 - `workflows/*.md`——每个工作流一个 spec。
 - `NOTES.md`——关于用户世界的原始笔记：他们使用的工具、处理的渠道、以及他们对两者的术语。当它为空或薄弱时，在 spec 化之前先采访他们关于他们的世界。将模糊术语在浮现时精确化为规范术语，并记录在此。
+
+## 与其他技能的边界
+
+- 非工作流的计划打磨 → 使用 jxx-grill-me 或 jxx-grill-with-docs 技能。
+- 工作流 spec 完成后需要拆解为工单 → 使用 jxx-to-tickets 技能。
+- jxx-goal-mode 需要 spec 化工作流时，由此进入。

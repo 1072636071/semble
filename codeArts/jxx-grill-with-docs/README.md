@@ -1,4 +1,4 @@
-﻿﻿# jxx-grill-with-docs
+# jxx-grill-with-docs
 
 grill 以打磨计划或设计，同时创建文档（ADR 和词汇表）。有代码库时使用，grill 过程中自动维护领域模型。
 

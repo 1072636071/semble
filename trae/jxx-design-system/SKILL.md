@@ -1,8 +1,6 @@
 ---
-name: jxx-design-system
-description: 基于 Google DESIGN.md 格式确立项目级 Design System（设计系统），以 DESIGN.md 为单一设计数据源维护跨生成一致性，并提供 10 种风格预设（Material 3、Apple HIG、Fluent、Linear、Minimalist Modern、Cyberpunk、Skeuomorphism、Glassmorphism、Neo-Brutalism、Shadcn/Tailwind）。
-metadata:
-  version: 1.0.0
+name: "jxx-design-system"
+description: "基于 DESIGN.md 格式确立项目级设计系统。当用户开始 UI 项目、需统一视觉规范、或组件风格漂移时使用。"
 ---
 
 # Design System (DESIGN.md 驱动)

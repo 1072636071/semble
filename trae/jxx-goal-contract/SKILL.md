@@ -1,9 +1,6 @@
 ---
-name: jxx-goal-contract
-description: >
-  目标契约固化（goal contract）——将模糊任务收敛为可执行的 GOAL.md 契约，支持多目标隔离存储、重复与追加；三种模式：默认推进、发现优先、Grilling 追问。
-metadata:
-  version: 4.3.0
+name: "jxx-goal-contract"
+description: "将模糊任务收敛为可执行的 GOAL.md 契约。当用户想固化目标、设定验收标准时使用。"
 ---
 
 # 目标契约固化

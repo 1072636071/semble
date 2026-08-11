@@ -1,8 +1,6 @@
 ---
-name: jxx-tdd
-description: 测试驱动开发（TDD）。当用户想以测试优先方式构建功能或修复 bug、提到 "red-green-refactor"，或需要集成测试（integration test）时使用。
-metadata:
-  version: 1.0.0
+name: "jxx-tdd"
+description: "测试驱动开发（TDD）。当用户想以测试优先方式构建功能或修复 bug 时使用。"
 ---
 
 # 测试驱动开发

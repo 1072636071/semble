@@ -1,16 +1,15 @@
 ---
 name: jxx-writing-for-agents
-description: 为 agent 编写文档的参考——AGENTS.md、README、skill、issue 描述。当用户要求编写、评审或改进 agent 要读取的文档时加载；当用户询问 harness 如何读取指令时也会触发。
-disable-model-invocation: true
+description: 为 agent 编写文档的参考——AGENTS.md、README、skill、issue 描述。当用户要求编写、评审或改进 agent 要读取的文档时加载；当用户询问 harness 如何读取指令时也会触发。触发词："写给 agent 的文档""AGENTS.md 怎么写""skill description 怎么优化"。不适用于写给人看的产品文档；生成或改造姜姓 agent 文件改用 jxx-agent-generator 技能。
 metadata:
-  version: 1.1.0
+  version: 1.2.0
 ---
 
 # 为 agent 写作
 
 写给 agent 的文档不是写给人看的。它是加载进 context、塑造每次后续输出的文本。
 
-`SKILL.md` 是通用参考；技能专用机制（frontmatter、调用方式、router skill）见 [SKILL-MECHANICS.md](SKILL-MECHANICS.md)。
+`SKILL.md` 是通用参考；技能专用机制（frontmatter、调用方式、router skill）见 [references/SKILL-MECHANICS.md](references/SKILL-MECHANICS.md)。
 
 ## Context pointer
 

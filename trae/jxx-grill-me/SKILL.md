@@ -1,9 +1,6 @@
 ---
-name: jxx-grill-me
-description: 一场 relentless 的 grill 追问，用以打磨（sharpen）计划或设计。
-metadata:
-  version: 1.0.0
-disable-model-invocation: true
+name: "jxx-grill-me"
+description: "穷追不舍地追问以打磨计划或设计。当用户想对计划做压力测试时使用。"
 ---
 
 启动 `/jxx-grilling` 会话。

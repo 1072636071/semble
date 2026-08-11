@@ -1,9 +1,6 @@
 ---
-name: jxx-to-questionnaire
-description: 当计划或决策需要的答案 agent 给不出、而用户（或用户的客户、同事、上级）要去问别人时，将对话转化为问卷。产出一份可交付的 markdown 文档——措辞中立的问题，留出作答空间，由持有答案的人填写——这样你就不用反复当传声筒。
-disable-model-invocation: true
-metadata:
-  version: 1.0.0
+name: "jxx-to-questionnaire"
+description: "将未决决策转化为可填写的问卷文档。当计划需要的答案需问别人时使用。"
 ---
 
 # To Questionnaire

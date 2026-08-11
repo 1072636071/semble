@@ -66,7 +66,7 @@ wayfinder 完成调查后交出接力棒——它自己不构建。汇入主流�
 完全脱离主流程。
 
 - **`/jxx-grill-me`** — 与 `/jxx-grill-with-docs` 相同的穷追不舍的追问，但适用于**不在工作目录中工作**的情况。无状态：不在本地保存任何东西，不构建 `CONTEXT.md`——将决策以 markdown 块形式留在聊天中。用于锐化任何不在仓库中的计划或设计。
-- **`/jxx-grilling`** — 两者之下共享的 grill 原语：按轮推进的 frontier 访谈——每一轮提问当前未解决的极小决策集，每个问题附上推荐答案。`/jxx-grill-with-docs` 和 `/jxx-grill-me` 都是它的有状态包装。
+- **`/jxx-grilling`** — 两者之下共享的 grill 原语：按轮推进的 frontier 访谈——每一轮提问当前未解决的极小决策集，每个问题附上推荐答案。`/jxx-grill-with-docs` 是有状态包装（写文档），`/jxx-grill-me` 是无状态薄封装（只启动会话）。
 - **`/jxx-resolving-merge-conflicts`** — 当 merge 或 rebase 产生冲突时使用。读懂*双方*分支的意图，以保留两者的方式解决冲突。
 - **`/jxx-to-questionnaire`** — 当计划需要的答案你（agent）给不出、而你面对的人也不持有这些答案时使用。将待决策项转化为一份措辞中立的问卷，交给持有答案的人填写——去程答案和返程决策都留在文件里。
 - **`/jxx-wizard`** — 当有人必须执行手动多步流程（在 Web 控制台点来点去、创建账号、生成密钥、配置 OAuth）时使用。生成一个逐步引导的交互式 bash 向导——向导处理进度展示、确认门、密文输入，并直接写入 `.env` 或 CI 密钥。
@@ -75,10 +75,24 @@ wayfinder 完成调查后交出接力棒——它自己不构建。汇入主流�
 - **`/jxx-research`** — 将阅读工作委托给**后台 agent**：它针对**一手来源**调查问题，然后在仓库中留下一个带引用的 Markdown 文件。它阅读时你继续工作。它产出的文件可以带入主流程的 `/jxx-grill-with-docs`——研究为思考提供素材，但不替代思考。
 - **`/jxx-loop-me`** — 穷追不舍地追问用户关于工作流 spec 的细节，在工作区内设计可委托的循环模式。用于梳理日常工作中的重复模式并设计工作流 spec。当 `/jxx-goal-mode` 需要 spec 化工作流时，由此进入。
 - **`/jxx-goal-mode`** — 只定目标与验收标准，AI 自主拆解、执行、自检并循环至达标。适合路径不确定、过程繁重的长任务。工作流本身需要 spec 化时，先跑 `/jxx-loop-me`。
-- **`/jxx-teach`** — 跨多个会话学习一个概念，使用当前目录作为有状态工作区。
-- **`/jxx-wait-what`** — 当 agent 刚解释了什么而你不理解时：让它用简化的技术英语重讲。
-- **`/jxx-writing-for-agents`** — 为 agent 写文档的参考——无论是 AGENTS.md、README，还是技能。技能专用的分支（frontmatter、模型调用 vs 用户调用、路由技能）在 [SKILL-MECHANICS.md](../../productivity/jxx-writing-for-agents/SKILL-MECHANICS.md) 中。
+- **`jxx-teach`**（其他技能库）— 跨多个会话学习一个概念，使用当前目录作为有状态工作区。不在本 `codeBuddy` 目录，位于 `codeBuddyBase`。
+- **`jxx-wait-what`**（其他技能库）— 当 agent 刚解释了什么而你不理解时：让它用简化的技术英语重讲。不在本 `codeBuddy` 目录，位于 `codeBuddyBase`。
+- **`/jxx-writing-for-agents`** — 为 agent 写文档的参考——无论是 AGENTS.md、README，还是技能。技能专用的分支（frontmatter、模型调用 vs 用户调用、路由技能）在 [SKILL-MECHANICS.md](../jxx-writing-for-agents/SKILL-MECHANICS.md) 中。
 
 ## 前置条件
 
 **`/jxx-setup-matt-pocock-skills`** — 在第一次工程流程之前运行，配置其他技能所依赖的 issue 跟踪器、triage 标签和文档布局。自定义 issue 跟踪器也可使用。
+
+## 反模式
+
+- **硬编码技能路径** — 每个技能的职责、触发与分工都随仓库演化，依赖正文描述而非路径假设。
+- **混用上下文** — 在主流程步骤 1–3 之间压缩或清除上下文。保持在一个不间断的上下文窗口。
+- **忽略调用开关** — 不问调用类型就推荐技能。模型调用与用户调用触发方式不同。
+
+## 异常处理
+
+| 场景 | 处理方式 |
+|------|---------|
+| 会话接近智能区域上限 | 在最近的阶段边界 `/compact`，不退化继续 |
+| 用户不确定用哪个技能 | 按主流程 → 入口 → 独立技能的顺序定位最匹配的一个 |
+| issue tracker 未配置 | 指向 `/jxx-setup-matt-pocock-skills` 先配置 |

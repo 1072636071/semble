@@ -1,8 +1,6 @@
 ---
-name: jxx-codebase-design
-description: 设计深模块（deep module）的共享词汇（shared vocabulary）。当用户想设计或改善模块接口、发现深化（deepening）机会、决定接缝（seam）位置、让代码更易测试或 AI 可导航，或其他技能需要深模块词汇时使用。
-metadata:
-  version: 1.0.0
+name: "jxx-codebase-design"
+description: "设计深模块的共享词汇。当用户想设计模块接口、发现深化机会、决定接缝位置时使用。"
 ---
 
 # 代码库设计

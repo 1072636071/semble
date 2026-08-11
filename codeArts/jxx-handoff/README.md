@@ -1,4 +1,4 @@
-# spz-handoff
+# jxx-handoff
 
 将当前对话压缩成交接文档，供下一个 agent 接续工作。
 

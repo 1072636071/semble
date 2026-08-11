@@ -1,9 +1,6 @@
 ---
-name: jxx-ask-matt
-description: 询问哪个技能或流程（flow）适合你的情况——本仓库技能的路由器（router）。
-disable-model-invocation: true
-metadata:
-  version: 1.0.0
+name: "jxx-ask-matt"
+description: "本仓库技能的路由器。当用户不知道该用哪个技能或流程时使用。"
 ---
 
 # 问 Matt

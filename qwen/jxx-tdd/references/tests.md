@@ -2,10 +2,10 @@
 
 ## 好测试
 
-**集成风格**：通过真实接口测试，而非 mock 内部部件。
+**集成式**：通过真实接口测试，不 mock 内部部件。
 
 ```typescript
-// 好：测试可观察的行为
+// 好：测试可观察行为
 test("user can checkout with valid cart", async () => {
   const cart = createCart();
   cart.add(product);
@@ -18,13 +18,13 @@ test("user can checkout with valid cart", async () => {
 
 - 测试用户/调用者关心的行为
 - 仅使用公共 API
-- 能经受内部重构
-- 描述"做什么"，而非"怎么做"
+- 经得起内部重构
+- 描述 WHAT 而非 HOW
 - 每个测试一个逻辑断言
 
 ## 坏测试
 
-**实现细节测试**：与内部结构耦合。
+**实现细节耦合**：绑定到内部结构。
 
 ```typescript
 // 坏：测试实现细节
@@ -35,17 +35,17 @@ test("checkout calls paymentService.process", async () => {
 });
 ```
 
-危险信号：
+红旗：
 
 - Mock 内部协作者
 - 测试私有方法
 - 断言调用次数/顺序
-- 重构时行为未变但测试失败
-- 测试名称描述"怎么做"而非"做什么"
-- 通过外部手段而非接口验证
+- 重构未改行为但测试失败
+- 测试名描述 HOW 而非 WHAT
+- 绕过接口做验证
 
 ```typescript
-// 坏：绕过接口来验证
+// 坏：绕过接口验证
 test("createUser saves to database", async () => {
   await createUser({ name: "Alice" });
   const row = await db.query("SELECT * FROM users WHERE name = ?", ["Alice"]);
@@ -60,10 +60,10 @@ test("createUser makes user retrievable", async () => {
 });
 ```
 
-**同义反复测试**：期望值重述了实现，因此测试按构造就通过了。
+**同义反复测试**：期望值以与代码相同方式重算，测试按构造就通过。
 
 ```typescript
-// 坏：期望值以与代码相同的方式重新计算
+// 坏：期望值按代码同样方式推导
 test("calculateTotal sums line items", () => {
   const items = [{ price: 10 }, { price: 5 }];
   const expected = items.reduce((sum, i) => sum + i.price, 0);

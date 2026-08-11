@@ -1,8 +1,6 @@
 ---
-name: jxx-agent-generator
-description: 按"姜姓身份 + 统一 frontmatter + 既有写作风格"生成或改造 CodeBuddy agent 文件。当用户想新建 agent、给 agent 加身份设定（姓姜 + 扮演角色）、或统一一批 agent 的风格/规范时使用。触发词："生成一个 agent""创建 agent""改造这个 agent""给 agent 加身份""统一 agent 风格"。产物为 `~/.codebuddy/agents/名字.md`。
-metadata:
-  version: 1.0.0
+name: "jxx-agent-generator"
+description: "按'姜姓身份+统一 frontmatter+既有写作风格'生成或改造 CodeBuddy agent 文件。当用户想新建 agent、给 agent 加身份、或统一 agent 风格时使用。"
 ---
 
 # 生成姜姓 Agent

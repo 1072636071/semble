@@ -1,4 +1,4 @@
-﻿# spz-diagnosing-bugs
+﻿# jxx-diagnosing-bugs
 
 棘手 bug 和性能 regression 的诊断循环。六阶段纪律：构建反馈循环 → 复现与最小化 → 假设 → 插桩 → 修复与 regression 测试 → 清理与复盘。
 

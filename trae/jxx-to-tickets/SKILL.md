@@ -1,9 +1,6 @@
 ---
-name: jxx-to-tickets
-description: 将计划、spec 或当前对话拆解为一组 tracer-bullet（追踪弹）工单，每个声明其 blocking edges（阻塞边），发布到已配置的 issue 跟踪器——本地文件中以文本表示，或真实 tracker（如 GitHub、Linear）上的原生阻塞链接。当需将计划或规格文档分解为可执行工作项时使用。
-disable-model-invocation: true
-metadata:
-  version: 1.0.0
+name: "jxx-to-tickets"
+description: "将计划或 spec 拆解为追踪弹式工单。当用户需将规格分解为可执行工作项时使用。"
 ---
 
 # 转化工单

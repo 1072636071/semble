@@ -1,4 +1,4 @@
-# spz-tdd
+# jxx-tdd
 
 测试驱动开发（TDD）技能——红→绿循环的完整参考指南，涵盖好测试的定义、测试接缝（seam）、反模式识别和循环规则。
 
@@ -11,4 +11,4 @@
 
 ## 相关技能
 
-- spz-prototype
+- `/jxx-prototype`

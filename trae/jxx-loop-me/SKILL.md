@@ -1,10 +1,6 @@
 ---
-name: jxx-loop-me
-description: 在工作区内 grill 用户，明确其想构建的工作流 workflow 的 spec。
-disable-model-invocation: true
-argument-hint: "要设计的工作流，或留空自动发现"
-metadata:
-  version: 1.0.0
+name: "jxx-loop-me"
+description: "在工作区内 grill 用户以明确工作流 spec。当用户想梳理重复模式并设计工作流时使用。"
 ---
 
 运行一个有状态的 `/jxx-grilling` 会话，唯一输出是 **workflow** spec。使用 grilling 纪律——毫不留情，一次一个问题，每个问题附带推荐答案——针对下面的词汇和目标。随着 grilling 逐步澄清问题，创建、编辑和删除 spec。

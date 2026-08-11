@@ -1,4 +1,4 @@
-# spz-grilling
+# jxx-grilling
 
 对计划或设计进行 grill，逐一走遍设计树的每个分支，逐个解决决策依赖。
 

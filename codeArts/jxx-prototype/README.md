@@ -1,4 +1,4 @@
-# spz-prototype
+# jxx-prototype
 
 构建一次性 prototype 来回答设计问题。根据问题类型选择不同分支：逻辑/状态验证走终端 TUI 路径，UI 探索走多变体切换路径。
 

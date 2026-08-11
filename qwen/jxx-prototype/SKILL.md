@@ -1,8 +1,8 @@
 ---
 name: jxx-prototype
-description: 构建一次性（throwaway）prototype 来回答设计问题。当用户想 sanity-check 某个 state model 或逻辑是否合理，或探索 UI 该长什么样时使用。
+description: 构建一次性（throwaway）prototype 来回答设计问题：sanity-check 某个 state model 或逻辑是否合理，或探索 UI 该长什么样。当需要先验证再正式实现时使用。触发词："先做个原型""prototype 一下""验证下这个状态模型""UI 长什么样试试"。不适用于要交付生产的实现（改用 jxx-implement 技能）或确立设计规范（改用 jxx-design-system 技能）。
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # Prototype
@@ -13,8 +13,8 @@ Prototype 是**回答问题的可丢弃代码**。问题决定了它的形态。
 
 识别正在回答哪个问题——来自用户的提示、周围代码，或者在用户在场时直接询问：
 
-- **"这个逻辑/状态模型感觉对吗？"** → [LOGIC.md](LOGIC.md)。构建一个单文件 HTML 交互 demo——状态面板加自由按钮——用户可以在浏览器里打开、按按钮、观察状态模型在压力下如何表现。
-- **"这应该长什么样？"** → [UI.md](UI.md)。在单个路由上生成多个截然不同的 UI 变体，通过 URL 查询参数和浮动底栏切换。
+- **"这个逻辑/状态模型感觉对吗？"** → 读取 [references/LOGIC.md](references/LOGIC.md) 按其流程执行。构建一个单文件 HTML 交互 demo——状态面板加自由按钮——用户可以在浏览器里打开、按按钮、观察状态模型在压力下如何表现。
+- **"这应该长什么样？"** → 读取 [references/UI.md](references/UI.md) 按其流程执行。在单个路由上生成多个截然不同的 UI 变体，通过 URL 查询参数和浮动底栏切换。
 
 两个分支产生非常不同的产物——选错会浪费整个 prototype。如果问题确实模糊且联系不到用户，默认选择更匹配周围代码的分支（后端模块 → 逻辑；页面或组件 → UI），并在 prototype 顶部声明假设。
 
@@ -37,3 +37,8 @@ Prototype 回答完问题后，**捕获它**：
 4. **推送分支。** 在远端可见，就能被未来的会话找到——包括未来其他 harness 里想知道"这个试过吗"的 agent。
 
 分支持久存在——它是文档，不是交付物。prototype 分支永不 merge 进 main：它在需要时被**重新打开**——当决策被重新讨论、底层假设改变、或新问题问出同一个答案时——通过查看分支本身，而不是凭记忆重建。
+
+## 与其他技能的关系
+
+- prototype 回答了问题、要正式实现：改用 jxx-implement 技能。
+- UI 原型需遵循设计令牌：确立规范用 jxx-design-system 技能。

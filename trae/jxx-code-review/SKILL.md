@@ -1,8 +1,6 @@
 ---
-name: jxx-code-review
-description: 从两个维度审查自固定点（commit、branch、tag 或 merge-base）以来的变更 — 标准（代码是否遵循仓库编码标准？）和 spec（代码是否匹配原始 issue/PRD 要求？）。两个审查以并行子 agent 运行，并排报告。当用户想审查 branch、PR、进行中的变更，或要求"review since X"/"review 自 X 以来"时使用。
-metadata:
-  version: 1.0.0
+name: "jxx-code-review"
+description: "从标准和 spec 两个维度并行审查代码变更。当用户想审查 branch、PR 或进行中的变更时使用。"
 ---
 
 从两个维度审查 `HEAD` 与用户指定固定点（fixed point）之间的 diff：

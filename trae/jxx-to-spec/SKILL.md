@@ -1,9 +1,6 @@
 ---
-name: jxx-to-spec
-description: 将当前对话转化为 spec（规格文档）并发布到项目 issue tracker——无需访谈，仅综合已有讨论内容。
-disable-model-invocation: true
-metadata:
-  version: 1.0.0
+name: "jxx-to-spec"
+description: "将当前对话转化为 spec 规格文档。当用户想把讨论转为 PRD 时使用。"
 ---
 
 本技能将当前对话上下文和代码库理解转化为规格文档（你可能称之为 PRD）。不要访谈用户——仅综合你已知的内容。

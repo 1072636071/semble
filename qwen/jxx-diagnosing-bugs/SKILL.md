@@ -1,15 +1,15 @@
 ---
 name: jxx-diagnosing-bugs
-description: 针对棘手 bug 和性能 regression 的诊断循环（diagnosis loop），当用户说"diagnose"/"debug this"或报告东西坏了/抛异常/失败/变慢时使用。
+description: 针对棘手 bug 与性能 regression 的六阶段诊断循环（反馈循环→复现最小化→假设→插桩→修复回归测试→清理复盘）。当用户报告东西坏了、抛异常、失败或变慢时使用。触发词："diagnose""debug this""调试""排查""为什么报错""performance regression"。不适用于方案审查（改用 jxx-plan-review 技能）、不适用于纯代码风格问题（改用 jxx-code-review 技能）。
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # 诊断 Bug
 
 诊断棘手 bug 的纪律。仅在确有理由时跳过阶段。
 
-探索代码库时，阅读 `CONTEXT.md`（如果存在）以建立相关模块的心智模型（mental model），并检查你涉及区域的 ADR。
+探索代码库时，阅读 `CONTEXT.md`（如存在）以建立相关模块的心智模型，并检查涉及区域的 ADR。
 
 ## 脱敏（Redact）
 
@@ -31,7 +31,7 @@ metadata:
 4. **无头浏览器脚本**（Playwright / Puppeteer）——驱动 UI，断言 DOM/控制台/网络。
 5. **重放捕获的 trace。** 将真实网络请求 / payload / 事件日志保存到磁盘；在隔离环境中沿代码路径重放。
 6. **一次性测试桩。** 启动系统的最小子集（一个服务，mock 依赖），用单次函数调用执行 bug 代码路径。
-7. **属性测试（property-based testing）/ 模糊测试（fuzz testing）循环。** 如果 bug 是"有时输出错误"，运行 1000 个随机输入寻找失败模式。
+7. **属性测试 / 模糊测试循环。** 如果 bug 是"有时输出错误"，运行 1000 个随机输入寻找失败模式。
 8. **二分测试桩。** 如果 bug 出现在两个已知状态之间（commit、数据集、版本），自动化"启动状态 X，检查，重复"以便 `git bisect run`。
 9. **差分循环。** 将相同输入通过旧版本 vs 新版本（或两种配置）运行并 diff 输出。
 10. **HITL bash 脚本。** 最后手段。如果必须有人点击，用 `scripts/hitl-loop.template.sh` 驱动他们，使循环仍有结构。捕获的输出反馈给你。
@@ -115,7 +115,7 @@ metadata:
 
 ## 阶段 5 — 修复 + regression 测试
 
-在修复**之前**写 regression 测试 — 但仅当有**正确的接缝**时。
+在修复**之前**写 regression 测试——但仅当有**正确的接缝**时。
 
 正确的接缝是测试在调用点执行**真实 bug 模式**的接缝。如果唯一可用的接缝太浅（bug 需要多调用者时只有单调用者测试、无法复现触发 bug 的链路的单元测试），在那里的 regression 测试只会带来虚假信心。
 
@@ -137,6 +137,6 @@ metadata:
 - [ ] regression 测试通过（或接缝缺失已记录）
 - [ ] 所有 `[DEBUG-...]` 插桩已移除（`grep` 前缀）
 - [ ] 一次性 prototype 已删除（或移至明确标记的调试位置）
-- [ ] 被证明正确的假设陈述在 commit / PR 消息中 — 让下一个调试者学到
+- [ ] 被证明正确的假设陈述在 commit / PR 消息中——让下一个调试者学到
 
-**然后问：什么本可以防止这个 bug？** 如果答案涉及架构变更（没有好的测试接缝、纠缠的调用者、隐藏的耦合），将具体信息交接给 `/jxx-improve-codebase-architecture` 技能。在修复到位**之后**而非之前给出推荐——你现在比开始时有更多信息。
+**然后问：什么本可以防止这个 bug？** 如果答案涉及架构变更（没有好的测试接缝、纠缠的调用者、隐藏的耦合），将具体信息交接给使用 jxx-improve-codebase-architecture 技能。在修复到位**之后**而非之前给出推荐——你现在比开始时有更多信息。

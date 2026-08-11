@@ -23,6 +23,6 @@
 ## 相关技能
 
 - jxx-to-spec（目标需先成规格文档时）
-- jxx-to-issues（拆解纪律参考）
+- jxx-to-tickets（拆解纪律参考）
 - jxx-tdd / jxx-implement / jxx-research（执行可委托）
 - jxx-loop-me（工作流本身需 spec 化时）

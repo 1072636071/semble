@@ -1,10 +1,6 @@
 ---
-name: jxx-goal-mode
-description: >
-  目标模式 router（路由器）：以结果为导向的自主执行循环入口，用户只定目标与验收标准，AI 自主拆解执行自检至达标；分发到 jxx-goal-contract（契约固化）与 jxx-goal-execute（自主执行循环），适合路径不确定、过程繁重的长任务。
-disable-model-invocation: true
-metadata:
-  version: 4.1.0
+name: "jxx-goal-mode"
+description: "目标模式路由器。当用户想以结果为导向让 AI 自主执行长任务时使用。"
 ---
 
 # 目标模式

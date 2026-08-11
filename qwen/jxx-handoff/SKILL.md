@@ -1,15 +1,13 @@
 ---
 name: jxx-handoff
-description: 将当前对话压缩成 handoff（交接）文档，供下一个 agent 接续工作。
+description: 将当前对话压缩成 handoff（交接）文档，供下一个 agent 接续工作，保存到系统临时目录而非当前工作区。当会话即将结束、需要把上下文移交下一个会话或 agent 时使用。触发词："交接""handoff""写交接文档""下个会话接着做"。不适用于仓库内持久化的规格或计划（改用 jxx-to-spec 技能），也不适用于目标模式的断点续做（由 jxx-goal-execute 技能自行恢复）。
 metadata:
-  version: 1.0.0
-argument-hint: "下一个会话将用于什么？"
-disable-model-invocation: true
+  version: 1.1.0
 ---
 
 撰写一份交接文档，总结当前对话内容，使新的 agent 能够继续工作。保存到用户操作系统的临时目录——而非当前工作区。
 
-在文档中包含"建议技能"部分，推荐 agent 应调用的技能。
+在文档中包含"建议技能"部分，推荐 agent 应调用的技能（使用技能名，如 jxx-implement 技能）。
 
 不要重复已被其他制品（spec、计划、ADR、issue、commit、diff）记录的内容。应改为引用其路径或 URL。
 
