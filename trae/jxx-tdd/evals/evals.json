@@ -1,0 +1,35 @@
+{
+  "skill_name": "jxx-tdd",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "用TDD方式实现用户注册功能",
+      "should_trigger": true,
+      "expected_output": "以测试优先的方式构建功能，遵循红-绿-重构循环",
+      "expectations": [
+        "先编写测试用例",
+        "运行测试确认失败（红）",
+        "实现最小代码使测试通过（绿）",
+        "重构代码"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "红-绿-重构方式修复这个bug",
+      "should_trigger": true,
+      "expected_output": "以TDD方式修复bug",
+      "expectations": [
+        "先编写复现bug的测试",
+        "确认测试失败",
+        "修复代码使测试通过"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "帮我优化数据库查询性能",
+      "should_trigger": false,
+      "expected_output": "不应触发TDD技能",
+      "expectations": []
+    }
+  ]
+}

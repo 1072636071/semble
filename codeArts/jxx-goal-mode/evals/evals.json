@@ -1,0 +1,90 @@
+{
+  "skill": "jxx-goal-mode",
+  "version": "4.1.0",
+  "evals": [
+    {
+      "id": "EM001",
+      "name": "路由——小任务不套循环",
+      "description": "对小任务应建议直接做而非套循环",
+      "input_prompt": "/jxx-goal-mode 帮我把 README.md 里的标题改一下",
+      "expected_behavior": [
+        "识别任务步骤明确、一次性完成",
+        "建议直接做，不套循环",
+        "不分发到子技能"
+      ],
+      "pass_criteria": "未分发到子技能，建议直接执行"
+    },
+    {
+      "id": "EM002",
+      "name": "路由——新任务分发到契约固化",
+      "description": "需要新建契约时应分发到 /jxx-goal-contract",
+      "input_prompt": "/jxx-goal-mode 帮我做一个博客网站",
+      "expected_behavior": [
+        "识别需要新建契约",
+        "分发到 /jxx-goal-contract",
+        "契约固化完成后自动委托 /jxx-goal-execute"
+      ],
+      "pass_criteria": "正确分发到契约固化子技能"
+    },
+    {
+      "id": "EM003",
+      "name": "路由——继续已有目标",
+      "description": "用户说继续某个目标时，应根据状态分发",
+      "input_prompt": "继续 linkcheck（.goals/linkcheck/ 状态为已暂停）",
+      "expected_behavior": [
+        "读取 .goals/_index.md 确认状态",
+        "分发到 /jxx-goal-execute（断点恢复）",
+        "不重新固化契约"
+      ],
+      "pass_criteria": "正确分发到执行子技能，从断点恢复"
+    },
+    {
+      "id": "EM004",
+      "name": "路由——重复已完成目标",
+      "description": "用户说重复某个已完成目标时，应分发到契约固化",
+      "input_prompt": "重复 blog-site（.goals/blog-site/ 状态为已完成）",
+      "expected_behavior": [
+        "读取 .goals/_index.md 确认状态",
+        "分发到 /jxx-goal-contract（重复模式）",
+        "询问原样重复还是调整"
+      ],
+      "pass_criteria": "分发到契约固化的重复模式"
+    },
+    {
+      "id": "EM005",
+      "name": "路由——列出目标",
+      "description": "用户说列出目标时，应展示 _index.md",
+      "input_prompt": "列出目标",
+      "expected_behavior": [
+        "读取 .goals/_index.md",
+        "展示所有目标及状态",
+        "询问要操作哪个"
+      ],
+      "pass_criteria": "正确展示目标列表"
+    },
+    {
+      "id": "EM006",
+      "name": "路由——已有目标但用户给了新目标",
+      "description": "已有目标但用户提出新目标时，应询问处理方式",
+      "input_prompt": "/jxx-goal-mode 我要做一个电商网站（.goals/ 中已有 blog-site）",
+      "expected_behavior": [
+        "识别 .goals/ 中已有目标",
+        "询问：新建/追加/替换",
+        "根据选择分发到对应子技能"
+      ],
+      "pass_criteria": "询问用户处理方式后正确分发"
+    },
+    {
+      "id": "EM007",
+      "name": "路由——看似小任务实则多步",
+      "description": "表面是单点改名，实则跨文件同步+需要验证，不应武断按小任务直接执行",
+      "input_prompt": "/jxx-goal-mode 帮我把 getUser 函数改个名（它被 40 个文件引用，改完要跑全量测试）",
+      "expected_behavior": [
+        "识别改动跨多文件、需要运行验证命令",
+        "不按小任务建议直接执行",
+        "提示任务存在路径不确定性，建议进入契约固化或先评估影响面"
+      ],
+      "pass_criteria": "未判定为小任务，正确识别验证需求"
+    }
+  ]
+}

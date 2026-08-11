@@ -1,0 +1,23 @@
+{
+  "skill_name": "jxx-triage",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我triage这些issue",
+      "should_trigger": true,
+      "expected_output": "将issue推过triage状态机，分类、验证并编写简报",
+      "expectations": [
+        "读取issue列表",
+        "对每个issue分类和验证",
+        "编写agent可执行的简报"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "帮我写单元测试",
+      "should_trigger": false,
+      "expected_output": "不应触发triage技能",
+      "expectations": []
+    }
+  ]
+}

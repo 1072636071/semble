@@ -1,0 +1,7 @@
+[
+  {
+    "name": "implement-basic",
+    "prompt": "根据这个 PRD 实现功能",
+    "expected_behavior": "应使用 TDD 方法实现功能，定期运行类型检查和测试，完成后进行代码审查"
+  }
+]

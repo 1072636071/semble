@@ -1,0 +1,7 @@
+[
+  {
+    "name": "spz-resolving-merge-conflicts-basic",
+    "prompt": "帮我解决当前的 git merge 冲突",
+    "expected_behavior": "查看冲突状态，追溯每个变更的原始意图，保留双方意图或选择匹配合并目标的方案，运行自动化检查，完成合并"
+  }
+]

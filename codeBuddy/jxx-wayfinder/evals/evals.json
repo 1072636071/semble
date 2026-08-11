@@ -1,0 +1,7 @@
+[
+  {
+    "name": "spz-wayfinder-basic",
+    "prompt": "我有一个大项目要做，但不知道从哪里开始，帮我规划一下",
+    "expected_behavior": "启动追问会话，在 issue tracker 上创建共享地图，生成研究/原型/追问/任务类型的工单，建立阻塞关系和前沿"
+  }
+]

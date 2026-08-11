@@ -1,0 +1,7 @@
+[
+  {
+    "name": "spz-to-issues-basic",
+    "prompt": "把这个 PRD 拆分成可独立领取的 issue",
+    "expected_behavior": "将计划拆分为纵向切片的 tracer bullet issue，确认依赖关系，按依赖顺序发布到 issue tracker"
+  }
+]

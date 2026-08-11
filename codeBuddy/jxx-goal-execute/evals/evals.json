@@ -1,0 +1,144 @@
+{
+  "skill": "jxx-goal-execute",
+  "version": "4.1.0",
+  "evals": [
+    {
+      "id": "EE001",
+      "name": "前提检查——缺少 GOAL.md",
+      "description": "目标目录中不存在 GOAL.md 时应提示先运行契约固化",
+      "input_prompt": "/jxx-goal-execute",
+      "expected_behavior": [
+        "检查 .goals/{name}/GOAL.md 是否存在",
+        "不存在时提示先运行 /jxx-goal-contract",
+        "不启动执行循环"
+      ],
+      "pass_criteria": "未启动循环，提示用户先固化契约"
+    },
+    {
+      "id": "EE002",
+      "name": "目标定位——用户指定名称",
+      "description": "用户明确指定目标名称时，应定位到对应目录",
+      "input_prompt": "继续 linkcheck",
+      "expected_behavior": [
+        "定位到 .goals/linkcheck/",
+        "读取 GOAL.md 和 PROGRESS.md",
+        "从断点继续执行"
+      ],
+      "pass_criteria": "正确定位目标目录并恢复进度"
+    },
+    {
+      "id": "EE003",
+      "name": "目标定位——多候选时让用户选择",
+      "description": "有多个可继续目标时，应列出候选让用户选择",
+      "input_prompt": "/jxx-goal-execute（_index.md 中有 3 个执行中目标）",
+      "expected_behavior": [
+        "读取 _index.md",
+        "列出所有执行中/已暂停的目标",
+        "让用户选择"
+      ],
+      "pass_criteria": "列出候选目标，等待用户选择"
+    },
+    {
+      "id": "EE004",
+      "name": "拆解——纵向切片",
+      "description": "给定 GOAL.md，应拆解为可独立验证的纵向切片",
+      "input_prompt": "/jxx-goal-execute（.goals/linkcheck/GOAL.md 已存在）",
+      "expected_behavior": [
+        "拆为纵向切片（非水平切片）",
+        "每切片有独立验收信号",
+        "切片间标注依赖顺序",
+        "拆解结果写入 .goals/linkcheck/PROGRESS.md"
+      ],
+      "pass_criteria": "切片覆盖 Goal 全部范围，PROGRESS.md 已创建"
+    },
+    {
+      "id": "EE005",
+      "name": "执行循环——自主推进",
+      "description": "循环执行切片，默认不打断用户",
+      "input_prompt": "/jxx-goal-execute（GOAL.md 和 PROGRESS.md 已存在）",
+      "expected_behavior": [
+        "循环：选→执行→验证→记录→判停",
+        "每轮更新 .goals/{name}/PROGRESS.md",
+        "默认不打断用户",
+        "代码切片委托 /jxx-tdd 或 /jxx-implement"
+      ],
+      "pass_criteria": "循环完整运行，PROGRESS.md 持续更新"
+    },
+    {
+      "id": "EE006",
+      "name": "约束熔断——触及 Constraints 立即停",
+      "description": "执行中触及 Constraints 时应立即停止",
+      "input_prompt": "/jxx-goal-execute（约束含「仅用标准库」，但需第三方库）",
+      "expected_behavior": [
+        "检测到动作将越过 Constraints",
+        "立即停止，不灵活变通",
+        "向用户报告触及了哪条约束"
+      ],
+      "pass_criteria": "触及约束时立即停下并报告"
+    },
+    {
+      "id": "EE007",
+      "name": "暂停条件——触发 Pause Conditions 立即停",
+      "description": "执行中触发 Pause Conditions 时应立即停止",
+      "input_prompt": "/jxx-goal-execute（Pause Conditions 含「需要付费 API 时暂停」，执行中需要付费 API）",
+      "expected_behavior": [
+        "检测到动作将触发 Pause Conditions",
+        "立即停止并报告用户",
+        "等待用户决策"
+      ],
+      "pass_criteria": "触发暂停条件时立即停下并报告"
+    },
+    {
+      "id": "EE008",
+      "name": "错误恢复——切片失败处理",
+      "description": "切片执行失败时应按策略逐级处理",
+      "input_prompt": "/jxx-goal-execute（某切片执行失败）",
+      "expected_behavior": [
+        "同一方法最多重试 1 次",
+        "重试失败则换实现策略",
+        "连续 2 个切片失败则暂停循环"
+      ],
+      "pass_criteria": "按策略逐级处理，未无限重试"
+    },
+    {
+      "id": "EE009",
+      "name": "自检与交付——独立来源证据",
+      "description": "交付时逐条对照 Acceptance，每条附独立来源证据",
+      "input_prompt": "/jxx-goal-execute（循环完成，进入交付）",
+      "expected_behavior": [
+        "逐条对照 Acceptance",
+        "每条附命令输出/文件路径/测试结果",
+        "禁止用'我已实现 X'作为证据",
+        "未达标项显式列出",
+        "验收对照表写入 .goals/{name}/EVIDENCE.md",
+        "更新 _index.md 状态为已完成"
+      ],
+      "pass_criteria": "验收对照表完整，证据来自独立来源，索引已更新"
+    },
+    {
+      "id": "EE010",
+      "name": "断点恢复——读取 PROGRESS.md 续跑",
+      "description": "循环中断后重新进入时应读取 PROGRESS.md 恢复进度",
+      "input_prompt": "继续 linkcheck（循环执行到第 3 轮时中断）",
+      "expected_behavior": [
+        "读取 .goals/linkcheck/PROGRESS.md 恢复进度",
+        "不重复已完成切片的工作",
+        "从下一个未完成切片继续",
+        "更新 _index.md 状态为执行中"
+      ],
+      "pass_criteria": "正确续跑，未重复已完成工作"
+    },
+    {
+      "id": "EE011",
+      "name": "多目标隔离——不同目标互不干扰",
+      "description": "同时存在多个目标时，各自独立追踪进度",
+      "input_prompt": "继续 blog-site（同时 .goals/linkcheck/ 也在执行中）",
+      "expected_behavior": [
+        "定位到 .goals/blog-site/",
+        "不影响 .goals/linkcheck/ 的进度",
+        "PROGRESS.md 各自独立"
+      ],
+      "pass_criteria": "目标之间无交叉影响"
+    }
+  ]
+}
