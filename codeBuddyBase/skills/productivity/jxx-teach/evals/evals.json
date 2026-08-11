@@ -1,0 +1,7 @@
+[
+  {
+    "name": "spz-teach-basic",
+    "prompt": "教我 TypeScript 的泛型",
+    "expected_behavior": "检查工作区状态，确认使命，创建课程和参考文档，基于最近发展区设计互动学习内容"
+  }
+]

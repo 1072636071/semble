@@ -1,0 +1,7 @@
+[
+  {
+    "name": "spz-diagnosing-bugs-basic",
+    "prompt": "这个功能有时候会报错，帮我诊断一下",
+    "expected_behavior": "应从阶段 1 开始，要求构建紧密反馈循环，拒绝在没有能变红的命令之前假设原因"
+  }
+]

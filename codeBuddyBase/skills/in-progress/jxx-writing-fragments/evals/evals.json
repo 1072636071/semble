@@ -1,0 +1,30 @@
+{
+  "skill_name": "jxx-writing-fragments",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我挖掘写作素材，收集碎片",
+      "should_trigger": true,
+      "expected_output": "挖掘原始碎片，暂不构建结构",
+      "expectations": ["收集原始写作素材", "不急于构建结构", "记录碎片想法"]
+    },
+    {
+      "id": 2,
+      "prompt": "我想探索写作素材，先不急着组织",
+      "should_trigger": true,
+      "expected_output": "探索阶段，挖掘原始碎片",
+      "expectations": [
+        "识别可用的写作素材",
+        "以碎片形式记录",
+        "暂不构建文章结构"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "帮我写一封邮件",
+      "should_trigger": false,
+      "expected_output": "不应触发写作碎片技能",
+      "expectations": []
+    }
+  ]
+}

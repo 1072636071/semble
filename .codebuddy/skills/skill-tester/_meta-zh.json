@@ -1,0 +1,43 @@
+{
+  "owner": "CodeArts",
+  "team": "Huawei",
+  "slug": "skill-tester",
+  "displayName": "技能测试器",
+  "brief": "使用指定的JSON测试套件对项目级技能进行自动化评估。",
+  "description": "**前置条件:**\n\n- 标准的Python 3.10+环境\n- OpenCode作为LLM评判的Agent CLI\n- OpenCode可执行文件的路径应在PATH环境变量中\n- 目标技能应同时安装在主Agent和OpenCode\n\n**功能特性:**\n\n- 技能测试工具，以JSON文件作为测试用例验证技能的加载与是否满足预期\n- 通过LLM作为评判者机制，支持自然语言验证\n- 交互式提示用户确认\n- 自动化评估激活率和期望匹配\n- 支持并行评估\n\n**使用场景:**\n\n- 使用技能自带的评估集测试技能\n- 使用指定的JSON文件测试技能",
+  "labels": ["技能测试", "技能评估", "元技能", "质量保证", "自动化测试"],
+  "license": "Apache-2.0",
+  "type": "SOP",
+  "category": "rnd-infra-meta",
+  "lifecycleState": "PRODUCTION",
+  "latest": {
+    "version": "1.1.0",
+    "publishedAt": 1744502400000
+  },
+  "history": [
+    {
+      "version": "1.1.0",
+      "publishedAt": 1744502400000
+    },
+    {
+      "version": "1.0.4",
+      "publishedAt": 1775836800000
+    },
+    {
+      "version": "1.0.3",
+      "publishedAt": 1744243200000
+    },
+    {
+      "version": "1.0.2",
+      "publishedAt": 1773936000000
+    },
+    {
+      "version": "1.0.1",
+      "publishedAt": 1773849600000
+    },
+    {
+      "version": "1.0.0",
+      "publishedAt": 1773590400000
+    }
+  ]
+}

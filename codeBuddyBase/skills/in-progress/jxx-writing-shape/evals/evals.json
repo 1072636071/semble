@@ -1,0 +1,30 @@
+{
+  "skill_name": "jxx-writing-shape",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "把这些原始素材塑造成完整文章",
+      "should_trigger": true,
+      "expected_output": "逐段将原始素材塑造为文章",
+      "expectations": ["读取原始素材", "逐段塑造内容", "构建完整文章结构"]
+    },
+    {
+      "id": 2,
+      "prompt": "逐段推进，把碎片素材写成文章",
+      "should_trigger": true,
+      "expected_output": "逐段将碎片素材塑造为文章",
+      "expectations": [
+        "分析碎片素材",
+        "逐段组织为连贯文章",
+        "确保段落间逻辑连贯"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "帮我校对文章的错别字",
+      "should_trigger": false,
+      "expected_output": "不应触发写作塑形技能",
+      "expectations": []
+    }
+  ]
+}

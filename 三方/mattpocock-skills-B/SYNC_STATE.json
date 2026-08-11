@@ -1,0 +1,25 @@
+{
+  "last_sync": {
+    "src_commit": "84fdeffd12f2ee307994d1eb6feb48173b6e0502",
+    "src_commit_date": "2026-08-06T20:49:51+01:00",
+    "src_commit_message": "Merge pull request #788 from mattpocock/grill-me-align",
+    "sync_date": "2026-08-11T00:00:00+08:00",
+    "sync_summary": "同步SRC最新变更: 新增wait-what/to-questionnaire/writing-for-agents(替代writing-great-skills)/setup-ts-deep-modules/wizard(迁入engineering); 删除deprecated四技能及personal桶; 更新ask-matt/code-review/diagnosing-bugs/prototype/tdd/to-spec/to-tickets/triage/wayfinder/grilling/loop-me/claude-handoff/setup-matt-pocock-skills; 翻译全部辅助md文件与docs页面; 复制agents/openai.yaml与顶层工程文件"
+  },
+  "history": [
+    {
+      "src_commit": "84fdeffd12f2ee307994d1eb6feb48173b6e0502",
+      "src_commit_date": "2026-08-06T20:49:51+01:00",
+      "src_commit_message": "Merge pull request #788 from mattpocock/grill-me-align",
+      "sync_date": "2026-08-11T00:00:00+08:00",
+      "sync_summary": "同步SRC最新变更: 新增wait-what/to-questionnaire/writing-for-agents(替代writing-great-skills)/setup-ts-deep-modules/wizard(迁入engineering); 删除deprecated四技能及personal桶; 更新ask-matt/code-review/diagnosing-bugs/prototype/tdd/to-spec/to-tickets/triage/wayfinder/grilling/loop-me/claude-handoff/setup-matt-pocock-skills; 翻译全部辅助md文件与docs页面; 复制agents/openai.yaml与顶层工程文件"
+    },
+    {
+      "src_commit": "d574778f94cf620fcc8ce741584093bc650a61d3",
+      "src_commit_date": "2026-07-08T14:20:40+01:00",
+      "src_commit_message": "Merge pull request #353 from mattpocock/changeset-release/main",
+      "sync_date": "2026-07-09T09:35:50+08:00",
+      "sync_summary": "重构: to-prd→to-spec, to-issues→to-tickets, wayfinder毕业到engineering; 更新ask-matt/implement/setup/handoff术语; LOC-B已同步to-spec/to-tickets/wayfinder, 修正to-tickets标题"
+    }
+  ]
+}

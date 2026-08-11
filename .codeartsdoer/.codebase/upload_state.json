@@ -1,0 +1,13 @@
+{
+  "globalPaused": false,
+  "isSingle": false,
+  "isInitial": true,
+  "codebaseId": "1233622477519802368",
+  "codebaseBranchId": "1233622477595299840",
+  "taskId": "1233622477662408704",
+  "branch": "optimize/jiang-xiaodai-agent",
+  "isBaselineInitial": false,
+  "finishedCount": 12,
+  "taskStatus": "SUCCESS",
+  "taskProgress": "100"
+}

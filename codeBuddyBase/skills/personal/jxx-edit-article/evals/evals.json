@@ -1,0 +1,26 @@
+{
+  "skill_name": "jxx-edit-article",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我编辑和改进这篇文章草稿",
+      "should_trigger": true,
+      "expected_output": "重组章节、提升清晰度、精炼文字",
+      "expectations": ["分析文章结构", "重组章节顺序", "精炼文字表达"]
+    },
+    {
+      "id": 2,
+      "prompt": "修订这篇文章，让它更清晰",
+      "should_trigger": true,
+      "expected_output": "改进文章的清晰度和结构",
+      "expectations": ["识别不清晰的段落", "改进表达方式", "优化文章结构"]
+    },
+    {
+      "id": 3,
+      "prompt": "帮我翻译这篇文章",
+      "should_trigger": false,
+      "expected_output": "不应触发文章编辑技能",
+      "expectations": []
+    }
+  ]
+}

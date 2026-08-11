@@ -1,0 +1,7 @@
+[
+  {
+    "name": "spz-git-guardrails-claude-code-basic",
+    "prompt": "我想在 Claude Code 中阻止危险的 git 命令，防止误操作",
+    "expected_behavior": "应询问安装范围（项目或全局），复制 block-dangerous-git.sh 脚本到目标位置，配置 settings.json 中的 PreToolUse 钩子，并验证脚本能正确阻止 git push 等危险命令"
+  }
+]

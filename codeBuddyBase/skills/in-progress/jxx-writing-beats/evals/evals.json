@@ -1,0 +1,31 @@
+{
+  "skill_name": "jxx-writing-beats",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "把这些原始素材组织为节奏旅程",
+      "should_trigger": true,
+      "expected_output": "将原始素材组装为节奏旅程，在每个节奏依赖某概念前先将其锚定",
+      "expectations": [
+        "分析原始素材",
+        "识别关键概念",
+        "按节奏组织素材顺序",
+        "确保概念在使用前被锚定"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "帮我逐节推进写作，把素材组织成节奏结构",
+      "should_trigger": true,
+      "expected_output": "将素材组织为节奏旅程并逐节推进",
+      "expectations": ["梳理素材中的概念依赖", "建立节奏结构", "逐节组织内容"]
+    },
+    {
+      "id": 3,
+      "prompt": "帮我写一首诗",
+      "should_trigger": false,
+      "expected_output": "不应触发写作节奏技能",
+      "expectations": []
+    }
+  ]
+}

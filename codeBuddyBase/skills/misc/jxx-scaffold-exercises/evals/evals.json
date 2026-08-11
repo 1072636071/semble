@@ -1,0 +1,30 @@
+{
+  "skill_name": "jxx-scaffold-exercises",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我搭建练习目录结构，包含章节、问题和解决方案",
+      "should_trigger": true,
+      "expected_output": "创建练习目录结构，包含章节、问题、解决方案和讲解",
+      "expectations": [
+        "创建章节目录结构",
+        "生成问题和解决方案文件",
+        "配置lint检查"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "创建新的课程章节骨架",
+      "should_trigger": true,
+      "expected_output": "搭建课程章节的练习骨架",
+      "expectations": ["创建章节目录", "生成练习模板文件", "设置目录结构规范"]
+    },
+    {
+      "id": 3,
+      "prompt": "帮我配置ESLint",
+      "should_trigger": false,
+      "expected_output": "不应触发练习搭建技能",
+      "expectations": []
+    }
+  ]
+}

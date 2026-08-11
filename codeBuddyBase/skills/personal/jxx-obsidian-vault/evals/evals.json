@@ -1,0 +1,26 @@
+{
+  "skill_name": "jxx-obsidian-vault",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "在我的Obsidian知识库中搜索关于React的笔记",
+      "should_trigger": true,
+      "expected_output": "在Obsidian vault中搜索笔记",
+      "expectations": ["定位Obsidian vault路径", "搜索相关笔记", "返回搜索结果"]
+    },
+    {
+      "id": 2,
+      "prompt": "在Obsidian中创建一个新的索引笔记",
+      "should_trigger": true,
+      "expected_output": "创建带wikilinks的索引笔记",
+      "expectations": ["创建新笔记文件", "使用wikilinks格式", "更新索引笔记"]
+    },
+    {
+      "id": 3,
+      "prompt": "帮我整理桌面文件",
+      "should_trigger": false,
+      "expected_output": "不应触发Obsidian技能",
+      "expectations": []
+    }
+  ]
+}

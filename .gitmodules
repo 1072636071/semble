@@ -1,0 +1,3 @@
+[submodule "三方/askills"]
+	path = 三方/askills
+	url = https://github.com/1072636071/askills

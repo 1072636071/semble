@@ -1,0 +1,30 @@
+{
+  "skill_name": "jxx-setup-pre-commit",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我设置Husky pre-commit hooks",
+      "should_trigger": true,
+      "expected_output": "配置Husky pre-commit hooks，配合lint-staged、类型检查和测试",
+      "expectations": [
+        "安装Husky依赖",
+        "配置lint-staged",
+        "设置pre-commit hook"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "我想在commit时自动运行格式化和类型检查",
+      "should_trigger": true,
+      "expected_output": "配置commit时的自动检查",
+      "expectations": ["配置Prettier格式化", "配置类型检查", "设置lint-staged"]
+    },
+    {
+      "id": 3,
+      "prompt": "帮我写一个Express中间件",
+      "should_trigger": false,
+      "expected_output": "不应触发pre-commit设置技能",
+      "expectations": []
+    }
+  ]
+}
