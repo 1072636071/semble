@@ -1,7 +1,0 @@
-[
-  {
-    "name": "jxx-ask-matt-basic",
-    "prompt": "我有一个代码库，想构建一个新功能，但不确定该从哪个技能开始",
-    "expected_behavior": "应推荐从 /jxx-grill-with-docs 开始，解释主流程：想法 → 交付"
-  }
-]

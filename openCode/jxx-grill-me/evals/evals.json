@@ -1,7 +1,0 @@
-[
-  {
-    "name": "spz-grill-me-basic",
-    "prompt": "我有一个新功能的设计方案，帮我追问一下",
-    "expected_behavior": "启动 grilling 追问会话，对方案逐层提问"
-  }
-]

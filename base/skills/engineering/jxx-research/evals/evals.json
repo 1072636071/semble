@@ -1,0 +1,7 @@
+[
+  {
+    "name": "jxx-research-basic",
+    "prompt": "研究一下 React Server Components 的工作原理",
+    "expected_behavior": "启动后台 agent 调查问题，从一手来源收集信息，将发现写入 Markdown 文件并引用来源"
+  }
+]

@@ -1,7 +1,0 @@
-[
-  {
-    "name": "spz-migrate-to-shoehorn-basic",
-    "prompt": "我的测试文件里有很多 as 断言，想迁移到 shoehorn",
-    "expected_behavior": "应询问具体哪些测试文件有问题，安装 @total-typescript/shoehorn，查找含 as 断言的测试文件，将 as Type 替换为 fromPartial()，将 as unknown as Type 替换为 fromAny()，并运行类型检查验证"
-  }
-]

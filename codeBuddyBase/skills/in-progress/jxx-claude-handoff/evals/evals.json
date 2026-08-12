@@ -1,7 +1,0 @@
-[
-  {
-    "name": "spz-claude-handoff-basic",
-    "prompt": "我需要把当前工作交接给一个新的 agent 继续完成登录功能的修复",
-    "expected_behavior": "生成包含工作上下文、建议技能和敏感信息隐去的交接摘要，并建议使用 claude --bg 命令启动后台 agent"
-  }
-]

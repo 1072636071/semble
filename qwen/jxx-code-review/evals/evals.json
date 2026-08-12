@@ -1,7 +1,0 @@
-[
-  {
-    "name": "spz-code-review-basic",
-    "prompt": "审查自 main 分支以来的变更",
-    "expected_behavior": "应确定固定点，识别规格来源和标准来源，并行启动标准和规格两个子 agent，汇总双轴报告"
-  }
-]

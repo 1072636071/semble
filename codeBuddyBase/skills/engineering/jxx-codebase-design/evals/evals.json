@@ -1,7 +1,0 @@
-[
-  {
-    "name": "jxx-codebase-design-basic",
-    "prompt": "我想改善这个模块的接口设计，它太浅了",
-    "expected_behavior": "应使用深模块词汇（模块、接口、深度、接缝、适配器、杠杆、局部性）分析问题，建议深化方向"
-  }
-]

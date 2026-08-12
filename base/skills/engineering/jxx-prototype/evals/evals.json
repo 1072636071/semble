@@ -1,0 +1,17 @@
+[
+  {
+    "name": "jxx-prototype-basic",
+    "prompt": "我想验证一个订单状态机，看看从\"已付款\"到\"已发货\"再到\"已退款\"的转换是否合理",
+    "expected_behavior": "应选择 LOGIC.md 分支，构建微型交互式终端 TUI 应用，让用户通过键盘驱动状态转换并观察状态变化"
+  },
+  {
+    "name": "jxx-prototype-ui-variants",
+    "prompt": "我不确定仪表盘页面应该长什么样，想看几个不同的布局方案",
+    "expected_behavior": "应选择 UI.md 分支，在现有路由上生成 3 个结构不同的 UI 变体，通过 ?variant= 参数和浮动底栏切换"
+  },
+  {
+    "name": "jxx-prototype-ambiguous",
+    "prompt": "帮我做个 prototype 验证一下这个功能的设计",
+    "expected_behavior": "应根据周围代码上下文判断分支（后端模块→LOGIC，页面/组件→UI），若仍模糊则询问用户，并在 prototype 顶部声明假设"
+  }
+]
