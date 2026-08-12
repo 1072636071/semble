@@ -247,6 +247,14 @@ Hook 之外，四家的 **SKILL.md 元数据（frontmatter）定义也不同**�
 - 策略：**一份厂商无关 `SKILL.src.md` + 脚本派生四份适配版**（工具见 §9 的 `.mjs` 要求），而非手写维护四份。
 - `description` 取最大公约数（统一 5 行编号列表），`name` 按映射规则满足各家，`tags`/`allowed-tools`/`metadata` 等仅注入对应厂商派生版。
 
+### 10.3.2 Agent（子代理）同样需跨厂商适配
+
+除 Hook 与 Skills 外，四家的 **Agent（子代理）定义**也不同：`name` 来源（openCode 由文件路径决定、无 frontmatter `name` 键；其余三家 `name` 必填且 CodeArts 须等于文件名）、`tools`/`skills` 绑定、`permissions` 模型均不互通。详细规则、单源派生策略与生成脚本接口见专题文档：**[`docs/cross-vendor/AGENT-MAPPING.md`](./docs/cross-vendor/AGENT-MAPPING.md)**。要点：
+
+- openCode V2 **无 `tools`/`skills` frontmatter 字段**，工具权限走 `permissions` 数组、Skill 靠目录自动发现；CodeBuddy/Trae 有 `tools`/`skills`；CodeArts 有 `tools` 对象 + 界面绑 Skill。
+- 策略同 Skills：**一份 `AGENT.src.md` + 脚本派生四份**（`scripts/gen-agent-meta.mjs`），统一抽象权限描述由适配层转译为各厂家语法。
+- Agent 引用的 Skill 名必须与 `SKILL-METADATA-MAPPING.md` 产出的各厂商 Skill 名一致，否则绑定失效。
+
 ### 10.4 跨厂商 Hook 设计建议（四家适配策略）
 
 - **内核一份 JS、适配各自薄层**：Hook 的核心判定逻辑（如"是否危险 git 命令""是否敏感词"）写成**一个厂商无关的 `.mjs` 纯函数模块**（输入事件载荷、输出判定/修改），再由四家的适配层调用——

@@ -23,7 +23,7 @@ metadata:
 - **Issue tracker** — 本地 markdown（`.scratch/` 下）。跳过"PR 作为请求渠道"的追问（本地无 PR）。
 - **triage 标签** — 每个角色字符串等于其名称（无覆盖）。
 - **领域文档** — 单一上下文（根目录 `CONTEXT.md` + `docs/adr/`）。
-- **写入目标** — 见步骤 4 的默认规则：两者都不存在时创建 `AGENTS.md`，不另行询问。
+- **写入目标** — 见步骤 4 的默认规则：同时创建 `AGENTS.md` 与 `CODEBUDDY.md` 两个文件，两者内容一致（见步骤 4 的"多代理要求"）。
 
 ## 流程
 
@@ -32,6 +32,7 @@ metadata:
 查看当前仓库以了解其初始状态。读取已有的内容，不要假设：
 
  - 仓库根目录的 `AGENTS.md` 和 `CLAUDE.md` — 是否存在？其中是否已有 `## Agent skills` 部分？
+- 仓库根目录的 `CODEBUDDY.md` — 是否存在？其内容是否与 `AGENTS.md` 一致（含 `## 多代理要求` 块）？
 - 仓库根目录的 `CONTEXT.md` 和 `CONTEXT-MAP.md`
 - `docs/adr/` 和任何 `src/*/docs/adr/` 目录
 - `docs/agents/` — 此技能之前的输出是否已存在？
@@ -76,22 +77,30 @@ metadata:
 
 向用户展示以下草稿：
 
-- 要添加到 `CLAUDE.md` / `AGENTS.md`（参见步骤 4 的选择规则）中的 `## Agent skills` 块
+- 要添加到 `AGENTS.md` / `CODEBUDDY.md`（参见步骤 4 的写入规则）中的 `## Agent skills` 块。两个文件内容保持一致。
 - `docs/agents/issue-tracker.md`、`docs/agents/triage-labels.md`、`docs/agents/domain.md` 的内容
 
 让用户在写入前编辑。
 
 ### 4. 写入
 
+**同时生成 `AGENTS.md` 与 `CODEBUDDY.md` 两个文件，且两者内容保持一致。** CodeBuddy 平台需要 `CODEBUDDY.md`，而通用编码 Agent 使用 `AGENTS.md`，因此本技能一并产出二者，内容相同。两个文件都必须在顶部包含如下 `## 多代理要求` 块，明确声明两者必须保持一致：
+
+```markdown
+## 多代理要求
+
+AGENTS.md 和 CODEBUDDY.md 内容必须保持一致。
+```
+
 **选择要编辑的文件：**
 
-- 如果 `CLAUDE.md` 存在，编辑它。
-- 否则如果 `AGENTS.md` 存在，编辑它。
-- 如果都不存在，**默认创建 `AGENTS.md`**（除非用户明确要求其他）。非交互/默认路径下直接创建，无需询问。
+- 如果 `CLAUDE.md` 存在，编辑它（作为通用规范），并同步更新 `CODEBUDDY.md` 使其内容一致。
+- 否则如果 `AGENTS.md` 存在，编辑它（作为通用规范），并同步更新 `CODEBUDDY.md` 使其内容一致。
+- 如果都不存在，**默认创建 `AGENTS.md` 与 `CODEBUDDY.md`**（除非用户明确要求其他）。非交互/默认路径下直接创建，无需询问。两个文件内容完全相同，且都带 `## 多代理要求` 块。
 
-当 `CLAUDE.md` 已存在时，永远不要创建 `AGENTS.md`（反之亦然）——始终编辑已有的那个。
+当 `CLAUDE.md` 已存在时，永远不要创建 `AGENTS.md`（反之亦然）——始终编辑已有的那个；`CODEBUDDY.md` 始终独立创建/更新，内容与被编辑的通用规范文件保持一致。
 
-如果所选文件中已存在 `## Agent skills` 块，就地更新其内容，而非追加重复块。不要覆盖用户对周围部分的编辑。
+如果所选文件中已存在 `## Agent skills` 块，就地更新其内容，而非追加重复块；同步更新 `CODEBUDDY.md` 的对应块。不要覆盖用户对周围部分的编辑。
 
 该块：
 
@@ -119,4 +128,4 @@ metadata:
 
 ### 5. 完成
 
-告知用户设置已完成，以及哪些工程技能现在会读取这些文件。提及他们之后可以直接编辑 `docs/agents/*.md`——仅在要切换 issue tracker 或从头重新开始时才需要重新运行此技能。
+告知用户设置已完成，以及哪些工程技能现在会读取这些文件。提及他们之后可以直接编辑 `docs/agents/*.md`——仅在要切换 issue tracker 或从头重新开始时才需要重新运行此技能。说明 `AGENTS.md` 与 `CODEBUDDY.md` 两个文件已一并生成、内容保持一致（参照 `## 多代理要求` 块），修改工程技能配置时需同时更新两者。
