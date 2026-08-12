@@ -1,16 +1,17 @@
 # Agent 定义跨厂商映射规范
 
-> 配套文档：[`../HARNESS-SPEC.md` §10](../HARNESS-SPEC.md)（跨厂商 Hook 标注规约）、[`SKILL-METADATA-MAPPING.md`](./SKILL-METADATA-MAPPING.md)（Skills 元数据跨厂商映射）。
-> 适用范围：本仓库 `base/` 下所有自定义 Agent（子代理）定义，目标同时服务于 **openCode / CodeBuddy / 华为 CodeArts / Trae** 四家厂商智能 Agent。
-> 状态：2026-08 调研结论，作为编写依据。
+> **配套文档**：[`../HARNESS-SPEC.md`](../HARNESS-SPEC.md) §10（跨厂商 Hook 标注规约）、[`SKILL-METADATA-MAPPING.md`](./SKILL-METADATA-MAPPING.md)（Skills 元数据跨厂商映射）。
+> **适用范围**：任何需将同一套自定义 Agent（子代理）定义同时提供给 **openCode / CodeBuddy / 华为 CodeArts / Trae** 四家厂商使用的工程，与具体仓库无关。
+> **状态**：2026-08 调研结论，作为编写依据。
 
 ---
 
 ## 0. 为什么需要这份规范
 
-Skills 解决"能力封装"，Agent（子代理）解决"角色与上下文隔离"。本仓库已规范 Skills 的跨厂商元数据（见 `SKILL-METADATA-MAPPING.md`），但 **Agent 定义四家同样不统一**——字段集、`name` 来源（frontmatter 显式 vs 文件路径）、是否支持绑定 Skill、权限表达方式都不同。
+Skills 解决"能力封装"，Agent（子代理）解决"角色与上下文隔离"。**Agent 定义四家同样不统一**——字段集、`name` 来源（frontmatter 显式 vs 文件路径）、是否支持绑定 Skill、权限表达方式都不同。
 
 若忽略，会出现：
+
 1. **加载失败**：openCode 的 Agent `name` 由**文件路径**决定、frontmatter 无 `name` 键；CodeBuddy/CodeArts/Trae 则 `name` 是必填 frontmatter 键——同一份文件四家表现不一。
 2. **Skill 绑定丢失**：仅 CodeBuddy、CodeArts（界面）、Trae 支持 Agent 绑 Skill；openCode V2 **无 `skills` 字段**，Skill 绑定靠 `permissions` 或会话加载——直接搬会丢能力。
 3. **权限语义冲突**：openCode 用 `permissions` 数组（`action/resource/effect`）；CodeBuddy 用 `permissionMode` + `disallowedTools`；CodeArts 用 `tools` 对象 + `permission.skill`；Trae 字段未完全公开。
@@ -29,7 +30,7 @@ Skills 解决"能力封装"，Agent（子代理）解决"角色与上下文隔�
 | `name` 来源 | **文件路径即 ID**（无 `name` 键；`team/reviewer.md`→ID `team/reviewer`） | frontmatter `name` 必填，小写连字符唯一 | frontmatter `name` 必填，且**须与文件名一致** | frontmatter `name` 必填 |
 | `description` | 可选（子代理强烈推荐） | 必填 | 必填 | 必填 |
 | `model` | `provider/model#variant` | 模型 ID / `lite`/`reasoning`/`inherit` | `provider/model-id`（如 `inferhub-provider/GLM-5.1`） | 支持 `model` 字段 |
-| `tools` | **无 `tools` 字段**；工具权限走 `permissions` | `tools: 逗号列表`，可 `Defer(X)`/`NoDefer(X)`；`disallowedTools` | `tools` 对象：`{read,write,edit,bash,glob,grep,list,task,webfetch,websearch,question}`，`"*":false` 禁用全部 | `tools` 字段（CSDN 实战印证） |
+| `tools` | **无 `tools` 字段**；工具权限走 `permissions` | `tools: 逗号列表`，可 `Defer(X)`/`NoDefer(X)`；`disallowedTools` | `tools` 对象：`{read,write,edit,bash,glob,grep,list,task,webfetch,websearch,question}`，`"*":false` 禁用全部 | `tools` 字段（实战印证） |
 | `skills` 绑定 | **无 frontmatter 字段**（V2 禁止）；靠会话/SKILL 目录加载 | `skills: 逗号列表` 启动即加载 | 界面/控制台绑定为主；Markdown 仅 `permission.skill` 控制拒绝 | 支持（生态关联） |
 | 权限表达 | `permissions` 数组：`action`/`resource`/`effect`(allow/ask/deny)，通配符 | `permissionMode`：`default`/`acceptEdits`/`bypassPermissions`/`plan`/`ignore` + `disallowedTools` | `tools` 对象 + `permission: skill: '*': deny` | 未完全公开 |
 | `mode` | `primary`/`subagent`/`all`（默认 `all`） | 子代理专用（无主/子 frontmatter 区分，靠调用方式） | `subagent`/`primary`/`all` | 未公开 |
@@ -50,7 +51,7 @@ Skills 解决"能力封装"，Agent（子代理）解决"角色与上下文隔�
 ## 2. 总体策略：单源 + 派生
 
 ```
-base/agents/<agent>/
+agents/<agent>/
 ├── AGENT.src.md           # 厂商无关源文件（唯一手写维护对象）
 └── .generated/            # 派生产物（脚本生成，不手写）
     ├── opencode/agents/<id>.md
@@ -61,7 +62,7 @@ base/agents/<agent>/
 
 与 `SKILL-METADATA-MAPPING.md` §2 完全对称。源文件含 `x-vendors` 扩展段描述各厂商专属字段。
 
-> 为何不手写四份？同 SKILL 理由：漂移 + 违反 HARNESS-SPEC §9"代码强制"。
+> 为何不手写四份？同 SKILL 理由：漂移 + 违反"代码强制"原则。
 
 ---
 
@@ -75,6 +76,7 @@ base/agents/<agent>/
 | Trae | `.trae/agents/<name>.md` | frontmatter `name: <name>` |
 
 **源文件规则**：
+
 - 源 `AGENT.src.md` 所在目录名即通用 `<name>`（小写连字符，如 `code-reviewer`），满足 openCode 路径 ID 与 CodeBuddy/CodeArts/Trae 的 `name` 要求。
 - 若需 openCode 子目录分组（如 `team/reviewer`），源目录建为 `agents/team/reviewer/AGENT.src.md`，派生 openCode 时路径保留 `team/reviewer`。
 
@@ -106,7 +108,9 @@ x-vendors:
 ```
 
 适配层转译：
+
 - **openCode** → `permissions` 数组：
+
   ```yaml
   permissions:
     - action: read
@@ -114,37 +118,46 @@ x-vendors:
     - action: edit
       effect: deny
   ```
+
   （`bash` 映射 `action: shell`；`skill-deny: ["*"]` 暂无法在 V2 frontmatter 表达，改为 SKILL 目录隔离）
+
 - **CodeBuddy** → `permissionMode` + `disallowedTools`：
+
   ```yaml
   permissionMode: default
   disallowedTools: [bash, edit]
   ```
+
 - **CodeArts** → `tools` 对象（仅列 allow 的动作，未列即隐式禁用；或用 `"*": false` 后显式开）：
+
   ```yaml
   tools: { read: true, grep: true, glob: true, list: true, bash: false, edit: false }
   ```
+
   若 `skill-deny: ["*"]` → 加 `permission: { skill: { "*": deny } }`
+
 - **Trae** → 依其权限字段（未完全公开），暂以 `tools` 列表 + 备注形式输出。
 
 > 抽象动作集 `{read, edit, write, bash, grep, glob, list, task, webfetch, websearch, question}` 对齐 CodeArts `tools` 对象键，作为跨家最小公约数。
 
 ---
 
-## 6. 生成脚本接口（`scripts/gen-agent-meta.mjs`）
+## 6. 生成脚本接口（`gen-agent-meta.mjs`）
 
-与 `gen-skill-meta.mjs` 对称（§9 要求 `.mjs` + UTF-8）。
+与 `gen-skill-meta.mjs` 对称（HARNESS-SPEC §9 要求 `.mjs` + UTF-8）。
 
 **输入**：`AGENT.src.md`（frontmatter + `x-vendors`）。
 **输出**：`.generated/{opencode,codebuddy,codearts,trae}/agents/<id-or-name>.md`。
 
 **CLI**：
+
 ```
-node scripts/gen-agent-meta.mjs <agentDir>
-node scripts/gen-agent-meta.mjs --all
+node gen-agent-meta.mjs <agentDir>
+node gen-agent-meta.mjs --all
 ```
 
 **主干**：
+
 ```
 1. 读 AGENT.src.md (utf-8)
 2. 解析 → {common, x-vendors}
@@ -175,8 +188,8 @@ node scripts/gen-agent-meta.mjs --all
 ## 8. 与 Skills 规范的衔接
 
 - Agent 引用的 Skill 名必须与 `SKILL-METADATA-MAPPING.md` 产出的各厂商 Skill 名一致（§4）。
-- 本次仓库的 `base/agent定义/`（注意：目录中文名"Agent定义"非标准扫描目录）若需服务四家，应迁移为 `base/agents/<agent>/AGENT.src.md` 单源结构并按本规范派生。
-- Hook（§10）与 Agent 可组合：Agent 内可声明需某 Hook（如 pre-commit 拦截），此时该 Agent 的 `x-vendors` 须同时参照 §10 的 Hook 适配。
+- 既有的非标准目录结构（如中文目录名、非扫描目录下的 Agent 定义）若需服务四家，应迁移为 `agents/<agent>/AGENT.src.md` 单源结构并按本规范派生。
+- Hook（HARNESS-SPEC §10）与 Agent 可组合：Agent 内可声明需某 Hook（如 pre-commit 拦截），此时该 Agent 的 `x-vendors` 须同时参照 HARNESS-SPEC §10 的 Hook 适配。
 
 ---
 

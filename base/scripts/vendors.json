@@ -1,0 +1,74 @@
+{
+  "buckets": ["engineering", "productivity"],
+  "managedPrefixes": ["jxx-", "huawei-cloud-"],
+  "skillsSource": "skills",
+  "agentsSource": "agent",
+  "vendors": {
+    "opencode": {
+      "label": "OpenCode",
+      "derive": true,
+      "user": {
+        "skills": "~/.agents/skills",
+        "agents": "~/.config/opencode/agents"
+      },
+      "project": {
+        "skills": ".opencode/skills",
+        "agents": ".opencode/agents"
+      }
+    },
+    "codebuddy": {
+      "label": "CodeBuddy",
+      "derive": true,
+      "user": {
+        "skills": "~/.codebuddy/skills",
+        "agents": "~/.codebuddy/agents"
+      },
+      "project": {
+        "skills": ".codebuddy/skills",
+        "agents": ".codebuddy/agents"
+      }
+    },
+    "codearts": {
+      "label": "CodeArts",
+      "derive": true,
+      "user": {
+        "skills": "~/.codeartsdoer/skills",
+        "agents": "~/.codeartsdoer/agents"
+      },
+      "project": {
+        "skills": ".codeartsdoer/skills",
+        "agents": ".codeartsdoer/agents"
+      }
+    },
+    "trae": {
+      "label": "Trae",
+      "derive": true,
+      "user": {
+        "skills": "~/.trae-cn/skills",
+        "agents": "~/.trae-cn/agents"
+      },
+      "project": {
+        "skills": ".trae/skills",
+        "agents": ".trae/agents"
+      }
+    },
+    "qoder": {
+      "label": "Qoder",
+      "derive": false,
+      "user": { "skills": "~/.qoder-cn/skills" },
+      "project": { "skills": ".qoder/skills" }
+    },
+    "workbuddy": {
+      "label": "WorkBuddy",
+      "derive": false,
+      "user": { "skills": "~/.workbuddy/skills" },
+      "project": { "skills": ".workbuddy/skills" }
+    },
+    "qoderwork": {
+      "label": "QoderWork",
+      "derive": false,
+      "user": { "skills": "~/.qoderworkcn/skills" },
+      "project": { "skills": ".qoderwork/skills" }
+    }
+  }
+}
