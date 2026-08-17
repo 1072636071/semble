@@ -1,6 +1,6 @@
 # 共享工具层（base/scripts/shared）
 
-其余技能/专题 CLI 复用的 Node `.mjs` 工具。仅用 Node 内建模块，零第三方依赖，`node xxx.mjs` 直接可跑。
+其余技能/专题 CLI 复用的 Node `.mjs` 纯函数库。仅用 Node 内建模块，零第三方依赖，被专题 CLI import 即用（本层不自带 CLI 表面，`--dry-run` 等预演由调用方实现）。
 
 ## 用法
 
@@ -8,12 +8,12 @@
 
 ```js
 // 文件系统
-import { copyDir, sha256, listFilesRel, rmrf, loadJsonConfig, writeFileSafe } from './fs-cli.mjs';
+import { copyDir, sha256, listFilesRel, rmrf, loadJsonConfig, writeFileSafe } from './fs-utils.mjs';
 
-// 安全追加 md 块（不覆盖、可自定义分隔符）
+// 安全追加 md 块（可自定义分隔符）
 import { appendFragment } from './append-fragment.mjs';
 appendFragment('notes.md', '# 新块', { separator: '---' });
-// 已存在时不覆盖：appendFragment(f, txt, { noOverwrite: true })
+// 防覆盖守卫：appendFragment(f, txt, { errorIfExists: true }) —— 文件已存在时抛错
 
 // 递增编号 + slug（NN 风格目录，默认补 2 位零）
 import { nextSeq, slugify } from './next-seq.mjs';
@@ -21,6 +21,7 @@ const nn = nextSeq('.scratch');        // '01'
 const n3 = nextSeq(dir, { pad: 3 });   // '008'
 const raw = nextSeq(dir, { pad: 0 });  // 8
 const slug = slugify('Feature One');   // 'feature-one'
+// 纯中文/纯标点剥离后为空时回落 'untitled'，不会产出空 slug
 
 // 模板实例化（{{var}} 替换；冲突时按序号不覆盖）
 import { renderTemplate, instantiateTemplate } from './render-template.mjs';
@@ -30,7 +31,7 @@ const out = instantiateTemplate({ template, vars: { name }, outFile, conflictBum
 import { renderReportHtml, writeReport, writeTempReport } from './report-html.mjs';
 const abs = writeTempReport({ title: '评审', cards: [{ name, verdict }], prefix: 'ev', open: true });
 
-// 跨平台打开文件
+// 跨平台打开文件（openInBrowser 支持注入 spawnFn 以便测试）
 import { openInBrowser } from './open-in-browser.mjs';
 openInBrowser('./report.html');
 ```
@@ -38,11 +39,13 @@ openInBrowser('./report.html');
 ## 约定
 
 - **配置驱动**：需要平台/路径清单的场景用 `loadJsonConfig` 读外部 JSON，脚本内不硬编码路径（对齐 `vendors.json` 思路）。
-- **确定性产物**：各函数返回路径/内容，便于在 `node:test` + 临时 fixture 中断言（见 `base/scripts/test/tools.test.mjs`）。
-- **TDD**：本层每个函数均有对应单元测试，改函数必改测试。
+- **确定性产物**：各函数返回路径/内容，便于在 `node:test` + 临时 fixture 中断言。
+- **TDD**：本层每个脚本对应一张 `*.test.mjs`、每个导出函数均有单元测试（副作用函数 `openInBrowser` 经 `spawnFn` 注入断言），改函数必改测试。
 
 ## 测试
 
 ```bash
-node --test base/scripts/test/tools.test.mjs
+node --test "base/scripts/test/*.test.mjs"
 ```
+
+（用 glob 形式指定测试文件；目录参数形式在 Windows 的 Node 22 下不可用。）

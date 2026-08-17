@@ -217,5 +217,8 @@ semble-js/
 .codeartsdoer/
 .codebuddy/teams/
 
+# 临时文件（约定见 AGENTS.md「临时文件」：脚本/输出/日志分类存放，不入库）
+.temp/
+
 # CodeArts
 

@@ -1,9 +1,7 @@
-#!/usr/bin/env node
 // report-html.mjs — 把结构化数据渲染成自包含 HTML 报告；落盘（含临时目录+时间戳）；跨平台打开。
-import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { writeFileSafe } from './fs-cli.mjs';
+import { writeFileSafe } from './fs-utils.mjs';
 import { openInBrowser } from './open-in-browser.mjs';
 
 function esc(s) {
@@ -63,13 +61,13 @@ export function tempReportName(prefix = 'report') {
 
 /**
  * 把报告写入系统临时目录（带时间戳文件名），可跨平台打开。
+ * @param {{title: string, cards: Array, prefix?: string, open?: boolean, spawnFn?: Function}} opts
+ * spawnFn 注入替代真实 spawn（测试 open = true 分支用）。
  * @returns {string} 落盘路径；若 open = true 则在浏览器打开
  */
-export function writeTempReport({ title, cards, prefix = 'report', open = false }) {
+export function writeTempReport({ title, cards, prefix = 'report', open = false, spawnFn }) {
   const filename = `${tempReportName(prefix)}.html`;
   const abs = writeReport({ outDir: os.tmpdir(), filename, title, cards });
-  if (open) openInBrowser(abs);
+  if (open) openInBrowser(abs, { spawnFn });
   return abs;
 }
-
-export { openInBrowser, openCommand, openSpec } from './open-in-browser.mjs';

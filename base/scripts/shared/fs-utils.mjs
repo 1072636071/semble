@@ -1,5 +1,4 @@
-#!/usr/bin/env node
-// fs-cli.mjs — 共享文件系统工具：递归复制、sha256、相对路径枚举、删除、JSON 配置加载、安全写盘。
+// fs-utils.mjs — 共享文件系统工具（纯函数库）：递归复制、sha256、相对路径枚举、删除、JSON 配置加载、安全写盘。
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';

@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // open-in-browser.mjs — 跨平台打开文件：Windows 用 cmd start，其他用 open/xdg-open。
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -13,14 +12,14 @@ export function openSpec(platform = process.platform) {
   return { cmd: 'xdg-open', args: (file) => [file] };
 }
 
-/** 跨平台打开文件的系统命令名（供测试与调用选择）。 */
-export function openCommand(platform = process.platform) {
-  return openSpec(platform).cmd;
-}
-
-/** 跨平台打开文件。 */
-export function openInBrowser(file, platform = process.platform) {
-  const abs = path.resolve(file);
-  const { cmd, args } = openSpec(platform);
-  spawn(cmd, args(abs), { stdio: 'ignore', detached: true });
+/**
+ * 跨平台打开文件。
+ * @param {string} file 目标文件
+ * @param {{platform?: string, spawnFn?: Function}} opts platform 覆盖目标平台；spawnFn 注入替代 spawn（测试用）。
+ * @returns 返回 spawn 的子进程（默认分离、不接管 stdio）。
+ */
+export function openInBrowser(file, opts = {}) {
+  const { cmd, args } = openSpec(opts.platform ?? process.platform);
+  const doSpawn = opts.spawnFn ?? spawn;
+  return doSpawn(cmd, args(path.resolve(file)), { stdio: 'ignore', detached: true });
 }

@@ -1,8 +1,7 @@
-#!/usr/bin/env node
 // render-template.mjs — 模板实例化：{{var}} 替换；冲突时以序号不覆盖落盘。
 import fs from 'node:fs';
 import path from 'node:path';
-import { writeFileSafe } from './fs-cli.mjs';
+import { writeFileSafe } from './fs-utils.mjs';
 
 /** 把 template 中的 {{key}} 用 vars[key] 填充；缺失 key 保留原样。 */
 export function renderTemplate(template, vars = {}) {

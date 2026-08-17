@@ -91,7 +91,7 @@
 2. `next-seq.mjs` — 目录扫描取最大递增编号 + slug 化 → 服务 jxx-to-spec/tickets、jxx-grill-with-memorial、jxx-research、jxx-teach、impeccable。
 3. `render-template.mjs` — 模板实例化（读模板 + 注入变量 + 落盘，冲突加序号不覆盖）→ 服务 agent-generator、setup-matt-pocock、domain-modeling、design-system、grill-with-docs。
 4. `report-html.mjs` — 结构化数据 → 自包含 HTML（Tailwind+Mermaid 骨架）+ 临时目录 + 时间戳 + 跨平台打开 → 服务 improve-codebase-architecture。
-5. `fs-cli.mjs` / `open-in-browser.mjs` — 递归复制/校验哈希/配置驱动、跨平台打开文件。
+5. `fs-utils.mjs` / `open-in-browser.mjs` — 递归复制/校验哈希/配置驱动、跨平台打开文件。
 
 > 统一依赖策略：除 skill-creator 的 validate（YAML 解析）与 skill-tester 的交互菜单外，其余均只用 Node 内置模块，保证 `node xxx.mjs` 零装包即用。
 

@@ -23,6 +23,7 @@ metadata:
 - **Issue tracker** — 本地 markdown（`.scratch/` 下）。跳过"PR 作为请求渠道"的追问（本地无 PR）。
 - **triage 标签** — 每个角色字符串等于其名称（无覆盖）。
 - **领域文档** — 单一上下文（根目录 `CONTEXT.md` + `docs/adr/`）。
+- **临时文件** — 所有临时脚本统一放在 `.temp/scripts/` 下；其他临时文件（脚本输出、日志等）分类放在 `.temp/` 的子目录下，保证根目录干净。
 - **写入目标** — 见步骤 4 的默认规则：同时创建 `AGENTS.md` 与 `CODEBUDDY.md` 两个文件，两者内容一致（见步骤 4 的"多代理要求"）。
 
 ## 流程
@@ -77,7 +78,7 @@ metadata:
 
 向用户展示以下草稿：
 
-- 要添加到 `AGENTS.md` / `CODEBUDDY.md`（参见步骤 4 的写入规则）中的 `## Agent skills` 块。两个文件内容保持一致。
+- 要添加到 `AGENTS.md` / `CODEBUDDY.md`（参见步骤 4 的写入规则）中的 `## Agent skills` 块（含 `### 临时文件` 子块）。两个文件内容保持一致。
 - `docs/agents/issue-tracker.md`、`docs/agents/triage-labels.md`、`docs/agents/domain.md` 的内容
 
 让用户在写入前编辑。
@@ -118,6 +119,10 @@ AGENTS.md 和 CODEBUDDY.md 内容必须保持一致。
 ### 领域文档
 
 [一行概述布局——"单一上下文"或"多上下文"]。参见 `docs/agents/domain.md`。
+
+### 临时文件
+
+所有临时脚本统一放在仓库 `.temp/scripts/` 下；其他临时文件（脚本输出、日志等）也要分类，放在 `.temp/` 的子目录下（如 `.temp/output/`、`.temp/logs/`），保证仓库根目录干净。
 ```
 
 然后使用此技能目录中的种子模板作为起点写入以下文档文件：
