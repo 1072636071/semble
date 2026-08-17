@@ -1,22 +1,24 @@
-#!/usr/bin/env python3
-"""
-Skill Initializer - Creates a new skill from template
+#!/usr/bin/env node
+/**
+ * Skill Initializer - Creates a new skill from template (Node ESM port of init_skill.py)
+ *
+ * Usage:
+ *     node init-skill.mjs <skill-name> --path <path>
+ *
+ * Examples:
+ *     node init-skill.mjs my-new-skill --path skills/public
+ *     node init-skill.mjs my-api-helper --path skills/private
+ *     node init-skill.mjs custom-skill --path /custom/location
+ */
 
-Usage:
-    init_skill.py <skill-name> --path <path>
+import { mkdirSync, writeFileSync, readdirSync, copyFileSync, existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-Examples:
-    init_skill.py my-new-skill --path skills/public
-    init_skill.py my-api-helper --path skills/private
-    init_skill.py custom-skill --path /custom/location
-"""
+const MODULE_DIR = fileURLToPath(new URL('./', import.meta.url));
+const DEFAULT_TEMPLATE_DIR = join(MODULE_DIR, '..', 'template');
 
-import sys
-import shutil
-from pathlib import Path
-
-
-SKILL_TEMPLATE = """---
+const SKILL_TEMPLATE = `---
 name: {skill_name}
 description: [TODO: Complete and informative explanation of what the skill does and when to use it. Include WHEN to use this skill - specific scenarios, file types, or tasks that trigger it.]
 ---
@@ -71,8 +73,8 @@ This skill includes example resource directories that demonstrate how to organiz
 Executable code (Python/Bash/etc.) that can be run directly to perform specific operations.
 
 **Examples from other skills:**
-- PDF skill: `fill_fillable_fields.py`, `extract_form_field_info.py` - utilities for PDF manipulation
-- DOCX skill: `document.py`, `utilities.py` - Python modules for document processing
+- PDF skill: \`fill_fillable_fields.py\`, \`extract_form_field_info.py\` - utilities for PDF manipulation
+- DOCX skill: \`document.py\`, \`utilities.py\` - Python modules for document processing
 
 **Appropriate for:** Python scripts, shell scripts, or any executable code that performs automation, data processing, or specific operations.
 
@@ -82,7 +84,7 @@ Executable code (Python/Bash/etc.) that can be run directly to perform specific 
 Documentation and reference material intended to be loaded into context to inform Agent's process and thinking.
 
 **Examples from other skills:**
-- Product management: `communication.md`, `context_building.md` - detailed workflow guides
+- Product management: \`communication.md\`, \`context_building.md\` - detailed workflow guides
 - BigQuery: API reference documentation and query examples
 - Finance: Schema documentation, company policies
 
@@ -101,9 +103,9 @@ Files not intended to be loaded into context, but rather used within the output 
 ---
 
 **Any unneeded directories can be deleted.** Not every skill requires all three types of resources.
-"""
+`;
 
-EXAMPLE_SCRIPT = '''#!/usr/bin/env python3
+const EXAMPLE_SCRIPT = `#!/usr/bin/env python3
 """
 Example helper script for {skill_name}
 
@@ -122,9 +124,9 @@ def main():
 
 if __name__ == "__main__":
     main()
-'''
+`;
 
-EXAMPLE_REFERENCE = """# Reference Documentation for {skill_title}
+const EXAMPLE_REFERENCE = `# Reference Documentation for {skill_title}
 
 This is a placeholder for detailed reference documentation.
 Replace with actual reference content or delete if not needed.
@@ -158,9 +160,9 @@ Reference docs are ideal for:
 - Common patterns
 - Troubleshooting
 - Best practices
-"""
+`;
 
-EXAMPLE_ASSET = """# Example Asset File
+const EXAMPLE_ASSET = `# Example Asset File
 
 This placeholder represents where asset files would be stored.
 Replace with actual asset files (templates, images, fonts, etc.) or delete if not needed.
@@ -184,9 +186,9 @@ Example asset files from other skills:
 - Data files: .csv, .json, .xml, .yaml
 
 Note: This is a text placeholder. Actual assets can be any file type.
-"""
+`;
 
-EXAMPLE_EVALS = """{
+const EXAMPLE_EVALS = `{
   "skill_name": "example-skill",
   "evals": [
     {
@@ -202,9 +204,9 @@ EXAMPLE_EVALS = """{
     }
   ]
 }
-"""
+`;
 
-EXAMPLE_CONFTEST = """import sys
+const EXAMPLE_CONFTEST = `import sys
 
 from pathlib import Path
 
@@ -214,158 +216,164 @@ scripts_dir = str(Path(__file__).parent.parent / "scripts")
 # Injects the scripts folder into the Python path so 'from <sut> import...' works
 if scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
-"""
+`;
 
+function render(template, vars) {
+  return template.replaceAll('{skill_name}', vars.skillName)
+    .replaceAll('{skill_title}', vars.skillTitle);
+}
 
-def title_case_skill_name(skill_name):
-    """Convert hyphenated skill name to Title Case for display."""
-    return ' '.join(word.capitalize() for word in skill_name.split('-'))
+export function titleCaseSkillName(skillName) {
+  return skillName
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
 
+/**
+ * Initialize a new skill directory with template SKILL.md.
+ *
+ * Args:
+ *   skillName: Name of the skill
+ *   path: Path where the skill directory should be created
+ *   templateDir: Directory containing README.md, CHANGELOG.md, LICENSE.* to copy
+ *
+ * Returns:
+ *   Absolute path to created skill directory, or null if error
+ */
+export function initSkill(skillName, path, templateDir = DEFAULT_TEMPLATE_DIR) {
+  const skillDir = join(resolve(path), skillName);
 
-def init_skill(skill_name, path):
-    """
-    Initialize a new skill directory with template SKILL.md.
+  if (existsSync(skillDir)) {
+    console.log(`Error: Skill directory already exists: ${skillDir}`);
+    return null;
+  }
 
-    Args:
-        skill_name: Name of the skill
-        path: Path where the skill directory should be created
+  try {
+    mkdirSync(skillDir, { recursive: true });
+    console.log(`Created skill directory: ${skillDir}`);
+  } catch (e) {
+    console.log(`Error creating directory: ${e.message}`);
+    return null;
+  }
 
-    Returns:
-        Path to created skill directory, or None if error
-    """
-    # Determine skill directory path
-    skill_dir = Path(path).resolve() / skill_name
+  const skillTitle = titleCaseSkillName(skillName);
 
-    # Check if directory already exists
-    if skill_dir.exists():
-        print(f"Error: Skill directory already exists: {skill_dir}")
-        return None
+  // Create SKILL.md from template
+  try {
+    writeFileSync(
+      join(skillDir, 'SKILL.md'),
+      render(SKILL_TEMPLATE, { skillName, skillTitle }),
+      'utf-8'
+    );
+    console.log('Created SKILL.md');
+  } catch (e) {
+    console.log(`Error creating SKILL.md: ${e.message}`);
+    return null;
+  }
 
-    # Create skill directory
-    try:
-        skill_dir.mkdir(parents=True, exist_ok=False)
-        print(f"Created skill directory: {skill_dir}")
-    except Exception as e:
-        print(f"Error creating directory: {e}")
-        return None
+  // Create resource directories with example files
+  try {
+    const scriptsDir = join(skillDir, 'scripts');
+    mkdirSync(scriptsDir);
+    writeFileSync(
+      join(scriptsDir, 'example.py'),
+      render(EXAMPLE_SCRIPT, { skillName }),
+      'utf-8'
+    );
+    console.log('Created scripts/example.py');
 
-    # Create SKILL.md from template
-    skill_title = title_case_skill_name(skill_name)
-    skill_content = SKILL_TEMPLATE.format(
-        skill_name=skill_name,
-        skill_title=skill_title
-    )
+    const referencesDir = join(skillDir, 'references');
+    mkdirSync(referencesDir);
+    writeFileSync(
+      join(referencesDir, 'api_reference.md'),
+      render(EXAMPLE_REFERENCE, { skillTitle }),
+      'utf-8'
+    );
+    console.log('Created references/api_reference.md');
 
-    skill_md_path = skill_dir / 'SKILL.md'
-    try:
-        skill_md_path.write_text(skill_content, encoding='utf-8')
-        print("Created SKILL.md")
-    except Exception as e:
-        print(f"Error creating SKILL.md: {e}")
-        return None
+    const assetsDir = join(skillDir, 'assets');
+    mkdirSync(assetsDir);
+    writeFileSync(join(assetsDir, 'example_asset.txt'), EXAMPLE_ASSET, 'utf-8');
+    console.log('Created assets/example_asset.txt');
+  } catch (e) {
+    console.log(`Error creating resource directories: ${e.message}`);
+    return null;
+  }
 
-    # Create resource directories with example files
-    try:
-        # Create scripts/ directory with example script
-        scripts_dir = skill_dir / 'scripts'
-        scripts_dir.mkdir(exist_ok=True)
-        example_script = scripts_dir / 'example.py'
-        example_script.write_text(EXAMPLE_SCRIPT.format(skill_name=skill_name), encoding='utf-8')
-        example_script.chmod(0o755)
-        print("Created scripts/example.py")
+  // Create test directories with example files
+  try {
+    const evalsDir = join(skillDir, 'evals');
+    mkdirSync(evalsDir);
+    writeFileSync(join(evalsDir, 'evals.json'), EXAMPLE_EVALS, 'utf-8');
+    console.log('Created evals/evals.json');
 
-        # Create references/ directory with example reference doc
-        references_dir = skill_dir / 'references'
-        references_dir.mkdir(exist_ok=True)
-        example_reference = references_dir / 'api_reference.md'
-        example_reference.write_text(EXAMPLE_REFERENCE.format(skill_title=skill_title), encoding='utf-8')
-        print("Created references/api_reference.md")
+    const testsDir = join(skillDir, 'tests');
+    mkdirSync(testsDir);
+    writeFileSync(join(testsDir, 'conftest.py'), EXAMPLE_CONFTEST, 'utf-8');
+    console.log('Created tests/conftest.py');
+  } catch (e) {
+    console.log(`Error creating test directories: ${e.message}`);
+    return null;
+  }
 
-        # Create assets/ directory with example asset placeholder
-        assets_dir = skill_dir / 'assets'
-        assets_dir.mkdir(exist_ok=True)
-        example_asset = assets_dir / 'example_asset.txt'
-        example_asset.write_text(EXAMPLE_ASSET, encoding='utf-8')
-        print("Created assets/example_asset.txt")
-    except Exception as e:
-        print(f"Error creating resource directories: {e}")
-        return None
+  // Copy template files (README.md, CHANGELOG.md, LICENSE.*) to skill directory
+  const templateFiles = ['README.md', 'CHANGELOG.md'];
+  for (const name of readdirSync(templateDir)) {
+    if (name.startsWith('LICENSE.')) {
+      templateFiles.push(name);
+    }
+  }
 
-    # Create test directories with example files
-    try:
-        # Create evals/ directory with evals.json
-        evals_dir = skill_dir / 'evals'
-        evals_dir.mkdir(exist_ok=True)
-        evals_json = evals_dir / 'evals.json'
-        evals_json.write_text(EXAMPLE_EVALS, encoding='utf-8')
-        print("Created evals/evals.json")
+  for (const templateFile of templateFiles) {
+    try {
+      copyFileSync(join(templateDir, templateFile), join(skillDir, templateFile));
+      console.log(`Copied template/${templateFile}`);
+    } catch (e) {
+      console.log(`Error copying ${templateFile}: ${e.message}`);
+      return null;
+    }
+  }
 
-        # Create tests/ directory with conftest.py
-        tests_dir = skill_dir / 'tests'
-        tests_dir.mkdir(exist_ok=True)
-        conftest_py = tests_dir / 'conftest.py'
-        conftest_py.write_text(EXAMPLE_CONFTEST, encoding='utf-8')
-        print("Created tests/conftest.py")
-    except Exception as e:
-        print(f"Error creating test directories: {e}")
-        return None
+  // Print next steps
+  console.log(`\nSkill '${skillName}' initialized successfully at ${skillDir}`);
+  console.log('\nNext steps:');
+  console.log('1. Edit SKILL.md to complete the TODO items and update the description');
+  console.log('2. Customize or delete the example files in scripts/, references/, and assets/');
+  console.log('3. Customize the test files in evals/ and tests/');
+  console.log('4. Customize template files (README.md, CHANGELOG.md, LICENSE.*)');
+  console.log('5. Run the validator when ready to check the skill structure');
 
-    # Copy template files (README.md, CHANGELOG.md, LICENSE.*) to skill directory
-    template_dir = Path(__file__).parent.parent / 'template'
-    template_files = ['README.md', 'CHANGELOG.md']
-    license_files = list(template_dir.glob('LICENSE.*'))
-    template_files.extend([f.name for f in license_files])
+  return skillDir;
+}
 
-    for template_file in template_files:
-        template_path = template_dir / template_file
-        dest_path = skill_dir / template_file
-        try:
-            shutil.copy(template_path, dest_path)
-            print(f"Copied template/{template_file}")
-        except Exception as e:
-            print(f"Error copying {template_file}: {e}")
-            return None
+export function main() {
+  if (process.argv.length < 5 || process.argv[3] !== '--path') {
+    console.log('Usage: node init-skill.mjs <skill-name> --path <path>');
+    console.log('\nSkill name requirements:');
+    console.log("  - Kebab-case identifier (e.g., 'my-data-analyzer')");
+    console.log('  - Lowercase letters, digits, and hyphens only');
+    console.log('  - Max 64 characters');
+    console.log('  - Must match directory name exactly');
+    console.log('\nExamples:');
+    console.log('  node init-skill.mjs my-new-skill --path skills/public');
+    console.log('  node init-skill.mjs my-api-helper --path skills/private');
+    console.log('  node init-skill.mjs custom-skill --path /custom/location');
+    process.exit(1);
+  }
 
-    # Print next steps
-    print(f"\nSkill '{skill_name}' initialized successfully at {skill_dir}")
-    print("\nNext steps:")
-    print("1. Edit SKILL.md to complete the TODO items and update the description")
-    print("2. Customize or delete the example files in scripts/, references/, and assets/")
-    print("3. Customize the test files in evals/ and tests/")
-    print("4. Customize template files (README.md, CHANGELOG.md, LICENSE.*)")
-    print("5. Run the validator when ready to check the skill structure")
+  const skillName = process.argv[2];
+  const path = process.argv[4];
 
-    return skill_dir
+  console.log(`Initializing skill: ${skillName}`);
+  console.log(`   Location: ${path}`);
+  console.log();
 
+  const result = initSkill(skillName, path);
 
-def main():
-    if len(sys.argv) < 4 or sys.argv[2] != '--path':
-        print("Usage: init_skill.py <skill-name> --path <path>")
-        print("\nSkill name requirements:")
-        print("  - Kebab-case identifier (e.g., 'my-data-analyzer')")
-        print("  - Lowercase letters, digits, and hyphens only")
-        print("  - Max 64 characters")
-        print("  - Must match directory name exactly")
-        print("\nExamples:")
-        print("  init_skill.py my-new-skill --path skills/public")
-        print("  init_skill.py my-api-helper --path skills/private")
-        print("  init_skill.py custom-skill --path /custom/location")
-        sys.exit(1)
+  process.exit(result ? 0 : 1);
+}
 
-    skill_name = sys.argv[1]
-    path = sys.argv[3]
-
-    print(f"Initializing skill: {skill_name}")
-    print(f"   Location: {path}")
-    print()
-
-    result = init_skill(skill_name, path)
-
-    if result:
-        sys.exit(0)
-    else:
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}

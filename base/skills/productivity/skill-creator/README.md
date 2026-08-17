@@ -18,7 +18,7 @@ The Skill Creator is a meta-skill designed to create effective skills with Huawe
 
 Before this skill can be tested or deployed, ensure the following requirements are met:
 
-* **Python Environment:** Requires a standard Python 3.10+ to execute `scripts/init_skill.py`
+* **Node.js Environment:** Requires Node.js（零第三方依赖，`node scripts/init-skill.mjs` 直接可跑） to execute `scripts/init-skill.mjs`
 * **Dependencies:** Requires PyYAML package, install with command: `pip install pyyaml`
 * **Target Skill:** Requires the target skill to only be updated. Default is installed at the project level directory of agent, or specified by the user
 
@@ -29,7 +29,7 @@ To run and test the skill locally without needing to spin up the full agent fram
 **Skill Initializer**
 
 ```bash
-python scripts/init_skill.py <skill-name> --path <path>
+node scripts/init-skill.mjs <skill-name> --path <path>
 ```
 
 * `skill-name`: The skill name to be created or updated.
@@ -39,18 +39,18 @@ python scripts/init_skill.py <skill-name> --path <path>
 Skill Initializer - Creates a new skill from template
 
 Usage:
-    init_skill.py <skill-name> --path <path>
+    init-skill.mjs <skill-name> --path <path>
 
 Examples:
-    init_skill.py my-new-skill --path skills/public
-    init_skill.py my-api-helper --path skills/private
-    init_skill.py custom-skill --path /custom/location
+    init-skill.mjs my-new-skill --path skills/public
+    init-skill.mjs my-api-helper --path skills/private
+    init-skill.mjs custom-skill --path /custom/location
 ```
 
 **Skill Validator**
 
 ```bash
-python scripts/quick_validate.py <skill-directory>
+node scripts/validate-skill.mjs <skill-directory>
 ```
 
 `skill-directory`: The skill directory
@@ -63,7 +63,7 @@ Examples of human prompts that should trigger the agent to invoke this skill. (*
   - *User Prompt:* `Create a skill to greeting message as simple as possible`
   - *Expected Agent Behavior:* Agent triggers `skill-creator` to create a simple greeting skill
 
-Script Output by  `init_skill.py` (As intermediate process output for LLM reasoning):
+Script Output by  `init-skill.mjs` (As intermediate process output for LLM reasoning):
 
 ```bash
 Initializing skill: simple-greeting
@@ -87,7 +87,7 @@ Next steps:
 5. Run the validator when ready to check the skill structure
 ```
 
-Script Output by  `quick_validate.py` (As intermediate process output for LLM reasoning):
+Script Output by  `validate-skill.mjs` (As intermediate process output for LLM reasoning):
 
 ```bash
 Skill is valid!
@@ -122,7 +122,7 @@ The folder structure of created skill as below:
   - *User Prompt:* `create a skill to greeting message as simple as possible, and all messages need to be outputted from a Python script`
   - *Expected Agent Behavior:* Agent triggers `skill-creator` to create another simple greeting skill
 
-  Script Output by  `init_skill.py` (As intermediate process output for LLM reasoning):
+  Script Output by  `init-skill.mjs` (As intermediate process output for LLM reasoning):
 
   ```bash
   Initializing skill: python-greeting
@@ -146,7 +146,7 @@ The folder structure of created skill as below:
   5. Run the validator when ready to check the skill structure
   ```
 
-  Script Output by  `quick_validate.py` (As intermediate process output for LLM reasoning):
+  Script Output by  `validate-skill.mjs` (As intermediate process output for LLM reasoning):
 
   ```bash
   Skill is valid!

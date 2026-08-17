@@ -130,9 +130,9 @@ Skill creation involves these steps:
 2. Ask for confirmation
 3. Understand the skill with concrete examples
 4. Plan reusable skill contents (scripts, references, assets)
-5. Initialize the skill (run `init_skill.py`)
+5. Initialize the skill (run `init-skill.mjs`)
 6. Edit the skill (implement resources and write `SKILL.md`)
-7. Validate the skill (run `quick_validate.py`)
+7. Validate the skill (run `validate-skill.mjs`)
 8. Iterate based on real usage
 
 Follow these steps in order, skipping only if there is a clear reason why they are not applicable.
@@ -258,12 +258,12 @@ At this point, it is time to actually create the skill.
 
 **Action:**
 
-Run the `init_skill.py` script to generate a new template directory. This automatically includes everything a skill requires, making the creation process much more efficient.
+Run the `init-skill.mjs` script to generate a new template directory. This automatically includes everything a skill requires, making the creation process much more efficient.
 
 Usage:
 
 ```bash
-python scripts/init_skill.py <skill-name> --path <output-directory>
+node scripts/init-skill.mjs <skill-name> --path <output-directory>
 ```
 
 The script:
@@ -356,16 +356,15 @@ First, check the `scripts/` folder for the target skill.
 
 * **If NO scripts exist in the `scripts/` folder:** Do not generate any tests, and proceed to the next step.
 * **If scripts DO exist in the `scripts/` folder:** Generate comprehensive Unit and End-to-End (E2E) tests in the `tests/` folder adhering strictly to the following requirements:
-  * **Import Pattern (Zero Collisions):** Reuse the previously generated `tests/conftest.py` to handle imports. Import your script modules cleanly (e.g., `from scripts.module_name import function_name`).
-  * **Naming Conventions:** Unit test files MUST be prefixed with `test_` (e.g., `test_data_fetcher.py`).The E2E test file MUST be exactly named `test_e2e.py`.
-  * **Pytest Markers:** You MUST add the appropriate decorators to your test classes or methods: Use `@pytest.mark.unit` for all unit tests. Use `@pytest.mark.e2e` for all E2E tests.
+  * **Naming Conventions:** Test files MUST be placed in the `tests/` folder and named `*.test.mjs` (e.g., `data-fetcher.test.mjs`).
+  * **Test Runner:** Use the built-in Node.js test runner (`node:test`). Tests are run with `node --test tests/` and require zero third-party dependencies.
 
 ### Step 7: Validating a Skill
 
 Once development of the skill is complete, it must be validated with below script:
 
 ```bash
-python scripts/quick_validate.py <path/to/skill-folder>
+node scripts/validate-skill.mjs <path/to/skill-folder>
 ```
 
 The validating script will automatically check:

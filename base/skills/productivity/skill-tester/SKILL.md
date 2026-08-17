@@ -86,7 +86,7 @@ Upon receiving user confirmation, execute the evaluation script using the calibr
 Run the following command with 10 minutes timeout:
 
 ```bash
-python scripts/run_eval.py --eval-set <evals_path> --skill-path <skill_path> --verbose <verbose>
+node scripts/run-eval.mjs --eval-set <evals_path> --skill-path <skill_path> --verbose <verbose>
 ```
 
 NOTE: Use bash timeout of 600000ms (10 minutes) when executing above command.

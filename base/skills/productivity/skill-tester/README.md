@@ -19,7 +19,7 @@ The Skill Tester is a meta-skill designed to automatically test triggers and eva
 
 Before this skill can be tested or deployed, ensure the following requirements are met:
 
-* **Python Environment:** Requires a standard Python 3.10+ to execute `scripts/run_eval.py`
+* **Node.js Environment:** Requires Node.js（零第三方依赖，`node scripts/run-eval.mjs` 直接可跑） to execute `scripts/run-eval.mjs`
 * **Environment Variables:** The path of OpenCode executable should be in `PATH` environment variable
 * **Local Tools:** Requires OpenCode as the copilot agent CLI for LLM as a judge
 * **Target Skill:** Requires the target skill (i.e. Skill Under Test) should be installed for both main agent and OpenCode
@@ -74,14 +74,14 @@ To run and test the skill locally without needing to spin up the full agent fram
 
 ```bash
 # Basic evaluation
-python scripts/run_eval.py --eval-set {evals_path} --skill-path {skill_path}
+node scripts/run-eval.mjs --eval-set {evals_path} --skill-path {skill_path}
 ```
 
 * `evals_path`: The specific file path to the JSON file containing the test cases.
 * `skill_path`: The skill folder path
 
 ```bash
-usage: run_eval.py [-h] --eval-set EVAL_SET --skill-path SKILL_PATH 
+usage: run-eval.mjs [-h] --eval-set EVAL_SET --skill-path SKILL_PATH 
                    [--num-workers NUM_WORKERS] 
                    [--timeout TIMEOUT] 
                    [--runs-per-query RUNS_PER_QUERY] 
@@ -272,7 +272,7 @@ Example summary format:
 ## Limitations & Known Issues
 
 - Only support OpenCode to perform the LLM as judge (*So, you have to install the target skill to OpenCode whatever agent you used.*)
-- Not support specific options defined in script `run_eval.py` from user's prompt. E.g. Number of parallel workers, timeout etc
+- Not support specific options defined in script `run-eval.mjs` from user's prompt. E.g. Number of parallel workers, timeout etc
 
 ## Non-Functional Metrics
 
