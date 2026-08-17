@@ -108,11 +108,20 @@ test('package: 成功打包为 .skill，zip 条目名带技能目录前缀且内
 });
 
 test('package: 输出目录缺省为 cwd', () => {
-  const { skillDir } = makeValidSkill();
-  const zipPath = packageSkill(skillDir);
-  assert.ok(zipPath);
-  assert.equal(path.dirname(zipPath), path.resolve(process.cwd()));
-  assert.ok(fs.existsSync(zipPath));
+  // 用临时目录作为 cwd，避免把 .skill 产物写入仓库根（临时目录由 after 清理）
+  const cwdDir = path.join(tmp, `cwd-${Math.random().toString(36).slice(2, 8)}`);
+  fs.mkdirSync(cwdDir, { recursive: true });
+  const prevCwd = process.cwd();
+  process.chdir(cwdDir);
+  try {
+    const { skillDir } = makeValidSkill();
+    const zipPath = packageSkill(skillDir);
+    assert.ok(zipPath);
+    assert.equal(path.dirname(zipPath), path.resolve(cwdDir));
+    assert.ok(fs.existsSync(zipPath));
+  } finally {
+    process.chdir(prevCwd);
+  }
 });
 
 // ---------------------------------------------------------------- 失败分支
