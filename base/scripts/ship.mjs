@@ -715,11 +715,10 @@ async function main() {
       exit = 1;
       console.error(`[GATE] ${f.code} ${f.vendor} ${f.file}: ${f.detail} → ${f.action}`);
     }
-    if (!opts.dryRun) {
-      const results = runVerify(config, installed, opts.project);
-      for (const r of results) console.log(`${r.status} ${r.dest}`);
-      if (results.length === 0) console.log('（无待安装项）');
-    }
+    // verify 为只读：dry-run 也执行，以输出"将安装哪些(OK)/缺失(MISSING)"的预览
+    const results = runVerify(config, installed, opts.project);
+    for (const r of results) console.log(`${r.status} ${r.dest}`);
+    if (results.length === 0) console.log('（无待安装项）');
   }
 
   if (opts.cmd === 'check') {

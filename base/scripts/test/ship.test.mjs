@@ -132,6 +132,7 @@ function makeGateFixture() {
     },
   };
   writeFile(root, 'vendors.json', JSON.stringify(config, null, 2));
+  // 门禁不通过：codearts 缺 description-en
   writeFile(root, 'skills/productivity/jxx-gated/SKILL.src.md', [
     '---',
     'name: jxx-gated',
@@ -145,6 +146,31 @@ function makeGateFixture() {
     '',
     '中文正文，无英文块。',
   ].join('\n'));
+  // 健康技能：验证门禁失败不中断其他源派生
+  writeFile(root, 'skills/productivity/jxx-healthy/SKILL.src.md', [
+    '---',
+    'name: jxx-healthy',
+    'description: healthy derivable skill',
+    'x-vendors:',
+    '  codearts:',
+    '    product: codebuddy',
+    '    tags: [jxx-healthy]',
+    '    description-en: |-',
+    '      1. healthy scope.',
+    '      2. Triggered by: healthy.',
+    '      3. value.',
+    '      4. Usage: A -> B.',
+    '      5. prereq.',
+    '---',
+    '',
+    '<!--en-->',
+    '# jxx-healthy (EN)',
+    '<!--/en-->',
+    '',
+    '# jxx-healthy',
+    '',
+    '中文正文。',
+  ].join('\n'));
   return { root, userHome, configPath: path.join(root, 'vendors.json') };
 }
 
@@ -156,6 +182,8 @@ before(() => {
 after(() => {
   fs.rmSync(fixture.root, { recursive: true, force: true });
   fs.rmSync(fixture.userHome, { recursive: true, force: true });
+  fs.rmSync(gateFixture.root, { recursive: true, force: true });
+  fs.rmSync(gateFixture.userHome, { recursive: true, force: true });
 });
 
 // ---------------------------------------------------------------- 工单 01
@@ -268,7 +296,8 @@ test('derive：src 技能派生 4 家适配版', () => {
 
   const codebuddy = fs.readFileSync(path.join(gen, 'codebuddy', 'jxx-modern', 'SKILL.md'), 'utf-8');
   assert.match(codebuddy, /name: jxx-modern/);
-  assert.match(codebuddy, /allowed-tools: \[read_file\]/);
+  // serializeYaml 将数组序列化为 YAML 块列表（非内联 [...]）
+  assert.match(codebuddy, /allowed-tools:\n\s*- read_file/);
 
   const codearts = fs.readFileSync(path.join(gen, 'codearts', 'huawei-cloud-codebuddy-jxx-modern', 'SKILL.md'), 'utf-8');
   assert.match(codearts, /name: huawei-cloud-codebuddy-jxx-modern/);
@@ -290,27 +319,28 @@ test('derive：辅助文件保留在派生产物目录', () => {
 // ---------------------------------------------------------------- 工单 04
 
 test('check：CodeArts 门禁失败非零退出', () => {
-  const r = run(['check']);
+  const r = run(['check'], gateFixture.userHome, gateFixture.configPath);
   assert.equal(r.code, 1);
   assert.match(r.stderr, /E_CODEARTS_DESCRIPTION/);
   assert.match(r.stderr, /jxx-gated/);
 });
 
 test('install：门禁失败跳过 CodeArts 但其他厂商正常安装', () => {
-  const r = run(['install']);
+  const r = run(['install'], gateFixture.userHome, gateFixture.configPath);
   assert.equal(r.code, 1);
-  const gen = path.join(fixture.root, '.generated');
-  assert.ok(!fs.existsSync(path.join(gen, 'codearts', 'huawei-cloud-codebuddy-jxx-gated')), 'jxx-gated 不应生成 codearts 版');
-  assert.ok(fs.existsSync(path.join(gen, 'opencode', 'jxx-gated', 'SKILL.md')), 'jxx-gated 其他厂商照常派生');
+  const codearts = path.join(gateFixture.userHome, '.codeartsdoer', 'skills', 'huawei-cloud-codebuddy-jxx-gated');
+  assert.ok(!fs.existsSync(codearts), 'jxx-gated 不应安装到 CodeArts 用户级目录');
+  const opencode = path.join(gateFixture.userHome, '.agents', 'skills', 'jxx-gated', 'SKILL.md');
+  assert.ok(fs.existsSync(opencode), 'jxx-gated 其他厂商照常安装');
   assert.match(r.stderr, /GATE/);
 });
 
 test('derive：门禁失败记录错误但不中断其他源', () => {
-  const r = run(['derive']);
+  const r = run(['derive'], gateFixture.userHome, gateFixture.configPath);
   assert.equal(r.code, 1);
   assert.match(r.stderr, /E_CODEARTS_DESCRIPTION/);
-  const gen = path.join(fixture.root, '.generated');
-  assert.ok(fs.existsSync(path.join(gen, 'codebuddy', 'jxx-modern', 'SKILL.md')), 'jxx-modern 照常派生');
+  const gen = path.join(gateFixture.root, '.generated');
+  assert.ok(fs.existsSync(path.join(gen, 'opencode', 'jxx-healthy', 'SKILL.md')), 'jxx-healthy 照常派生');
 });
 
 // ---------------------------------------------------------------- 工单 05
