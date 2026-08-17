@@ -75,6 +75,8 @@ execute 不依赖 `/jxx-goal-mode` 的路由——任何路径只要满足前提
 4. **记录**——更新 `.goals/{name}/PROGRESS.md` 当前切片状态与所学。
 5. **判停**——全部验收通过 → 阶段 3；否则记录所学，调整剩余计划，进入下一轮。
 
+> 确定性环节可调用脚本：`node base/scripts/goal.mjs progress-update --goal-dir <dir> [--slice <num>:<st> --log <text>]` / `node base/scripts/goal.mjs evidence --goal-dir <dir> --set <num>:<pass|fail>`（零依赖）
+
 ### 打断规则
 
 循环默认**不打断用户**（push right）。仅以下情况停下来找用户：

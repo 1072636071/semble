@@ -115,6 +115,8 @@ docs/memorial/NNN-slug/
 
 **归档**：移动 `NNN-slug/` 到 `archived/NNN-slug/`。
 
+> 确定性环节可调用脚本：`node base/scripts/scaffold.mjs memorial-init --root <dir> --subject "<诉求>"` / `node base/scripts/scaffold.mjs memorial-archive --root <dir> --ref <NNN|NNN-slug>`（零依赖）
+
 **可选**：内置 checklist 通过后仍不放心，可手动调 `jxx-plan-review` 做独立语义审查。
 
 > 完成标准：C1-C5 全部通过，状态已标记。

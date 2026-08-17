@@ -51,6 +51,8 @@ Description here
 4. **运行 lint** — `pnpm ai-hero-cli internal lint` 验证
 5. **修复错误** — 迭代直到 lint 通过
 
+> 确定性环节可调用脚本：`node base/scripts/scaffold.mjs scaffold-exercises --root <repo> --plan '<json>'`（零依赖）
+
 ## Lint 规则摘要
 
 linter（`pnpm ai-hero-cli internal lint`）检查：

@@ -45,6 +45,9 @@ Choose the mode from the requested surface, not the product, and persist it only
 | `extract [target]` | Build | Pull reusable tokens and components into design system | [reference/extract.md](reference/extract.md) |
 | `critique [target]` | Evaluate | UX design review with heuristic scoring | [reference/critique.md](reference/critique.md) |
 | `audit [target]` | Evaluate | Technical quality checks (a11y, perf, responsive) | [reference/audit.md](reference/audit.md) · native: [reference/audit.native.md](reference/audit.native.md) |
+
+> Deterministic steps can be scripted via: `node base/scripts/report-flow.mjs impeccable-extract --file <path>` / `node base/scripts/report-flow.mjs impeccable-audit --scores <list>` (zero-dependency)
+
 | `polish [target]` | Refine | Final quality pass before shipping | [reference/polish.md](reference/polish.md) |
 | `bolder [target]` | Refine | Amplify safe or bland designs | [reference/bolder.md](reference/bolder.md) |
 | `quieter [target]` | Refine | Tone down aggressive or overstimulating designs | [reference/quieter.md](reference/quieter.md) |

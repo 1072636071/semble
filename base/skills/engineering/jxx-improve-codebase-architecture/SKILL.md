@@ -32,6 +32,8 @@ disable-model-invocation: true
 
 ### 2. 以 HTML 报告呈现候选者
 
+> 确定性环节可调用脚本：`node base/scripts/report-flow.mjs report-html --cards '<json>' --temp`（零依赖）
+
 将自包含的 HTML 文件写入操作系统临时目录，使仓库中不留下任何东西。从 `$TMPDIR` 解析临时目录，回退到 `/tmp`（或 Windows 上的 `%TEMP%`），写入 `<tmpdir>/architecture-review-<timestamp>.html` 使每次运行获得新文件。为用户打开——Linux 上 `xdg-open <path>`，macOS 上 `open <path>`，Windows 上 `start <path>`——并告诉他们绝对路径。
 
 报告使用 **Tailwind via CDN** 进行布局和样式，**Mermaid via CDN** 用于图表（当图形/流程/序列可靠传达结构时）。Mermaid 与手工 CSS/SVG 视觉混用——当关系是图形状的（调用图、依赖、序列）时用 Mermaid，当你想要更具表现力的东西（体量图、截面、折叠动画）时用手工 div/SVG。每个候选者有一个**前后可视化**。要视觉化。

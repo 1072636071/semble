@@ -22,6 +22,8 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 
 发布路径：在仓库根目录的 `.scratch/` 下创建功能目录 `<NN>-<feature-slug>/`，将规格文档写入 `.scratch/<NN>-<feature-slug>/PRD.md`。`<NN>` 为从 `01` 起的全局递增顺序号，按创建先后排列（如第一个功能为 `01-login/`）。具体目录与文件约定见 issue tracker 定义（`/jxx-setup-matt-pocock-skills`）。
 
+> 确定性环节可调用脚本：`node base/scripts/issue-flow.mjs to-spec --slug <name>`（零依赖）
+
 <spec-template>
 
 ## 问题陈述

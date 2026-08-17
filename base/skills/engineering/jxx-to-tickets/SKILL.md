@@ -84,6 +84,8 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 
 > 本地工单存放于 `.scratch/<NN>-<工作简称-slug>/issues/`，每个工单一个独立文件。目录与文件如不存在则创建。功能目录的 `<NN>` 为从 `01` 起的全局递增顺序号；工单编号从 `01` 起，文件名为 `<NN>-<slug>.md`（例如 `01-add-schema.md`、`02-wire-api.md`）。上下文指针与所做决策可汇总到 `.scratch/<NN>-<工作简称-slug>/map.md`。
 
+> 确定性环节可调用脚本：`node base/scripts/issue-flow.mjs to-tickets --dir <dir> --slug <name>`（零依赖）/ `node base/scripts/issue-flow.mjs resolve-block --dir <dir>`（零依赖）
+
 <issue-template>
 
 ## 构建内容

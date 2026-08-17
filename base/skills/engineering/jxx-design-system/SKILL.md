@@ -31,6 +31,8 @@ metadata:
 
 ### 3. 生成 DESIGN.md
 
+> 确定性环节可调用脚本：`node base/scripts/report-flow.mjs design-theme --theme <id> --out <dir>`（零依赖）
+
 基于所选预设（`references/themes/`），定制后写入项目根 `DESIGN.md`：
 
 - 从预设复制 YAML tokens，按用户配色基调调整 `colors`。

@@ -251,6 +251,8 @@ Pause Conditions 独立于 Constraints，专门列出需要人类决策的高风
 
 契约写入 GOAL.md 前必须通过全部否决门。**任一否决 = 不可写入，必须修正后重新检查。**
 
+> 确定性环节可调用脚本：`node base/scripts/goal.mjs gate <GOAL.md>`（零依赖）
+
 ### 否决门清单
 
 | 门  | 检查内容                                     | 否决条件                                       |

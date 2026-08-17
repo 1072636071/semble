@@ -85,6 +85,8 @@ metadata:
 
 ### 4. 写入
 
+> 确定性环节可调用脚本：`node base/scripts/scaffold.mjs sync-doc --root <target>`（零依赖）
+
 **同时生成 `AGENTS.md` 与 `CODEBUDDY.md` 两个文件，且两者内容保持一致。** CodeBuddy 平台需要 `CODEBUDDY.md`，而通用编码 Agent 使用 `AGENTS.md`，因此本技能一并产出二者，内容相同。两个文件都必须在顶部包含如下 `## 多代理要求` 块，明确声明两者必须保持一致：
 
 ```markdown

@@ -16,6 +16,8 @@ metadata:
 | "调研 X""研究一下 Y""帮我查查 Z""了解下 W" | **自由模式**（默认） |
 | "生成报告""写报告""严格模式""按模板""输出报告" | **严格模式** → [references/strict-mode.md](references/strict-mode.md) |
 
+> 确定性环节可调用脚本：`node base/scripts/report-flow.mjs research-file --prefix <前缀> --slug <slug> --out docs/report`（零依赖，严格模式落盘）
+
 自由模式是默认。当前模型很强大 —— 给目标、不规定流程，有时效果更好。严格模式用于需要正式存档、汇报给他人的场景，详细工作流、模板选择、完成标准见严格模式定义文件。
 
 ---

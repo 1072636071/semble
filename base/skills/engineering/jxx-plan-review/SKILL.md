@@ -194,6 +194,8 @@ goal-contract（契约固化 + 否决门自检）→ plan-review（语义审查�
 
 封驳时 REVIEW.md 的修正建议部分即为 goal-contract 的修正指引。
 
+> 确定性环节可调用脚本：`node base/scripts/goal.mjs review-write --goal-dir <dir> [--d1..--d5 pass|suggest|reject]`（零依赖）
+
 ## 异常处理
 
 | 场景 | 处理方式 |
