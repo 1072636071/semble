@@ -36,7 +36,6 @@
 - **[to-tickets](./engineering/jxx-to-tickets/SKILL.md)** — 将任何计划、规格文档或对话拆解为一组追踪弹式（tracer-bullet）工单，每个工单声明其阻塞关系。
 - **[wayfinder](./engineering/jxx-wayfinder/SKILL.md)** — 规划大型工作，在 issue tracker 上创建共享调查地图，逐个解决直到路径清晰。
 - **[loop-me](./engineering/jxx-loop-me/SKILL.md)** — grill 用户关于工作流 spec 的细节，在工作区内设计可委托的循环模式。
-- **[goal-mode](./engineering/jxx-goal-mode/SKILL.md)** — 目标模式路由器：判断任务类型并分发到契约固化或执行循环子技能。
 
 ### 模型调用
 
@@ -50,14 +49,11 @@
 - **[domain-modeling](./engineering/jxx-domain-modeling/SKILL.md)** — 主动构建和锐化项目的领域模型。
 - **[codebase-design](./engineering/jxx-codebase-design/SKILL.md)** — 设计深层模块（deep module）的共享规范与词汇。
 - **[code-review](./engineering/jxx-code-review/SKILL.md)** — 基于固定时间点的 diff 进行双轴 review（标准轴 + spec 轴）。
-- **[design-system](./engineering/jxx-design-system/SKILL.md)** — 确立项目级 UI 设计系统并维护跨生成一致性。
+
 - **[implement](./engineering/jxx-implement/SKILL.md)** — 实现技能。
 - **[impeccable](./engineering/jxx-impeccable/SKILL.md)** 🪝[待改造] — 设计、重塑、打磨前端界面，提供工艺级视觉与 UX。其 `hook*.mjs` runner 思路（一个内核 + 多 manifest）可复用，但当前 manifest 矩阵为 Claude Code 系四家，**未对齐 openCode/CodeBuddy/CodeArts/Trae**，待改造。
 - **[resolving-merge-conflicts](./engineering/jxx-resolving-merge-conflicts/SKILL.md)** — 解决合并冲突。
-- **[goal-contract](./engineering/jxx-goal-contract/SKILL.md)** — 目标契约固化：将模糊任务收敛为可执行的 GOAL.md。支持默认推进/发现优先/Grilling 三模式。
-- **[goal-execute](./engineering/jxx-goal-execute/SKILL.md)** — 目标自主执行循环：基于 GOAL.md 契约，自主拆解、执行、自检并循环至达标。
 - **[grill-with-memorial](./engineering/jxx-grill-with-memorial/SKILL.md)** — 通过 grill 打磨计划或设计，全过程持久化到 memorial 奏报目录。支持中断续接、调查委派、收尾审核。
-- **[plan-review](./engineering/jxx-plan-review/SKILL.md)** — 语义方案审查（门下省封驳）：独立审阅 GOAL.md 契约，检查可行性、覆盖完整性、风险盲区，输出准奏/封驳/附条件准奏。
 - **[wizard](./engineering/jxx-wizard/SKILL.md)** — 生成交互式 bash 向导，引导人完成手动多步流程，捕获值并写入 `.env` 或 CI 密钥。
 
 ---

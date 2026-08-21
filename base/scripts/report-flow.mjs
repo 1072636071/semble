@@ -4,7 +4,7 @@
 //
 // 子命令：
 //   report-html        结构化候选数组(name/issue/verdict/detail) → 自包含 HTML(复用 shared/report-html)，可写临时目录+打开
-//   design-theme       选择预设主题(material3/apple-hig/… 按 jxx-design-system SKILL.md 主题清单) + primary 兜底色，落盘 DESIGN.md
+
 //   agent-init         组装 agent frontmatter(name/description/tools/身份)，命名正则校验，落盘 <name>.md
 //   research-file      {前缀}-{slug}-{版本} 文件名分配 + 模板骨架实例化 + 冲突加序号(复用 nextSeq/instantiateTemplate)
 //   impeccable-extract 从文档提取 token 引用展开，机械告警(缺失引用/非法组件子属性/非法顶层组)
@@ -22,7 +22,7 @@ import { nextSeq } from './shared/next-seq.mjs';
 import { renderReportHtml, writeReport, writeTempReport } from './shared/report-html.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const THEMES_DIR = path.join(__dirname, '..', 'skills', 'engineering', 'jxx-design-system', 'references', 'themes');
+
 
 // ================================================================ report-html
 // 结构化候选 → 自包含 HTML。确定性格：字段白名单与渲染结构；判读(content/推荐强度)留模型。
@@ -60,109 +60,11 @@ export function runReportHtml({ cards, title = '架构审查', outDir, filename 
   return writeReport({ outDir, filename, title, cards: norm });
 }
 
-// ================================================================ design-theme
-// 预设主题实例化 + primary 兜底。确定性格：主题 ID→文件映射、primary 缺失兜底、模板实例化；风格气质/文案留模型。
-
-/** 10 种预设主题注册表（id → 文件/别名），对应 jxx-design-system SKILL.md 主题清单。 */
-export const THEMES = {
-  'material3': { file: '01-material-design-3.md', label: 'Material Design 3', aliases: ['material', 'material-design-3'] },
-  'apple-hig': { file: '02-apple-hig.md', label: 'Apple HIG', aliases: ['apple', 'hig'] },
-  'fluent': { file: '03-fluent-design.md', label: 'Fluent Design', aliases: ['fluent-design'] },
-  'linear': { file: '04-linear-aesthetic.md', label: 'Linear Aesthetic', aliases: ['linear-aesthetic'] },
-  'minimalist': { file: '05-minimalist-modern.md', label: 'Minimalist Modern', aliases: ['minimalist-modern'] },
-  'cyberpunk': { file: '06-cyberpunk.md', label: 'Cyberpunk', aliases: [] },
-  'skeuomorphism': { file: '07-skeuomorphism.md', label: 'Skeuomorphism', aliases: [] },
-  'glassmorphism': { file: '08-glassmorphism.md', label: 'Glassmorphism', aliases: [] },
-  'neo-brutalism': { file: '09-neo-brutalism.md', label: 'Neo-Brutalism', aliases: [] },
-  'shadcn': { file: '10-shadcn-tailwind-neutral.md', label: 'Shadcn/Tailwind Neutral', aliases: ['shadcn-tailwind', 'tailwind'] },
-};
-
-/** primary 兜底色（未在预设中声明时注入）。 */
-export const DEFAULT_PRIMARY = '#6750A4';
-
-/** 解析主题 id / 别名 → 注册项；未知返回 null。 */
-export function resolveTheme(theme) {
-  if (!theme) return null;
-  const t = String(theme).toLowerCase().trim();
-  if (THEMES[t]) return { id: t, ...THEMES[t] };
-  for (const [id, meta] of Object.entries(THEMES)) {
-    if (meta.aliases.includes(t)) return { id, ...meta };
-  }
-  return null;
-}
-
 /** 把 `---\nMETA\n---BODY…` 拆成 { meta(不含界定符), body(界定符之后内容) }。 */
 export function splitFrontmatter(content) {
   const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!m) return { meta: '', body: content, hasFrontmatter: false };
   return { meta: m[1], body: content.slice(m[0].length), hasFrontmatter: true };
-}
-
-/** 判断 YAML 文本的 colors 映射下是否已声明 primary。 */
-export function hasPrimary(frontmatter) {
-  let inColors = false;
-  for (const line of String(frontmatter).split(/\r?\n/)) {
-    if (/^\s*colors\s*:\s*$/.test(line)) { inColors = true; continue; }
-    if (inColors) {
-      if (/^\S/.test(line)) break; // 离开 colors 映射回到顶层
-      if (/^\s+primary\s*:/.test(line)) return true;
-    }
-  }
-  return false;
-}
-
-/**
- * 兜底 primary：若 frontmatter 无 colors.primary，向 colors 映射注入 `primary: "<fallback>"`。
- * @returns {{frontmatter: string, injected: boolean}}
- */
-export function ensurePrimaryFrontmatter(frontmatter, fallback = DEFAULT_PRIMARY) {
-  if (hasPrimary(frontmatter)) return { frontmatter, injected: false };
-  const entry = `  primary: "${fallback}"`;
-  const lines = String(frontmatter).split(/\r?\n/);
-  const idx = lines.findIndex((l) => /^\s*colors\s*:/.test(l));
-  if (idx >= 0) {
-    // 展开可能的同行值 colors: x（预设为 colors: 空值场景，正常无同行值）
-    if (!/^\s*colors\s*:\s*$/.test(lines[idx])) {
-      lines[idx] = lines[idx].replace(/^(\s*colors\s*:).*$/, '$1');
-    }
-    lines.splice(idx + 1, 0, entry);
-    return { frontmatter: lines.join('\n'), injected: true };
-  }
-  const tail = String(frontmatter).endsWith('\n') ? '' : '\n';
-  return { frontmatter: `${String(frontmatter)}${tail}colors:\n${entry}`, injected: true };
-}
-
-/**
- * design-theme：选定预设主题（或其注入 content），确保 primary，落盘 DESIGN.md。
- * @param {{theme:string, outDir:string, fallback?:string, vars?:object, content?:string, themeDir?:string}} args
- *   content 注入则跳过读磁盘（测试用）。
- * @returns {{outFile:string, injected:boolean, theme:string, label:string} | {error:string}}
- */
-export function runDesignTheme({ theme, outDir, fallback = DEFAULT_PRIMARY, vars = {}, content, themeDir = THEMES_DIR, dryRun = false }) {
-  const t = resolveTheme(theme);
-  if (!t) return { error: `未知主题 "${theme}"。可用: ${Object.keys(THEMES).join(', ')}` };
-  let c = content;
-  if (c == null) {
-    const file = path.join(themeDir, t.file);
-    if (!fs.existsSync(file)) return { error: `主题文件缺失: ${file}` };
-    c = fs.readFileSync(file, 'utf-8');
-  }
-  c = renderTemplate(c, vars);
-  const { meta, body, hasFrontmatter } = splitFrontmatter(c);
-  let rendered;
-  let injected = false;
-  if (hasFrontmatter) {
-    const r = ensurePrimaryFrontmatter(meta, fallback);
-    injected = r.injected;
-    rendered = `---\n${r.frontmatter}\n---${body}`;
-  } else {
-    // 无 frontmatter：直接前置一个含 primary 的 frontmatter
-    rendered = `---\nname: ${t.label}\ncolors:\n  primary: "${fallback}"\n---${c.startsWith('\n') ? '' : '\n'}${c}`;
-    injected = true;
-  }
-  const outFile = path.join(outDir, 'DESIGN.md');
-  if (!dryRun) writeFileSafe(outFile, rendered);
-  return { outFile, injected, theme: t.id, label: t.label };
 }
 
 // ================================================================ agent-generator
@@ -450,7 +352,6 @@ function usage() {
 
 子命令：
   report-html          结构化候选数组 → 自包含 HTML（可写临时目录+打开）
-  design-theme         选择预设主题 + primary 兜底 → DESIGN.md
   agent-init           组装 frontmatter + 命名校验 → <name>.md
   research-file        {前缀}-{slug}-{版本} 文件名分配 + 模板实例化 + 冲突加序号
   impeccable-extract   提取 {a.b.c} token 展开 + 机械告警
@@ -463,8 +364,6 @@ function usage() {
   --filename <name>    输出文件名（默认 report.html）
   --temp               report-html 写系统临时目录（自动打开）
   --open               写入后打开
-  --theme <id>         design-theme：预设主题（material3/apple-hig/fluent/linear/minimalist/cyberpunk/skeuomorphism/glassmorphism/neo-brutalism/shadcn）
-  --primary <hex>      design-theme：primary 兜底色（默认 #6750A4）
   --name <name>        agent-init：姜姓 agent 名（姜<两字>-<官署职官>）
   --description <text> agent-init：description 一句话
   --tools <list>       agent-init：逗号分隔 tools（缺省用默认集）
@@ -492,8 +391,6 @@ function parseArgs(argv) {
       case '--out': opts.out = argv[++i]; break;
       case '--outDir': opts.outDir = argv[++i]; break;
       case '--filename': opts.filename = argv[++i]; break;
-      case '--theme': opts.theme = argv[++i]; break;
-      case '--primary': opts.primary = argv[++i]; break;
       case '--name': opts.name = argv[++i]; break;
       case '--description': opts.description = argv[++i]; break;
       case '--tools': opts.tools = argv[++i]; break;
@@ -517,7 +414,7 @@ function logErr(msg) { console.error(`错误: ${msg}`); }
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
-  const cmds = new Set(['report-html', 'design-theme', 'agent-init', 'research-file', 'impeccable-extract', 'impeccable-audit']);
+  const cmds = new Set(['report-html', 'agent-init', 'research-file', 'impeccable-extract', 'impeccable-audit']);
   if (opts.help) { console.log(usage()); return 0; }
   if (opts.error) { logErr(opts.error + `\n\n${usage()}`); return 2; }
   if (!cmds.has(opts.cmd)) { logErr(`未知子命令 "${opts.cmd}"\n\n${usage()}`); return 2; }
@@ -533,17 +430,6 @@ async function main() {
       return 0;
     }
 
-    if (opts.cmd === 'design-theme') {
-      if (!opts.theme) { logErr('design-theme 需 --theme <id>'); return 2; }
-      if (!outDir) { logErr('design-theme 需 --out <dir>'); return 2; }
-      const name = opts.name;
-      const r = runDesignTheme({ theme: opts.theme, outDir, fallback: opts.primary || DEFAULT_PRIMARY, vars: name ? { name } : {}, dryRun: opts.dryRun });
-      if (r.error) { logErr(r.error); return 2; }
-      let msg = `已生成 ${r.outFile}（主题 ${r.theme}）${dry}`;
-      if (r.injected) msg += '；primary 缺失已注入兜底色';
-      console.log(msg);
-      return 0;
-    }
 
     if (opts.cmd === 'agent-init') {
       if (!outDir) { logErr('agent-init 需 --out <dir>'); return 2; }

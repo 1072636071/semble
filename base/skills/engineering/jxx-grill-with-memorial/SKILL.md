@@ -117,8 +117,6 @@ docs/memorial/NNN-slug/
 
 > 确定性环节可调用脚本：`node base/scripts/scaffold.mjs memorial-init --root <dir> --subject "<诉求>"` / `node base/scripts/scaffold.mjs memorial-archive --root <dir> --ref <NNN|NNN-slug>`（零依赖）
 
-**可选**：内置 checklist 通过后仍不放心，可手动调 `jxx-plan-review` 做独立语义审查。
-
 > 完成标准：C1-C5 全部通过，状态已标记。
 
 ## 反模式
@@ -132,5 +130,4 @@ docs/memorial/NNN-slug/
 
 - `jxx-grill-with-docs` — 轻量 grill（本技能前身）
 - `jxx-research` — 调查委派目标
-- `jxx-plan-review` — 可选独立审查
 - `jxx-grilling` — 纯追问（最简）

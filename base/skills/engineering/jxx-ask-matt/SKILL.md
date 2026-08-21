@@ -71,10 +71,9 @@ wayfinder 完成调查后交出接力棒——它自己不构建。汇入主流�
 - **`/jxx-to-questionnaire`** — 当计划需要的答案你（agent）给不出、而你面对的人也不持有这些答案时使用。将待决策项转化为一份措辞中立的问卷，交给持有答案的人填写——去程答案和返程决策都留在文件里。
 - **`/jxx-wizard`** — 当有人必须执行手动多步流程（在 Web 控制台点来点去、创建账号、生成密钥、配置 OAuth）时使用。生成一个逐步引导的交互式 bash 向导——向导处理进度展示、确认门、密文输入，并直接写入 `.env` 或 CI 密钥。
 - **`/jxx-prototype`** — 一个小型一次性程序，回答一个设计问题：这个状态模型感觉对吗？这个 UI 应该长什么样？它是主流程步骤 2 中的绕行，但在设计问题难以在纸面上解决时随时可用。prototype 完成后会被**捕获**——工作、`NOTES.md` 和交接上下文落在 `prototype/<name>` 分支上，成为主要来源。
-- **`/jxx-design-system`** — 确立项目级 UI 设计系统并维护跨生成一致性。基于 Google DESIGN.md 格式把配色/字体/圆角/间距固化为令牌，自带 10 种主流风格预设（Material 3、Apple HIG、Fluent 等）。`/jxx-prototype` 和 `/jxx-implement` 生成 UI 代码前先确立令牌边界，所有颜色引用令牌不硬编码。当你开始一个 UI 项目、需要统一视觉规范、或组件风格出现漂移时使用。
+
 - **`/jxx-research`** — 将阅读工作委托给**后台 agent**：它针对**一手来源**调查问题，然后在仓库中留下一个带引用的 Markdown 文件。它阅读时你继续工作。它产出的文件可以带入主流程的 `/jxx-grill-with-docs`——研究为思考提供素材，但不替代思考。
-- **`/jxx-loop-me`** — 穷追不舍地追问用户关于工作流 spec 的细节，在工作区内设计可委托的循环模式。用于梳理日常工作中的重复模式并设计工作流 spec。当 `/jxx-goal-mode` 需要 spec 化工作流时，由此进入。
-- **`/jxx-goal-mode`** — 只定目标与验收标准，AI 自主拆解、执行、自检并循环至达标。适合路径不确定、过程繁重的长任务。工作流本身需要 spec 化时，先跑 `/jxx-loop-me`。
+- **`/jxx-loop-me`** — 穷追不舍地追问用户关于工作流 spec 的细节，在工作区内设计可委托的循环模式。用于梳理日常工作中的重复模式并设计工作流 spec。
 - **`/jxx-teach`** — 跨多个会话学习一个概念，使用当前目录作为有状态工作区。
 - **`/jxx-wait-what`** — 当 agent 刚解释了什么而你不理解时：让它用简化的技术英语重讲。
 - **`/jxx-writing-for-agents`** — 为 agent 写文档的参考——无论是 AGENTS.md、README，还是技能。技能专用的分支（frontmatter、模型调用 vs 用户调用、路由技能）在 [SKILL-MECHANICS.md](../../productivity/jxx-writing-for-agents/SKILL-MECHANICS.md) 中。

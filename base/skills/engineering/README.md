@@ -16,7 +16,6 @@
 - **[to-tickets](./jxx-to-tickets/SKILL.md)** — 将任何计划、规格文档或对话拆解为一组追踪弹式工单，每个工单声明其阻塞关系——本地文件中以 `Blocked by:` 文本行表示阻塞边。
 - **[wayfinder](./jxx-wayfinder/SKILL.md)** — 规划大型工作——超过单个 agent 会话能承载的范围——在 issue tracker 上创建共享调查地图，逐个解决直到通往目的地的路径清晰。
 - **[loop-me](./jxx-loop-me/SKILL.md)** — grill 用户关于工作流 spec 的细节，在工作区内设计可委托的循环模式。用于梳理日常工作中的重复模式并设计工作流 spec。
-- **[goal-mode](./jxx-goal-mode/SKILL.md)** — 目标模式路由器：判断任务类型并分发到子技能。适合路径不确定、过程繁重的长任务。
 
 ## 模型调用
 
@@ -29,9 +28,7 @@
 - **[domain-modeling](./jxx-domain-modeling/SKILL.md)** — 主动构建和锐化项目的领域模型——质疑术语、用场景压力测试、内联更新 `CONTEXT.md` 和 ADR。
 - **[codebase-design](./jxx-codebase-design/SKILL.md)** — 设计深层模块（deep module）的共享规范与词汇：小接口、清晰接缝（seam）、可通过接口测试。
 - **[code-review](./jxx-code-review/SKILL.md)** — 基于固定时间点的 diff 进行双轴 review：**标准轴**（是否遵循仓库编码规范及 Fowler 坏味道基线？）和 **spec 轴**（是否忠实实现了来源 issue/PRD？），以并行子 agent 运行。
-- **[design-system](./jxx-design-system/SKILL.md)** — 基于 Google DESIGN.md 格式确立项目级 UI 设计系统并维护跨生成一致性。自带 10 种主流风格预设，生成 UI 代码前先确立令牌边界，所有颜色引用令牌不硬编码。
+
 - **[implement](./jxx-implement/SKILL.md)** — 实现技能。
 - **[resolving-merge-conflicts](./jxx-resolving-merge-conflicts/SKILL.md)** — 解决合并冲突。
-- **[goal-contract](./jxx-goal-contract/SKILL.md)** — 目标契约固化：将模糊任务收敛为可执行的 GOAL.md。支持默认推进/发现优先/Grilling 三模式。
-- **[goal-execute](./jxx-goal-execute/SKILL.md)** — 目标自主执行循环：基于 GOAL.md 契约，自主拆解、执行、自检并循环至达标。
 - **[wizard](./jxx-wizard/SKILL.md)** — 生成交互式 bash 向导，引导人完成手动多步流程（控制台点击、创建账号、生成密钥），捕获值并写入 `.env` 或 CI 密钥。

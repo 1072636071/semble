@@ -9,14 +9,6 @@ import {
   renderCandidatesHtml,
   normalizeCards,
   runReportHtml,
-  // design-theme
-  THEMES,
-  resolveTheme,
-  splitFrontmatter,
-  hasPrimary,
-  ensurePrimaryFrontmatter,
-  runDesignTheme,
-  DEFAULT_PRIMARY,
   // agent-generator
   AGENT_NAME_RE,
   validateAgentName,
@@ -106,75 +98,6 @@ test('runReportHtml: 临时模式可注入 spawnFn（open=true 分支不报错�
   assert.ok(Array.isArray(spawned), 'open=true 应触发 spawnFn');
 });
 
-// ================================================================ design-theme
-
-test('THEMES: 覆盖 SKILL.md 的 10 种预设', () => {
-  assert.equal(Object.keys(THEMES).length, 10);
-  assert.match(path.basename(THEMES.material3.file), /01-material-design-3/);
-  assert.match(path.basename(THEMES.shadcn.file), /10-shadcn-tailwind/);
-});
-
-test('resolveTheme: 支持规范 id 与别名', () => {
-  assert.equal(resolveTheme('material3').id, 'material3');
-  assert.equal(resolveTheme('material-design-3').id, 'material3');
-  assert.equal(resolveTheme('apple-hig').id, 'apple-hig');
-  assert.equal(resolveTheme('shadcn-tailwind').id, 'shadcn');
-  assert.equal(resolveTheme('unknown-theme'), null);
-  assert.equal(resolveTheme(''), null);
-});
-
-const OUTER_FM = '---\nname: T\ncolors:\n  primary: "#6750A4"\n  on-primary: "#FFFFFF"\n---\n';
-const NO_PRIMARY_FM = '---\ntitle: Demo\ntypography:\n  body:\n    size: 1rem\n---\n';
-
-test('splitFrontmatter: 分离 frontmatter 与正文', () => {
-  const { meta, body } = splitFrontmatter(OUTER_FM);
-  assert.match(meta, /colors:/);
-  assert.equal(body, '\n');
-});
-
-test('hasPrimary: 命中 colors.primary / 未命中时 false', () => {
-  assert.equal(hasPrimary(OUTER_FM), true);
-  assert.equal(hasPrimary(NO_PRIMARY_FM), false);
-});
-
-test('ensurePrimaryFrontmatter: 已有 primary 不注入', () => {
-  const r = ensurePrimaryFrontmatter(OUTER_FM, DEFAULT_PRIMARY);
-  assert.equal(r.injected, false);
-  assert.match(r.frontmatter, /primary: "#6750A4"/);
-});
-
-test('ensurePrimaryFrontmatter: 无 primary 时注入兜底色到 colors 块', () => {
-  const r = ensurePrimaryFrontmatter(NO_PRIMARY_FM, '#1A73E8');
-  assert.equal(r.injected, true);
-  assert.match(r.frontmatter, /colors:\n(?:.*\n)*?\s{2}primary: "#1A73E8"/);
-  // 不破坏已有 typography 块
-  assert.match(r.frontmatter, /typography:/);
-});
-
-test('ensurePrimaryFrontmatter: 连 colors 都没有时追加 colors 块', () => {
-  const fm = '---\nname: Only\n---\n';
-  const r = ensurePrimaryFrontmatter(fm, '#000000');
-  assert.equal(r.injected, true);
-  assert.match(r.frontmatter, /colors:\n\s{2}primary: "#000000"/);
-});
-
-test('runDesignTheme: 选择预设 + 注入 primary 兜底并落盘 DESIGN.md', () => {
-  const themeContent = '---\nname: Demo Theme\ncolors:\n  on-primary: "#FFF"\n---\nBODY\n';
-  const outDir = path.join(tmp, 'theme-a');
-  const r = runDesignTheme({ theme: 'material3', outDir, content: themeContent, fallback: '#000000' });
-  assert.equal(r.theme, 'material3');
-  assert.equal(r.injected, true);
-  const md = fs.readFileSync(r.outFile, 'utf-8');
-  assert.match(md, /colors:\n\s{2}primary: "#000000"\n\s{2}on-primary: "#FFF"/);
-  assert.match(md, /BODY/);
-});
-
-test('runDesignTheme: 未知主题返回 error', () => {
-  const r = runDesignTheme({ theme: 'nope', outDir: tmp, content: 'x' });
-  assert.ok(r.error);
-  assert.match(r.error, /未知主题/);
-});
-
 // ================================================================ agent-generator
 
 test('AGENT_NAME_RE / validateAgentName: 姜<两字>-<官署职官> 命名校验', () => {
@@ -255,13 +178,6 @@ test('runReportHtml: dryRun 不落盘（返回路径但文件不存在）', () =
   assert.equal(path.basename(file), 'arch.html');
   assert.equal(fs.existsSync(file), false, 'dry-run 不应落盘');
   assert.equal(fs.existsSync(outDir), false, 'dry-run 不应创建目录');
-});
-
-test('runDesignTheme: dryRun 不落盘 DESIGN.md', () => {
-  const outDir = path.join(tmp, `dt-${Math.random().toString(36).slice(2, 8)}`);
-  const r = runDesignTheme({ theme: 'material3', outDir, content: '---\ncolors:\n  ink: "#000"\n---\nBODY', fallback: '#000000', dryRun: true });
-  assert.ok(r.outFile.endsWith('DESIGN.md'));
-  assert.equal(fs.existsSync(r.outFile), false, 'dry-run 不应落盘');
 });
 
 test('runAgentInit: dryRun 不落盘，且不因目标已存在而报错', () => {

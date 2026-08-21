@@ -20,5 +20,4 @@
 
 - `jxx-grill-with-docs` — 轻量 grill（本技能前身）
 - `jxx-research` — 调查委派目标
-- `jxx-plan-review` — 可选独立审查
 - `jxx-grilling` — 纯追问（最简）

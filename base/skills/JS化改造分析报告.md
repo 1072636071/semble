@@ -34,12 +34,6 @@
 
 ### 🟢 高优先级（强烈建议 JS 化）
 
-**A. `.goals/` 流水线（contract + execute + plan-review 共享同一套强模板化文件与状态机，一套 JS 工具覆盖三者）**
-- `jxx-goal-contract`：V1–V10 否决门 = 纯 regex/规则校验，天然脚本化；GOAL.md / PROGRESS.md / _index.md 模板初始化与状态机更新。
-- `jxx-goal-execute`：PROGRESS.md 簿记更新（轮数自增/切片状态/循环日志）、EVIDENCE.md 验收对照表生成（= 验证命令退出码映射）。
-- `jxx-plan-review`：REVIEW.md 模板化 + D1–D5 状态汇总 + 判定映射（✅/⚠️/❌ → 准奏/附条件/封驳）。
-- 建议：`goal.mjs new|continue|check-gate|progress-update|evidence|review-write`。
-
 **B. skill 生命周期脚本（三件套，需连同 pytest 与 SKILL.md 命令一并迁移）**
 - `skill-creator`：`init_skill.py→init-skill.mjs`（脚手架）、`quick_validate.py→validate-skill.mjs`（需引入 `yaml` npm 依赖或 `front-matter` 包）、`package_skill.py→package-skill.mjs`（zip，Node 内置 zlib/fs 可做简单 zip，或引入 `archiver`）、补交互菜单 `confirm-skill.mjs`（`@clack/prompts`）。
 - `skill-tester`：`run_eval.py→run-eval.mjs`（读 evals.json、子进程并发 Promise.all、LLM-judge、汇总），补 `confirm-eval.mjs`。
@@ -56,7 +50,7 @@
 - `jxx-improve-codebase-architecture`：把候选者结构化数组 → 渲染自包含 HTML 报告（Tailwind+Mermaid 骨架、卡片、徽章、临时目录+时间戳+跨平台打开）。
 - `jxx-agent-generator`：frontmatter 字段组装、命名正则校验、落盘 `~/.codebuddy/agents/`、改名新旧文件处理。
 - `jxx-research`（严格模式）：`{前缀}-{slug}-{版本}` 文件名分配、`docs/report/` 脚手架、模板骨架实例化（冲突加 `-2` 不覆盖）。
-- `jxx-design-system`：预设主题实例化 + primary 兜底注入（lint/export 已有官方 CLI，不必重复）。
+
 - `impeccable/document`（F6，最大空白）：CSS vars / Tailwind config / theme 文件 → 自动提取 tokens 生成结构化 JSON 草稿，模型只做语义命名与 prose。
 
 **E. 根目录安装/校验**
@@ -76,7 +70,7 @@
 
 ### 🟠 低价值（不建议脚本化，收益≈成本）
 
-- 纯路由器：`jxx-ask-matt`、`jxx-goal-mode`、`jxx-grill-me`。
+- 纯路由器：`jxx-ask-matt`、`jxx-grill-me`。
 - 纯语义/创意：`jxx-codebase-design`、`jxx-loop-me`、`jxx-tdd`、`jxx-resolving-merge-conflicts`、`jxx-prototype`、`jxx-implement`、`jxx-edit-article`（personal）、`jxx-wait-what`。
 - 写作三件套（in-progress `jxx-writing-beats / fragments / shape`）：核心是创意交互；仅「安全追加单块 md」可提炼为共享工具 `append-fragment.mjs`（`\n---\n` 分隔、首行 H1、不覆盖）。
 - `jxx-claude-handoff`（in-progress）：摘要内容不可脚本化，命令调用本身已简单。
