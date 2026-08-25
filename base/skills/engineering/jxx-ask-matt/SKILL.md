@@ -73,7 +73,6 @@ wayfinder 完成调查后交出接力棒——它自己不构建。汇入主流�
 - **`/jxx-prototype`** — 一个小型一次性程序，回答一个设计问题：这个状态模型感觉对吗？这个 UI 应该长什么样？它是主流程步骤 2 中的绕行，但在设计问题难以在纸面上解决时随时可用。prototype 完成后会被**捕获**——工作、`NOTES.md` 和交接上下文落在 `prototype/<name>` 分支上，成为主要来源。
 
 - **`/jxx-research`** — 将阅读工作委托给**后台 agent**：它针对**一手来源**调查问题，然后在仓库中留下一个带引用的 Markdown 文件。它阅读时你继续工作。它产出的文件可以带入主流程的 `/jxx-grill-with-docs`——研究为思考提供素材，但不替代思考。
-- **`/jxx-loop-me`** — 穷追不舍地追问用户关于工作流 spec 的细节，在工作区内设计可委托的循环模式。用于梳理日常工作中的重复模式并设计工作流 spec。
 - **`/jxx-teach`** — 跨多个会话学习一个概念，使用当前目录作为有状态工作区。
 - **`/jxx-wait-what`** — 当 agent 刚解释了什么而你不理解时：让它用简化的技术英语重讲。
 - **`/jxx-writing-for-agents`** — 为 agent 写文档的参考——无论是 AGENTS.md、README，还是技能。技能专用的分支（frontmatter、模型调用 vs 用户调用、路由技能）在 [SKILL-MECHANICS.md](../../productivity/jxx-writing-for-agents/SKILL-MECHANICS.md) 中。
