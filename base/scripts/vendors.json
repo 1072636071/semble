@@ -1,6 +1,6 @@
 {
-  "buckets": ["engineering", "productivity"],
-  "managedPrefixes": ["jxx-", "huawei-cloud-"],
+  "buckets": ["engineering", "productivity", "seo-geo"],
+  "managedPrefixes": ["jxx-", "huawei-cloud-", "seo-"],
   "skillsSource": "skills",
   "agentsSource": "agent",
   "vendors": {

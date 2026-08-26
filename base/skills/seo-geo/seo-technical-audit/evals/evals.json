@@ -1,0 +1,20 @@
+[
+  {
+    "name": "seo-technical-audit-trigger",
+    "prompt": "技术审计，检查网站的技术 SEO 和 llms.txt",
+    "should_trigger": true,
+    "expectations": ["应进入技术审计流程", "应覆盖传统技术审计 + llms.txt/JSON-LD/agent readiness"]
+  },
+  {
+    "name": "seo-technical-audit-en",
+    "prompt": "technical audit for SEO and agent readiness",
+    "should_trigger": true,
+    "expectations": ["英文触发同样可用"]
+  },
+  {
+    "name": "seo-technical-audit-negative",
+    "prompt": "帮我做竞品分析",
+    "should_trigger": false,
+    "expectations": []
+  }
+]

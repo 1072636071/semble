@@ -1,5 +1,46 @@
 # mattpocock-skills
 
+## seo-geo 基础设施 2026-08-26（工单 01：03-seo-geo-skill-suite）
+
+### 重大变更
+
+- **桶改名**：`base/skills/SEO2GEO/`（空桶）→ `base/skills/seo-geo/`，对齐小写桶名风格。
+- **`vendors.json`**：`buckets` 增加 `seo-geo`；`managedPrefixes` 增加 `seo-`（残留清理覆盖该族）。
+- **`ship` 支持 `x-install: project` 新取值**（ADR 0005）：标记该值的技能在用户级安装（`ship install`）中跳过，仅在项目级安装（`ship install --project`）中出现。原有 `x-install: true / false` 语义不变。
+- **行为测试**：`ship.test.mjs` 新增 3 个用例——`x-install: project` 不进用户级、进项目级、`seo-` 前缀残留清理。
+
+### 关联
+
+- ADR 0005（仅项目级分发 + router 兼任安装器）、ADR 0006（skill-as-generator + 版本戳升级）已回写为 `docs/adr/0005`、`docs/adr/0006`。
+- 后续工单 02–10 将在 `seo-geo/` 桶下落地 8 个技能（审查模板、写作模板、五件套、seo-router）。
+
+## seo-geo 技能族落地 2026-08-26（工单 02–10：03-seo-geo-skill-suite）
+
+### 新增技能（8 个，均在 `base/skills/seo-geo/` 桶下，`x-install: project`）
+
+- **`seo-audit-template`**（工单 02+03）— SEO/GEO 审查模板（skill-as-generator）：追问收参 → 生成 `seo-geo-audit` 子技能 → 版本戳升级。内置三维审查模型（真实性 + SEO/GEO + 样式一致性）。references 含 geo-super 全量中文化（SKILL.md + 10 references 约 166KB）+ 三个通用 checklist + 五件套 GEO 增量素材清单。
+- **`seo-blog-template`**（工单 09）— SEO/GEO 写作模板（skill-as-generator）：追问收参 → 生成 `blog-writer` 子技能 → 版本戳升级。news-x 项目知识抽象为生成参数；`seo-content-writing` 中文产物作为 references；样式模板与审查子技能共用同一基准（写审一致）。
+- **`seo-keyword-research`**（工单 04）— 关键词研究中文版（含 GEO 增量：搜索词 + AI 引用问句式）。
+- **`seo-competitor-analysis`**（工单 05）— 竞品分析中文版（含 GEO 增量：传统排名 + AI 引擎品牌提及）。
+- **`seo-backlink-analysis`**（工单 06）— 外链分析中文版（含 GEO 增量：链接权重 + AI 引用源权威性）。
+- **`seo-content-writing`**（工单 07）— 内容写作中文版（含 GEO 增量：SEO + GEO 可引用性双 checklist）。
+- **`seo-technical-audit`**（工单 08）— 技术审计中文版（含 GEO 增量：llms.txt/JSON-LD/agent readiness）。
+- **`seo-router`**（工单 10）— 族内路由器 + 项目内安装器：中英双语触发词覆盖全域意图，路由到 8 个技能 + 2 个生成子技能；套件缺失时引导安装。
+
+### 中文化素材
+
+- geo-super 全量中文化（SKILL.md 20KB + 10 references 146KB ≈ 166KB），术语保留英文（GEO/llms.txt/E-E-A-T/JSON-LD/MCP 等），ahrefs 2026 实证研究保留为 grounding。
+- 五件套 GEO 增量统一指针引用 `seo-audit-template/references/geo-increment-materials.md`（单源派生，同一论据不翻译两次）。
+
+### 质量门禁
+
+- 8 个技能均通过 `skill-reviewer` 7/7 合规检查。
+- `evals/evals.json` 触发测试套件已创建（真实触发测试需 opencode CLI，试点时跑）。
+
+### 待办
+
+- 工单 11（试点）：需在 `official-domestic-website` 项目端到端验证，试点指引见 `.scratch/03-seo-geo-skill-suite/issues/11-pilot-guide.md`。
+
 ## 同步 2026-08-11（上游 1.0.1 → 1.4.0，`d574778f..84fdeffd`）
 
 ### 重大变更

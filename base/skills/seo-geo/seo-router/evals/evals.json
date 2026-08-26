@@ -1,0 +1,44 @@
+[
+  {
+    "name": "seo-router-keyword",
+    "prompt": "帮我查关键词",
+    "should_trigger": true,
+    "expectations": ["应路由到 seo-keyword-research"]
+  },
+  {
+    "name": "seo-router-review-existing",
+    "prompt": "审查这篇文章",
+    "should_trigger": true,
+    "expectations": ["应优先路由到 seo-geo-audit 子技能，未生成则路由到 seo-audit-template"]
+  },
+  {
+    "name": "seo-router-write-existing",
+    "prompt": "写一篇博客",
+    "should_trigger": true,
+    "expectations": ["应优先路由到 blog-writer 子技能，未生成则路由到 seo-blog-template"]
+  },
+  {
+    "name": "seo-router-backlink",
+    "prompt": "外链分析",
+    "should_trigger": true,
+    "expectations": ["应路由到 seo-backlink-analysis"]
+  },
+  {
+    "name": "seo-router-technical",
+    "prompt": "检查 llms.txt 和 agent readiness",
+    "should_trigger": true,
+    "expectations": ["应路由到 seo-technical-audit"]
+  },
+  {
+    "name": "seo-router-en-trigger",
+    "prompt": "review this article for SEO",
+    "should_trigger": true,
+    "expectations": ["英文触发同样可用"]
+  },
+  {
+    "name": "seo-router-negative-unrelated",
+    "prompt": "帮我调试这个 bug",
+    "should_trigger": false,
+    "expectations": []
+  }
+]

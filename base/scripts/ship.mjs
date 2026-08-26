@@ -326,9 +326,20 @@ function listAgents(config) {
   return result;
 }
 
+// x-install 语义：缺省 / true → 'user'（用户级 + 项目级均装）；'project' → 仅项目级；false → 不装
 function getXInstall(filePath) {
   const { meta } = parseFrontmatter(filePath);
-  return meta['x-install'] !== false;
+  const v = meta['x-install'];
+  if (v === false) return false;
+  if (v === 'project') return 'project';
+  return 'user';
+}
+
+// 安装目标：'user' 级技能在用户级与项目级都装；'project' 级技能仅项目级装；false 不装
+function shouldInstallForTarget(xInstallValue, projectTarget) {
+  if (xInstallValue === false) return false;
+  if (xInstallValue === 'project') return projectTarget === true;
+  return true;
 }
 
 // ---------------------------------------------------------------- 派生
@@ -486,7 +497,7 @@ function runInstall(config, { dryRun, project }) {
   const skipped = [];
   const failures = [];
 
-  const skills = listSkillDirs(config).filter((s) => getXInstall(s.srcPath));
+  const skills = listSkillDirs(config).filter((s) => shouldInstallForTarget(getXInstall(s.srcPath), project));
   const srcNames = new Set(skills.map((s) => s.name));
 
   for (const vendor of config.vendors) {
@@ -540,7 +551,7 @@ function runInstall(config, { dryRun, project }) {
   }
 
   // Agent 分发
-  const agents = listAgents(config).filter((a) => getXInstall(a.file));
+  const agents = listAgents(config).filter((a) => shouldInstallForTarget(getXInstall(a.file), project));
   for (const vendor of config.vendors) {
     const agentsTarget = targetAgentsDir(config, vendor, project);
     if (!agentsTarget) {

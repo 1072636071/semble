@@ -1,0 +1,20 @@
+[
+  {
+    "name": "seo-content-writing-trigger",
+    "prompt": "内容写作，帮我写一篇 SEO 友好的文章",
+    "should_trigger": true,
+    "expectations": ["应进入内容写作流程", "应过 SEO + GEO 可引用性双 checklist"]
+  },
+  {
+    "name": "seo-content-writing-en",
+    "prompt": "content writing for SEO and GEO",
+    "should_trigger": true,
+    "expectations": ["英文触发同样可用"]
+  },
+  {
+    "name": "seo-content-writing-negative",
+    "prompt": "帮我做技术审计",
+    "should_trigger": false,
+    "expectations": []
+  }
+]

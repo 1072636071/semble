@@ -1,0 +1,20 @@
+[
+  {
+    "name": "seo-competitor-analysis-trigger",
+    "prompt": "竞品分析，对比我们和竞争对手的 SEO 表现",
+    "should_trigger": true,
+    "expectations": ["应进入竞品分析流程", "应覆盖传统排名 + AI 引擎品牌提及双视角"]
+  },
+  {
+    "name": "seo-competitor-analysis-en",
+    "prompt": "competitor analysis for our market",
+    "should_trigger": true,
+    "expectations": ["英文触发同样可用"]
+  },
+  {
+    "name": "seo-competitor-analysis-negative",
+    "prompt": "帮我写一篇博客",
+    "should_trigger": false,
+    "expectations": []
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "name": "seo-keyword-research-trigger",
+    "prompt": "帮我挖词，研究一下 DOTP 相关关键词",
+    "should_trigger": true,
+    "expectations": ["应进入关键词研究流程", "应产出搜索词 + AI 引用问句式双视角"]
+  },
+  {
+    "name": "seo-keyword-research-en",
+    "prompt": "keyword research for plastic additives",
+    "should_trigger": true,
+    "expectations": ["英文触发同样可用"]
+  },
+  {
+    "name": "seo-keyword-research-negative",
+    "prompt": "帮我审查这篇文章",
+    "should_trigger": false,
+    "expectations": []
+  }
+]
