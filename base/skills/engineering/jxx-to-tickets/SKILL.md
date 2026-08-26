@@ -3,7 +3,7 @@ name: jxx-to-tickets
 description: 将计划、spec 或当前对话拆解为一组 tracer-bullet（追踪弹）工单，每个声明其 blocking edges（阻塞边），发布到已配置的 issue 跟踪器——本地文件中以文本表示，或真实 tracker（如 GitHub、Linear）上的原生阻塞链接。当需将计划或规格文档分解为可执行工作项时使用。
 disable-model-invocation: true
 metadata:
-  version: 1.0.0
+  version: 1.2.0
 ---
 
 # 转化工单
@@ -83,6 +83,10 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 </local-issue-file-template>
 
 > 本地工单存放于 `.scratch/<NN>-<工作简称-slug>/issues/`，每个工单一个独立文件。目录与文件如不存在则创建。功能目录的 `<NN>` 为从 `01` 起的全局递增顺序号；工单编号从 `01` 起，文件名为 `<NN>-<slug>.md`（例如 `01-add-schema.md`、`02-wire-api.md`）。上下文指针与所做决策可汇总到 `.scratch/<NN>-<工作简称-slug>/map.md`。
+
+### 6. 里程碑文件（可选）
+
+工单发布后，可询问用户是否需要生成**里程碑文件**（`.scratch/<NN>-<工作简称-slug>/MILESTONES.md`），按里程碑逐步交付、断点续传。此环节**非必需**——仅在工单多、改动大、涉及广泛重构或大变动时顺带询问；其余情况不主动提，用户要求时再生成。文件只需说清：按依赖顺序把工单归组为若干可独立验收的里程碑，每个里程碑列出所含工单编号、用户视角的交付结果、可勾选的验收信号。格式自由发挥，不复制工单细节。
 
 > 确定性环节可调用脚本：`node base/scripts/issue-flow.mjs to-tickets --dir <dir> --slug <name>`（零依赖）/ `node base/scripts/issue-flow.mjs resolve-block --dir <dir>`（零依赖）
 
