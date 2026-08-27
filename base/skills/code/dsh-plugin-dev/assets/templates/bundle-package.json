@@ -1,0 +1,16 @@
+{
+  "name": "dsh-hello-plugin",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.js",
+  "files": ["index.js", "cordis.patch.yml"],
+  "scripts": {
+    "build": "tsdown src/index.ts --format esm --out-dir lib",
+    "prepare": "pnpm build"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^0.1.0",
+    "@deepseek-ai/schemastery": "^0.1.0"
+  },
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
+}

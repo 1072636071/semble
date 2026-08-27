@@ -1,0 +1,57 @@
+{
+  "skill_name": "dsh-plugin-dev",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我写一个 dsh 工具插件，给模型加一个可以查询天气的工具",
+      "should_trigger": true,
+      "expected_output": "生成一个工具插件：export name + inject ['tools'] + apply 中 ctx.tools.register(defineTool({...}))，包含 parameters/output.schema/render/execute",
+      "expectations": [
+        "import { defineTool } from '@deepseek-ai/dsh-tools'",
+        "import type { Context } from '@deepseek-ai/cordis'",
+        "ctx.tools.register(defineTool({...}))",
+        "包含 name/description/parameters/output/execute 字段"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "给我写个最简单的 dsh 插件，监听会话创建事件",
+      "should_trigger": true,
+      "expected_output": "生成最小插件：export name + apply(ctx)，用 ctx.on('session/created', ...) 监听事件",
+      "expectations": [
+        "export const name = '...'",
+        "export function apply(ctx: Context)",
+        "ctx.on('session/created', ...)"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "我要把写好的 dsh 插件打包成 bundle 发布到 GitHub",
+      "should_trigger": true,
+      "expected_output": "提供 bundle 包结构（package.json 的 dsh.bundle.patch + cordis.patch.yml）、安装命令、发布流程与 git 构建坑提醒",
+      "expectations": [
+        "package.json 里 dsh.bundle.patch 声明",
+        "cordis.patch.yml 使用 insert 语法",
+        "dsh plugin --profile add 安装命令",
+        "打 dsh-plugin topic 并注明 harness 版本"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "我的 dsh 插件报错：import cordis 解析失败",
+      "should_trigger": true,
+      "expected_output": "定位为裸名依赖解析失败，建议改用 @deepseek-ai/cordis，或把裸名装进插件自身 node_modules",
+      "expectations": [
+        "识别裸名 cordis/schemastery 解析失败问题",
+        "给出 @deepseek-ai/cordis 的正确导入方式"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "帮我写一个 React 登录页面的组件",
+      "should_trigger": false,
+      "expected_output": "不触发 dsh 插件开发技能",
+      "expectations": []
+    }
+  ]
+}
