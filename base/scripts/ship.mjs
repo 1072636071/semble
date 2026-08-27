@@ -259,11 +259,47 @@ function extractEnBlock(body) {
 
 // ---------------------------------------------------------------- 配置
 
+// 自动定位“用户主目录”：优先 os.homedir()，回退到 USERPROFILE/HOME 环境变量，
+// 再回退到常见用户目录根部（C:\Users、/Users、/home）下首个真实存在的目录，
+// 从而即使运行身份与技能实际所在用户不一致，也能自己找到用户目录。
+function detectUserHome() {
+  const candidates = [];
+  if (os.homedir && os.homedir()) candidates.push(os.homedir());
+  if (process.env.USERPROFILE) candidates.push(process.env.USERPROFILE);
+  if (process.env.HOME && process.env.HOME !== process.env.USERPROFILE) candidates.push(process.env.HOME);
+
+  const roots = [];
+  if (process.env.HOMEDRIVE && process.env.HOMEPATH) {
+    roots.push(path.join(process.env.HOMEDRIVE, process.env.HOMEPATH));
+  }
+  if (process.platform === 'win32') {
+    if (process.env.SystemDrive) roots.push(path.join(process.env.SystemDrive, 'Users'));
+    roots.push('C:\\Users');
+  } else {
+    roots.push('/Users', '/home');
+  }
+  for (const root of roots) {
+    try {
+      for (const name of fs.readdirSync(root)) {
+        const dir = path.join(root, name);
+        if (name === 'Public' || name === 'All Users' || name === 'Default' || name === 'Default User') continue;
+        if (fs.statSync(dir).isDirectory()) candidates.push(dir);
+      }
+    } catch { /* 忽略不可读的根 */ }
+  }
+
+  for (const dir of candidates) {
+    if (dir && fs.existsSync(dir)) return path.resolve(dir);
+  }
+  // 实在找不到就退回 os.homedir()（可能不存在，但至少给出确定值）
+  return path.resolve(os.homedir() || (process.env.HOME || ''));
+}
+
 function loadConfig(configPath, userHomeOverride) {
   const configPathResolved = path.resolve(configPath);
   const raw = JSON.parse(fs.readFileSync(configPathResolved, 'utf-8'));
   const configDir = path.dirname(configPathResolved);
-  const userHome = userHomeOverride || os.homedir();
+  const userHome = userHomeOverride || detectUserHome();
   const resolve = (p) => {
     if (p === '~' || p.startsWith('~/') || p.startsWith('~\\')) return path.join(userHome, p.slice(2));
     if (p.startsWith('~')) return path.join(userHome, p.slice(1));
@@ -677,7 +713,7 @@ function usage() {
 
 选项：
   --config <path>   使用指定 vendors.json（默认 scripts/vendors.json）
-  --user-home <dir> 把用户级目标目录重定向到 <dir>（测试/演练用）
+  --user-home <dir> 把用户级目标目录重定向到 <dir>（默认自动探测：os.homedir() → USERPROFILE/HOME → 常见用户目录根部）
   --project         安装到项目级扫描目录（默认用户级）
   --dry-run         派生与校验但不落盘
   -h, --help        显示本帮助`;
@@ -720,6 +756,7 @@ async function main() {
     console.error(`错误: 无法加载配置 ${configPath}: ${e.message}`);
     return 2;
   }
+  if (!opts.userHome) console.log(`[user-home] 自动探测到用户目录: ${config.userHome}`);
 
   if (opts.cmd === 'init') {
     const r = runInit({ type: opts.type, name: opts.name, bucket: opts.bucket, configDir: config.configDir });

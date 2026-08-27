@@ -1,6 +1,7 @@
 # AGENTS.md
 
-本文件供 AI 编码 Agent（openCode、CodeBuddy、华为 CodeArts、Trae 等）阅读，说明本仓库的工程技能配置。
+** 约束
+AGENTS.md 和 CODEBUDDY.md 必须保持一致。
 
 ## Agent skills
 
@@ -15,6 +16,10 @@
 ### 领域文档
 
 单一上下文布局：仓库根目录 `CONTEXT.md` + `docs/adr/`。参见 `docs/agents/domain.md`。
+
+### 安装脚本（ship）
+
+`base/scripts/ship.mjs` 负责跨厂商分发 Skills/Agent，缺省跑全流程（派生+安装+验证+清理），子命令 `init`/`derive`/`install`/`check`。厂商清单与安装目录全部由 `base/scripts/vendors.json` 配置驱动，脚本零硬编码。其中 QoderWork 的用户级目标为 `~/.qwenworkcn/skills`。脚本用 `detectUserHome()` 自动定位用户目录（`os.homedir()` → `USERPROFILE`/`HOME` → 常见用户根目录），也可用 `--user-home <dir>` 覆盖。常用：`node ship.mjs install`、`--dry-run` 预览、`check` 门禁预检。
 
 ### 临时文件
 

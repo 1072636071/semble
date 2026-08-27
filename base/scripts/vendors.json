@@ -67,7 +67,7 @@
     "qoderwork": {
       "label": "QoderWork",
       "derive": false,
-      "user": { "skills": "~/.qoderworkcn/skills" },
+      "user": { "skills": "~/.qwenworkcn/skills" },
       "project": { "skills": ".qoderwork/skills" }
     }
   }
