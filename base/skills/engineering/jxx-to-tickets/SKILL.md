@@ -59,7 +59,7 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 
 ### 5. 将工单发布到本地跟踪器
 
-将已批准的工单发布到本地 issue 跟踪器——在仓库根目录的 `.scratch/<NN>-<工作简称-slug>/issues/` 下为每个工单创建独立文件 `<NN>-<slug>.md`（从 `01` 编号，按依赖顺序放置，阻塞者在前）。功能目录的 `<NN>` 为从 `01` 起的全局递增顺序号，按创建先后排列。每个文件顶部附近含 `Status: ready-for-agent` 行（triage 词汇见 `triage-labels.md`）；阻塞边以 `Blocked by: NN, NN` 文本行表示（列出它依赖的工单编号，无阻塞则写"无——可立即开始"）。评论与对话历史追加到文件底部 `## 评论` 标题下。使用下方本地工单文件模板。
+将已批准的工单发布到本地 issue 跟踪器——在仓库根目录的 `.scratch/<NN>-<工作简称-slug>/issues/` 下为每个工单创建独立文件 `<NN>-<slug>.md`（从 `01` 编号，按依赖顺序放置，阻塞者在前）。功能目录的 `<NN>` 为从 `01` 起的全局递增顺序号，按创建先后排列。每个文件顶部附近含 `Status: ready-for-agent` 行（triage 词汇见 `triage-labels.md`）；工单发布后由 `/jxx-implement` 推进至 `pending-review`（待审查）、由 `/jxx-code-review` 推进至 `done`（结束）——完整生命周期见 `docs/agents/issue-tracker.md` 的「工单状态与生命周期」节；阻塞边以 `Blocked by: NN, NN` 文本行表示（列出它依赖的工单编号，无阻塞则写"无——可立即开始"）。评论与对话历史追加到文件底部 `## 评论` 标题下。使用下方本地工单文件模板。
 
 <local-issue-file-template>
 

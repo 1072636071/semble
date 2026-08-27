@@ -14,10 +14,13 @@ metadata:
 
 ## 完成步骤（不可跳过）
 
-以下两步是实现的硬出口——不执行视为未完成：
+以下三步是实现的硬出口——不执行视为未完成：
 
-- [ ] **代码审查**：调用 `/jxx-code-review` 审查所有变更。在审查通过前不得提交。
-- [ ] **提交**：将工作 commit 到当前 branch。commit message 遵循 conventional commits 格式，body 说明变更原因。
+- [ ] **标记待审查**：第一轮功能开发完成（代码写完、本地类型检查与单测通过）后，将工单 `Status:` 置为 `pending-review`（待审查），在提交前保存。
+- [ ] **代码审查**：调用 `/jxx-code-review` 审查所有变更。审查通过前不得提交；审查有发现项时按下方流程修复后重新审查。
+- [ ] **标记结束并提交**：代码审查通过（或无发现项、用户明确确认无视）后，将工单 `Status:` 置为 `done`（结束），再将工作 commit 到当前 branch。commit message 遵循 conventional commits 格式，body 说明变更原因。
+
+工单状态流转：`ready-for-agent` → `pending-review`（功能开发完）→ `done`（审查通过）。完整生命周期见 `docs/agents/issue-tracker.md` 的「工单状态与生命周期」节。
 
 ### 审查发现问题时的处理流程
 
