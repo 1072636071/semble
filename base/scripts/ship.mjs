@@ -328,7 +328,24 @@ function listAgents(config) {
 
 // x-install 语义：缺省 / true → 'user'（用户级 + 项目级均装）；'project' → 仅项目级；false → 不装
 function getXInstall(filePath) {
-  const { meta } = parseFrontmatter(filePath);
+  let meta = {};
+  try {
+    meta = parseFrontmatter(filePath).meta;
+  } catch {
+    // 子集 YAML 解析器对部分合法 frontmatter（如多行 flow 序列）会抛错；
+    // 安装决策只需 x-install，退化为正则提取，不影响派生引擎（派生只针对可正常解析的 src 技能）。
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+    if (fm) {
+      const line = fm[1].split(/\r?\n/).find((l) => /^\s*x-install\s*:/.test(l));
+      if (line) {
+        const v = line.split(/:/).slice(1).join(':').trim();
+        if (v === 'false') return false;
+        if (v === 'project') return 'project';
+        if (v === 'true') return 'user';
+      }
+    }
+  }
   const v = meta['x-install'];
   if (v === false) return false;
   if (v === 'project') return 'project';

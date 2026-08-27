@@ -1,8 +1,8 @@
 {
-  "buckets": ["engineering", "productivity", "seo-geo"],
+  "buckets": ["engineering", "productivity", "seo-geo", "code"],
   "managedPrefixes": ["jxx-", "huawei-cloud-", "seo-"],
-  "skillsSource": "skills",
-  "agentsSource": "agent",
+  "skillsSource": "../skills",
+  "agentsSource": "../agent",
   "vendors": {
     "opencode": {
       "label": "OpenCode",
