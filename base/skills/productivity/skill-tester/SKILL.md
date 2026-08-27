@@ -4,6 +4,7 @@ description: >
   用指定 JSON 测试套件对项目级 skill 做自动化评估（Automated evaluation）；当用户说 "test skill"、"evaluate skill" 等时触发此 skill。
 metadata:
   version: 1.1.0
+x-install: false
 ---
 
 # Skill Tester

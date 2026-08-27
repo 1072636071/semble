@@ -23,8 +23,8 @@ function makeFixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-'));
   const userHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-home-'));
   const config = {
-    buckets: ['engineering', 'productivity'],
-    managedPrefixes: ['jxx-', 'huawei-cloud-'],
+    buckets: ['engineering', 'productivity', 'seo-geo'],
+    managedPrefixes: ['jxx-', 'huawei-cloud-', 'seo-'],
     skillsSource: 'skills',
     agentsSource: 'agent',
     vendors: {
@@ -77,6 +77,12 @@ function makeFixture() {
 
   // x-install: false 技能：默认不安装
   writeFile(root, 'skills/productivity/jxx-skip/SKILL.md', '---\nname: jxx-skip\ndescription: skipped skill\nx-install: false\n---\n\n# skip\n');
+
+  // x-install: false 的 src 技能：派生时也应跳过
+  writeFile(root, 'skills/productivity/jxx-skip-src/SKILL.src.md', '---\nname: jxx-skip-src\ndescription: skipped src skill\nx-install: false\n---\n\n# skip src\n');
+
+  // x-install: project 技能：仅项目级安装（seo-geo 桶）
+  writeFile(root, 'skills/seo-geo/seo-project-only/SKILL.md', '---\nname: seo-project-only\ndescription: project-only skill\nx-install: project\n---\n\n# project only\n');
 
   // Agent 平面文件（中文名）
   writeFile(root, 'agent/调研员.md', '---\nname: 调研员\ndescription: research agent\n---\n\n# 调研员\n');
@@ -274,6 +280,29 @@ test('install --project：装到项目级目录', () => {
   assert.ok(fs.existsSync(dest), '项目级 .codebuddy/skills 应安装 jxx-legacy');
 });
 
+test('install：x-install: project 的技能不装进用户级目录', () => {
+  const r = run(['install']);
+  assert.equal(r.code, 0);
+  for (const dir of ['.codebuddy/skills', '.agents/skills', '.codeartsdoer/skills']) {
+    assert.ok(!fs.existsSync(path.join(fixture.userHome, dir, 'seo-project-only')), `seo-project-only 不应装进用户级 ${dir}`);
+  }
+});
+
+test('install --project：x-install: project 的技能装进项目级目录', () => {
+  const r = run(['install', '--project']);
+  assert.equal(r.code, 0);
+  const dest = path.join(fixture.root, '.codebuddy', 'skills', 'seo-project-only', 'SKILL.md');
+  assert.ok(fs.existsSync(dest), '项目级应安装 seo-project-only');
+});
+
+test('install：残留清理覆盖 seo- 前缀', () => {
+  fs.mkdirSync(path.join(fixture.userHome, '.codebuddy', 'skills', 'seo-stale'), { recursive: true });
+  const r = run(['install']);
+  assert.equal(r.code, 0);
+  assert.ok(!fs.existsSync(path.join(fixture.userHome, '.codebuddy', 'skills', 'seo-stale')), 'seo-stale 应被清理');
+  assert.match(r.stdout, /cleaned seo-stale/);
+});
+
 test('install --dry-run：不落盘', () => {
   const beforeDir = fs.existsSync(path.join(fixture.userHome, '.codebuddy', 'skills'));
   const r = run(['install', '--dry-run']);
@@ -314,6 +343,15 @@ test('derive：src 技能派生 4 家适配版', () => {
 test('derive：辅助文件保留在派生产物目录', () => {
   const gen = path.join(fixture.root, '.generated');
   assert.ok(fs.existsSync(path.join(gen, 'opencode', 'jxx-modern', 'references', 'note.md')));
+});
+
+test('derive：x-install: false 的 src 技能跳过派生', () => {
+  const r = run(['derive']);
+  assert.equal(r.code, 0);
+  const gen = path.join(fixture.root, '.generated');
+  for (const vendor of ['opencode', 'codebuddy', 'codearts', 'trae', 'qoder']) {
+    assert.ok(!fs.existsSync(path.join(gen, vendor, 'jxx-skip-src')), `${vendor} 不应派生 jxx-skip-src`);
+  }
 });
 
 // ---------------------------------------------------------------- 工单 04

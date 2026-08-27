@@ -1,0 +1,5 @@
+# bundle 组合包贡献的配置层
+# 挂载到 profile 后按包名引用插件（区别于 --patch overlay 用绝对路径）
+- insert:
+    - id: hello
+      name: dsh-hello-plugin

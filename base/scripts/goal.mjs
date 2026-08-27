@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// goal.mjs — 覆盖 goal-contract / goal-execute / plan-review 三个技能共享的 `.goals/` 文件流水线。
+// goal.mjs — `.goals/` 文件流水线 CLI：契约校验（gate）、脚手架（init）、进度（progress-update）、验收证据（evidence）、语义审查记录（review-write）。
 // 零第三方依赖，ESM，UTF-8。
 //
 // 子命令：
@@ -480,7 +480,7 @@ const D_LABEL = { D1: '覆盖完整性', D2: '可行性', D3: '约束一致性',
 const MARK = { pass: '✅', suggest: '⚠️', reject: '❌' };
 
 /**
- * 综合判定映射（机械规则，来自 plan-review SKILL.md "步骤 3 — 综合判定"表）：
+ * 综合判定映射（机械规则）：
  *  全部 ✅ → 准奏；有 ⚠️ 无 ❌ → 附条件准奏；有 ❌ → 封驳。
  * @param {Record<string,'pass'|'suggest'|'reject'>} d
  */
@@ -491,7 +491,7 @@ export function verdict(d) {
   return { code: 'reject', label: '封驳', emoji: '❌', blocked: true };
 }
 
-/** 渲染 REVIEW.md 内容（plan-review 属性格式）。 */
+/** 渲染 REVIEW.md 内容。 */
 export function buildReview({ d1 = 'pass', d2 = 'pass', d3 = 'pass', d4 = 'pass', d5 = 'pass', notes = {}, date }) {
   const d = { D1: d1, D2: d2, D3: d3, D4: d4, D5: d5 };
   const v = verdict(d);

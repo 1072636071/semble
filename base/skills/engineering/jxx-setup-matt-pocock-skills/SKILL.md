@@ -3,7 +3,7 @@ name: jxx-setup-matt-pocock-skills
 description: 为仓库配置工程技能环境——设置 issue tracker、triage 标签词汇表与领域文档布局。首次使用其他工程技能前运行一次。
 disable-model-invocation: true
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # 设置 Matt Pocock 的工程技能
@@ -14,7 +14,7 @@ metadata:
 - **triage 标签** — 五个标准 triage 角色所使用的标签字符串
 - **领域文档** — `CONTEXT.md` 和 ADR 的存放位置，以及读取它们的消费者规则（`jxx-grill-with-docs`、`jxx-domain-modeling` 等技能也会读写它们）
 
-这是一个提示驱动的技能，而非确定性脚本。先探索、展示发现、与用户确认，然后写入。
+这是一个提示驱动的技能：判读与决策（布局选择、标签覆盖、向用户解释）由模型完成；确定性环节（探索扫描、文件写入）一律交给本技能自带的 `scripts/setup.mjs` 脚本执行（自包含、零第三方依赖），模型不手工写这些文件。
 
 ## 默认配置（"全部默认"）
 
@@ -30,14 +30,20 @@ metadata:
 
 ### 1. 探索
 
-查看当前仓库以了解其初始状态。读取已有的内容，不要假设：
+运行探测脚本获取仓库初始状态（**不要手工逐条检查**——固定清单一律跑脚本，只读不落盘）：
 
- - 仓库根目录的 `AGENTS.md` 和 `CLAUDE.md` — 是否存在？其中是否已有 `## Agent skills` 部分？
-- 仓库根目录的 `CODEBUDDY.md` — 是否存在？其内容是否与 `AGENTS.md` 一致（含 `## 多代理要求` 块）？
-- 仓库根目录的 `CONTEXT.md` 和 `CONTEXT-MAP.md`
-- `docs/adr/` 和任何 `src/*/docs/adr/` 目录
-- `docs/agents/` — 此技能之前的输出是否已存在？
-- `.scratch/` — 标志本地 markdown issue tracker 约定已在使用
+```bash
+node <本技能目录>/scripts/setup.mjs detect --root <目标仓库根>
+```
+
+输出 JSON 报告，逐项覆盖原探索清单：
+
+- `canonical` — 通用规范文件（`CLAUDE.md` 优先于 `AGENTS.md`，都不存在为 `null`）
+- `files` — `AGENTS.md` / `CLAUDE.md` / `CODEBUDDY.md` / `CONTEXT.md` / `CONTEXT-MAP.md` 是否存在
+- `agentSkillsBlock` / `multiAgentBlock` — 通用规范文件是否已含对应块
+- `codebuddyConsistent` — `CODEBUDDY.md` 与通用规范文件是否逐字节一致（`null` 表示缺一无法比较）
+- `dirs` — `docs/adr/`、`docs/agents/`、`.scratch/` 是否存在
+- `priorOutputs` — 已存在的 `docs/agents/*.md`（此技能之前的输出）
 
 ### 2. 展示发现并询问
 
@@ -74,64 +80,31 @@ metadata:
 - **单一上下文** — 仓库根目录有一个 `CONTEXT.md` + `docs/adr/`。大多数仓库是这种。
 - **多上下文** — 根目录有 `CONTEXT-MAP.md` 指向各上下文的 `CONTEXT.md` 文件（通常是 monorepo）。
 
-### 3. 确认并编辑
+### 3. 确认
 
-向用户展示以下草稿：
-
-- 要添加到 `AGENTS.md` / `CODEBUDDY.md`（参见步骤 4 的写入规则）中的 `## Agent skills` 块（含 `### 临时文件` 子块）。两个文件内容保持一致。
-- `docs/agents/issue-tracker.md`、`docs/agents/triage-labels.md`、`docs/agents/domain.md` 的内容
-
-让用户在写入前编辑。
+用 `--dry-run` 演练步骤 4 的写入命令，把脚本输出的逐文件动作日志（`created`/`updated`/`unchanged`）展示给用户，并附上三份 `docs/agents/` 种子模板（即本技能目录下的 `issue-tracker-local.md`、`triage-labels.md`、`domain.md`）供预览。用户确认或提出编辑后再正式执行；若用户要求改动种子模板内容，先编辑技能目录的种子文件再重跑脚本。
 
 ### 4. 写入
 
-> 确定性环节可调用脚本：`node base/scripts/scaffold.mjs sync-doc --root <target>`（零依赖）
+运行确定性脚本完成全部写入（**不要手工创建/编辑这些文件**——固定流程一律跑脚本）：
 
-**同时生成 `AGENTS.md` 与 `CODEBUDDY.md` 两个文件，且两者内容保持一致。** CodeBuddy 平台需要 `CODEBUDDY.md`，而通用编码 Agent 使用 `AGENTS.md`，因此本技能一并产出二者，内容相同。两个文件都必须在顶部包含如下 `## 多代理要求` 块，明确声明两者必须保持一致：
-
-```markdown
-## 多代理要求
-
-AGENTS.md 和 CODEBUDDY.md 内容必须保持一致。
+```bash
+node <本技能目录>/scripts/setup.mjs sync-doc --root <目标仓库根> [--layout single|multi] [--labels '{"needs-triage":"bug:triage"}'] [--dry-run]
 ```
 
-**选择要编辑的文件：**
+- `--layout` 对应部分 C 的领域文档布局选择（默认 `single`）
+- `--labels` 对应部分 B 的标签覆盖（JSON 对象：角色名 → 实际标签字符串；Windows PowerShell 下内层引号需写成 `\"`，如 `'{\"wontfix\":\"no-fix\"}'`）
+- 建议先 `--dry-run` 演练，确认后再去掉该标志正式执行
+- `--no-block`：只做一致性同步，不 upsert `## Agent skills` 块（用于配置块已被人工定制、只需对齐 `CODEBUDDY.md` 的场景）
 
-- 如果 `CLAUDE.md` 存在，编辑它（作为通用规范），并同步更新 `CODEBUDDY.md` 使其内容一致。
-- 否则如果 `AGENTS.md` 存在，编辑它（作为通用规范），并同步更新 `CODEBUDDY.md` 使其内容一致。
-- 如果都不存在，**默认创建 `AGENTS.md` 与 `CODEBUDDY.md`**（除非用户明确要求其他）。非交互/默认路径下直接创建，无需询问。两个文件内容完全相同，且都带 `## 多代理要求` 块。
+脚本内化的规则（无需模型手工执行）：
 
-当 `CLAUDE.md` 已存在时，永远不要创建 `AGENTS.md`（反之亦然）——始终编辑已有的那个；`CODEBUDDY.md` 始终独立创建/更新，内容与被编辑的通用规范文件保持一致。
+- **文件选择互斥**：`CLAUDE.md` 存在则以它为通用规范源（不创建 `AGENTS.md`）；否则 `AGENTS.md`；都不存在则默认创建 `AGENTS.md`（含 `## 多代理要求` 块 + 全部默认的 `## Agent skills` 块）。
+- **块 upsert**：`## Agent skills` 块已存在则就地替换、缺失则追加，周围用户内容不动；`## 多代理要求` 块缺失时自动注入首个 H1 之后。
+- **一致性**：`CODEBUDDY.md` 始终与通用规范文件逐字节一致；三份 `docs/agents/*.md` 由种子模板逐字节克隆。
+- **结果日志**：逐文件输出 `[created]/[updated]/[unchanged]` 动作及原因（覆盖文件存在与不存在两种情况）；一致性校验失败时退出码非 0。
 
-如果所选文件中已存在 `## Agent skills` 块，就地更新其内容，而非追加重复块；同步更新 `CODEBUDDY.md` 的对应块。不要覆盖用户对周围部分的编辑。
-
-该块：
-
-```markdown
-## Agent skills
-
-### Issue tracker
-
-[一行概述 issue 跟踪位置——本仓库为本地 markdown（`.scratch/` 下）]。参见 `docs/agents/issue-tracker.md`。
-
-### triage 标签
-
-[一行概述标签词汇表]。参见 `docs/agents/triage-labels.md`。
-
-### 领域文档
-
-[一行概述布局——"单一上下文"或"多上下文"]。参见 `docs/agents/domain.md`。
-
-### 临时文件
-
-所有临时脚本统一放在仓库 `.temp/scripts/` 下；其他临时文件（脚本输出、日志等）也要分类，放在 `.temp/` 的子目录下（如 `.temp/output/`、`.temp/logs/`），保证仓库根目录干净。
-```
-
-然后使用此技能目录中的种子模板作为起点写入以下文档文件：
-
-- [issue-tracker-local.md](./issue-tracker-local.md) — 本地 markdown issue tracker
-- [triage-labels.md](./triage-labels.md) — 标签映射
-- [domain.md](./domain.md) — 领域文档消费者规则 + 布局
+脚本输出的日志即步骤 5 向用户汇报的依据。
 
 ### 5. 完成
 

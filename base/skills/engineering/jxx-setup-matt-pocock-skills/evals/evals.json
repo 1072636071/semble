@@ -7,9 +7,9 @@
       "should_trigger": true,
       "expected_output": "配置issue tracker、triage标签词汇表和领域文档布局",
       "expectations": [
-        "检查仓库当前状态",
+        "运行本技能 scripts/setup.mjs detect 获取仓库状态 JSON 报告",
         "引导配置issue tracker",
-        "设置triage标签或领域文档"
+        "运行 scripts/setup.mjs sync-doc 完成写入并依据执行日志汇报"
       ]
     },
     {
@@ -18,9 +18,9 @@
       "should_trigger": true,
       "expected_output": "启动仓库配置流程",
       "expectations": [
-        "检测仓库现有配置",
+        "运行 scripts/setup.mjs detect 检测仓库现有配置（区分文件存在/不存在）",
         "引导用户完成初始化决策",
-        "创建必要的配置文件"
+        "运行 scripts/setup.mjs sync-doc 创建配置文件，而非手工写文件"
       ]
     },
     {

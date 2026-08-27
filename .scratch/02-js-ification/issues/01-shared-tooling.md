@@ -1,6 +1,6 @@
 # 共享工具层（base/scripts/shared）
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Blocked by:** 无——可立即开始
 
@@ -13,5 +13,7 @@
 - [ ] 提供一份调用示例/文档，后续专题能直接 import 复用
 
 ## 评论
+
+- [2026-08-27] audit-js 核查：验收标准逐项结论（3/3 满足），验证方式（base/scripts/shared/ 下 6 个共享模块 fs-utils/append-fragment/next-seq/render-template/report-html/open-in-browser.mjs 全部落地，各自对应 test/*.test.mjs 存在且 `node --test "base/scripts/test/*.test.mjs"` 全绿（135 项，含本批 append-fragment/fs-utils/next-seq/render-template/report-html/open-in-browser）；仅用 Node 内建模块零第三方依赖；shared/README.md 提供 import 用法示例），判定为已完成第一轮开发，待代码审查。
 
 （评论与对话历史追加于此，新内容置于最前。）

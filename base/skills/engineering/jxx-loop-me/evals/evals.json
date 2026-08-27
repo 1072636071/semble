@@ -1,7 +1,0 @@
-[
-  {
-    "name": "jxx-loop-me-basic",
-    "prompt": "帮我梳理一下我每天早上的工作流程，看看哪些可以自动化",
-    "expected_behavior": "启动追问会话，识别用户生活中的循环模式，逐步产出工作流规格，存入 workflows/*.md"
-  }
-]

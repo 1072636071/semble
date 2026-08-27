@@ -172,6 +172,7 @@ Harness 的"代码强制"最终落到脚本上。编写脚本时遵循：
   - Node 侧：`fs.readFile(path, 'utf-8')` / `fs.writeFile(path, content, 'utf-8')`；跨进程读取外部命令输出时，显式指定 `{ encoding: 'utf-8' }` 并通过 `chcp 65001`（Windows）或 `env LANG` 保证子进程输出为 UTF-8。
   - 处理含中文/emoji 的路径或内容时，避免使用依赖字节序的旧 API；正则与切片操作按"字符"而非"字节"处理。
   - 脚本若向终端打印日志，输出前确认 stdout 为 UTF-8（CI 环境常见 cp1252，需 `process.stdout.setDefaultEncoding('utf-8')` 或在调用链上层设置）。
+- **统一分发/派生入口（本仓库既定实现）**：技能/Agent 的分发、派生与安装以 `base/scripts/ship.mjs` 为唯一入口（子命令 `init` / `derive` / `install` / `check`，配置驱动于 `vendors.json`，零第三方依赖、`node:test` 范式见 `base/scripts/test/`）。跨厂商元数据派生与安装不再另起 `gen-skill-meta.mjs` / `gen-agent-meta.mjs` 平行脚本；实现细节以 `cross-vendor/SKILL-METADATA-MAPPING.md` §6 与 `cross-vendor/AGENT-MAPPING.md` §6 为准。
 
 ---
 

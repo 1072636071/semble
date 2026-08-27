@@ -42,6 +42,8 @@ triage 期间写入 issue 文件的每条评论**必须**以此免责声明开�
 
 状态转换：未标记的 issue 通常先进入 `needs-triage`；然后移至 `needs-info`、`ready-for-agent`、`ready-for-human` 或 `wontfix`。`needs-info` 在报告者回复后返回 `needs-triage`。维护者可随时覆盖——标记看起来异常的转换并在继续前询问。
 
+> **实现阶段的生命周期**：`ready-for-agent` 是 triage 的终点，但工单在交由 agent 实现后还会经历实现 / 审查状态——第一轮功能开发完成进入 `pending-review`（待审查），代码审查通过后进入 `done`（结束）。这两个状态的定义与流转见 `docs/agents/issue-tracker.md` 的「工单状态与生命周期」节，由 `/jxx-implement` 与 `/jxx-code-review` 维护。
+
 ## 调用
 
 维护者调用 `/jxx-triage` 并用自然语言描述需求。解释请求并执行。示例：

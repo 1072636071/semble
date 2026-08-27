@@ -326,9 +326,37 @@ function listAgents(config) {
   return result;
 }
 
+// x-install 语义：缺省 / true → 'user'（用户级 + 项目级均装）；'project' → 仅项目级；false → 不装
 function getXInstall(filePath) {
-  const { meta } = parseFrontmatter(filePath);
-  return meta['x-install'] !== false;
+  let meta = {};
+  try {
+    meta = parseFrontmatter(filePath).meta;
+  } catch {
+    // 子集 YAML 解析器对部分合法 frontmatter（如多行 flow 序列）会抛错；
+    // 安装决策只需 x-install，退化为正则提取，不影响派生引擎（派生只针对可正常解析的 src 技能）。
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+    if (fm) {
+      const line = fm[1].split(/\r?\n/).find((l) => /^\s*x-install\s*:/.test(l));
+      if (line) {
+        const v = line.split(/:/).slice(1).join(':').trim();
+        if (v === 'false') return false;
+        if (v === 'project') return 'project';
+        if (v === 'true') return 'user';
+      }
+    }
+  }
+  const v = meta['x-install'];
+  if (v === false) return false;
+  if (v === 'project') return 'project';
+  return 'user';
+}
+
+// 安装目标：'user' 级技能在用户级与项目级都装；'project' 级技能仅项目级装；false 不装
+function shouldInstallForTarget(xInstallValue, projectTarget) {
+  if (xInstallValue === false) return false;
+  if (xInstallValue === 'project') return projectTarget === true;
+  return true;
 }
 
 // ---------------------------------------------------------------- 派生
@@ -430,6 +458,7 @@ function runDerive(config, { dryRun }) {
   const errors = [];
   for (const skill of listSkillDirs(config)) {
     if (!skill.srcMode) continue;
+    if (getXInstall(skill.srcPath) === false) continue; // x-install: false 技能跳过派生
     for (const vendor of config.vendors) {
       const d = deriveSkill(vendor, skill, config);
       if (d.error) { errors.push(d.error); continue; }
@@ -438,6 +467,7 @@ function runDerive(config, { dryRun }) {
   }
   for (const agent of listAgents(config)) {
     if (!agent.srcMode) continue;
+    if (getXInstall(agent.file) === false) continue; // x-install: false agent 跳过派生
     for (const vendor of config.vendors) {
       const d = deriveAgent(vendor, agent, config);
       if (d.error) { errors.push(d.error); continue; }
@@ -455,6 +485,7 @@ function runDerive(config, { dryRun }) {
     // 复制辅助文件（references/ scripts/ 等）到派生目录，保证 .generated 可整体作为技能目录
     for (const skill of listSkillDirs(config)) {
       if (!skill.srcMode) continue;
+      if (getXInstall(skill.srcPath) === false) continue; // x-install: false 技能不复制辅助文件
       for (const vendor of config.vendors) {
         const d = deriveSkill(vendor, skill, config);
         if (d.error) continue;
@@ -486,7 +517,7 @@ function runInstall(config, { dryRun, project }) {
   const skipped = [];
   const failures = [];
 
-  const skills = listSkillDirs(config).filter((s) => getXInstall(s.srcPath));
+  const skills = listSkillDirs(config).filter((s) => shouldInstallForTarget(getXInstall(s.srcPath), project));
   const srcNames = new Set(skills.map((s) => s.name));
 
   for (const vendor of config.vendors) {
@@ -540,7 +571,7 @@ function runInstall(config, { dryRun, project }) {
   }
 
   // Agent 分发
-  const agents = listAgents(config).filter((a) => getXInstall(a.file));
+  const agents = listAgents(config).filter((a) => shouldInstallForTarget(getXInstall(a.file), project));
   for (const vendor of config.vendors) {
     const agentsTarget = targetAgentsDir(config, vendor, project);
     if (!agentsTarget) {

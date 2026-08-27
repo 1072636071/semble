@@ -35,13 +35,10 @@
 - **[to-spec](./engineering/jxx-to-spec/SKILL.md)** — 将当前对话转化为规格文档并发布到 issue 跟踪器。
 - **[to-tickets](./engineering/jxx-to-tickets/SKILL.md)** — 将任何计划、规格文档或对话拆解为一组追踪弹式（tracer-bullet）工单，每个工单声明其阻塞关系。
 - **[wayfinder](./engineering/jxx-wayfinder/SKILL.md)** — 规划大型工作，在 issue tracker 上创建共享调查地图，逐个解决直到路径清晰。
-- **[loop-me](./engineering/jxx-loop-me/SKILL.md)** — grill 用户关于工作流 spec 的细节，在工作区内设计可委托的循环模式。
-
 ### 模型调用
 
 模型或用户均可可达（丰富的触发措辞使模型能主动调用）。
 
-- **[agent-generator](./engineering/jxx-agent-generator/SKILL.md)** — 按"姜姓身份 + 统一 frontmatter + 既有写作风格"生成或改造 agent 文件。
 - **[prototype](./engineering/jxx-prototype/SKILL.md)** — 构建一次性 prototype 来回答设计问题。
 - **[diagnosing-bugs](./engineering/jxx-diagnosing-bugs/SKILL.md)** — 针对疑难 bug 和性能 regression 的规范诊断循环。
 - **[research](./engineering/jxx-research/SKILL.md)** — 基于高可信度一手资料调查问题，将发现以带引用的 Markdown 文件保存到仓库中。
@@ -51,7 +48,7 @@
 - **[code-review](./engineering/jxx-code-review/SKILL.md)** — 基于固定时间点的 diff 进行双轴 review（标准轴 + spec 轴）。
 
 - **[implement](./engineering/jxx-implement/SKILL.md)** — 实现技能。
-- **[impeccable](./engineering/jxx-impeccable/SKILL.md)** 🪝[待改造] — 设计、重塑、打磨前端界面，提供工艺级视觉与 UX。其 `hook*.mjs` runner 思路（一个内核 + 多 manifest）可复用，但当前 manifest 矩阵为 Claude Code 系四家，**未对齐 openCode/CodeBuddy/CodeArts/Trae**，待改造。
+- **[impeccable](./engineering/impeccable/SKILL.md)** 🪝[待改造] — 设计、重塑、打磨前端界面，提供工艺级视觉与 UX。其 `hook*.mjs` runner 思路（一个内核 + 多 manifest）可复用，但当前 manifest 矩阵为 Claude Code 系四家，**未对齐 openCode/CodeBuddy/CodeArts/Trae**，待改造。
 - **[resolving-merge-conflicts](./engineering/jxx-resolving-merge-conflicts/SKILL.md)** — 解决合并冲突。
 - **[grill-with-memorial](./engineering/jxx-grill-with-memorial/SKILL.md)** — 通过 grill 打磨计划或设计，全过程持久化到 memorial 奏报目录。支持中断续接、调查委派、收尾审核。
 - **[wizard](./engineering/jxx-wizard/SKILL.md)** — 生成交互式 bash 向导，引导人完成手动多步流程，捕获值并写入 `.env` 或 CI 密钥。

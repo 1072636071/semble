@@ -1,6 +1,6 @@
 # `.goals/` 流水线
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Blocked by:** 01
 
@@ -13,5 +13,7 @@
 - [ ] 判定映射与阻塞状态机行为正确，规则可确定性校验
 
 ## 评论
+
+- [2026-08-27] audit-js 核查：验收标准逐项结论（3/3 满足），验证方式（`base/scripts/goal.mjs` 提供 gate/init/progress-update/evidence/review-write 五个子命令，V1–V10 否决门逐门输出通过/否决+原因；GOAL.md/PROGRESS.md/EVIDENCE.md/REVIEW.md/_index.md 在 fixture `.goals/` 上生成正确；判定映射 ✅/⚠️/❌ → 准奏/附条件/封驳及阻塞状态机正确；`base/scripts/test/goal.test.mjs` 覆盖 gate/init/progress/evidence/review 各分支且 `node --test` 全绿（135 项含 goal），零第三方依赖），判定为已完成第一轮开发，待代码审查。
 
 （评论与对话历史追加于此，新内容置于最前。）
