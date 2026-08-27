@@ -441,6 +441,7 @@ function runDerive(config, { dryRun }) {
   const errors = [];
   for (const skill of listSkillDirs(config)) {
     if (!skill.srcMode) continue;
+    if (getXInstall(skill.srcPath) === false) continue; // x-install: false 技能跳过派生
     for (const vendor of config.vendors) {
       const d = deriveSkill(vendor, skill, config);
       if (d.error) { errors.push(d.error); continue; }
@@ -449,6 +450,7 @@ function runDerive(config, { dryRun }) {
   }
   for (const agent of listAgents(config)) {
     if (!agent.srcMode) continue;
+    if (getXInstall(agent.file) === false) continue; // x-install: false agent 跳过派生
     for (const vendor of config.vendors) {
       const d = deriveAgent(vendor, agent, config);
       if (d.error) { errors.push(d.error); continue; }
@@ -466,6 +468,7 @@ function runDerive(config, { dryRun }) {
     // 复制辅助文件（references/ scripts/ 等）到派生目录，保证 .generated 可整体作为技能目录
     for (const skill of listSkillDirs(config)) {
       if (!skill.srcMode) continue;
+      if (getXInstall(skill.srcPath) === false) continue; // x-install: false 技能不复制辅助文件
       for (const vendor of config.vendors) {
         const d = deriveSkill(vendor, skill, config);
         if (d.error) continue;

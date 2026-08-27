@@ -3,6 +3,7 @@ name: skill-creator
 description: 创建（或更新）高效 skill 的指南 Guide for creating/updating effective skills；当用户需要新建或改进扩展 Agent 能力的 skill（含 specialized knowledge、workflows、tool integrations）时使用。
 metadata:
   version: 1.0.3
+x-install: false
 ---
 
 # Skill Creator

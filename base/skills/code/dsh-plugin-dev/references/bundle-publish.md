@@ -112,12 +112,14 @@ dsh plugin --profile demo remove dsh-hello-plugin
 
 ## 配置加载顺序
 
-生效配置在**空根**之上按以下顺序逐层组合：
+生效配置在**空根**之上按以下顺序逐层组合（完整 7 层清单见 [config-schema.md](config-schema.md#用户覆盖配置patch-层)，此处列出与打包直接相关的 4 层）：
 
 1. `dsh.profile.bundles` 列表中的各组合包 patch（按列表顺序）
 2. profile 自己的 `cordis.patch.yml`
 3. home 级 `$DSH_HOME/cordis.patch.yml`（各 profile 共享的机器本地偏好）
 4. 每个 `--patch <path>` overlay（按 argv 顺序）
+
+> 完整顺序还包含 win32 shell 层、agent-presets、telemetry 三层；排错时以 config-schema.md 的完整清单为准。
 
 **两条规则**：
 - 后应用的层**按行胜出**；patch 会**替换**目标行的整个 config 值（不做深度合并）。

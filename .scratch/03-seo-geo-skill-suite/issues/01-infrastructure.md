@@ -1,6 +1,6 @@
 # 基础设施：seo-geo 桶 + seo- 前缀 + x-install: project
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Blocked by:** 无——可立即开始
 
@@ -15,3 +15,5 @@
 - [ ] CHANGELOG 与安装文档已更新
 
 ## 评论
+
+- [2026-08-27] audit-seo 核查：验收标准逐项结论（5/5 满足）。①桶改名：`base/skills/SEO2GEO/`→`seo-geo/`，仓库无 SEO2GEO 代码残留（仅 CHANGELOG/memorial 历史提及）；②vendors.json `managedPrefixes` 含 `seo-`、`buckets` 含 `seo-geo`（`base/scripts/vendors.json:3`）；③行为测试：`base/scripts/test/ship.test.mjs:280-293` 覆盖 `x-install: project` 不进用户级/进项目级，实际运行 `node --test base/scripts/test/ship.test.mjs` 23/23 pass；④`node base/scripts/ship.mjs check` 输出"全部通过"；⑤CHANGELOG（`base/CHANGELOG.md:11-23`）与安装文档（`base/skills/安装.md:30-39`）已更新。判定已完成第一轮开发，待代码审查。

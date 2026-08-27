@@ -78,6 +78,9 @@ function makeFixture() {
   // x-install: false 技能：默认不安装
   writeFile(root, 'skills/productivity/jxx-skip/SKILL.md', '---\nname: jxx-skip\ndescription: skipped skill\nx-install: false\n---\n\n# skip\n');
 
+  // x-install: false 的 src 技能：派生时也应跳过
+  writeFile(root, 'skills/productivity/jxx-skip-src/SKILL.src.md', '---\nname: jxx-skip-src\ndescription: skipped src skill\nx-install: false\n---\n\n# skip src\n');
+
   // x-install: project 技能：仅项目级安装（seo-geo 桶）
   writeFile(root, 'skills/seo-geo/seo-project-only/SKILL.md', '---\nname: seo-project-only\ndescription: project-only skill\nx-install: project\n---\n\n# project only\n');
 
@@ -340,6 +343,15 @@ test('derive：src 技能派生 4 家适配版', () => {
 test('derive：辅助文件保留在派生产物目录', () => {
   const gen = path.join(fixture.root, '.generated');
   assert.ok(fs.existsSync(path.join(gen, 'opencode', 'jxx-modern', 'references', 'note.md')));
+});
+
+test('derive：x-install: false 的 src 技能跳过派生', () => {
+  const r = run(['derive']);
+  assert.equal(r.code, 0);
+  const gen = path.join(fixture.root, '.generated');
+  for (const vendor of ['opencode', 'codebuddy', 'codearts', 'trae', 'qoder']) {
+    assert.ok(!fs.existsSync(path.join(gen, vendor, 'jxx-skip-src')), `${vendor} 不应派生 jxx-skip-src`);
+  }
 });
 
 // ---------------------------------------------------------------- 工单 04

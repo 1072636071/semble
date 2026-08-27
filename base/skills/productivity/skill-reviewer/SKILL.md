@@ -3,6 +3,7 @@ name: skill-reviewer
 description: 基于华为skill编写规范与业界最佳实践的skill compliance（合规）检查专家，校验skill的结构、命名、内容、格式合规性并输出review报告；用户提示评审某skill或目录下skill时调用，不依赖大模型原生能力。
 metadata:
   version: 1.0.0
+x-install: false
 ---
 
 ## 功能概述

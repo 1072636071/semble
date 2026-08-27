@@ -63,8 +63,8 @@ skills/<skill>/
 ```
 
 - **源文件 `SKILL.src.md`**：只含四家公共子集 + 一个 `x-vendors` 扩展段（描述各厂商专属字段），正文用中文编写（降低维护成本）。
-- **生成脚本 `gen-skill-meta.mjs`**（见 §6）：读 `SKILL.src.md`，按 §3–§5 规则产出四份 `SKILL.md` 到 `.generated/<vendor>/`。
-- **安装**：各厂商适配版拷贝到对应扫描目录（见 §7）。
+- **生成脚本（既定实现 `ship.mjs derive`，见 §6）**：读 `SKILL.src.md`，按 §3–§5 规则产出四份 `SKILL.md` 到 `.generated/<vendor>/`。
+- **安装（既定实现 `ship.mjs install`）**：各厂商适配版拷贝到对应扫描目录（见 §7），并做 SHA256 校验与残留清理。
 
 > 为什么不手写四份？四份会漂移（改一处忘三处），且违反"用代码强制"原则——生成脚本即代码强制的体现。
 
@@ -128,7 +128,7 @@ CodeArts 强制 SKILL.md 正文、references、scripts 注释英文。其余三�
 
 ---
 
-## 6. 生成脚本接口（`gen-skill-meta.mjs`）
+## 6. 生成脚本接口（既定实现 `ship.mjs derive`）
 
 按 HARNESS-SPEC §9 要求用 `.mjs`、UTF-8。
 
@@ -165,14 +165,15 @@ x-vendors:
 4. codearts 额外生成 references/iam-policies.md 骨架（若缺失）
 ```
 
-**CLI**：
+**CLI（`base/scripts/ship.mjs`）**：
 
 ```
-node gen-skill-meta.mjs <skillDir>      # 生成单技能
-node gen-skill-meta.mjs --all           # 遍历全部技能生成
+node base/scripts/ship.mjs derive              # 遍历全部 src 技能派生到 .generated/<vendor>/
+node base/scripts/ship.mjs install [--project] # 安装（双模式：src 派生 / 无 src 原样复制）
+node base/scripts/ship.mjs check               # 预检（含 CodeArts 门禁）
 ```
 
-**校验**：脚本末尾对各派生版做最小校验（name 正则、codearts description 为 5 行编号列表、codearts 含 tags），不符合则非零退出（对接 HARNESS-SPEC §2.2 反馈回路）。
+**校验**：`check` 对 CodeArts 门禁（`x-vendors.codearts.description-en` / `<!--en-->` 英文块缺失）做非零退出拦截，且不阻塞其余厂商安装；`derive` 输出各派生版遵循 §3–§5 规则（name 正则、codearts description 为 5 行编号列表、codearts 含 tags），对接 HARNESS-SPEC §2.2 反馈回路。
 
 ---
 
@@ -195,6 +196,6 @@ node gen-skill-meta.mjs --all           # 遍历全部技能生成
 - [ ] 源文件 `description` 已按指针规则精剪；CodeArts 派生版为 5 行编号列表（§4）
 - [ ] 含 `x-vendors` 段，至少填 `codearts.product` 与 `codearts.tags`
 - [ ] CodeArts 所需的英文 `description`/正文块已提供（§5）
-- [ ] 运行 `gen-skill-meta.mjs` 四家均生成成功、校验通过
+- [ ] 运行 `ship.mjs derive` 四家均生成成功、`ship.mjs check` 通过
 - [ ] 四家目录安装后各自可被对应 Agent 扫描加载
 - [ ] 若含 Hook，同步满足 HARNESS-SPEC §10 标注

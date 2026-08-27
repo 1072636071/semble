@@ -1,6 +1,6 @@
 # geo-super 全量中文化并入审查模板 references
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Blocked by:** 02
 
@@ -15,3 +15,5 @@
 - [ ] skill-reviewer 合规检查通过
 
 ## 评论
+
+- [2026-08-27] audit-seo 核查：验收标准逐项结论（5/5 满足）。实现于 `base/skills/seo-geo/seo-audit-template/references/`：①geo-super SKILL.md+10 个 references 全量中文化落地——`geo/` 下 10 个文件齐全（content-strategy/structured-data/ai-crawlers-and-llmstxt/technical-implementation/agent-readiness/platforms/measurement/audit-checklist/templates/ahrefs-2026-studies），抽查 `geo/ahrefs-2026-studies.md` 中文+术语保留英文（grounding/Ahrefs 等）；②路由表完整（`seo-audit-template/SKILL.md:144-166`），各 reference 自包含按需加载；③断言均有 grounding（ahrefs-2026-studies.md 保留为经验性声明证据）；④翻译产出"五件套 GEO 增量素材清单"=`references/geo-increment-materials.md`（含 04-08 各件套指针映射）；⑤skill-reviewer：实际运行 review-skill.mjs 通过 7/7。判定已完成第一轮开发，待代码审查。

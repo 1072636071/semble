@@ -12,10 +12,12 @@
 - 构建 bundle 插件并打包发布到 GitHub/npm
 - 用 Schemastery 定义插件配置 schema
 - 排查插件加载失败、依赖解析、patch 配置不生效等问题
+- 检查本机 dsh 开发环境（`DSH_PROJECT_PATH` / `DSH_DEPLOY` 等环境变量）
 
 ## 核心能力
 
-- **插件结构**：三个核心导出（`name`/`apply`/`inject`/`Config`）、三种形态（函数/对象/类）、生命周期与自动清理
+- **环境自检**：触发后先运行 `node scripts/detect-env.mjs` 探测 `DSH_PROJECT_PATH` / `DSH_DEPLOY` / `DSH_HOME` 环境变量与 CLI/Node 版本，输出 JSON 报告，再按部署方式生成命令
+- **插件结构**：四个核心导出（`name`/`apply`/`inject`/`Config`）、三种形态（函数/对象/类）、生命周期与自动清理
 - **工具开发**：`defineTool` + `parameters`/`output`/`execute` 完整契约
 - **服务开发**：`class extends Service` 提供可注入能力
 - **配置**：Schemastery schema 静态配置 + `ctx.settings` 运行时设置
@@ -34,6 +36,10 @@ dsh-plugin-dev/
 │   ├── config-schema.md        # 配置 schema 与运行时设置
 │   ├── bundle-publish.md       # 打包、安装、发布、patch 语义
 │   └── troubleshooting.md      # 常见坑与排查
+├── scripts/
+│   └── detect-env.mjs          # 启动环境探测脚本（输出 JSON 报告）
+├── tests/
+│   └── detect-env.test.mjs     # 探测脚本测试（node --test）
 └── assets/templates/
     ├── minimal-plugin.ts       # 最小插件模板
     ├── tool-plugin.ts          # 工具插件模板

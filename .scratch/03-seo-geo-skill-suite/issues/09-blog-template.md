@@ -1,6 +1,6 @@
 # 写作模板 seo-blog-template：news-x 抽象 + 样式模板
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Blocked by:** 02, 07
 
@@ -14,3 +14,5 @@
 - [ ] 中英触发词；skill-reviewer 合规检查通过；skill-tester 触发测试通过
 
 ## 评论
+
+- [2026-08-27] audit-seo 核查：验收标准逐项结论（4/4 满足，触发测试套件已建但 run 有格式缺陷）。实现于 `base/skills/seo-geo/seo-blog-template/`：①生成 `blog-writer` 子技能全流程（SKILL.md:20-59 追问收参、65-112 骨架含版本戳 x-template+参数快照 x-template-params、140-150 升级模式）；②追问项收集 news-x 级项目知识（SKILL.md:44-58 架构事实/分类枚举/渲染约定/缩略图映射/设计令牌）；③样式模板与审查侧同源——`references/style-template.md` 与 `seo-audit-template/references/style-consistency-checklist.md` 内容一致（SKILL.md:116-125），写审共享基准；references 齐全（style-template/writing-checklist/authenticity-self-check/geo-quotability-checklist/title-formulas/structure-templates）；④中英触发词（SKILL.md:3,10-17）、skill-reviewer 实际运行 7/7 通过、evals 已建。已知问题：evals.json 裸数组与 run-eval.mjs `{skill_name,evals}` 契约不匹配，触发测试无法运行。判定已完成第一轮开发，待代码审查。

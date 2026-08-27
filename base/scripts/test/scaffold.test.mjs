@@ -5,14 +5,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  MULTI_AGENT_BLOCK,
-  DOC_TEMPLATES,
-  DEFAULT_AGENTS_CONTENT,
-  filesIdentical,
   readMemorialStatus,
   findMemorial,
-  nextMemorialSeq,
-  runSyncDoc,
   runMemorialInit,
   runMemorialArchive,
   normalizeExerciseSeq,
@@ -34,93 +28,14 @@ function write(root, rel, content) {
 }
 function read(root, rel) { return fs.readFileSync(path.join(root, rel), 'utf-8'); }
 
-// 为每个测试独立 root + 独立 seeds，保证确定性。
+// 为每个测试独立 root，保证确定性。
+// 注：sync-doc / detect / Agent skills 块相关测试已随实现迁移至
+// skills/engineering/jxx-setup-matt-pocock-skills/tests/setup.test.mjs（技能自包含）。
 function fixtureRoot(tag) {
   const root = path.join(tmp, tag);
   fs.mkdirSync(root, { recursive: true });
   return root;
 }
-function mkSeeds(tag) {
-  const seeds = path.join(tmp, `${tag}-seeds`);
-  fs.mkdirSync(seeds, { recursive: true });
-  write(seeds, 'issue-tracker-local.md', '# 本地 tracker\n');
-  write(seeds, 'triage-labels.md', '# 标签映射\n');
-  write(seeds, 'domain.md', '# 领域布局\n');
-  return seeds;
-}
-
-// ================================================================ 一致性：逐字节 copy + 断言
-
-test('sync-doc: AGENTS.md 存在时以它为源，CODEBUDDY.md 逐字节一致，多代理块存在', () => {
-  const root = fixtureRoot('sync-agents');
-  const agents = `# R\n\n${MULTI_AGENT_BLOCK}\n自定义内容 abc 123\n`;
-  write(root, 'AGENTS.md', agents);
-  const seeds = mkSeeds('sync-agents');
-  const r = runSyncDoc({ root, seedsDir: seeds });
-  assert.equal(r.canonical, 'AGENTS.md');
-  assert.equal(r.createdDefault, false);
-  assert.equal(filesIdentical(path.join(root, 'AGENTS.md'), r.codebuddy), true);
-  assert.equal(r.identical, true);
-  assert.equal(fs.existsSync(path.join(root, 'CLAUDE.md')), false, 'AGENTS 分支不得创建 CLAUDE.md');
-  assert.equal(read(root, 'CODEBUDDY.md'), agents);
-});
-
-test('sync-doc: CLAUDE.md 存在时互斥优先于 AGENTS.md（不创建 AGENTS.md）', () => {
-  const root = fixtureRoot('sync-claude');
-  const claude = `# C\n${MULTI_AGENT_BLOCK}\nvia-claude\n`;
-  write(root, 'CLAUDE.md', claude);
-  const seeds = mkSeeds('sync-claude');
-  const r = runSyncDoc({ root, seedsDir: seeds });
-  assert.equal(r.canonical, 'CLAUDE.md');
-  assert.equal(fs.existsSync(path.join(root, 'AGENTS.md')), false, 'CLAUDE 分支不得创建 AGENTS.md');
-  assert.equal(read(root, 'CODEBUDDY.md'), claude);
-  assert.equal(r.identical, true);
-});
-
-test('sync-doc: 两者并存时取 CLAUDE.md 为源（SKILL.md 优先级），CODEBUDDY 与其一致', () => {
-  const root = fixtureRoot('sync-both');
-  const claude = `# C\n${MULTI_AGENT_BLOCK}\n`;
-  const agents = `# A\n${MULTI_AGENT_BLOCK}\n`;
-  write(root, 'CLAUDE.md', claude);
-  write(root, 'AGENTS.md', agents);
-  const seeds = mkSeeds('sync-both');
-  const r = runSyncDoc({ root, seedsDir: seeds });
-  assert.equal(r.canonical, 'CLAUDE.md');
-  assert.equal(read(root, 'CODEBUDDY.md'), claude);
-});
-
-test('sync-doc: 无 CLAUDE/AGENTS 时默认创建 AGENTS.md + CODEBUDDY.md，内容相同且带多代理块', () => {
-  const root = fixtureRoot('sync-default');
-  const seeds = mkSeeds('sync-default');
-  const r = runSyncDoc({ root, seedsDir: seeds });
-  assert.equal(r.createdDefault, true);
-  assert.equal(r.canonical, 'AGENTS.md');
-  assert.equal(read(root, 'AGENTS.md'), DEFAULT_AGENTS_CONTENT);
-  assert.equal(read(root, 'CODEBUDDY.md'), DEFAULT_AGENTS_CONTENT);
-  assert.match(read(root, 'AGENTS.md'), /AGENTS\.md 和 CODEBUDDY\.md 内容必须保持一致/);
-  assert.equal(r.identical, true);
-  assert.equal(r.multiAgent, true);
-});
-
-test('sync-doc: 克隆三份 docs/agents/*.md 模板（逐字节等于种子）', () => {
-  const root = fixtureRoot('sync-tpl');
-  const seeds = mkSeeds('sync-tpl');
-  runSyncDoc({ root, seedsDir: seeds });
-  for (const { seed, out } of DOC_TEMPLATES) {
-    const dst = path.join(root, 'docs/agents', out);
-    assert.equal(filesIdentical(path.join(seeds, seed), dst), true, `${out} 应与种子逐字节一致`);
-  }
-  assert.deepEqual(new Set(fs.readdirSync(path.join(root, 'docs/agents')).sort()), new Set(['issue-tracker.md', 'triage-labels.md', 'domain.md']));
-});
-
-test('sync-doc: --dry-run 不落盘', () => {
-  const root = fixtureRoot('sync-dry');
-  const seeds = mkSeeds('sync-dry');
-  const r = runSyncDoc({ root, seedsDir: seeds, dryRun: true });
-  assert.equal(r.dryRun, true);
-  assert.equal(fs.existsSync(path.join(root, 'CODEBUDDY.md')), false);
-  assert.equal(fs.existsSync(path.join(root, 'docs/agents/issue-tracker.md')), false);
-});
 
 // ================================================================ memorial-init
 
@@ -251,7 +166,7 @@ test('memorial-archive: --dry-run 不移动', () => {
 
 // ================================================================ CLI 集成（临时目录跑真实子命令）
 
-test('CLI: sync-doc / memorial-init / memorial-archive 端到端', () => {
+test('CLI: memorial-init / memorial-archive 端到端', () => {
   const goal = fixtureRoot('cli-goal');
   // memorial-init
   const initR = runMemorialInit({ root: goal, subject: 'ship scaffolding' });

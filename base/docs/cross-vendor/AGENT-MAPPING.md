@@ -142,18 +142,18 @@ x-vendors:
 
 ---
 
-## 6. 生成脚本接口（`gen-agent-meta.mjs`）
+## 6. 生成脚本接口（既定实现 `ship.mjs derive`）
 
-与 `gen-skill-meta.mjs` 对称（HARNESS-SPEC §9 要求 `.mjs` + UTF-8）。
+与 SKILL 的 `ship.mjs derive` 对称（HARNESS-SPEC §9 要求 `.mjs` + UTF-8）。
 
 **输入**：`AGENT.src.md`（frontmatter + `x-vendors`）。
 **输出**：`.generated/{opencode,codebuddy,codearts,trae}/agents/<id-or-name>.md`。
 
-**CLI**：
+**CLI（`base/scripts/ship.mjs`）**：
 
 ```
-node gen-agent-meta.mjs <agentDir>
-node gen-agent-meta.mjs --all
+node base/scripts/ship.mjs derive   # 派生全部 src agent 到 .generated/<vendor>/agents/
+node base/scripts/ship.mjs install  # 安装（双模式：src 派生 / 平面文件原样复制）
 ```
 
 **主干**：
@@ -199,7 +199,7 @@ node gen-agent-meta.mjs --all
 - [ ] frontmatter 不含 `name`（openCode 由路径决定），`name` 仅出现在 `x-vendors`
 - [ ] 含 `x-vendors.permissions`（抽象 allow/deny）、`x-vendors.skills`（如需绑 Skill）
 - [ ] CodeArts 所需英文 `description`/正文块已提供
-- [ ] 运行 `gen-agent-meta.mjs` 四家生成成功、校验通过（openCode 无 name 键、codearts name==文件名）
+- [ ] 运行 `ship.mjs derive` 四家生成成功、校验通过（openCode 无 name 键、codearts name==文件名）
 - [ ] 四家 `agents/` 目录安装后各自可被对应 Agent 扫描加载
 - [ ] 引用的 Skill 名与各厂商 Skill 派生名一致（§4 / SKILL 规范）
 - [ ] 若含 Hook，同步满足 HARNESS-SPEC §10 标注

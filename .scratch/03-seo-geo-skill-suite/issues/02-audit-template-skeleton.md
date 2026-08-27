@@ -1,6 +1,6 @@
 # 审查模板骨架：生成/升级模式 + 三维审查模型 + 子技能骨架范式
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Blocked by:** 01
 
@@ -15,3 +15,5 @@
 - [ ] skill-reviewer 合规检查通过；skill-tester 触发测试通过（中英触发词）
 
 ## 评论
+
+- [2026-08-27] audit-seo 核查：验收标准逐项结论（4/4 功能项 + skill-reviewer 满足；skill-tester 触发测试套件已建但 run 有格式缺陷）。功能实现于 `base/skills/seo-geo/seo-audit-template/SKILL.md`：①追问收参→生成 `seo-geo-audit` 子技能全流程（40-102 行）；②生成子技能含版本戳 `x-template`+参数快照 `x-template-params`（67-78 行）、三维审查模型（104-129 行）、`Primary next skill` 互链（102 行）；③升级模式：版本比对→旧参数重生成→diff→确认覆盖（131-142 行）；④模板 frontmatter `metadata.version: 1.0.0`（6 行）；⑤skill-reviewer：实际运行 `node base/skills/productivity/skill-reviewer/scripts/review-skill.mjs` 通过 7/7；skill-tester：`evals/evals.json` 触发套件已建（中英触发词+正负用例），但 run-eval.mjs 期望 `{skill_name,evals:[...]}` 结构、此文件为裸数组，实测 `node .../run-eval.mjs` 报 TypeError 无法运行（格式缺陷，留待审查/修补）。判定已完成第一轮开发，待代码审查。

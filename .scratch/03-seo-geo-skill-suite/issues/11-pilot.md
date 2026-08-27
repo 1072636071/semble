@@ -15,3 +15,7 @@
 - [ ] 试点发现的问题回写工单评论，必要时回流修补丁工单
 
 ## 评论
+
+- [2026-08-27] 核查说明：试点需在 `E:\work\sp\official-domestic-website` 项目端到端执行（首次安装 → 生成子技能 → 真实任务 → 升级模式），本仓库无法代码修复；试点指引见 `11-pilot-guide.md`。状态保持 ready-for-agent，待试点后回写。
+
+- [2026-08-27] audit-seo 核查：本工单为端到端试点，需在 `E:\work\sp\official-domestic-website` 执行（ship `--project` 安装→seo-router 引导→生成 seo-geo-audit/blog-writer→真实审查/写作→版本 bump 升级）。本仓库内无试点执行痕迹：`## 评论` 无试点完成记录、无已生成子技能（seo-geo-audit/blog-writer）产物、无试点发现的问题回写。验收标准 5 项均未在仓库内验证。前置工单 01-10 已具备（seo-geo 族 8 技能已落地、ship 支持 x-install: project），试点指引见 11-pilot-guide.md。判定：未完成/部分完成（待试点），Status 维持 ready-for-agent，解除阻塞需在试点项目实际跑通后回写。

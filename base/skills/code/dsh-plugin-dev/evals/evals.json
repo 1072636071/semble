@@ -52,6 +52,16 @@
       "should_trigger": false,
       "expected_output": "不触发 dsh 插件开发技能",
       "expectations": []
+    },
+    {
+      "id": 6,
+      "prompt": "我想在本机开发 dsh 插件，先帮我看看环境",
+      "should_trigger": true,
+      "expected_output": "先运行 node scripts/detect-env.mjs 获取 JSON 环境报告，按 assumptions/recommendations 字段向用户声明假设并给建议，再进入对应开发流程",
+      "expectations": [
+        "运行 scripts/detect-env.mjs 而非手写 shell 探测命令",
+        "DSH_PROJECT_PATH / DSH_DEPLOY 未设置时声明按官方默认（npm 全局安装、DSH_HOME=~/.dsh）继续的假设"
+      ]
     }
   ]
 }

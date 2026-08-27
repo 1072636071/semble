@@ -1,6 +1,6 @@
 # skill 生命周期脚本 → Node
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Blocked by:** 01
 
@@ -13,5 +13,7 @@
 - [ ] 各技能 SKILL.md 中的脚本命令引用已更新为 `node`，文档一致
 
 ## 评论
+
+- [2026-08-27] audit-js 核查：验收标准逐项结论（3/3 满足），验证方式（skill-creator 三脚本 init-skill/package-skill/validate-skill.mjs、skill-tester run-eval.mjs、skill-reviewer review-skill.mjs 均落地，各自 tests/*.test.mjs 存在且 `node --test` 全绿（75 项，覆盖 creator 3 + tester 1 + reviewer 1 套件）；skill-reviewer 规则已形式化为结构化规则 G.NAM.01/03、G.FMT.01/02/05、G.EXP.01、G.PRA.01；各技能原 pytest/*.py 已移除（无残留 .py）；SKILL.md 命令引用已更新为 `node scripts/*.mjs`（skill-creator/tester），判定为已完成第一轮开发，待代码审查。注：skill-reviewer 的 SKILL.md 为 4 步模型驱动工作流（引用规则集而非 CLI 命令），review-skill.mjs 作为机械扫描补充存在，文档与脚本一致无 python/ps1 引用。
 
 （评论与对话历史追加于此，新内容置于最前。）

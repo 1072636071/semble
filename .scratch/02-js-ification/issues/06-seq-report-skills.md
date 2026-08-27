@@ -1,6 +1,6 @@
 # 编号/报告/模板类技能合集
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Blocked by:** 01
 
@@ -14,5 +14,7 @@
 - [ ] 各技能 SKILL.md 命令引用更新为 `node`
 
 ## 评论
+
+- [2026-08-27] audit-js 核查：验收标准逐项结论（4/4 满足），验证方式（`base/scripts/issue-flow.mjs` 覆盖 to-spec/to-tickets/resolve-block 的 `.scratch/` 全局递增编号/slug/Blocked by 规范化/依赖拓扑排序；`base/scripts/report-flow.mjs` 覆盖 report-html（improve-codebase-architecture 自包含 HTML 可跨平台打开）、agent-init（agent-generator frontmatter 命名正则校验落盘）、research-file（`{前缀}-{slug}-{版本}` 冲突加序号）、impeccable-extract/impeccable-audit（document token 提取 + 5 维 0-4 计分 /20 评级 + WCAG 对比度 + P0-P3 严重度排序）；`issue-flow.test.mjs`/`report-flow.test.mjs` 覆盖各函数且 `node --test` 全绿（135 项含）；各技能 SKILL.md 命令引用均已更新为 `node base/scripts/*.mjs`），判定为已完成第一轮开发，待代码审查。
 
 （评论与对话历史追加于此，新内容置于最前。）

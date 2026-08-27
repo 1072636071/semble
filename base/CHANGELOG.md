@@ -1,5 +1,31 @@
 # mattpocock-skills
 
+## ship 跨厂商分发 2026-08-27（01-ship-multi-vendor-distribution，工单 01-06）
+
+### 重大变更
+
+- **单一入口 `ship.mjs`**：`base/scripts/ship.mjs` 提供 `init` / `derive` / `install` / `check` 子命令，零参数触发全流程（扫描 → 双模式派生/复制 → 安装 → SHA256 验证 → 残留清理）。
+- **`vendors.json` 配置驱动**：7 家平台（OpenCode/CodeBuddy/CodeArts/Trae/Qoder/WorkBuddy/QoderWork），4 家有派生规则、3 家走原样复制 fallback；`managedPrefixes` 限定残留清理范围。
+- **双模式迁移**：技能含 `SKILL.src.md` 走单源派生（CodeArts 前缀+5 行英文 description、openCode 无 name 键、CodeBuddy/Trae 透传注入），不含走原样复制；Agent 同理（`AGENT.src.md` 为派生开关）。
+- **CodeArts 硬门禁**：`x-vendors.codearts.description-en` 或 `<!--en-->` 英文块缺失时 `check` 非零退出、跳过该厂安装但不阻塞其余厂商。
+- **`x-install` 就近声明**：`true`/缺省 = 用户级+项目级都装；`false` = 不装且不派生；`project` = 仅项目级装。5 个 productivity 排除项技能（jxx-teach/jxx-wait-what/skill-creator/skill-reviewer/skill-tester）已补 `x-install: false`。
+- **PS 脚本退役**：`base/skills/install.ps1` / `verify.ps1` 删除，能力收敛进 `install` / `check`。
+- **文档同步**：`base/skills/安装.md` 重写为 ship 用法并消除硬编码路径；cross-vendor 两份 mapping 与 HARNESS-SPEC 标注 `ship.mjs` 为既定实现；CONTEXT.md「单源派生」状态更新为已落地。
+- **测试**：`base/scripts/test/ship.test.mjs` 24 用例覆盖 init/install/derive/check/agent 全流程（`--config` + `--user-home` + `--dry-run` seam，零第三方依赖）。
+
+### 待办
+
+- 工单 02/03 修复项已回写并补齐（`x-install: false` 清单、derive 层跳过）；工单 06 文档同步完成。
+- 后续 effort 02-js-ification、03-seo-geo-skill-suite 见下方记录。
+
+## jxx-setup-matt-pocock-skills 脚本化 2026-08-27
+
+- **脚本自包含迁移**：setup-matt-pocock 的 `detect`/`sync-doc` 从共享 `base/scripts/scaffold.mjs` 迁入技能目录 `scripts/setup.mjs`（测试迁至 `tests/setup.test.mjs`，种子模板即技能目录三份 `.md`），技能可整体拷贝分发；`scaffold.mjs` 保留 memorial/exercises/precommit 子命令。
+- **`detect` 子命令**：步骤 1「探索」脚本化，输出只读 JSON 报告（canonical 选择、五文件存在性、块检测、CODEBUDDY 一致性、目录与既有产物清单），逐项区分「文件存在/不存在」。
+- **`sync-doc` 增强**：`## Agent skills` 块 upsert（就地替换/追加、保留周围内容）、`## 多代理要求` 块自动注入、`--layout`/`--labels` 参数化、逐文件执行结果日志（`created`/`updated`/`unchanged`/`skipped`）；CLI 默认启用块 upsert，`--no-block` 退化为纯同步。块内容单源收敛到 `buildAgentSkillsBlock()`。
+- **技能 SKILL.md 改写**（v1.1.0）：步骤 1/3/4 全部改为跑脚本，不再由模型手工写文件；步骤 3 简化为 `--dry-run` 演练确认。
+- **测试**：`tests/setup.test.mjs` 15/15 通过（块构建/注入/upsert 幂等、actions 日志、detect 三场景、CLI e2e）；`scaffold.test.mjs` 剩余 18/18 通过。
+
 ## seo-geo 基础设施 2026-08-26（工单 01：03-seo-geo-skill-suite）
 
 ### 重大变更

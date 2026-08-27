@@ -5,6 +5,7 @@ metadata:
   version: 1.0.0
 argument-hint: "你想学习什么？"
 disable-model-invocation: true
+x-install: false
 ---
 
 用户请你教授某项内容。这是一个有状态请求——他们打算通过多个会话来学习该主题。

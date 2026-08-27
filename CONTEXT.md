@@ -7,7 +7,7 @@
 **单源派生**：
 一个技能/Agent 只手写一份厂商无关源文件（`SKILL.src.md` / `AGENT.src.md`），各厂商适配版由脚本生成到 `.generated/<vendor>/`，不手写维护多份。防止四份漂移。
 _避免使用_：多份维护、手写四份
-_状态（2026-08-25）_：**暂缓落地**。派生计划整体搁置，新技能直写 `SKILL.md` 走**原样复制 fallback**；恢复时间未定，重启时以 memorial 001 决策记录为上下文。
+_状态（2026-08-27）_：**已落地**。`base/scripts/ship.mjs` 实现双模式分发（`derive`/`install`/`check`，配置驱动于 `vendors.json`）：含 `SKILL.src.md`/`AGENT.src.md` 走单源派生、不含走原样复制 fallback；`x-install` 控制安装目标（`false` 仅作派生源不装、`project` 仅项目级装）。
 
 **厂商注册表（vendors.json）**：
 声明全部目标平台（名称、安装目录、是否有派生规则、项目级/用户级目录）的机器可读配置。新增平台或补调研只改此配置，不改脚本。

@@ -1,57 +1,19 @@
 #!/usr/bin/env node
 // scaffold.mjs — 脚手架类技能的确定性流程 CLI（零第三方依赖，ESM）。
 // 子命令：
-//   sync-doc          setup-matt-pocock 一致性同步：文件选择互斥 + 双文件逐字节一致 + docs/agents/*.md 模板实例化
 //   memorial-init     grill-with-memorial 初始化：NNN 递增编号 + slug 目录脚手架 + context.md 模板 + C1–C5 checklist
 //   memorial-archive  grill-with-memorial 归档：把已「已完成」的 memorial 目录移动到 archived/
+//   scaffold-exercises / setup-precommit 见 usage()
+// 注：jxx-setup-matt-pocock-skills 的 detect/sync-doc 已迁移至该技能目录的 scripts/setup.mjs（自包含）。
 // 判读（内容起草、编号是否该继续、语义审查）一律留模型，本脚本只做确定性机械动作。
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { writeFileSafe } from './shared/fs-utils.mjs';
 import { nextSeq, slugify } from './shared/next-seq.mjs';
 import { renderTemplate } from './shared/render-template.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// 默认的种子模板目录（jxx-setup-matt-pocock-skills 技能目录）。
-const DEFAULT_SEEDS_DIR = path.join(__dirname, '..', 'skills', 'engineering', 'jxx-setup-matt-pocock-skills');
-
 // ------------------------------------------------------------------ 常量
-
-// setup-matt-pocock：多代理要求块（确定性内容）。
-export const MULTI_AGENT_BLOCK = '## 多代理要求\n\nAGENTS.md 和 CODEBUDDY.md 内容必须保持一致。';
-
-// setup-matt-pocock：docs/agents/ 三份模板的「种子文件名 → 产物文件名」映射。
-// 种子随 SKILL.md 存放在技能目录；产物写入目标 <root>/docs/agents/ 下。
-export const DOC_TEMPLATES = [
-  { seed: 'issue-tracker-local.md', out: 'issue-tracker.md' }, // 本地 markdown issue tracker
-  { seed: 'triage-labels.md', out: 'triage-labels.md' },       // 标签映射
-  { seed: 'domain.md', out: 'domain.md' },                     // 领域文档消费者规则 + 布局
-];
-
-// 当 CLAUDE.md 与 AGENTS.md 都不存在时的默认 AGENTS.md 内容（确定性骨架）。
-// 含「多代理要求」块 + 默认布局下的「Agent skills」三节 + 临时文件约定（SKILL.md「全部默认」）。
-export const DEFAULT_AGENTS_CONTENT = `${MULTI_AGENT_BLOCK}
-
-## Agent skills
-
-### Issue tracker
-
-本仓库的 issue 与 PRD 以本地 markdown 形式存放于仓库 \`.scratch/\` 下，不使用远程 tracker。参见 \`docs/agents/issue-tracker.md\`。
-
-### triage 标签
-
-采用五种标准 triage 角色（标签字符串与角色名一致，未覆盖）：\`needs-triage\`、\`needs-info\`、\`ready-for-agent\`、\`ready-for-human\`、\`wontfix\`。参见 \`docs/agents/triage-labels.md\`。
-
-### 领域文档
-
-单一上下文布局：仓库根目录 \`CONTEXT.md\` + \`docs/adr/\`。参见 \`docs/agents/domain.md\`。
-
-### 临时文件
-
-所有临时脚本统一放在仓库 \`.temp/scripts/\` 下；其他临时文件（脚本输出、日志等）也要分类，放在 \`.temp/\` 的子目录下（如 \`.temp/output/\`、\`.temp/logs/\`），保证仓库根目录干净。
-`;
 
 // grill-with-memorial：context.md 模板。{{id}} 为 NNN-slug，{{subject}} 为「诉求」用户原话。
 // 其余三段（追问记录 / 决策汇总 / 待澄清）在初始化时置空。
@@ -83,12 +45,6 @@ export const CHECKLIST_TEMPLATE = `# Checklist {{id}}
 `;
 
 // ------------------------------------------------------------------ 工具
-
-/** 逐字节比较两份文件是否一致。不存在按不一致处理。 */
-export function filesIdentical(a, b) {
-  if (!fs.existsSync(a) || !fs.existsSync(b)) return false;
-  return fs.readFileSync(a).equals(fs.readFileSync(b));
-}
 
 /** 读取 context.md 中的「状态」值；无状态行返回 null。 */
 export function readMemorialStatus(ctxPath) {
@@ -123,80 +79,6 @@ export function nextMemorialSeq(memorialRoot) {
   const archived = nextSeq(archivedRoot, { pad: 3 });
   const next = Math.max(parseInt(live, 10), parseInt(archived, 10));
   return String(next).padStart(3, '0');
-}
-
-// ------------------------------------------------------------------ sync-doc
-
-/**
- * setup-matt-pocock 一致性同步。
- * @param {{root: string, seedsDir?: string, dryRun?: boolean}} args
- * @returns {{
- *   canonical: string|null,     // 选定的「通用规范」文件（CLAUDE.md / AGENTS.md），默认路径下为 null
- *   createdDefault: boolean,    // 是否走了「都不存在 → 默认创建 AGENTS.md + CODEBUDDY.md」
- *   codebuddy: string,          // CODEBUDDY.md 绝对路径
- *   identical: boolean,         // 断言：AGENTS/CLAUDE 与 CODEBUDDY 是否逐字节一致
- *   multiAgent: boolean,        // 通用规范文件是否含「多代理要求」块
- *   templates: string[],        // 已克隆的 docs/agents/*.md 产物文件名
- *   dryRun: boolean
- * }}
- *
- * 文件选择互斥规则（见 SKILL.md 步骤 4）：
- *   - CLAUDE.md 存在 → 以它为通用规范源（优先级最高）；不创建 AGENTS.md。
- *   - 否则 AGENTS.md 存在 → 以它为源。
- *   - 都不存在 → 默认创建 AGENTS.md 与 CODEBUDDY.md，两者内容完全相同且带「多代理要求」块。
- * 之后把源文件逐字节复制到 CODEBUDDY.md 并断言二者一致；并把三份 docs/agents/*.md 模板
- * 从 seedsDir 克隆到 <root>/docs/agents/ 下（逐字节）。
- * 留模型：当 CLAUDE.md 与 AGENTS.md 同时存在时（互斥规则被打破的既有状态），依 SKILL.md 取
- * 更高优先级 CLAUDE.md 为源，但不自动删除 AGENTS.md，由模型决定如何处理。
- */
-export function runSyncDoc({ root, seedsDir = DEFAULT_SEEDS_DIR, dryRun = false }) {
-  if (!path.isAbsolute(root)) root = path.resolve(root);
-  const hasClaude = fs.existsSync(path.join(root, 'CLAUDE.md'));
-  const hasAgents = fs.existsSync(path.join(root, 'AGENTS.md'));
-
-  let canonical = null;
-  let content;
-  let createdDefault = false;
-  if (hasClaude) {
-    canonical = 'CLAUDE.md';
-  } else if (hasAgents) {
-    canonical = 'AGENTS.md';
-  } else {
-    // 都不存在 → 默认创建（确定性骨架）
-    createdDefault = true;
-    canonical = 'AGENTS.md';
-    content = DEFAULT_AGENTS_CONTENT;
-  }
-
-  const srcAbs = path.join(root, canonical);
-  if (!dryRun) {
-    if (createdDefault) writeFileSafe(srcAbs, content);
-    // 逐字节复制源 → CODEBUDDY.md
-    const cbAbs = path.join(root, 'CODEBUDDY.md');
-    fs.mkdirSync(path.dirname(cbAbs), { recursive: true });
-    fs.copyFileSync(srcAbs, cbAbs);
-  }
-
-  // 克隆三份 docs/agents/*.md 模板
-  const templates = [];
-  for (const { seed, out } of DOC_TEMPLATES) {
-    templates.push(out);
-    if (dryRun) continue;
-    const outAbs = path.join(root, 'docs/agents', out);
-    fs.mkdirSync(path.dirname(outAbs), { recursive: true });
-    fs.copyFileSync(path.join(seedsDir, seed), outAbs);
-  }
-
-  const cbAbs = path.join(root, 'CODEBUDDY.md');
-  return {
-    canonical,
-    createdDefault,
-    codebuddy: cbAbs,
-    identical: filesIdentical(srcAbs, cbAbs),
-    multiAgent: fs.existsSync(srcAbs) && fs.readFileSync(srcAbs, 'utf-8').includes('## 多代理要求'),
-    templates,
-    dryRun,
-  };
 }
 
 // ------------------------------------------------------------------ memorial-init
@@ -350,7 +232,6 @@ function usage() {
   return `用法: scaffold.mjs <子命令> [选项]
 
 子命令：
-  sync-doc           setup-matt-pocock 一致性同步（双文件逐字节一致 + docs/agents/*.md 模板）
   memorial-init      grill-with-memorial 初始化（NNN + slug 目录 + context.md + C1–C5 checklist）
   memorial-archive   grill-with-memorial 归档（将「已完成」memorial 移到 archived/）
   scaffold-exercises jxx-scaffold-exercises 练习目录骨架（exercises/XX-section/XX.YY-exercise/...）
@@ -358,7 +239,6 @@ function usage() {
 
 选项：
   --root <dir>       目标仓库根目录（默认当前目录）
-  --seeds <dir>      docs/agents 模板种子目录（默认 jxx-setup-matt-pocock-skills 技能目录）
   --subject <text>   memorial-init：诉求原话
   --ref <NNN|NNN-slug>  memorial-archive：要归档的 memorial 引用
   --force            memorial-archive：跳过「已完成」状态守卫
@@ -375,7 +255,6 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--root') opts.root = argv[++i];
-    else if (a === '--seeds') opts.seeds = argv[++i];
     else if (a === '--subject') opts.subject = argv[++i];
     else if (a === '--ref') opts.ref = argv[++i];
     else if (a === '--force') opts.force = true;
@@ -398,12 +277,6 @@ async function main() {
   if (!opts.cmd) { console.error(`错误: 缺省子命令\n\n${usage()}`); return 2; }
 
   try {
-    if (opts.cmd === 'sync-doc') {
-      const r = runSyncDoc({ root: opts.root, seedsDir: opts.seeds, dryRun: opts.dryRun });
-      console.log(`sync-doc: 源=${r.canonical}${r.createdDefault ? '（默认创建）' : ''} CODEBUDDY=${r.codebuddy}`);
-      console.log(`  一致性=${r.identical ? 'OK' : 'MISMATCH'}  多代理要求=${r.multiAgent ? '有' : '缺'}  模板=${r.templates.join(', ')}`);
-      return r.identical ? 0 : 2;
-    }
     if (opts.cmd === 'memorial-init') {
       const r = runMemorialInit({ root: opts.root, subject: opts.subject, dryRun: opts.dryRun });
       console.log(`memorial-init: ${path.basename(r.dir)} 已${r.dryRun ? '演练（不落盘）' : '创建'}`);
