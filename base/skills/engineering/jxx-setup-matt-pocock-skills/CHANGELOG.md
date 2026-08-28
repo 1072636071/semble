@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.0 — 2026-08-28
+
+### Changed
+
+- **冲突保护（破坏性行为修正）**：`init`/`sync-doc` 不再覆盖任何"已存在且内容不同"的文件。此前 `docs/agents/*.md` 会被种子无条件覆盖、`CODEBUDDY.md` 会被源文件无条件逐字节覆盖，已有 `## Agent skills` 块被定制过也会被静默替换——**已有配置会被冲掉**。现在这些一律原样保留，动作记为 `conflict`。
+- 写入策略收敛为"**只补缺失，不静默覆盖**"：缺失文件 `created`；内容相同 `unchanged`；内容不同且未授权 `conflict`（不落盘）。
+- 新增 `--overwrite <file>`（可重复，路径相对仓库根）做**精确覆盖**，新增 `--force` 覆盖全部冲突（默认都不给）。
+- 新增退出码 `3`：存在未处置冲突。冲突时打印清单与处置提示（`--overwrite <文件>`／`--force`），且不再输出"初始化完成"。`0` 无冲突、`2` 一致性 MISMATCH、`1` 运行错误。
+- `detect` 增加漂移信息：`docsAgents[].{exists,matchesSeed}` 与 `agentSkillsBlockMatches`，供模型在写入前就判断哪些文件会冲突。
+- 新增 `extractAgentSkillsBlock(content)`（提取已有工程块）与 `normRel`（路径归一化）。
+- dry-run 演练同样如实报出冲突（只影响落盘，不影响动作分类）。
+- SKILL.md 新增「冲突处置」流程：出现 `conflict` 时先读取文件，再在保留现状／手工合并／精确覆盖之间决断，默认不加 `--force`。
+
 ## 1.1.0 — 2026-08-27
 
 ### Changed
@@ -22,10 +35,6 @@
 - SKILL.md/README.md 相应更新为"一键落盘"哲学，移除"模型不落盘、需用户复制"的旧原则。
 - 明确**自包含**：技能运行所需全部资源（脚本、三份种子模板、测试）都在技能目录内，仅用 Node 内置模块，不依赖技能目录外任何路径或共享文件。
 - 在初始化写入的 `## Agent skills` 块中新增 `### 临时文件` 子块：临时脚本统一放 `.temp/scripts/`，其他临时文件（脚本输出、日志等）分类放到 `.temp/` 子目录，保证根目录干净。
-
-## Unreleased
-
-- 新增 `template` 子命令与 `buildTemplateOutput`：把要生成的 `AGENTS.md`/`CODEBUDDY.md`/三份 `docs/agents/*.md` 内容输出到 stdout（`=== FILE: <路径> ===` 分隔），不落盘；支持 `--layout`/`--labels` 定制。
 
 ## 1.0.0 — 2026-07-06
 

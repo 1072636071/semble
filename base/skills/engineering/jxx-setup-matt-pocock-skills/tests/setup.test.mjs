@@ -16,6 +16,7 @@ import {
   buildTemplateOutput,
   ensureMultiAgentBlock,
   upsertAgentSkillsBlock,
+  extractAgentSkillsBlock,
   runDetect,
   runSyncDoc,
   runInit,
@@ -181,6 +182,105 @@ test('sync-doc + block: 默认创建路径遵循 layout/labels 选项', () => {
   assert.match(content, /`wontfix`→`no-fix`/);
 });
 
+// ================================================================ 冲突保护：已存在且内容不同 → 默认不覆盖
+
+test('extractAgentSkillsBlock: 提取已有块（去尾部空行）；无块返回 null', () => {
+  assert.equal(extractAgentSkillsBlock(null), null);
+  assert.equal(extractAgentSkillsBlock('# P\n\n无块\n'), null);
+  const block = buildAgentSkillsBlock();
+  assert.equal(extractAgentSkillsBlock(`# P\n\n${block}\n## 其他\n\nx\n`), block.replace(/\n+$/, ''));
+  // 与将写入的块逐字相同（含 CRLF 归一）→ 视为一致
+  assert.equal(extractAgentSkillsBlock(`# P\r\n\r\n${block}`), extractAgentSkillsBlock(`# P\n\n${block}`));
+});
+
+test('sync-doc: 已有 docs/agents/*.md 且内容不同 → 默认保留并报 conflict，缺失的照常创建', () => {
+  const root = fixtureRoot('conflict-tpl');
+  const seeds = mkSeeds('conflict-tpl');
+  write(root, 'docs/agents/domain.md', '# 定制领域文档\n');
+  const r = runSyncDoc({ root, seedsDir: seeds, block: {} });
+  const byFile = Object.fromEntries(r.actions.map((a) => [a.file, a.action]));
+  assert.equal(byFile['docs/agents/domain.md'], 'conflict');
+  assert.equal(read(root, 'docs/agents/domain.md'), '# 定制领域文档\n', '原文件原样保留，未被种子覆盖');
+  assert.equal(r.conflicts.length, 1);
+  assert.equal(r.conflicts[0].file, 'docs/agents/domain.md');
+  assert.equal(r.conflicts[0].hint, '--overwrite docs/agents/domain.md');
+  assert.equal(byFile['docs/agents/issue-tracker.md'], 'created', '缺失的仍创建');
+  // 授权精确覆盖后：仅该文件被覆盖
+  const r2 = runSyncDoc({ root, seedsDir: seeds, block: {}, overwrite: ['docs/agents/domain.md'] });
+  assert.equal(Object.fromEntries(r2.actions.map((a) => [a.file, a.action]))['docs/agents/domain.md'], 'updated');
+  assert.equal(read(root, 'docs/agents/domain.md'), 'seed:domain.md\n');
+  assert.equal(r2.conflicts.length, 0);
+});
+
+test('sync-doc: CODEBUDDY.md 已存在且不一致 → 默认保留并报 conflict；授权后才同步', () => {
+  const root = fixtureRoot('conflict-cb');
+  const seeds = mkSeeds('conflict-cb');
+  write(root, 'AGENTS.md', `${MULTI_AGENT_BLOCK}\n\n${buildAgentSkillsBlock()}`);
+  write(root, 'CODEBUDDY.md', '## CODEBUDDY.md 的独有约定\n');
+  const r = runSyncDoc({ root, seedsDir: seeds, block: {} });
+  assert.equal(Object.fromEntries(r.actions.map((a) => [a.file, a.action]))['CODEBUDDY.md'], 'conflict');
+  assert.equal(read(root, 'CODEBUDDY.md'), '## CODEBUDDY.md 的独有约定\n', '独有内容未被冲掉');
+  assert.equal(r.identical, false);
+  const r2 = runSyncDoc({ root, seedsDir: seeds, block: {}, overwrite: ['CODEBUDDY.md'] });
+  assert.equal(read(root, 'CODEBUDDY.md'), read(root, 'AGENTS.md'));
+  assert.equal(r2.identical, true);
+  assert.equal(r2.conflicts.length, 0);
+});
+
+test('sync-doc + block: 已有 Agent skills 块内容不同 → 默认保留并报 conflict；授权后才替换', () => {
+  const root = fixtureRoot('conflict-block');
+  const seeds = mkSeeds('conflict-block');
+  write(root, 'AGENTS.md', '# P\n\n## Agent skills\n\n定制的 tracker 约定\n\n## 其他\n\n别动我\n');
+  const r = runSyncDoc({ root, seedsDir: seeds, block: {} });
+  assert.equal(Object.fromEntries(r.actions.map((a) => [a.file, a.action]))['AGENTS.md'], 'conflict');
+  assert.match(read(root, 'AGENTS.md'), /定制的 tracker 约定/, '定制块未被静默替换');
+  const r2 = runSyncDoc({ root, seedsDir: seeds, block: {}, overwrite: ['AGENTS.md'] });
+  assert.equal(Object.fromEntries(r2.actions.map((a) => [a.file, a.action]))['AGENTS.md'], 'updated');
+  assert.match(read(root, 'AGENTS.md'), /### Issue tracker/);
+  assert.match(read(root, 'AGENTS.md'), /别动我/, '块外内容仍保留');
+  // 源被改写后，首轮由旧内容复制出来的 CODEBUDDY.md 变成漂移 → 继续报冲突（不静默覆盖）
+  assert.deepEqual(r2.conflicts.map((c) => c.file), ['CODEBUDDY.md']);
+  const r3 = runSyncDoc({ root, seedsDir: seeds, block: {}, overwrite: ['AGENTS.md', 'CODEBUDDY.md'] });
+  assert.equal(r3.conflicts.length, 0);
+  assert.equal(read(root, 'CODEBUDDY.md'), read(root, 'AGENTS.md'));
+});
+
+test('sync-doc: force=true 覆盖全部冲突；dry-run 也如实报出冲突', () => {
+  const root = fixtureRoot('conflict-force');
+  const seeds = mkSeeds('conflict-force');
+  write(root, 'AGENTS.md', `${MULTI_AGENT_BLOCK}\n\n${buildAgentSkillsBlock()}`);
+  write(root, 'CODEBUDDY.md', 'CODEBUDDY 独有\n');
+  write(root, 'docs/agents/domain.md', '定制\n');
+  const dry = runSyncDoc({ root, seedsDir: seeds, block: {}, dryRun: true });
+  assert.ok(dry.actions.some((a) => a.action === 'conflict' && a.file === 'docs/agents/domain.md'), 'dry-run 报出模板冲突');
+  assert.ok(dry.actions.some((a) => a.action === 'conflict' && a.file === 'CODEBUDDY.md'), 'dry-run 报出 CODEBUDDY 冲突');
+  assert.equal(read(root, 'CODEBUDDY.md'), 'CODEBUDDY 独有\n');
+  const r = runSyncDoc({ root, seedsDir: seeds, block: {}, force: true });
+  assert.equal(r.conflicts.length, 0);
+  assert.equal(read(root, 'docs/agents/domain.md'), 'seed:domain.md\n');
+  assert.equal(read(root, 'CODEBUDDY.md'), read(root, 'AGENTS.md'));
+});
+
+test('init: 冲突汇总进 conflicts，未授权时原文件一律保留', () => {
+  const root = fixtureRoot('conflict-init');
+  const seeds = mkSeeds('conflict-init');
+  write(root, 'AGENTS.md', '# P\n\n## Agent skills\n\n定制块\n');
+  write(root, 'docs/agents/triage-labels.md', '定制标签\n');
+  const r = runInit({ root, seedsDir: seeds });
+  assert.deepEqual(r.sync.conflicts.map((c) => c.file).sort(), ['AGENTS.md', 'docs/agents/triage-labels.md']);
+  assert.match(read(root, 'AGENTS.md'), /定制块/);
+  assert.equal(read(root, 'docs/agents/triage-labels.md'), '定制标签\n');
+  assert.equal(read(root, 'CODEBUDDY.md'), read(root, 'AGENTS.md'), '源未被改写，CODEBUDDY 按其复制');
+  // 全部授权后一次收敛
+  const r2 = runInit({ root, seedsDir: seeds, force: true });
+  assert.equal(r2.sync.conflicts.length, 0);
+  assert.equal(read(root, 'CODEBUDDY.md'), read(root, 'AGENTS.md'));
+  // 再跑一次：幂等，全部 unchanged
+  const r3 = runInit({ root, seedsDir: seeds });
+  assert.equal(r3.sync.conflicts.length, 0);
+  assert.ok(r3.sync.actions.every((a) => a.action === 'unchanged'));
+});
+
 // ================================================================ init（一键初始化：detect + 落盘）
 
 test('init: 空仓库 → detect 现状 + 全部默认落盘，5 份文件生成', () => {
@@ -291,6 +391,28 @@ test('detect: CODEBUDDY.md 存在但不一致时报告 false', () => {
   assert.equal(r.codebuddyConsistent, false);
 });
 
+test('detect: 报告漂移 — agentSkillsBlockMatches 与 docsAgents(exists/matchesSeed)', () => {
+  const root = fixtureRoot('detect-drift2');
+  const seeds = mkSeeds('detect-drift2');
+  write(root, 'AGENTS.md', `# P\n\n${buildAgentSkillsBlock()}`);
+  write(root, 'docs/agents/domain.md', '定制\n');
+  const r = runDetect({ root, seedsDir: seeds });
+  assert.equal(r.agentSkillsBlockMatches, true, '已有块与将写入的块一致');
+  assert.deepEqual(
+    r.docsAgents.find((d) => d.file === 'docs/agents/domain.md'),
+    { file: 'docs/agents/domain.md', exists: true, matchesSeed: false },
+    '已存在且与种子不同 → 写入会冲突',
+  );
+  assert.deepEqual(
+    r.docsAgents.find((d) => d.file === 'docs/agents/issue-tracker.md'),
+    { file: 'docs/agents/issue-tracker.md', exists: false, matchesSeed: null },
+    '不存在 → 写入为 created',
+  );
+  // 定制过的块 → 与将写入的块不同
+  write(root, 'AGENTS.md', '# P\n\n## Agent skills\n\n定制\n');
+  assert.equal(runDetect({ root, seedsDir: seeds }).agentSkillsBlockMatches, false);
+});
+
 // ================================================================ CLI e2e
 
 const SETUP_MJS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'setup.mjs');
@@ -304,6 +426,26 @@ test('e2e: CLI detect 输出合法 JSON；sync-doc 默认种子目录为技能�
   execFileSync(process.execPath, [SETUP_MJS, 'sync-doc', '--root', root], { encoding: 'utf-8' });
   assert.equal(read(root, 'docs/agents/issue-tracker.md').startsWith('# Issue 跟踪器'), true);
   assert.equal(read(root, 'CODEBUDDY.md'), read(root, 'AGENTS.md'));
+});
+
+test('e2e: CLI 有冲突时退出码 3、原文件保留并提示 --overwrite；--force 后退出码 0', () => {
+  const root = fixtureRoot('cli-conflict');
+  write(root, 'docs/agents/domain.md', '# 定制领域文档\n');
+  let code = 0;
+  let out = '';
+  try {
+    out = execFileSync(process.execPath, [SETUP_MJS, 'init', '--root', root], { encoding: 'utf-8' });
+  } catch (e) {
+    code = e.status;
+    out = e.stdout;
+  }
+  assert.equal(code, 3, '存在未处置冲突时退出码为 3');
+  assert.match(out, /\[conflict\] docs\/agents\/domain\.md/);
+  assert.match(out, /--overwrite <文件>/);
+  assert.equal(read(root, 'docs/agents/domain.md'), '# 定制领域文档\n', '原文件未被覆盖');
+  const out2 = execFileSync(process.execPath, [SETUP_MJS, 'init', '--root', root, '--force'], { encoding: 'utf-8' });
+  assert.match(out2, /\[updated\] docs\/agents\/domain\.md/);
+  assert.match(out2, /初始化完成/);
 });
 
 test('e2e: CLI template 输出 5 份文件内容到 stdout 且不落盘', () => {

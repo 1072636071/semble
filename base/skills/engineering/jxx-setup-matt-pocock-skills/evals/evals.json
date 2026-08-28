@@ -7,9 +7,9 @@
       "should_trigger": true,
       "expected_output": "配置issue tracker、triage标签词汇表和领域文档布局",
       "expectations": [
-        "运行本技能 scripts/setup.mjs detect 获取仓库状态 JSON 报告",
-        "用户未提供任何配置偏好，走无输入快速通道：不逐一询问、不确认，全程不再提问",
-        "运行 scripts/setup.mjs template 输出 5 份文件内容（AGENTS.md / CODEBUDDY.md / docs/agents/*.md）供用户复制，不落盘、不读取目标仓库文件做确认"
+        "运行 scripts/setup.mjs init --root <目标仓库> 一键落盘，不逐一询问、不要求用户确认或复制",
+        "只创建缺失的文件与缺失的工程块；已存在且内容不同的文件保留原样、动作记为 conflict，不静默覆盖",
+        "输出出现 conflict（退出码 3）时，先读取冲突文件再决定保留现状／手工合并／--overwrite 精确覆盖，默认不加 --force"
       ]
     },
     {
@@ -18,13 +18,24 @@
       "should_trigger": true,
       "expected_output": "启动仓库配置流程",
       "expectations": [
-        "运行 scripts/setup.mjs detect 检测仓库现有配置（区分文件存在/不存在）",
-        "用户未提供任何配置偏好，走无输入快速通道，不再逐一询问",
-        "运行 scripts/setup.mjs template 输出 5 份文件内容供用户复制，而非写盘或读文件确认"
+        "直接运行 scripts/setup.mjs init --root <目标仓库>，走无输入快速通道（全部默认）",
+        "据实汇报每份文件的动作（created/updated/unchanged/conflict），不虚构未执行的操作",
+        "有冲突时不重跑 --force 了事，而是读取文件后给出保留/合并/精确覆盖的处置"
       ]
     },
     {
       "id": 3,
+      "prompt": "这个仓库已经有 docs/agents 和 CODEBUDDY.md 了，再跑一次初始化会不会把我写的东西冲掉",
+      "should_trigger": true,
+      "expected_output": "说明冲突保护：已有内容不会被覆盖",
+      "expectations": [
+        "先运行 scripts/setup.mjs detect --root <目标仓库> 查看漂移（docsAgents.matchesSeed / agentSkillsBlockMatches）",
+        "说明默认策略是只补缺失：已存在且内容不同的文件保留并报 conflict，不会被覆盖",
+        "需要覆盖时必须显式授权：--overwrite <文件>（可重复），仅当用户要求全部重置才用 --force"
+      ]
+    },
+    {
+      "id": 4,
       "prompt": "帮我部署一个网站",
       "should_trigger": false,
       "expected_output": "不应触发setup技能",

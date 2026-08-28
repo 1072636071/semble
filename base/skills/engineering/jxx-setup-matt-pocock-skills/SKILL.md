@@ -3,7 +3,7 @@ name: jxx-setup-matt-pocock-skills
 description: 为仓库配置工程技能环境——设置 issue tracker、triage 标签词汇表与领域文档布局。首次使用其他工程技能前运行一次。
 disable-model-invocation: true
 metadata:
-  version: 1.2.0
+  version: 1.3.0
 ---
 
 # 设置 Matt Pocock 的工程技能
@@ -16,15 +16,17 @@ metadata:
 
 这是一个脚本驱动的技能：初始化所需的所有文件内容与合并逻辑均由 `scripts/setup.mjs` 确定性完成。模型负责决定目标仓库、传入布局/标签偏好（若有），并运行脚本把配置**写入**目标仓库；**不需要用户手动复制任何文件**。
 
-## 核心原则：默认一键落盘，读取已有文件自行处理
+## 核心原则：默认一键落盘，读取已有文件自行处理，冲突交给模型决定
 
-1. 运行 `scripts/setup.mjs init --root <目标仓库>`，脚本会先**只读扫描**仓库现状（哪些文件已存在、以哪个为通用规范源），再**写入**全部配置到目标仓库对应位置。
+1. 运行 `scripts/setup.mjs init --root <目标仓库>`，脚本会先**只读扫描**仓库现状（哪些文件已存在、以哪个为通用规范源、已有内容与将写入内容的漂移），再**写入**配置到目标仓库对应位置。
 2. 脚本**读取目标仓库已有文件并自行处理**：
-   - 已有 `CLAUDE.md` 或 `AGENTS.md` → 以它作为通用规范源，在其上做「## Agent skills」块 upsert（就地替换已有块 / 追加缺失块，保留自定义内容）并注入「## 多代理要求」块，再逐字节同步到 `CODEBUDDY.md`。
+   - 已有 `CLAUDE.md` 或 `AGENTS.md` → 以它作为通用规范源，在其上做「## Agent skills」块 upsert（**仅当块缺失或与将写入内容一致时**写；已有块内容不同则保留并报 `conflict`）并注入「## 多代理要求」块，再同步到 `CODEBUDDY.md`。
    - 都不存在 → 默认创建 `AGENTS.md` 与 `CODEBUDDY.md`（两者内容一致）。
-   - 三份 `docs/agents/*.md` 模板始终从种子克隆（已一致则跳过）。
-   - 操作**幂等**：重复运行不会破坏已有内容，只会补齐缺失的工程块。
-3. 脚本把每份文件的动作（`created`/`updated`/`unchanged`）打印出来，模型据此向用户汇报。
+   - 三份 `docs/agents/*.md` 模板**只克隆缺失的**；已存在且与种子内容不同则保留并报 `conflict`。
+   - `CODEBUDDY.md` 已存在且与源文件不一致时同样**保留并报 `conflict`**（它可能含独有定制内容）。
+   - 操作**幂等**：重复运行不会破坏已有内容，只会补齐缺失的工程块与文件。
+3. 脚本把每份文件的动作（`created`/`updated`/`unchanged`/`conflict`）打印出来；存在冲突时**退出码为 3**，并列出冲突文件与处置提示。
+4. **不静默覆盖**：凡是已存在且内容不同的文件，脚本一律不落盘、原样保留，由模型**读取该文件后**决定怎么写入。决断路径见「冲突处置」一节。默认**不要**加 `--force`。
 
 **无输入快速通道**：当**用户没有提供任何配置输入**时——包括只说"全部默认"/"用默认"/"直接按默认来"，或者只是触发本技能而未回答任何问题、未表达任何偏好——一律按"全部默认"处理：**跳过询问与确认**，直接用默认参数运行 `init --root <目标仓库>`，一步完成写入，随后按「完成」汇报，**全程不再向用户提问，也不需要用户确认或复制**。
 
@@ -64,19 +66,37 @@ node <本技能目录>/scripts/setup.mjs init --root <目标仓库> --layout sin
 - `--labels` 对应 triage 标签覆盖（JSON 对象：角色名 → 实际标签字符串；Windows PowerShell 下内层引号需写成 `\"`，如 `'{\"wontfix\":\"no-fix\"}'`）。
 - 不传任何参数即为"全部默认"。
 
-**预览（可选）**：如需先查看将产生的内容而不落盘，用 `--dry-run` 演练（只打印动作不写盘），或 `template` 输出全部文件内容到 stdout。但默认流程应直接 `init` 落盘，无需用户确认。
+**预览（可选）**：如需先查看将产生的内容而不落盘，用 `--dry-run` 演练（只打印动作不写盘，冲突也会如实报出），或 `template` 输出全部文件内容到 stdout。但默认流程应直接 `init` 落盘，无需用户确认。
 
-### 3. 完成
+### 3. 冲突处置（退出码 3）
+
+当输出里出现 `conflict`（退出码 3）时，说明**目标文件已存在且内容与将写入的不同，脚本已原样保留**。此时不要重跑 `--force` 了事，按下面顺序处置：
+
+1. **先读取冲突文件**（以及对应的种子/源文件），弄清差异是什么——仓库里已有的往往是定制过的真实约定（比如本仓库 `docs/agents/*` 与技能种子就不同）。
+2. 判断三选一：
+   - **保留现状**（仓库约定优先，技能种子只是默认）→ 什么都不做，向用户说明该文件的现有配置继续生效。
+   - **手工合并**→ 用编辑工具把需要的新增段落（如新的 `### 临时文件` 小节）合并进现有文件，保留仓库自有内容。合并后重跑 `init` 应变为 `unchanged`。
+   - **覆盖**→ 确认该文件确实该被默认内容替换后，重跑并**精确授权**：
+     ```bash
+     node <本技能目录>/scripts/setup.mjs init --root <目标仓库> --overwrite docs/agents/domain.md
+     ```
+     `--overwrite` 可重复指定多个文件；仅在用户明确要求"全部按默认重置"时才用 `--force`。
+3. 覆盖源文件（`AGENTS.md`/`CLAUDE.md`）里的工程块后，`CODEBUDDY.md` 会随之漂移，脚本会**再次报它的冲突**——这属于预期：读取两者确认后，再 `--overwrite CODEBUDDY.md` 同步。
+
+### 4. 完成
 
 告知用户配置已写入目标仓库，列出每份文件的位置与动作（`created`/`updated`/`unchanged`）。提及他们之后可以直接编辑 `docs/agents/*.md`；仅在要切换 issue tracker 或从头重新开始时才需要重新运行本技能。说明 `AGENTS.md` 与 `CODEBUDDY.md` 两个文件需内容保持一致（参照 `## 多代理要求` 块），修改工程技能配置时需同时更新两者，或重新运行本技能自动同步。
 
 ## 子命令速查
 
 ```bash
-node <本技能目录>/scripts/setup.mjs init     --root <目标仓库> [--layout single|multi] [--labels <json>]  # 一键初始化（默认）
-node <本技能目录>/scripts/setup.mjs detect   --root <目标仓库>                                             # 只读探索（JSON 报告）
-node <本技能目录>/scripts/setup.mjs sync-doc --root <目标仓库> [--layout single|multi] [--labels <json>]  # 仅写入（跳过扫描汇报）
+node <本技能目录>/scripts/setup.mjs init     --root <目标仓库> [--layout single|multi] [--labels <json>] [--overwrite <file>] [--force]  # 一键初始化（默认）
+node <本技能目录>/scripts/setup.mjs detect   --root <目标仓库>                                             # 只读探索（JSON 报告，含漂移）
+node <本技能目录>/scripts/setup.mjs sync-doc --root <目标仓库> [--layout single|multi] [--labels <json>] [--overwrite <file>] [--force]  # 仅写入（跳过扫描汇报）
 node <本技能目录>/scripts/setup.mjs template [--layout single|multi] [--labels <json>]                    # 输出文件内容到 stdout（不落盘）
 ```
+
+- `--overwrite <file>` 可重复，路径相对仓库根（如 `docs/agents/domain.md`、`CODEBUDDY.md`）；`--force` 覆盖全部冲突。默认两者都不给 → 冲突文件一律保留。
+- 退出码：`0` 完成无冲突；`3` 存在冲突且已保留原文件（需模型读取后处置）；`2` 一致性 MISMATCH；`1` 参数/运行错误。
 
 未传子命令时默认执行 `init`。
