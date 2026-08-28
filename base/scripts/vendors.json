@@ -1,5 +1,5 @@
 {
-  "buckets": ["engineering", "productivity", "seo-geo", "code"],
+  "buckets": ["engineering", "productivity", "seo-geo", "code", "kimi"],
   "managedPrefixes": ["jxx-", "huawei-cloud-", "seo-"],
   "skillsSource": "../skills",
   "agentsSource": "../agent",
