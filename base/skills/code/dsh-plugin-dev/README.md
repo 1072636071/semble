@@ -35,9 +35,11 @@ dsh-plugin-dev/
 │   ├── write-service.md        # 写服务插件
 │   ├── config-schema.md        # 配置 schema 与运行时设置
 │   ├── bundle-publish.md       # 打包、安装、发布、patch 语义
-│   └── troubleshooting.md      # 常见坑与排查
+│   ├── troubleshooting.md      # 常见坑与排查
+│   └── upstream-status.md      # 上游版本/工具清单快照（sync 脚本维护）
 ├── scripts/
-│   └── detect-env.mjs          # 启动环境探测脚本（输出 JSON 报告）
+│   ├── detect-env.mjs          # 启动环境探测脚本（输出 JSON 报告）
+│   └── sync-docs.mjs           # 上游文档同步脚本（拉取官方源更新状态）
 ├── tests/
 │   └── detect-env.test.mjs     # 探测脚本测试（node --test）
 └── assets/templates/
@@ -47,6 +49,23 @@ dsh-plugin-dev/
     ├── bundle-package.json     # bundle 包 package.json
     └── bundle-cordis.patch.yml # bundle patch 层模板
 ```
+
+## 上游自动同步
+
+技能内置 `scripts/sync-docs.mjs`，可定期（或每次用前）从 DeepSeek Harness 官方源核对最新版本与内置工具包清单：
+
+```bash
+# 拉取上游并更新 references/upstream-status.md
+node --use-system-ca scripts/sync-docs.mjs
+
+# 仅输出机器可读 JSON（供自动化判断是否有变更）
+node --use-system-ca scripts/sync-docs.mjs --json
+```
+
+- **数据源**：GitHub API（仓库元数据 + `git/trees/master` 包结构）+ npm registry（`@deepseek-ai/*` 版本）。
+- **证书提示**：若本机走了 TLS 拦截/自定义 CA（如企业网关或本地代理），Node 默认 CA 可能不认官方站点证书，需加 `--use-system-ca` 让 Node 使用系统证书存储。
+- **网络不可达**：脚本保留上次快照、不覆盖，并以退出码 2 提示，保证已装技能始终可用。
+- **变更检测**：`--json` 输出的 `pushed_at` / `tools` / `coreVersions` 变化即可用于判断上游是否更新。
 
 ## 官方文档来源
 

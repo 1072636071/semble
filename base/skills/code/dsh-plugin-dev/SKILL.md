@@ -2,7 +2,7 @@
 name: dsh-plugin-dev
 description: 开发、打包、安装与发布 DeepSeek Harness (dsh) 插件。dsh 一切皆插件，基于 Cordis 框架，插件即导出 apply 函数的 TypeScript 模块，可扩展工具、服务、事件、UI 等九类能力。当用户需要：(1) 写一个 dsh 插件（工具/服务/事件监听），(2) 给 dsh 新增或改写 Agent 工具，(3) 用 create-dsh-plugin 脚手架起步，(4) 构建 bundle 插件并打包发布到 GitHub/npm，(5) 用 Schemastery 定义插件配置 schema，(6) 排查插件加载失败、依赖解析、patch 配置不生效等问题时使用。含代码模板与完整示例。
 metadata:
-  version: 1.1.0
+  version: 1.2.0
 ---
 
 # DSH 插件开发
@@ -76,7 +76,7 @@ export function apply(ctx: Context) {
 - **生命周期**：通过 `ctx` 注册的一切（事件、工具、定时器）在插件卸载时自动清理；手动资源用 `ctx.effect()`。
 - **依赖注入**：`inject` 声明后框架保证依赖就绪才调用 `apply`；未声明的服务访问被 capability Proxy 拒绝。
 - **配置即契约**：`Config` 是 Schemastery schema，patch 层给到的 config 是整行替换、不做深合并。
-- **版本警告**：dsh 是快速迭代的开发者预览版（v0.1），一定会有破坏性变更。发布插件时在 README 注明目标 harness 版本。
+- **版本警告**：dsh 是快速迭代的开发者预览版（v0.1），一定会有破坏性变更。发布插件时在 README 注明目标 harness 版本。当前核对的依赖版本、内置工具包清单与上游仓库活动时间见 [references/upstream-status.md](references/upstream-status.md)。
 
 ## 开发工作流
 
@@ -122,7 +122,23 @@ dsh plugin --profile demo remove dsh-hello-plugin # 卸载
 
 ## 内置能力参考（九类可替换）
 
-模型供应商、工具、技能、会话、沙箱、存储、Agent 循环、调度、UI——全部可用插件替换。官方内置参考实现包为 `@deepseek-ai/dsh-tool-*`（bash、fs、web、lsp、subagent 等 21 个）。开发前先查内置包，避免重复发明（如读文件用 `tool-fs`，跑命令用 `tool-bash`）。
+模型供应商、工具、技能、会话、沙箱、存储、Agent 循环、调度、UI——全部可用插件替换。开发前先查内置包，避免重复发明。
+
+| 能力类别 | 说明 | 常见内置包 |
+| -------- | ---- | ---------- |
+| 工具 | 给模型/Agent 暴露可执行操作 | `dsh-tool-bash`、`dsh-tool-pwsh`、`dsh-tool-fs`、`dsh-tool-web`、`dsh-tool-lsp` 等 |
+| 服务 | 跨插件共享的可注入能力 | 任意 `Service` 类插件 |
+| 技能 | 定义技能行为 | `dsh-tool-skill` |
+| 会话 | 会话生命周期/上下文 | `dsh-tool-session-query` |
+| 沙箱 | 隔离执行环境 | `dsh-tool-bash`、`dsh-tool-terminal` |
+| 存储 | 持久化读写 | `dsh-tool-fs`、`dsh-tool-goal`、`dsh-tool-jobs` |
+| Agent 循环 | 子代理/编排 | `dsh-tool-subagent`、`dsh-tool-workflow`、`dsh-tool-agent-team` |
+| 调度 | 定时/触发 | 由 `ctx.effect` + `ctx.setInterval` 实现 |
+| UI | 界面/网页能力 | `dsh-tool-web`、`dsh-tool-ask-user` |
+
+**官方内置工具包（`@deepseek-ai/dsh-tool-*`）**：完整清单与每个包的最新版本/用途，由 [references/upstream-status.md](references/upstream-status.md) 统一维护，通过 `scripts/sync-docs.mjs` 自动从上游 GitHub 仓库核对更新。**SKILL.md 不重复维护该清单**，开发时以上游状态文档为准，避免清单过期。
+
+> 提示：工具包名会随上游演进增删。不确定某个能力有没有现成内置包时，先跑 `node scripts/sync-docs.mjs --json` 拉最新清单，或查 [upstream-status.md](references/upstream-status.md) 的「内置工具包清单」小节。
 
 ## 通用护栏
 
@@ -141,8 +157,10 @@ dsh plugin --profile demo remove dsh-hello-plugin # 卸载
 | [references/config-schema.md](references/config-schema.md) | 定义配置 schema 与运行时设置 |
 | [references/bundle-publish.md](references/bundle-publish.md) | 打包、安装、发布、patch 语义 |
 | [references/troubleshooting.md](references/troubleshooting.md) | 排查问题 |
+| [references/upstream-status.md](references/upstream-status.md) | 上游依赖版本、内置工具包清单、仓库活动状态（sync 维护） |
 | [assets/templates](assets/templates) | 直接复制使用的代码模板 |
 | [scripts/detect-env.mjs](scripts/detect-env.mjs) | 启动环境探测脚本（触发后先跑） |
+| [scripts/sync-docs.mjs](scripts/sync-docs.mjs) | 从上游官方源核对并更新版本/工具清单 |
 
 ## 反模式
 

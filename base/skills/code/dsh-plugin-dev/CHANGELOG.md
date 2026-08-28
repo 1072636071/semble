@@ -2,6 +2,19 @@
 
 All notable changes to this agent skill will be documented in this file.
 
+## [1.2.0] - 2026-08-28
+
+### Added
+
+- `scripts/sync-docs.mjs`：上游文档同步脚本，从 GitHub API + npm registry 拉取 DeepSeek Harness 官方数据（仓库活动状态、核心依赖版本、内置工具包清单与 npm 版本），自动更新 `references/upstream-status.md`。支持 `--dry-run` / `--json`；网络不可达时保留上次快照并退出码 2。
+- `references/upstream-status.md`：上游状态快照（由 sync 脚本维护），记录核心依赖精确版本（`@deepseek-ai/cordis`、`schemastery` 等）与全部 23 个 `dsh-tool-*` 内置工具包清单。
+- SKILL.md「内置能力参考」：补齐九类可替换能力的完整映射表；工具包清单改为引用 upstream-status.md（由 sync 维护，SKILL.md 不再重复硬编码，避免清单过期）。
+
+### Changed
+
+- SKILL.md 内置工具包清单从静态硬编码改为动态引用上游状态文档，消除「21 个 vs 实际数量」的手工维护偏差。
+- sync 脚本版本查询支持重试与并发限流，规避 npm registry 偶发超时。
+
 ## [1.1.0] - 2026-08-27
 
 ### Added
