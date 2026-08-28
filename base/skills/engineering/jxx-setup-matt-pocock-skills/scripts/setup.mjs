@@ -2,8 +2,10 @@
 // setup.mjs — jxx-setup-matt-pocock-skills 的确定性流程 CLI（零第三方依赖，ESM，自包含）
 //
 // 子命令：
-//   detect    步骤 1「探索」：扫描仓库初始状态，输出只读 JSON 报告
-//   sync-doc  步骤 4「写入」：双文件逐字节一致 + Agent skills 块 upsert + docs/agents/*.md 克隆
+//   init      一键初始化（默认）：detect 现状 + sync-doc 落盘，全部默认参数即"全部默认"
+//   detect    只读探索：扫描仓库初始状态，输出 JSON 报告
+//   sync-doc  写入：双文件逐字节一致 + Agent skills 块 upsert + docs/agents/*.md 克隆
+//   template  输出全部文件内容到 stdout（不落盘），供预览/手动复制
 //
 // 本脚本随技能目录分发，不依赖技能目录之外的任何文件（种子模板即技能目录根下的三份 .md）。
 import fs from 'node:fs';
@@ -156,6 +158,22 @@ export function runDetect({ root }) {
       ? fs.readdirSync(path.join(root, 'docs/agents')).filter((f) => f.endsWith('.md')).sort()
       : [],
   };
+}
+
+/**
+ * 一键初始化（默认入口）：detect 现状 + sync-doc 落盘，一步完成"全部默认"。
+ * 读取目标仓库已有文件并自行处理：已有 CLAUDE.md/AGENTS.md 则以其为通用规范源做
+ * Agent skills 块 upsert + 多代理要求块注入，再逐字节同步 CODEBUDDY.md；都不存在则
+ * 默认创建 AGENTS.md 与 CODEBUDDY.md；docs/agents/*.md 模板始终克隆。幂等。
+ * @param {{root: string, seedsDir?: string, dryRun?: boolean,
+ *          block?: {layout?: 'single'|'multi', labels?: Record<string,string>} | null}} args
+ * @returns {{detect: object, sync: object}}
+ */
+export function runInit({ root, seedsDir = SKILL_ROOT, dryRun = false, block = {} }) {
+  // block 默认 {} → 启用 Agent skills 块 upsert + 多代理要求块注入（与 CLI 行为一致）
+  const detect = runDetect({ root });
+  const sync = runSyncDoc({ root, seedsDir, dryRun, block });
+  return { detect, sync };
 }
 
 /**
@@ -318,33 +336,36 @@ function usage() {
   return `用法: setup.mjs <子命令> [选项]
 
 子命令：
-  detect             步骤 1「探索」：扫描仓库初始状态，输出 JSON 报告（只读）
-  template           输出全部默认文件模板内容到 stdout（不落盘），供模型展示给用户复制/替换
-  sync-doc           仅在明确要求写盘时使用：双文件逐字节一致 + Agent skills 块 upsert + docs/agents/*.md 模板
+  init               一键初始化（默认入口）：读取仓库已有文件并自行处理，落盘完成全部配置
+  detect             只读探索：扫描仓库初始状态，输出 JSON 报告
+  sync-doc           写入：双文件逐字节一致 + Agent skills 块 upsert + docs/agents/*.md 模板
+  template           输出全部默认文件模板内容到 stdout（不落盘），仅供预览/手动复制
 
 选项：
   --root <dir>       目标仓库根目录（默认当前目录）
   --seeds <dir>      docs/agents 模板种子目录（默认本技能目录自身）
-  --layout <mode>    template / sync-doc：领域文档布局 single|multi（默认 single）
-  --labels <json>    template / sync-doc：triage 标签覆盖表（'{"needs-triage":"bug:triage"}'）
-  --no-block         sync-doc：纯同步，不 upsert「## Agent skills」块（CLI 默认 upsert）
+  --layout <mode>    init / sync-doc / template：领域文档布局 single|multi（默认 single）
+  --labels <json>    init / sync-doc / template：triage 标签覆盖表（'{"needs-triage":"bug:triage"}'）
+  --no-block         init / sync-doc：纯同步，不 upsert「## Agent skills」块（CLI 默认 upsert）
   --dry-run          演练：只打印动作，不落盘
 `;
 }
 
 export function main(argv) {
   const opts = parseArgs(argv);
-  if (!opts.cmd || opts.cmd === '-h' || opts.cmd === '--help') {
+  if (opts.cmd === '-h' || opts.cmd === '--help') {
     console.log(usage());
-    return opts.cmd ? 0 : 2;
+    return 0;
   }
+  // 未传子命令 → 默认 init（一键初始化）
+  const cmd = opts.cmd || 'init';
 
   try {
-    if (opts.cmd === 'detect') {
+    if (cmd === 'detect') {
       console.log(JSON.stringify(runDetect({ root: opts.root }), null, 2));
       return 0;
     }
-    if (opts.cmd === 'template') {
+    if (cmd === 'template') {
       const block = { layout: opts.layout || 'single', labels: opts.labels ? JSON.parse(opts.labels) : {} };
       for (const f of buildTemplateOutput({ seedsDir: opts.seeds || SKILL_ROOT, ...block })) {
         console.log(`=== FILE: ${f.file} ===`);
@@ -353,16 +374,23 @@ export function main(argv) {
       }
       return 0;
     }
-    if (opts.cmd === 'sync-doc') {
-      // CLI 默认 upsert Agent skills 块（SKILL.md 步骤 4）；--no-block 退化为纯同步
+    if (cmd === 'init' || cmd === 'sync-doc') {
+      // CLI 默认 upsert Agent skills 块；--no-block 退化为纯同步
       const block = opts.noBlock ? null : { layout: opts.layout || 'single', labels: opts.labels ? JSON.parse(opts.labels) : {} };
       const r = runSyncDoc({ root: opts.root, seedsDir: opts.seeds || SKILL_ROOT, dryRun: opts.dryRun, block });
-      console.log(`sync-doc: 源=${r.canonical}${r.createdDefault ? '（默认创建）' : ''}${r.dryRun ? ' [dry-run]' : ''}`);
+      if (cmd === 'init') {
+        const d = runDetect({ root: opts.root });
+        console.log(`init: 目标仓库=${opts.root}  源=${r.canonical}${r.createdDefault ? '（默认创建）' : ''}${r.dryRun ? ' [dry-run]' : ''}`);
+        console.log(`  初始状态: CLAUDE=${d.files['CLAUDE.md']} AGENTS=${d.files['AGENTS.md']} CODEBUDDY=${d.files['CODEBUDDY.md']} 一致性=${d.codebuddyConsistent}`);
+      } else {
+        console.log(`sync-doc: 源=${r.canonical}${r.createdDefault ? '（默认创建）' : ''}${r.dryRun ? ' [dry-run]' : ''}`);
+      }
       for (const a of r.actions) console.log(`  [${a.action}] ${a.file} — ${a.detail}`);
       console.log(`  一致性=${r.identical ? 'OK' : 'MISMATCH'}  多代理要求=${r.multiAgent ? '有' : '缺'}  模板=${r.templates.join(', ')}`);
+      if (cmd === 'init' && !r.dryRun) console.log('init: 初始化完成，配置已写入目标仓库。');
       return r.identical ? 0 : 2;
     }
-    console.error(`未知子命令: ${opts.cmd}`);
+    console.error(`未知子命令: ${cmd}`);
     console.error(usage());
     return 2;
   } catch (err) {

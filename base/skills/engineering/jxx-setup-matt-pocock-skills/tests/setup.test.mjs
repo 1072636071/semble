@@ -18,6 +18,7 @@ import {
   upsertAgentSkillsBlock,
   runDetect,
   runSyncDoc,
+  runInit,
   filesIdentical,
 } from '../scripts/setup.mjs';
 
@@ -178,6 +179,52 @@ test('sync-doc + block: 默认创建路径遵循 layout/labels 选项', () => {
   const content = read(root, 'AGENTS.md');
   assert.match(content, /多上下文布局/);
   assert.match(content, /`wontfix`→`no-fix`/);
+});
+
+// ================================================================ init（一键初始化：detect + 落盘）
+
+test('init: 空仓库 → detect 现状 + 全部默认落盘，5 份文件生成', () => {
+  const root = fixtureRoot('init-empty');
+  const seeds = mkSeeds('init-empty');
+  const r = runInit({ root, seedsDir: seeds });
+  assert.equal(r.detect.canonical, null);
+  assert.equal(r.sync.createdDefault, true);
+  assert.equal(read(root, 'AGENTS.md'), DEFAULT_AGENTS_CONTENT);
+  assert.equal(read(root, 'CODEBUDDY.md'), read(root, 'AGENTS.md'));
+  assert.ok(fs.existsSync(path.join(root, 'docs/agents/issue-tracker.md')));
+});
+
+test('init: 已有 AGENTS.md → 读取并保留自定义内容，追加工程块，同步 CODEBUDDY', () => {
+  const root = fixtureRoot('init-existing');
+  const seeds = mkSeeds('init-existing');
+  write(root, 'AGENTS.md', '# 项目\n\n自定义前言\n\n## 自定义小节\n\n别动我\n');
+  const r = runInit({ root, seedsDir: seeds });
+  assert.equal(r.detect.canonical, 'AGENTS.md');
+  assert.equal(r.sync.createdDefault, false);
+  const content = read(root, 'AGENTS.md');
+  assert.match(content, /## 自定义小节\n\n别动我\n\n## Agent skills/, '自定义内容原样保留，工程块追加末尾');
+  assert.match(content, /## 多代理要求/, '缺失的多代理块被注入');
+  assert.equal(r.sync.identical, true);
+  assert.equal(read(root, 'CODEBUDDY.md'), content, 'CODEBUDDY 与 AGENTS 逐字节一致');
+});
+
+test('init: layout/labels 定制写入', () => {
+  const root = fixtureRoot('init-opts');
+  const seeds = mkSeeds('init-opts');
+  const r = runInit({ root, seedsDir: seeds, block: { layout: 'multi', labels: { wontfix: 'no-fix' } } });
+  const content = read(root, 'AGENTS.md');
+  assert.match(content, /多上下文布局/);
+  assert.match(content, /`wontfix`→`no-fix`/);
+  assert.equal(r.sync.createdDefault, true);
+});
+
+test('init: --dry-run 不落盘', () => {
+  const root = fixtureRoot('init-dry');
+  const seeds = mkSeeds('init-dry');
+  const r = runInit({ root, seedsDir: seeds, dryRun: true });
+  assert.equal(r.sync.dryRun, true);
+  assert.equal(fs.existsSync(path.join(root, 'AGENTS.md')), false);
+  assert.equal(fs.existsSync(path.join(root, 'docs/agents')), false);
 });
 
 // ================================================================ template（步骤 4：输出文件内容，不落盘）
