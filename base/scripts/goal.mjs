@@ -511,8 +511,11 @@ export function buildReview({ d1 = 'pass', d2 = 'pass', d3 = 'pass', d4 = 'pass'
 // 工具
 // =========================================================================
 
+/** 本地时区日期 YYYY-MM-DD（不用 toISOString，避免 UTC 在东八区凌晨差一天）。 */
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
 function resolveGoalDir(opts, root) {
@@ -565,38 +568,44 @@ review-write 选项：
   -h, --help          显示本帮助`;
 }
 
+const VALUE_OPTS = new Set(['--root', '--name', '--slices', '--acceptances', '--max-rounds', '--time-limit', '--goal-dir', '--set-round', '--slice', '--verify', '--log', '--set', '--output', '--d1', '--d2', '--d3', '--d4', '--d5', '--d1-note', '--d2-note', '--d3-note', '--d4-note', '--d5-note']);
+
 function parseArgs(argv) {
   const opts = { set: [], slice: [] };
   const positional = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    const val = () => argv[++i];
-    if (a === '--help' || a === '-h') opts.help = true;
-    else if (a === '--root') opts.root = val();
-    else if (a === '--name') opts.name = val();
-    else if (a === '--slices') opts.slices = val();
-    else if (a === '--acceptances') opts.acceptances = val();
-    else if (a === '--max-rounds') opts.maxRounds = val();
-    else if (a === '--time-limit') opts.timeLimit = val();
-    else if (a === '--goal-dir') opts.goalDir = val();
-    else if (a === '--set-round') opts.setRound = Number(val());
-    else if (a === '--slice') opts.slice.push(val());
-    else if (a === '--verify') opts.verify = val();
-    else if (a === '--log') opts.log = val();
-    else if (a === '--set') opts.set.push(val());
-    else if (a === '--output') opts.output = val();
-    else if (a === '--d1') opts.d1 = val();
-    else if (a === '--d2') opts.d2 = val();
-    else if (a === '--d3') opts.d3 = val();
-    else if (a === '--d4') opts.d4 = val();
-    else if (a === '--d5') opts.d5 = val();
-    else if (a === '--d1-note') opts.n1 = val();
-    else if (a === '--d2-note') opts.n2 = val();
-    else if (a === '--d3-note') opts.n3 = val();
-    else if (a === '--d4-note') opts.n4 = val();
-    else if (a === '--d5-note') opts.n5 = val();
-    else if (a.startsWith('-')) { opts.error = `未知选项: ${a}`; }
-    else positional.push(a);
+    if (a === '--help' || a === '-h') { opts.help = true; continue; }
+    if (a.startsWith('-')) {
+      if (!VALUE_OPTS.has(a)) { opts.error = `未知选项: ${a}`; break; }
+      if (i + 1 >= argv.length) { opts.error = `选项 ${a} 缺少参数值`; break; }
+      const v = argv[++i];
+      if (a === '--root') opts.root = v;
+      else if (a === '--name') opts.name = v;
+      else if (a === '--slices') opts.slices = v;
+      else if (a === '--acceptances') opts.acceptances = v;
+      else if (a === '--max-rounds') opts.maxRounds = v;
+      else if (a === '--time-limit') opts.timeLimit = v;
+      else if (a === '--goal-dir') opts.goalDir = v;
+      else if (a === '--set-round') opts.setRound = Number(v);
+      else if (a === '--slice') opts.slice.push(v);
+      else if (a === '--verify') opts.verify = v;
+      else if (a === '--log') opts.log = v;
+      else if (a === '--set') opts.set.push(v);
+      else if (a === '--output') opts.output = v;
+      else if (a === '--d1') opts.d1 = v;
+      else if (a === '--d2') opts.d2 = v;
+      else if (a === '--d3') opts.d3 = v;
+      else if (a === '--d4') opts.d4 = v;
+      else if (a === '--d5') opts.d5 = v;
+      else if (a === '--d1-note') opts.n1 = v;
+      else if (a === '--d2-note') opts.n2 = v;
+      else if (a === '--d3-note') opts.n3 = v;
+      else if (a === '--d4-note') opts.n4 = v;
+      else opts.n5 = v;
+    } else {
+      positional.push(a);
+    }
   }
   opts.positional = positional;
   opts.cmd = positional[0];

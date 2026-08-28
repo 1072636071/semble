@@ -75,7 +75,7 @@ wayfinder 完成调查后交出接力棒——它自己不构建。汇入主流�
 - **`/jxx-research`** — 将阅读工作委托给**后台 agent**：它针对**一手来源**调查问题，然后在仓库中留下一个带引用的 Markdown 文件。它阅读时你继续工作。它产出的文件可以带入主流程的 `/jxx-grill-with-docs`——研究为思考提供素材，但不替代思考。
 - **`/jxx-teach`** — 跨多个会话学习一个概念，使用当前目录作为有状态工作区。
 - **`/jxx-wait-what`** — 当 agent 刚解释了什么而你不理解时：让它用简化的技术英语重讲。
-- **`/jxx-writing-for-agents`** — 为 agent 写文档的参考——无论是 AGENTS.md、README，还是技能。技能专用的分支（frontmatter、模型调用 vs 用户调用、路由技能）在 [SKILL-MECHANICS.md](../../productivity/jxx-writing-for-agents/SKILL-MECHANICS.md) 中。
+- **`/jxx-writing-for-agents`** — 为 agent 写文档的参考——无论是 AGENTS.md、README，还是技能。技能专用的分支（frontmatter、模型调用 vs 用户调用、路由技能）在 [SKILL-MECHANICS.md](./SKILL-MECHANICS.md) 中。
 
 ## 前置条件
 

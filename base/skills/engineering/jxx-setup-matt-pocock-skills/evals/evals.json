@@ -8,8 +8,8 @@
       "expected_output": "配置issue tracker、triage标签词汇表和领域文档布局",
       "expectations": [
         "运行本技能 scripts/setup.mjs detect 获取仓库状态 JSON 报告",
-        "引导配置issue tracker",
-        "运行 scripts/setup.mjs sync-doc 完成写入并依据执行日志汇报"
+        "用户未提供任何配置偏好，走无输入快速通道：不逐一询问、不确认，全程不再提问",
+        "运行 scripts/setup.mjs template 输出 5 份文件内容（AGENTS.md / CODEBUDDY.md / docs/agents/*.md）供用户复制，不落盘、不读取目标仓库文件做确认"
       ]
     },
     {
@@ -19,8 +19,8 @@
       "expected_output": "启动仓库配置流程",
       "expectations": [
         "运行 scripts/setup.mjs detect 检测仓库现有配置（区分文件存在/不存在）",
-        "引导用户完成初始化决策",
-        "运行 scripts/setup.mjs sync-doc 创建配置文件，而非手工写文件"
+        "用户未提供任何配置偏好，走无输入快速通道，不再逐一询问",
+        "运行 scripts/setup.mjs template 输出 5 份文件内容供用户复制，而非写盘或读文件确认"
       ]
     },
     {

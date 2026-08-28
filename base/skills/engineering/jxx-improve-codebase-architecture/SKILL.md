@@ -32,7 +32,7 @@ disable-model-invocation: true
 
 ### 2. 以 HTML 报告呈现候选者
 
-> 确定性环节可调用脚本：`node base/scripts/report-flow.mjs report-html --cards '<json>' --temp`（零依赖）
+> 确定性环节可调用脚本：`node <本技能目录>/scripts/report-flow.mjs report-html --cards '<json>' --temp`（零依赖）
 
 将自包含的 HTML 文件写入操作系统临时目录，使仓库中不留下任何东西。从 `$TMPDIR` 解析临时目录，回退到 `/tmp`（或 Windows 上的 `%TEMP%`），写入 `<tmpdir>/architecture-review-<timestamp>.html` 使每次运行获得新文件。为用户打开——Linux 上 `xdg-open <path>`，macOS 上 `open <path>`，Windows 上 `start <path>`——并告诉他们绝对路径。
 

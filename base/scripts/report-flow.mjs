@@ -15,8 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { renderTemplate } from './shared/render-template.mjs';
-import { instantiateTemplate } from './shared/render-template.mjs';
+import { renderTemplate, instantiateTemplate } from './shared/render-template.mjs';
 import { writeFileSafe } from './shared/fs-utils.mjs';
 import { nextSeq } from './shared/next-seq.mjs';
 import { renderReportHtml, writeReport, writeTempReport } from './shared/report-html.mjs';
@@ -52,8 +51,9 @@ export function renderCandidatesHtml(cards, title = '架构审查') {
 export function runReportHtml({ cards, title = '架构审查', outDir, filename = 'report.html', temp = false, prefix = 'architecture-review', open = false, spawnFn, dryRun = false }) {
   const norm = normalizeCards(cards);
   if (dryRun) {
-    // 预演：返回"将写"的路径与内容，但不落盘、不拉起浏览器
-    return temp ? path.join(os.tmpdir(), `${prefix}-${Date.now()}.html`) : path.join(outDir, filename);
+    // 预演：返回"将写"的路径，但不落盘、不拉起浏览器；未指定 --out 时给占位而非抛错
+    if (temp) return path.join(os.tmpdir(), `${prefix}-${Date.now()}.html`);
+    return outDir ? path.join(outDir, filename) : filename;
   }
   if (temp) return writeTempReport({ title, cards: norm, prefix, open, spawnFn });
   if (!outDir) throw new Error('report-html 需 --out <dir>（非临时模式）');
@@ -377,33 +377,37 @@ function usage() {
   -h, --help           显示本帮助`;
 }
 
+const VALUE_OPTS = new Set(['--cards', '--title', '--out', '--outDir', '--filename', '--name', '--description', '--tools', '--prefix', '--slug', '--version', '--file', '--scores', '--json']);
+
 function parseArgs(argv) {
   const opts = { temp: false, open: false, dryRun: false };
   const positional = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    switch (a) {
-      case '--dry-run': opts.dryRun = true; break;
-      case '--temp': opts.temp = true; break;
-      case '--open': opts.open = true; break;
-      case '--cards': opts.cards = argv[++i]; break;
-      case '--title': opts.title = argv[++i]; break;
-      case '--out': opts.out = argv[++i]; break;
-      case '--outDir': opts.outDir = argv[++i]; break;
-      case '--filename': opts.filename = argv[++i]; break;
-      case '--name': opts.name = argv[++i]; break;
-      case '--description': opts.description = argv[++i]; break;
-      case '--tools': opts.tools = argv[++i]; break;
-      case '--prefix': opts.prefix = argv[++i]; break;
-      case '--slug': opts.slug = argv[++i]; break;
-      case '--version': opts.version = argv[++i]; break;
-      case '--file': opts.file = argv[++i]; break;
-      case '--scores': opts.scores = argv[++i]; break;
-      case '--json': opts.json = argv[++i]; break;
-      case '-h': case '--help': opts.help = true; break;
-      default:
-        if (a.startsWith('-')) opts.error = `未知选项: ${a}`;
-        else positional.push(a);
+    if (a === '--dry-run') { opts.dryRun = true; continue; }
+    if (a === '--temp') { opts.temp = true; continue; }
+    if (a === '--open') { opts.open = true; continue; }
+    if (a === '-h' || a === '--help') { opts.help = true; continue; }
+    if (a.startsWith('-')) {
+      if (!VALUE_OPTS.has(a)) { opts.error = `未知选项: ${a}`; break; }
+      if (i + 1 >= argv.length) { opts.error = `选项 ${a} 缺少参数值`; break; }
+      const v = argv[++i];
+      if (a === '--cards') opts.cards = v;
+      else if (a === '--title') opts.title = v;
+      else if (a === '--out') opts.out = v;
+      else if (a === '--outDir') opts.outDir = v;
+      else if (a === '--filename') opts.filename = v;
+      else if (a === '--name') opts.name = v;
+      else if (a === '--description') opts.description = v;
+      else if (a === '--tools') opts.tools = v;
+      else if (a === '--prefix') opts.prefix = v;
+      else if (a === '--slug') opts.slug = v;
+      else if (a === '--version') opts.version = v;
+      else if (a === '--file') opts.file = v;
+      else if (a === '--scores') opts.scores = v;
+      else opts.json = v;
+    } else {
+      positional.push(a);
     }
   }
   opts.cmd = positional[0] || '';

@@ -177,19 +177,19 @@ Primary: [seo-content-writing](../seo-content-writing/SKILL.md) — 从基础设
 
 ## GEO 增量（D6 双视角）
 
-本技能同时覆盖传统搜索（SEO）与 AI 引擎（GEO）双视角。GEO 增量取自 geo-super 中文化素材（指针引用，不复制内容）：
+本技能同时覆盖传统搜索（SEO）与 AI 引擎（GEO）双视角。GEO 素材已复制到本技能 `references/geo/` 下：
 
 | 增量点 | 素材指针 |
 |--------|----------|
-| llms.txt / llms-full.txt 检查 | `geo/ai-crawlers-and-llmstxt.md`（全量引用） |
-| AI 爬虫 robots 配置 | `geo/ai-crawlers-and-llmstxt.md` § 爬虫表 + robots 策略 |
-| JSON-LD for AI | `geo/structured-data.md`（注：ahrefs 研究显示 JSON-LD 对 AI 引用无显著提升，保留服务传统搜索） |
-| agent readiness 检查 | `geo/agent-readiness.md`（全量引用） |
-| MCP Server Card | `geo/agent-readiness.md` § Discoverability |
-| Markdown 内容协商 | `geo/agent-readiness.md` § Content for agents |
-| FAST 框架 | `geo/technical-implementation.md` § FAST |
-| 技术审计 checklist | `geo/audit-checklist.md` § Section E/F |
+| llms.txt / llms-full.txt 检查 | `references/geo/ai-crawlers-and-llmstxt.md`（全量引用） |
+| AI 爬虫 robots 配置 | `references/geo/ai-crawlers-and-llmstxt.md` § 爬虫表 + robots 策略 |
+| JSON-LD for AI | `references/geo/structured-data.md`（注：ahrefs 研究显示 JSON-LD 对 AI 引用无显著提升，保留服务传统搜索） |
+| agent readiness 检查 | `references/geo/agent-readiness.md`（全量引用） |
+| MCP Server Card | `references/geo/agent-readiness.md` § Discoverability |
+| Markdown 内容协商 | `references/geo/agent-readiness.md` § Content for agents |
+| FAST 框架 | `references/geo/technical-implementation.md` § FAST |
+| 技术审计 checklist | `references/geo/audit-checklist.md` § Section E/F |
 
-详见 `seo-audit-template/references/geo-increment-materials.md` § 08。
+详见 `references/geo-increment-materials.md` § 08。
 
-本件是独立可调用的执行技能，与 `seo-audit-template` 的技术类 references 指针引用而非复制其内容。
+本件是独立可调用的执行技能，GEO 素材已自带在 `references/geo/` 下。

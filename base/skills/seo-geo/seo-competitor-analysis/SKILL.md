@@ -139,13 +139,13 @@ Primary：[seo-keyword-research](../seo-keyword-research/SKILL.md)。Also：[seo
 
 ## GEO 增量（D6 双视角）
 
-本技能同时覆盖传统搜索（SEO）与 AI 引擎（GEO）双视角。GEO 增量取自 geo-super 中文化素材（指针引用，不复制内容）：
+本技能同时覆盖传统搜索（SEO）与 AI 引擎（GEO）双视角。GEO 素材已复制到本技能 `references/geo/` 下：
 
 | 增量点 | 素材指针 |
 |--------|----------|
-| AI 引擎品牌提及度量 | `seo-audit-template/references/geo/measurement.md` § brand mention + citation rate |
-| AI 可见性对比维度 | `seo-audit-template/references/geo/platforms.md` § 各平台品牌出现机制 |
-| battlecard AI 维度 | `seo-audit-template/references/geo/audit-checklist.md` § Section D（平台可见性） |
-| 竞品 agent readiness 对比 | `seo-audit-template/references/geo/agent-readiness.md` § 四维度 |
+| AI 引擎品牌提及度量 | `references/geo/measurement.md` § brand mention + citation rate |
+| AI 可见性对比维度 | `references/geo/platforms.md` § 各平台品牌出现机制 |
+| battlecard AI 维度 | `references/geo/audit-checklist.md` § Section D（平台可见性） |
+| 竞品 agent readiness 对比 | `references/geo/agent-readiness.md` § 四维度 |
 
-详见 `seo-audit-template/references/geo-increment-materials.md` § 05。
+详见 `references/geo-increment-materials.md` § 05。

@@ -279,6 +279,24 @@ export function runSyncDoc({ root, seedsDir = SKILL_ROOT, dryRun = false, block 
   };
 }
 
+/**
+ * 生成并打印「全部默认文件模板」的完整内容（不落盘）。
+ * 无论用户是否提供偏好，都由本函数产出各文件内容，模型据此展示给用户复制/替换。
+ * @param {{seedsDir?: string, layout?: 'single'|'multi', labels?: Record<string,string>}} args
+ * @returns {Array<{file: string, content: string}>} 5 份文件的 (file, content) 列表
+ */
+export function buildTemplateOutput({ seedsDir = SKILL_ROOT, layout = 'single', labels = {} } = {}) {
+  const agentsContent = `${MULTI_AGENT_BLOCK}\n\n${buildAgentSkillsBlock({ layout, labels })}`;
+  const files = [{ file: 'AGENTS.md', content: agentsContent }];
+  files.push({ file: 'CODEBUDDY.md', content: agentsContent });
+  for (const { seed, out } of DOC_TEMPLATES) {
+    const seedAbs = path.join(seedsDir, seed);
+    const content = fs.existsSync(seedAbs) ? fs.readFileSync(seedAbs, 'utf-8') : `# ${out}\n\n(种子缺失: ${seedAbs})\n`;
+    files.push({ file: `docs/agents/${out}`, content });
+  }
+  return files;
+}
+
 // ---------------------------------------------------------------- CLI
 
 function parseArgs(argv) {
@@ -301,13 +319,14 @@ function usage() {
 
 子命令：
   detect             步骤 1「探索」：扫描仓库初始状态，输出 JSON 报告（只读）
-  sync-doc           步骤 4「写入」：双文件逐字节一致 + Agent skills 块 upsert + docs/agents/*.md 模板
+  template           输出全部默认文件模板内容到 stdout（不落盘），供模型展示给用户复制/替换
+  sync-doc           仅在明确要求写盘时使用：双文件逐字节一致 + Agent skills 块 upsert + docs/agents/*.md 模板
 
 选项：
   --root <dir>       目标仓库根目录（默认当前目录）
   --seeds <dir>      docs/agents 模板种子目录（默认本技能目录自身）
-  --layout <mode>    sync-doc：领域文档布局 single|multi（默认 single）
-  --labels <json>    sync-doc：triage 标签覆盖表（'{"needs-triage":"bug:triage"}'）
+  --layout <mode>    template / sync-doc：领域文档布局 single|multi（默认 single）
+  --labels <json>    template / sync-doc：triage 标签覆盖表（'{"needs-triage":"bug:triage"}'）
   --no-block         sync-doc：纯同步，不 upsert「## Agent skills」块（CLI 默认 upsert）
   --dry-run          演练：只打印动作，不落盘
 `;
@@ -323,6 +342,15 @@ export function main(argv) {
   try {
     if (opts.cmd === 'detect') {
       console.log(JSON.stringify(runDetect({ root: opts.root }), null, 2));
+      return 0;
+    }
+    if (opts.cmd === 'template') {
+      const block = { layout: opts.layout || 'single', labels: opts.labels ? JSON.parse(opts.labels) : {} };
+      for (const f of buildTemplateOutput({ seedsDir: opts.seeds || SKILL_ROOT, ...block })) {
+        console.log(`=== FILE: ${f.file} ===`);
+        console.log(f.content);
+        console.log('');
+      }
       return 0;
     }
     if (opts.cmd === 'sync-doc') {

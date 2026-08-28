@@ -89,12 +89,9 @@ metadata:
 ### 引导流程
 
 1. **检测缺失**：列出缺失的技能
-2. **提示安装命令**：
-   ```
-   在技能仓库根目录执行：
-   node <技能仓库>/base/scripts/ship.mjs install --project
-   ```
-   或手动复制 `seo-geo/` 桶下缺失的技能到当前项目项目级技能目录。
+2. **提示安装**：
+   - 若从 `seo-geo` 技能仓库分发：在仓库根目录运行该仓库的 `ship install --project`（命令由分发方给出）。
+   - 否则手动复制 `seo-geo/` 桶下缺失的技能目录到当前项目项目级技能目录（如 `.codebuddy/skills/`）。
 3. **安装后确认**：重新检测，确认套件完整
 4. **路由到用户原始意图**：安装完成后，按路由表路由
 
@@ -139,4 +136,4 @@ metadata:
 - **ADR 0005**：仅项目级分发 + router 兼任安装器
 - **族内 8 个技能**：`seo-audit-template`、`seo-blog-template`、`seo-keyword-research`、`seo-competitor-analysis`、`seo-backlink-analysis`、`seo-content-writing`、`seo-technical-audit`
 - **生成子技能**：`seo-geo-audit`、`blog-writer`（由模板生成）
-- **`ship`**：安装引导时提示 `ship install --project` 命令
+- **安装引导**：提示用户从 `seo-geo` 技能仓库分发或手动复制缺失技能（不依赖技能目录外脚本）

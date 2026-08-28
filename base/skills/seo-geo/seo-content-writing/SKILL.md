@@ -122,16 +122,16 @@ How-to 指南、对比文、listicle、pillar page、评测与 FAQ 页的快速�
 
 ## GEO 增量（D6 双视角）
 
-本技能同时覆盖传统搜索（SEO）与 AI 引擎（GEO）双视角。GEO 增量取自 geo-super 中文化素材（指针引用，不复制内容）：
+本技能同时覆盖传统搜索（SEO）与 AI 引擎（GEO）双视角。GEO 素材已复制到本技能 `references/geo/` 下：
 
 | 增量点 | 素材指针 |
 |--------|----------|
-| GEO 可引用性 checklist | `geo/content-strategy.md` § 四支柱 + chunkability + entity clarity |
-| quotability 指标 | `geo/measurement.md` § quotability |
-| AI 引用友好标题/结构 | `geo/templates.md` § 内容模板 + `geo/content-strategy.md` § 内容类型表 |
-| E-E-A-T for AI | `geo/content-strategy.md` § E-E-A-T 表 |
-| 段落级可抽取性 | `geo/content-strategy.md` § chunkability + retrieval gate |
+| GEO 可引用性 checklist | `references/geo/content-strategy.md` § 四支柱 + chunkability + entity clarity |
+| quotability 指标 | `references/geo/measurement.md` § quotability |
+| AI 引用友好标题/结构 | `references/geo/templates.md` § 内容模板 + `references/geo/content-strategy.md` § 内容类型表 |
+| E-E-A-T for AI | `references/geo/content-strategy.md` § E-E-A-T 表 |
+| 段落级可抽取性 | `references/geo/content-strategy.md` § chunkability + retrieval gate |
 
-详见 `seo-audit-template/references/geo-increment-materials.md` § 07。
+详见 `references/geo-increment-materials.md` § 07。
 
 本技能的中文产物作为 `seo-blog-template`（写作模板）的 references 来源。

@@ -48,6 +48,9 @@ export function blockedByText(deps) {
   return list.length ? list.join(', ') : '无——可立即开始';
 }
 
+const BLOCKED_RE = new RegExp('^(\\*\\*Blocked by:\\*\\*)[^\\n]*$', 'm');
+const STATUS_RE = new RegExp('^(\\*\\*Status:\\*\\*[^\\n]*)$', 'm');
+
 /**
  * 规范化/填充工单文件的 Blocked by 文本行。
  * 已有该行则替换其值；无则插到 **Status:** 行之后。
@@ -58,12 +61,10 @@ export function blockedByText(deps) {
 export function fillBlockedBy(content, deps) {
   const value = blockedByText(deps);
   const line = `**Blocked by:** ${value}`;
-  const existing = new RegExp('^(\\*\\*Blocked by:\\*\\*)[^\\n]*$', 'm');
-  if (existing.test(content)) {
-    return content.replace(existing, (_m, head) => `${head} ${value}`);
+  if (BLOCKED_RE.test(content)) {
+    return content.replace(BLOCKED_RE, (_m, head) => `${head} ${value}`);
   }
-  const statusRe = new RegExp('^(\\*\\*Status:\\*\\*[^\\n]*)$', 'm');
-  return content.replace(statusRe, (_m, s) => `${s}\n${line}`);
+  return content.replace(STATUS_RE, (_m, s) => `${s}\n${line}`);
 }
 
 /**
@@ -260,26 +261,30 @@ function usage() {
   -h, --help        显示本帮助`;
 }
 
+const VALUE_OPTS = new Set(['--root', '--dir', '--slug', '--title', '--num', '--deps', '--build', '--accept', '--body']);
+
 function parseArgs(argv) {
   const opts = { dryRun: false, accept: [] };
   const positional = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    switch (a) {
-      case '--dry-run': opts.dryRun = true; break;
-      case '--root': opts.root = argv[++i]; break;
-      case '--dir': opts.dir = argv[++i]; break;
-      case '--slug': opts.slug = argv[++i]; break;
-      case '--title': opts.title = argv[++i]; break;
-      case '--num': opts.num = argv[++i]; break;
-      case '--deps': opts.deps = argv[++i]; break;
-      case '--build': opts.build = argv[++i]; break;
-      case '--accept': opts.accept.push(argv[++i]); break;
-      case '--body': opts.body = argv[++i]; break;
-      case '-h': case '--help': opts.help = true; break;
-      default:
-        if (a.startsWith('-')) opts.error = `未知选项: ${a}`;
-        else positional.push(a);
+    if (a === '--dry-run') { opts.dryRun = true; continue; }
+    if (a === '-h' || a === '--help') { opts.help = true; continue; }
+    if (a.startsWith('-')) {
+      if (!VALUE_OPTS.has(a)) { opts.error = `未知选项: ${a}`; break; }
+      if (i + 1 >= argv.length) { opts.error = `选项 ${a} 缺少参数值`; break; }
+      const v = argv[++i];
+      if (a === '--root') opts.root = v;
+      else if (a === '--dir') opts.dir = v;
+      else if (a === '--slug') opts.slug = v;
+      else if (a === '--title') opts.title = v;
+      else if (a === '--num') opts.num = v;
+      else if (a === '--deps') opts.deps = v;
+      else if (a === '--build') opts.build = v;
+      else if (a === '--accept') opts.accept.push(v);
+      else opts.body = v;
+    } else {
+      positional.push(a);
     }
   }
   opts.cmd = positional[0] || '';

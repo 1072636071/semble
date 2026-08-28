@@ -249,28 +249,35 @@ function usage() {
   -h, --help         显示本帮助`;
 }
 
+const VALUE_OPTS = new Set(['--root', '--subject', '--ref', '--plan', '--manager']);
+
 function parseArgs(argv) {
   const opts = { root: process.cwd(), dryRun: false, force: false };
   const positional = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--root') opts.root = argv[++i];
-    else if (a === '--subject') opts.subject = argv[++i];
-    else if (a === '--ref') opts.ref = argv[++i];
-    else if (a === '--force') opts.force = true;
-    else if (a === '--plan') opts.plan = argv[++i];
-    else if (a === '--manager') opts.manager = argv[++i];
-    else if (a === '--skip-scripts') opts.skipScripts = true;
-    else if (a === '--dry-run') opts.dryRun = true;
-    else if (a === '-h' || a === '--help') opts.help = true;
-    else if (a.startsWith('-')) { opts.error = `未知选项: ${a}`; }
-    else positional.push(a);
+    if (a === '--force') { opts.force = true; continue; }
+    if (a === '--skip-scripts') { opts.skipScripts = true; continue; }
+    if (a === '--dry-run') { opts.dryRun = true; continue; }
+    if (a === '-h' || a === '--help') { opts.help = true; continue; }
+    if (a.startsWith('-')) {
+      if (!VALUE_OPTS.has(a)) { opts.error = `未知选项: ${a}`; break; }
+      if (i + 1 >= argv.length) { opts.error = `选项 ${a} 缺少参数值`; break; }
+      const v = argv[++i];
+      if (a === '--root') opts.root = v;
+      else if (a === '--subject') opts.subject = v;
+      else if (a === '--ref') opts.ref = v;
+      else if (a === '--plan') opts.plan = v;
+      else opts.manager = v;
+    } else {
+      positional.push(a);
+    }
   }
   opts.cmd = positional[0] || null;
   return opts;
 }
 
-async function main() {
+function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.help) { console.log(usage()); return 0; }
   if (opts.error) { console.error(`错误: ${opts.error}\n\n${usage()}`); return 2; }
@@ -309,5 +316,5 @@ async function main() {
 
 // main 触发守卫：直接运行时才执行；被测试 import 时不触发（pathToFileURL 范式）。
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().then((code) => process.exit(code));
+  process.exit(main());
 }

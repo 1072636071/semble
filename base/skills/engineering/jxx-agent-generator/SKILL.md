@@ -70,7 +70,7 @@ metadata:
 
 ### 第 4 步 — 写入与校验
 
-> 确定性环节可调用脚本：`node base/scripts/report-flow.mjs agent-init --name <名字> --description <一句话> --out <dir>`（零依赖）
+> 确定性环节可调用脚本：`node <本技能目录>/scripts/report-flow.mjs agent-init --name <名字> --description <一句话> --out <dir>`（零依赖）
 
 - 文件写入 `~/.codebuddy/agents/名字.md`。
 - **改名时**：先写新文件、删除旧文件，或统一用 write/delete，避免残留。

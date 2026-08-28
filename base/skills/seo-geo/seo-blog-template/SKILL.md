@@ -32,7 +32,7 @@ metadata:
 ## Skill Contract（模板契约）
 
 - **Expected output**：在当前项目的项目级技能目录（如 `.codebuddy/skills/blog-writer/`）生成固定名子技能 `blog-writer`，含 `SKILL.md` + `references/`
-- **Reads**：本模板自身 `references/`（样式模板 + 写作 checklist）；`seo-content-writing`（五件套的中文产物，作为 references 来源）；既有子技能 frontmatter（升级模式时读 `x-template` 版本戳与参数快照）
+- **Reads**：本模板自身 `references/`（样式模板 + 写作 checklist，素材已本地化）；既有子技能 frontmatter（升级模式时读 `x-template` 版本戳与参数快照）
 - **Writes**：当前项目 `.codebuddy/skills/blog-writer/SKILL.md` 及 `references/`
 - **Done when**：子技能生成完成，frontmatter 含 `x-template: seo-blog-template@<版本>` + 参数快照 + 架构事实表 + Frontmatter 契约 + 样式模板 + 自检 checklist + `Primary next skill` 互链字段
 - **Primary next skill**：`blog-writer`（生成后立即可用）；`seo-geo-audit`（配套审查子技能）
@@ -122,7 +122,7 @@ metadata:
 - 图片规范（alt、格式、路径）
 - prose-body 渲染约定（作者只写语义 Markdown，不写 CSS/类名/颜色）
 
-> 详细样式 checklist 见 `references/style-template.md`（与 `seo-audit-template/references/style-consistency-checklist.md` 同源）。
+> 详细样式 checklist 见 `references/style-template.md`（本目录内副本，与 `seo-audit-template/references/style-consistency-checklist.md` 同源）。
 
 ## references 来源
 
@@ -135,7 +135,7 @@ metadata:
 | `title-formulas.md` | seo-content-writing 标题公式 | 标题公式与 AI 引用友好变体 |
 | `structure-templates.md` | seo-content-writing 结构模板 | 内容结构模板 |
 
-生成子技能时，从 `seo-content-writing`（五件套，工单 07）的 references 复制对应文件，加上本模板的 `style-template.md`。
+生成子技能时，从本模板 `references/` 内的副本复制对应文件（来源已本地化，不再跨目录读取）。
 
 ## 升级模式
 
@@ -163,7 +163,7 @@ metadata:
 - **ADR 0006**：skill-as-generator + 版本戳升级模式
 - **ADR 0005**：仅项目级分发
 - **`seo-audit-template`**：配套审查模板，共用样式基准
-- **`seo-content-writing`**（五件套，工单 07）：references 来源
+- **`seo-content-writing`**（五件套，工单 07）：references 素材的原始来源（已复制到本模板 `references/` 内，不再跨目录读取）
 - **news-x**：项目知识抽象参照（架构事实表、Frontmatter 契约、工作流）
 - **news-review**：真实性/风格 checklist 归入写作侧自检
 - **`skill-reviewer` / `skill-tester`**：入库门禁

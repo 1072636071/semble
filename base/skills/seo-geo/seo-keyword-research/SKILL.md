@@ -122,13 +122,13 @@ Primary：[seo-competitor-analysis](../seo-competitor-analysis/SKILL.md)。
 
 ## GEO 增量（D6 双视角）
 
-本技能同时覆盖传统搜索（SEO）与 AI 引擎（GEO）双视角。GEO 增量取自 geo-super 中文化素材（指针引用，不复制内容）：
+本技能同时覆盖传统搜索（SEO）与 AI 引擎（GEO）双视角。GEO 素材已复制到本技能 `references/geo/` 下：
 
 | 增量点 | 素材指针 |
 |--------|----------|
-| AI 引用问句式 | `seo-audit-template/references/geo/content-strategy.md` § FAQ 型内容 + `seo-audit-template/references/geo/platforms.md` § 各平台问答格式 |
-| AI 问答意图分类 | `seo-audit-template/references/geo/content-strategy.md` § 内容类型表 + `seo-audit-template/references/geo/measurement.md` § AI 引用率指标 |
-| topic cluster for AI | `seo-audit-template/references/geo/content-strategy.md` § chunkability + entity clarity |
-| AI 引擎关键词差异 | `seo-audit-template/references/geo/platforms.md` § ChatGPT/Perplexity/Claude/Gemini 关键词行为 |
+| AI 引用问句式 | `references/geo/content-strategy.md` § FAQ 型内容 + `references/geo/platforms.md` § 各平台问答格式 |
+| AI 问答意图分类 | `references/geo/content-strategy.md` § 内容类型表 + `references/geo/measurement.md` § AI 引用率指标 |
+| topic cluster for AI | `references/geo/content-strategy.md` § chunkability + entity clarity |
+| AI 引擎关键词差异 | `references/geo/platforms.md` § ChatGPT/Perplexity/Claude/Gemini 关键词行为 |
 
-详见 `seo-audit-template/references/geo-increment-materials.md` § 04。
+详见 `references/geo-increment-materials.md` § 04。

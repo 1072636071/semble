@@ -35,9 +35,13 @@ export function listFilesRel(root) {
   return out;
 }
 
-/** 递归删除文件或目录，不存在则不报错。 */
+/** 递归删除文件或目录，不存在则不报错；拒绝删除路径根（防御误删）。 */
 export function rmrf(p) {
-  fs.rmSync(p, { recursive: true, force: true });
+  const resolved = path.resolve(p);
+  if (!resolved || resolved === path.parse(resolved).root) {
+    throw new Error(`拒绝删除路径根: ${p}`);
+  }
+  fs.rmSync(resolved, { recursive: true, force: true });
 }
 
 /** 读取 JSON 配置文件并解析为对象；路径不存在或非法 JSON 时抛错。 */

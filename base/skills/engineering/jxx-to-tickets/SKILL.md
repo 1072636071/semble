@@ -88,7 +88,7 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 
 工单发布后，可询问用户是否需要生成**里程碑文件**（`.scratch/<NN>-<工作简称-slug>/MILESTONES.md`），按里程碑逐步交付、断点续传。此环节**非必需**——仅在工单多、改动大、涉及广泛重构或大变动时顺带询问；其余情况不主动提，用户要求时再生成。文件只需说清：按依赖顺序把工单归组为若干可独立验收的里程碑，每个里程碑列出所含工单编号、用户视角的交付结果、可勾选的验收信号。格式自由发挥，不复制工单细节。
 
-> 确定性环节可调用脚本：`node base/scripts/issue-flow.mjs to-tickets --dir <dir> --slug <name>`（零依赖）/ `node base/scripts/issue-flow.mjs resolve-block --dir <dir>`（零依赖）
+> 确定性环节可调用脚本：`node <本技能目录>/scripts/issue-flow.mjs to-tickets --dir <dir> --slug <name>`（零依赖）/ `node <本技能目录>/scripts/issue-flow.mjs resolve-block --dir <dir>`（零依赖）
 
 <issue-template>
 

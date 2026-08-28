@@ -182,13 +182,58 @@ export function runCopyEditPostApplyChecks({ cwd = process.cwd(), files = [] } =
   return { ok: failures.length === 0, failures, warnings };
 }
 
+/** 零依赖的 JSX/TS 基础语法平衡检查（自包含 fallback）。 */
+function checkBalancedSyntax(content) {
+  const stack = [];
+  const pairs = { ')': '(', ']': '[', '}': '{' };
+  const openers = new Set(['(', '[', '{']);
+  let inLineComment = false;
+  let inBlockComment = false;
+  let inString = null;
+  let escaped = false;
+  for (let i = 0; i < content.length; i++) {
+    const ch = content[i];
+    const next = content[i + 1];
+    if (inLineComment) {
+      if (ch === '\n') inLineComment = false;
+      continue;
+    }
+    if (inBlockComment) {
+      if (ch === '*' && next === '/') { inBlockComment = false; i++; }
+      continue;
+    }
+    if (inString) {
+      if (escaped) { escaped = false; continue; }
+      if (ch === '\\') { escaped = true; continue; }
+      if (ch === inString) inString = null;
+      continue;
+    }
+    if (ch === '/' && next === '/') { inLineComment = true; i++; continue; }
+    if (ch === '/' && next === '*') { inBlockComment = true; i++; continue; }
+    if (ch === "'" || ch === '"' || ch === '`') { inString = ch; continue; }
+    if (openers.has(ch)) { stack.push(ch); continue; }
+    if (pairs[ch]) {
+      const top = stack.pop();
+      if (top !== pairs[ch]) return `unbalanced '${ch}' at offset ${i}`;
+    }
+  }
+  if (inString) return 'unterminated string literal';
+  if (inBlockComment) return 'unterminated block comment';
+  if (stack.length) return `unclosed '${stack[stack.length - 1]}'`;
+  return null;
+}
+
 function checkFrameworkSourceSyntax(relativeFile, content) {
   if (!/\.(jsx|tsx|ts)$/.test(relativeFile)) return null;
   let parser;
   try {
     parser = require('@babel/parser');
   } catch {
-    return { warning: { file: relativeFile, reason: 'syntax_parser_unavailable' } };
+    // 未安装 @babel/parser 时，用内置零依赖平衡检查兜底（自包含）。
+    const balanceError = checkBalancedSyntax(content);
+    return balanceError
+      ? { failure: { file: relativeFile, reason: 'invalid_source_syntax', message: `basic-balance: ${balanceError}` } }
+      : null;
   }
   const plugins = ['jsx'];
   if (/\.(ts|tsx)$/.test(relativeFile)) plugins.push('typescript');

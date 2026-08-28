@@ -1,6 +1,6 @@
 # GEO 可引用性 Checklist（写作侧自检）
 
-> 源自 `seo-content-writing` GEO 增量 + `seo-audit-template/references/geo-increment-materials.md` § 07。
+> GEO 可引用性 checklist（与 seo-content-writing 五件套 GEO 增量同源）。
 > 写作时同时过 SEO checklist 与本 GEO 可引用性 checklist——一份劳动两头受益（传统搜索 + AI 引擎）。
 
 ## 目录
@@ -67,4 +67,4 @@
 
 ## 素材指针
 
-详见 `seo-audit-template/references/geo-increment-materials.md` § 07 + `seo-audit-template/references/geo/content-strategy.md`（四支柱 + chunkability + entity clarity + E-E-A-T）。
+详见本技能 `references/` 内的写作素材（GEO 四支柱 + chunkability + entity clarity + E-E-A-T 见 `writing-checklist.md` 与 `title-formulas.md`）。

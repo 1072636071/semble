@@ -18,7 +18,7 @@ metadata:
 
 ### 1. 检测包管理器
 
-> 确定性环节可调用脚本：`node base/scripts/scaffold.mjs setup-precommit --root <repo>`（零依赖）
+> 确定性环节可调用脚本：`node <本技能目录>/scripts/scaffold.mjs setup-precommit --root <repo>`（零依赖）
 
 检查 `package-lock.json`（npm）、`pnpm-lock.yaml`（pnpm）、`yarn.lock`（yarn）、`bun.lockb`（bun）。使用检测到的包管理器。如不明确，默认使用 npm。
 

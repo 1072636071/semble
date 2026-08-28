@@ -145,13 +145,13 @@ Primary：[seo-competitor-analysis](../seo-competitor-analysis/SKILL.md)。Also�
 
 ## GEO 增量（D6 双视角）
 
-本技能同时覆盖传统搜索（SEO）与 AI 引擎（GEO）双视角。GEO 增量取自 geo-super 中文化素材（指针引用，不复制内容）：
+本技能同时覆盖传统搜索（SEO）与 AI 引擎（GEO）双视角。GEO 素材已复制到本技能 `references/geo/` 下：
 
 | 增量点 | 素材指针 |
 |--------|----------|
-| AI 引用源权威性 | `seo-audit-template/references/geo/content-strategy.md` § primary source + E-E-A-T |
-| 高权威源与 LLM 引用关联 | `seo-audit-template/references/geo/ahrefs-2026-studies.md` § 引用源研究 |
-| AI 可见性 outreach | `seo-audit-template/references/geo/content-strategy.md` § 内容类型表 + `seo-audit-template/references/geo/platforms.md` |
-| 链接 vs AI 引用差异 | `seo-audit-template/references/geo-super-overview.md` § GEO vs SEO |
+| AI 引用源权威性 | `references/geo/content-strategy.md` § primary source + E-E-A-T |
+| 高权威源与 LLM 引用关联 | `references/geo/ahrefs-2026-studies.md` § 引用源研究 |
+| AI 可见性 outreach | `references/geo/content-strategy.md` § 内容类型表 + `references/geo/platforms.md` |
+| 链接 vs AI 引用差异 | `references/geo-super-overview.md` § GEO vs SEO |
 
-详见 `seo-audit-template/references/geo-increment-materials.md` § 06。
+详见 `references/geo-increment-materials.md` § 06。

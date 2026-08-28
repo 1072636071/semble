@@ -13,6 +13,7 @@ import {
   DOC_TEMPLATES,
   DEFAULT_AGENTS_CONTENT,
   buildAgentSkillsBlock,
+  buildTemplateOutput,
   ensureMultiAgentBlock,
   upsertAgentSkillsBlock,
   runDetect,
@@ -179,6 +180,32 @@ test('sync-doc + block: 默认创建路径遵循 layout/labels 选项', () => {
   assert.match(content, /`wontfix`→`no-fix`/);
 });
 
+// ================================================================ template（步骤 4：输出文件内容，不落盘）
+
+test('buildTemplateOutput: 默认输出 5 份文件，CODEBUDDY 与 AGENTS 逐字节一致', () => {
+  const seeds = mkSeeds('tpl');
+  const out = buildTemplateOutput({ seedsDir: seeds });
+  assert.deepEqual(out.map((f) => f.file), [
+    'AGENTS.md',
+    'CODEBUDDY.md',
+    'docs/agents/issue-tracker.md',
+    'docs/agents/triage-labels.md',
+    'docs/agents/domain.md',
+  ]);
+  assert.equal(out[1].content, out[0].content, 'CODEBUDDY.md 与 AGENTS.md 逐字节一致');
+  assert.equal(out[0].content, DEFAULT_AGENTS_CONTENT, '默认 AGENTS.md 等于 DEFAULT_AGENTS_CONTENT');
+  assert.equal(out[2].content, 'seed:issue-tracker-local.md\n', 'docs/agents 来自种子模板');
+});
+
+test('buildTemplateOutput: layout/labels 定制渲染进 AGENTS.md，不落盘', () => {
+  const seeds = mkSeeds('tpl-opts');
+  const out = buildTemplateOutput({ seedsDir: seeds, layout: 'multi', labels: { 'needs-triage': 'bug:triage' } });
+  assert.match(out[0].content, /多上下文布局/);
+  assert.match(out[0].content, /`needs-triage`→`bug:triage`/);
+  // 未落盘：临时种子目录下不产生目标文件
+  assert.equal(fs.existsSync(path.join(seeds, 'AGENTS.md')), false);
+});
+
 // ================================================================ detect（步骤 1 探索）
 
 test('detect: 空仓库 — 文件/目录全部不存在，canonical 为 null', () => {
@@ -230,4 +257,19 @@ test('e2e: CLI detect 输出合法 JSON；sync-doc 默认种子目录为技能�
   execFileSync(process.execPath, [SETUP_MJS, 'sync-doc', '--root', root], { encoding: 'utf-8' });
   assert.equal(read(root, 'docs/agents/issue-tracker.md').startsWith('# Issue 跟踪器'), true);
   assert.equal(read(root, 'CODEBUDDY.md'), read(root, 'AGENTS.md'));
+});
+
+test('e2e: CLI template 输出 5 份文件内容到 stdout 且不落盘', () => {
+  const root = fixtureRoot('cli-tpl');
+  const out = execFileSync(process.execPath, [SETUP_MJS, 'template', '--root', root], { encoding: 'utf-8' });
+  assert.match(out, /=== FILE: AGENTS\.md ===/);
+  assert.match(out, /=== FILE: CODEBUDDY\.md ===/);
+  assert.match(out, /=== FILE: docs\/agents\/issue-tracker\.md ===/);
+  assert.match(out, /=== FILE: docs\/agents\/triage-labels\.md ===/);
+  assert.match(out, /=== FILE: docs\/agents\/domain\.md ===/);
+  assert.match(out, /## 多代理要求/);
+  // 不落盘：目标仓库根不产生任何文件
+  assert.equal(fs.existsSync(path.join(root, 'AGENTS.md')), false);
+  assert.equal(fs.existsSync(path.join(root, 'CODEBUDDY.md')), false);
+  assert.equal(fs.existsSync(path.join(root, 'docs/agents')), false);
 });

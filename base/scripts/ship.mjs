@@ -180,9 +180,17 @@ function serializeYaml(obj, indent = 0) {
             if (keys.length === 1) {
               const fk = keys[0];
               const fv = item[fk];
-              if (fv && typeof fv === 'object') {
+              if (fv === null || fv === undefined) {
                 out.push(`${pad}  - ${fk}:`);
-                out.push(serializeYaml(fv, indent + 4));
+              } else if (typeof fv === 'object') {
+                if (Array.isArray(fv)) {
+                  out.push(`${pad}  - ${fk}: []`);
+                } else if (Object.keys(fv).length === 0) {
+                  out.push(`${pad}  - ${fk}: {}`);
+                } else {
+                  out.push(`${pad}  - ${fk}:`);
+                  out.push(serializeYaml(fv, indent + 4));
+                }
               } else {
                 out.push(`${pad}  - ${fk}: ${yamlScalar(fv)}`);
               }
@@ -234,15 +242,41 @@ function sha256(filePath) {
   return crypto.createHash('sha256').update(buf).digest('hex');
 }
 
-function rmrf(p) {
-  fs.rmSync(p, { recursive: true, force: true });
+function rmrf(p, guards = []) {
+  const resolved = path.resolve(p);
+  if (!resolved || resolved === path.parse(resolved).root) {
+    throw new Error(`拒绝删除路径根: ${p}`);
+  }
+  for (const g of guards) {
+    if (!g) continue;
+    const gr = path.resolve(g);
+    if (resolved === gr || gr.startsWith(resolved)) {
+      throw new Error(`拒绝删除受保护目录: ${resolved}（保护根: ${gr}）`);
+    }
+  }
+  fs.rmSync(resolved, { recursive: true, force: true });
 }
 
 function copyDir(src, dest) {
+  if (!fs.existsSync(src)) throw new Error(`源目录不存在: ${src}`);
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     const s = path.join(src, entry.name);
     const d = path.join(dest, entry.name);
+    if (entry.isDirectory()) copyDir(s, d);
+    else fs.copyFileSync(s, d);
+  }
+}
+
+// 复制源目录附属文件（references/ scripts/ 等），跳过源标记文件与已存在目标项
+function copyAuxFiles(srcDir, destDir) {
+  if (!fs.existsSync(srcDir)) return;
+  fs.mkdirSync(destDir, { recursive: true });
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    if (entry.name === 'SKILL.src.md' || entry.name === 'AGENT.src.md') continue;
+    const s = path.join(srcDir, entry.name);
+    const d = path.join(destDir, entry.name);
+    if (fs.existsSync(d)) continue;
     if (entry.isDirectory()) copyDir(s, d);
     else fs.copyFileSync(s, d);
   }
@@ -288,42 +322,109 @@ function detectUserHome() {
     } catch { /* 忽略不可读的根 */ }
   }
 
+  const seen = new Set();
   for (const dir of candidates) {
-    if (dir && fs.existsSync(dir)) return path.resolve(dir);
+    if (!dir) continue;
+    const resolved = path.resolve(dir);
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+    if (fs.existsSync(resolved)) return resolved;
   }
   // 实在找不到就退回 os.homedir()（可能不存在，但至少给出确定值）
   return path.resolve(os.homedir() || (process.env.HOME || ''));
 }
 
+// 自动定位“项目根”：优先显式 projectRoot。
+// 否则：1) vendors.json 所在目录自身含标志（.git/AGENTS.md/CONTEXT.md）即项目根（嵌入式/fixture 布局）；
+//      2) 向上找含 .git 的仓库根（只认 .git，不认 AGENTS.md/CONTEXT.md，避免子目录/用户主目录里的同名文件误判）；
+//      3) 都未命中回退 vendors.json 所在目录。
+function detectProjectRoot(configDir) {
+  const start = path.resolve(configDir);
+  if (fs.existsSync(path.join(start, '.git')) || fs.existsSync(path.join(start, 'AGENTS.md')) || fs.existsSync(path.join(start, 'CONTEXT.md'))) {
+    return start;
+  }
+  let cur = start;
+  for (let i = 0; i < 8; i++) {
+    const parent = path.dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
+    if (fs.existsSync(path.join(cur, '.git'))) return cur;
+  }
+  return start;
+}
+
 function loadConfig(configPath, userHomeOverride) {
   const configPathResolved = path.resolve(configPath);
-  const raw = JSON.parse(fs.readFileSync(configPathResolved, 'utf-8'));
+  let raw;
+  try {
+    raw = JSON.parse(fs.readFileSync(configPathResolved, 'utf-8'));
+  } catch (e) {
+    throw new Error(`配置文件无法读取/解析 ${configPathResolved}: ${e.message}`);
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error(`配置文件必须是 JSON 对象: ${configPathResolved}`);
+  }
   const configDir = path.dirname(configPathResolved);
   const userHome = userHomeOverride || detectUserHome();
+  if (!fs.existsSync(userHome)) {
+    throw new Error(`用户目录不存在: ${userHome}`);
+  }
   const resolve = (p) => {
+    if (typeof p !== 'string' || !p.trim()) throw new Error(`无效的目录配置值: ${JSON.stringify(p)}`);
     if (p === '~' || p.startsWith('~/') || p.startsWith('~\\')) return path.join(userHome, p.slice(2));
     if (p.startsWith('~')) return path.join(userHome, p.slice(1));
     if (path.isAbsolute(p)) return p;
     return path.join(configDir, p);
   };
+
+  const projectRoot = raw.projectRoot ? path.resolve(configDir, raw.projectRoot) : detectProjectRoot(configDir);
+  if (!fs.existsSync(projectRoot)) {
+    throw new Error(`项目根不存在: ${projectRoot}（可在 vendors.json 配置 projectRoot 覆盖）`);
+  }
+  // 项目级路径必须落在项目根内，防止越界写/清
+  const assertInside = (child, label) => {
+    const rel = path.relative(projectRoot, child);
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
+      throw new Error(`${label} 越出项目根: ${child}（项目根: ${projectRoot}）`);
+    }
+  };
+
   const skillsBase = path.join(configDir, raw.skillsSource || 'skills');
   const agentsBase = raw.agentsSource ? path.join(configDir, raw.agentsSource) : null;
-  return {
-    configDir,
-    userHome,
-    buckets: raw.buckets || [],
-    managedPrefixes: raw.managedPrefixes || [],
-    skillsBase,
-    agentsBase,
-    vendors: Object.entries(raw.vendors || {}).map(([id, v]) => ({
+  const buckets = Array.isArray(raw.buckets) ? raw.buckets : [];
+  const managedPrefixes = Array.isArray(raw.managedPrefixes) ? raw.managedPrefixes : [];
+  if (managedPrefixes.length === 0) {
+    console.warn('[warn] managedPrefixes 为空，残留清理将不生效');
+  }
+  const vendors = Object.entries(raw.vendors || {}).map(([id, v]) => {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) {
+      throw new Error(`vendors.${id} 配置必须是对象`);
+    }
+    const vendor = {
       id,
       label: v.label || id,
       derive: !!v.derive,
       userSkills: v.user?.skills ? resolve(v.user.skills) : null,
       userAgents: v.user?.agents ? resolve(v.user.agents) : null,
-      projectSkills: v.project?.skills ? path.join(configDir, v.project.skills) : null,
-      projectAgents: v.project?.agents ? path.join(configDir, v.project.agents) : null,
-    })),
+      projectSkills: v.project?.skills ? path.join(projectRoot, v.project.skills) : null,
+      projectAgents: v.project?.agents ? path.join(projectRoot, v.project.agents) : null,
+    };
+    if (vendor.projectSkills) assertInside(vendor.projectSkills, `vendors.${id}.project.skills`);
+    if (vendor.projectAgents) assertInside(vendor.projectAgents, `vendors.${id}.project.agents`);
+    return vendor;
+  });
+  if (vendors.length === 0) {
+    console.warn('[warn] vendors 为空，无目标平台');
+  }
+  return {
+    configDir,
+    projectRoot,
+    userHome,
+    buckets,
+    managedPrefixes,
+    skillsBase,
+    agentsBase,
+    vendors,
   };
 }
 
@@ -334,7 +435,14 @@ function listSkillDirs(config) {
   for (const bucket of config.buckets) {
     const base = path.join(config.skillsBase, bucket);
     if (!fs.existsSync(base)) continue;
-    for (const entry of fs.readdirSync(base, { withFileTypes: true })) {
+    let entries;
+    try {
+      entries = fs.readdirSync(base, { withFileTypes: true });
+    } catch (e) {
+      console.warn(`[warn] 无法读取技能桶目录 ${base}: ${e.message}`);
+      continue;
+    }
+    for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       const dir = path.join(base, entry.name);
       if (fs.existsSync(path.join(dir, 'SKILL.src.md'))) {
@@ -350,7 +458,14 @@ function listSkillDirs(config) {
 function listAgents(config) {
   if (!config.agentsBase || !fs.existsSync(config.agentsBase)) return [];
   const result = [];
-  for (const entry of fs.readdirSync(config.agentsBase, { withFileTypes: true })) {
+  let entries;
+  try {
+    entries = fs.readdirSync(config.agentsBase, { withFileTypes: true });
+  } catch (e) {
+    console.warn(`[warn] 无法读取 agent 目录 ${config.agentsBase}: ${e.message}`);
+    return [];
+  }
+  for (const entry of entries) {
     if (entry.isFile() && entry.name.endsWith('.md')) {
       const file = path.join(config.agentsBase, entry.name);
       result.push({ name: entry.name.replace(/\.md$/, ''), file, srcMode: false });
@@ -366,7 +481,7 @@ function listAgents(config) {
 function getXInstall(filePath) {
   let meta = {};
   try {
-    meta = parseFrontmatter(filePath).meta;
+    meta = parseFrontmatter(filePath).meta || {};
   } catch {
     // 子集 YAML 解析器对部分合法 frontmatter（如多行 flow 序列）会抛错；
     // 安装决策只需 x-install，退化为正则提取，不影响派生引擎（派生只针对可正常解析的 src 技能）。
@@ -402,7 +517,13 @@ function deriveError(code, file, vendor, detail) {
 }
 
 function deriveSkill(vendor, skill, config) {
-  const { meta, body } = parseFrontmatter(skill.srcPath);
+  let parsed;
+  try {
+    parsed = parseFrontmatter(skill.srcPath);
+  } catch (e) {
+    return { error: deriveError('E_PARSE', skill.srcPath, vendor.id, `frontmatter 解析失败: ${e.message}`) };
+  }
+  const { meta, body } = parsed;
   const xv = meta['x-vendors'] || {};
   const common = stripXVendors(meta);
   if (!vendor.derive) {
@@ -445,7 +566,13 @@ function deriveAgent(vendor, agent, config) {
     // 普通 .md：原样复制（无派生）
     return { copy: true };
   }
-  const { meta, body } = parseFrontmatter(agent.file);
+  let parsed;
+  try {
+    parsed = parseFrontmatter(agent.file);
+  } catch (e) {
+    return { error: deriveError('E_PARSE', agent.file, vendor.id, `frontmatter 解析失败: ${e.message}`) };
+  }
+  const { meta, body } = parsed;
   const xv = meta['x-vendors'] || {};
   const common = stripXVendors(meta);
   if (!vendor.derive) {
@@ -492,11 +619,14 @@ function renderDerived(d) {
 function runDerive(config, { dryRun }) {
   const plan = [];
   const errors = [];
+  const derivedSkills = []; // { skill, vendor, d }，供辅助文件复制复用，避免重复派生
+
   for (const skill of listSkillDirs(config)) {
     if (!skill.srcMode) continue;
     if (getXInstall(skill.srcPath) === false) continue; // x-install: false 技能跳过派生
     for (const vendor of config.vendors) {
       const d = deriveSkill(vendor, skill, config);
+      derivedSkills.push({ skill, vendor, d });
       if (d.error) { errors.push(d.error); continue; }
       plan.push({ kind: 'skill', skill: skill.name, vendor: vendor.id, file: `${d.name}/SKILL.md`, render: () => renderDerived(d) });
     }
@@ -510,29 +640,28 @@ function runDerive(config, { dryRun }) {
       plan.push({ kind: 'agent', skill: agent.name, vendor: vendor.id, file: `${d.name}.md`, render: () => renderDerived(d) });
     }
   }
+
   if (!dryRun) {
     for (const item of plan) {
       const rel = path.join('.generated', item.vendor, item.file);
       const abs = path.join(config.configDir, rel);
-      fs.mkdirSync(path.dirname(abs), { recursive: true });
-      fs.writeFileSync(abs, item.render(), 'utf-8');
+      try {
+        fs.mkdirSync(path.dirname(abs), { recursive: true });
+        fs.writeFileSync(abs, item.render(), 'utf-8');
+      } catch (e) {
+        errors.push(deriveError('E_WRITE', rel, item.vendor, `写入失败: ${e.message}`));
+        continue;
+      }
       item.generatedPath = abs;
     }
     // 复制辅助文件（references/ scripts/ 等）到派生目录，保证 .generated 可整体作为技能目录
-    for (const skill of listSkillDirs(config)) {
-      if (!skill.srcMode) continue;
-      if (getXInstall(skill.srcPath) === false) continue; // x-install: false 技能不复制辅助文件
-      for (const vendor of config.vendors) {
-        const d = deriveSkill(vendor, skill, config);
-        if (d.error) continue;
-        const destDir = path.join(config.configDir, '.generated', vendor.id, d.name);
-        for (const entry of fs.readdirSync(skill.dir, { withFileTypes: true })) {
-          if (entry.name === 'SKILL.src.md') continue;
-          if (fs.existsSync(path.join(destDir, entry.name))) continue;
-          const s = path.join(skill.dir, entry.name);
-          if (entry.isDirectory()) copyDir(s, path.join(destDir, entry.name));
-          else fs.copyFileSync(s, path.join(destDir, entry.name));
-        }
+    for (const { skill, vendor, d } of derivedSkills) {
+      if (d.error) continue;
+      const destDir = path.join(config.configDir, '.generated', vendor.id, d.name);
+      try {
+        copyAuxFiles(skill.dir, destDir);
+      } catch (e) {
+        errors.push(deriveError('E_COPY', destDir, vendor.id, `辅助文件复制失败: ${e.message}`));
       }
     }
   }
@@ -553,8 +682,13 @@ function runInstall(config, { dryRun, project }) {
   const skipped = [];
   const failures = [];
 
-  const skills = listSkillDirs(config).filter((s) => shouldInstallForTarget(getXInstall(s.srcPath), project));
-  const srcNames = new Set(skills.map((s) => s.name));
+  const allSkills = listSkillDirs(config);
+  const skills = allSkills.filter((s) => shouldInstallForTarget(getXInstall(s.srcPath), project));
+  // 残留清理依据“源中全部技能”，而非“本次应装的技能”，
+  // 避免误删 x-install: project / false 的已装目录（它们在本次目标级别本就不装）
+  const srcNames = new Set(allSkills.map((s) => s.name));
+  // 危险操作护栏：禁止 rmrf 这些根目录自身或其祖先
+  const guards = [config.configDir, config.projectRoot, config.skillsBase, config.agentsBase, config.userHome];
 
   for (const vendor of config.vendors) {
     const skillsTarget = targetSkillsDir(config, vendor, project);
@@ -566,28 +700,37 @@ function runInstall(config, { dryRun, project }) {
             failures.push({ ...d.error, action: `skip ${vendor.label} install of ${skill.name}` });
             continue;
           }
-          const content = renderDerived(d);
+          let content;
+          try {
+            content = renderDerived(d);
+          } catch (e) {
+            failures.push({ code: 'E_RENDER', file: skill.srcPath, vendor: vendor.id, detail: `派生渲染失败: ${e.message}`, action: `skip ${vendor.label} install of ${skill.name}` });
+            continue;
+          }
           const destDir = path.join(skillsTarget, d.name);
           const destFile = path.join(destDir, 'SKILL.md');
           const expected = crypto.createHash('sha256').update(content, 'utf-8').digest('hex');
           if (!dryRun) {
-            fs.mkdirSync(destDir, { recursive: true });
-            fs.writeFileSync(destFile, content, 'utf-8');
-            // 复制源目录其他附属文件（references/ scripts/ 等）
-            for (const entry of fs.readdirSync(skill.dir, { withFileTypes: true })) {
-              if (entry.name === 'SKILL.src.md') continue;
-              const s = path.join(skill.dir, entry.name);
-              if (fs.existsSync(path.join(destDir, entry.name))) continue;
-              if (entry.isDirectory()) copyDir(s, path.join(destDir, entry.name));
-              else fs.copyFileSync(s, path.join(destDir, entry.name));
+            try {
+              fs.mkdirSync(destDir, { recursive: true });
+              fs.writeFileSync(destFile, content, 'utf-8');
+              copyAuxFiles(skill.dir, destDir);
+            } catch (e) {
+              failures.push({ code: 'E_WRITE', file: destFile, vendor: vendor.id, detail: `写入失败: ${e.message}`, action: `skip ${vendor.label} install of ${skill.name}` });
+              continue;
             }
           }
           installed.push({ dest: destFile, expectedHash: expected });
         } else {
           const destDir = path.join(skillsTarget, skill.name);
           if (!dryRun) {
-            rmrf(destDir);
-            copyDir(skill.dir, destDir);
+            try {
+              rmrf(destDir, guards);
+              copyDir(skill.dir, destDir);
+            } catch (e) {
+              failures.push({ code: 'E_INSTALL', file: destDir, vendor: vendor.id, detail: `安装失败: ${e.message}`, action: `skip ${vendor.label} install of ${skill.name}` });
+              continue;
+            }
           }
           installed.push({ dest: path.join(destDir, 'SKILL.md'), expectedHash: sha256(skill.srcPath) });
         }
@@ -600,7 +743,12 @@ function runInstall(config, { dryRun, project }) {
         if (!entry.isDirectory()) continue;
         if (!config.managedPrefixes.some((p) => entry.name.startsWith(p))) continue;
         if (srcNames.has(entry.name)) continue;
-        rmrf(path.join(skillsTarget, entry.name));
+        try {
+          rmrf(path.join(skillsTarget, entry.name), guards);
+        } catch (e) {
+          failures.push({ code: 'E_CLEAN', file: path.join(skillsTarget, entry.name), vendor: vendor.id, detail: `残留清理失败: ${e.message}`, action: 'continue' });
+          continue;
+        }
         skipped.push(`cleaned ${entry.name} from ${vendor.label}`);
       }
     }
@@ -618,8 +766,13 @@ function runInstall(config, { dryRun, project }) {
       if (!agent.srcMode) {
         const destFile = path.join(agentsTarget, path.basename(agent.file));
         if (!dryRun) {
-          fs.mkdirSync(agentsTarget, { recursive: true });
-          fs.copyFileSync(agent.file, destFile);
+          try {
+            fs.mkdirSync(agentsTarget, { recursive: true });
+            fs.copyFileSync(agent.file, destFile);
+          } catch (e) {
+            failures.push({ code: 'E_COPY', file: destFile, vendor: vendor.id, detail: `复制失败: ${e.message}`, action: `skip ${vendor.label} install of ${agent.name}` });
+            continue;
+          }
         }
         installed.push({ dest: destFile, expectedHash: sha256(agent.file) });
       } else {
@@ -628,12 +781,23 @@ function runInstall(config, { dryRun, project }) {
           failures.push({ ...d.error, action: `skip ${vendor.label} install of ${agent.name}` });
           continue;
         }
-        const content = renderDerived(d);
+        let content;
+        try {
+          content = renderDerived(d);
+        } catch (e) {
+          failures.push({ code: 'E_RENDER', file: agent.file, vendor: vendor.id, detail: `派生渲染失败: ${e.message}`, action: `skip ${vendor.label} install of ${agent.name}` });
+          continue;
+        }
         const destFile = path.join(agentsTarget, `${d.name}.md`);
         const expected = crypto.createHash('sha256').update(content, 'utf-8').digest('hex');
         if (!dryRun) {
-          fs.mkdirSync(agentsTarget, { recursive: true });
-          fs.writeFileSync(destFile, content, 'utf-8');
+          try {
+            fs.mkdirSync(agentsTarget, { recursive: true });
+            fs.writeFileSync(destFile, content, 'utf-8');
+          } catch (e) {
+            failures.push({ code: 'E_WRITE', file: destFile, vendor: vendor.id, detail: `写入失败: ${e.message}`, action: `skip ${vendor.label} install of ${agent.name}` });
+            continue;
+          }
         }
         installed.push({ dest: destFile, expectedHash: expected });
       }
@@ -645,14 +809,21 @@ function runInstall(config, { dryRun, project }) {
 
 // ---------------------------------------------------------------- verify
 
-function runVerify(config, installed, project) {
+function runVerify(config, installed) {
   const results = [];
   for (const item of installed) {
+    if (!item || !item.dest || !item.expectedHash) continue;
     if (!fs.existsSync(item.dest)) {
       results.push({ dest: item.dest, status: 'MISSING' });
       continue;
     }
-    const actual = sha256(item.dest);
+    let actual;
+    try {
+      actual = sha256(item.dest);
+    } catch (e) {
+      results.push({ dest: item.dest, status: 'ERROR', detail: e.message });
+      continue;
+    }
     results.push({ dest: item.dest, status: actual === item.expectedHash ? 'OK' : 'MISMATCH' });
   }
   return results;
@@ -669,7 +840,7 @@ function runCheck(config) {
 
 // ---------------------------------------------------------------- init
 
-function runInit({ type, name, bucket, configDir }) {
+function runInit({ type, name, bucket, config }) {
   if (!type || !name) {
     return { error: '用法: ship init --type skill|agent --name <name> [--bucket <bucket>]' };
   }
@@ -683,21 +854,34 @@ function runInit({ type, name, bucket, configDir }) {
   let tplPath;
   if (type === 'skill') {
     const b = bucket || 'productivity';
-    targetDir = path.join(configDir, 'skills', b, name);
+    if (config.buckets.length > 0 && !config.buckets.includes(b)) {
+      return { error: `未知 bucket: ${b}（可用: ${config.buckets.join(', ')}）` };
+    }
+    targetDir = path.join(config.skillsBase, b, name);
     tplPath = path.join(__dirname, 'templates', 'skill', 'SKILL.src.md');
   } else {
-    targetDir = path.join(configDir, 'agent', name);
+    if (!config.agentsBase) {
+      return { error: 'vendors.json 未配置 agentsSource，无法创建 agent' };
+    }
+    targetDir = path.join(config.agentsBase, name);
     tplPath = path.join(__dirname, 'templates', 'agent', 'AGENT.src.md');
   }
   if (fs.existsSync(targetDir)) {
     return { error: `目录已存在: ${targetDir}` };
   }
-  let tpl = fs.readFileSync(tplPath, 'utf-8');
-  tpl = tpl.replaceAll('__NAME__', name);
-  fs.mkdirSync(targetDir, { recursive: true });
-  const outFile = path.join(targetDir, type === 'skill' ? 'SKILL.src.md' : 'AGENT.src.md');
-  fs.writeFileSync(outFile, tpl, 'utf-8');
-  return { ok: true, file: outFile };
+  if (!fs.existsSync(tplPath)) {
+    return { error: `模板不存在: ${tplPath}` };
+  }
+  try {
+    let tpl = fs.readFileSync(tplPath, 'utf-8');
+    tpl = tpl.replaceAll('__NAME__', name);
+    fs.mkdirSync(targetDir, { recursive: true });
+    const outFile = path.join(targetDir, type === 'skill' ? 'SKILL.src.md' : 'AGENT.src.md');
+    fs.writeFileSync(outFile, tpl, 'utf-8');
+    return { ok: true, file: outFile };
+  } catch (e) {
+    return { error: `创建失败: ${e.message}` };
+  }
 }
 
 // ---------------------------------------------------------------- CLI
@@ -714,10 +898,12 @@ function usage() {
 选项：
   --config <path>   使用指定 vendors.json（默认 scripts/vendors.json）
   --user-home <dir> 把用户级目标目录重定向到 <dir>（默认自动探测：os.homedir() → USERPROFILE/HOME → 常见用户目录根部）
-  --project         安装到项目级扫描目录（默认用户级）
+  --project         安装到项目级扫描目录（项目根自动探测：向上找 .git/AGENTS.md/CONTEXT.md，可在 vendors.json 用 projectRoot 覆盖；默认用户级）
   --dry-run         派生与校验但不落盘
   -h, --help        显示本帮助`;
 }
+
+const VALUE_OPTS = new Set(['--config', '--user-home', '--type', '--name', '--bucket']);
 
 function parseArgs(argv) {
   const opts = { dryRun: false, project: false };
@@ -726,14 +912,25 @@ function parseArgs(argv) {
     const a = argv[i];
     if (a === '--dry-run') opts.dryRun = true;
     else if (a === '--project') opts.project = true;
-    else if (a === '--config') opts.config = argv[++i];
-    else if (a === '--user-home') opts.userHome = argv[++i];
-    else if (a === '--type') opts.type = argv[++i];
-    else if (a === '--name') opts.name = argv[++i];
-    else if (a === '--bucket') opts.bucket = argv[++i];
     else if (a === '-h' || a === '--help') opts.help = true;
-    else if (a.startsWith('-')) { opts.error = `未知选项: ${a}`; }
-    else positional.push(a);
+    else if (a.startsWith('-')) {
+      if (!VALUE_OPTS.has(a)) {
+        opts.error = `未知选项: ${a}`;
+        break;
+      }
+      if (i + 1 >= argv.length) {
+        opts.error = `选项 ${a} 缺少参数值`;
+        break;
+      }
+      const v = argv[++i];
+      if (a === '--config') opts.config = v;
+      else if (a === '--user-home') opts.userHome = v;
+      else if (a === '--type') opts.type = v;
+      else if (a === '--name') opts.name = v;
+      else opts.bucket = v;
+    } else {
+      positional.push(a);
+    }
   }
   opts.cmd = positional[0] || 'all';
   return opts;
@@ -757,9 +954,10 @@ async function main() {
     return 2;
   }
   if (!opts.userHome) console.log(`[user-home] 自动探测到用户目录: ${config.userHome}`);
+  console.log(`[project-root] ${config.projectRoot}`);
 
   if (opts.cmd === 'init') {
-    const r = runInit({ type: opts.type, name: opts.name, bucket: opts.bucket, configDir: config.configDir });
+    const r = runInit({ type: opts.type, name: opts.name, bucket: opts.bucket, config });
     if (r.error) { console.error(`错误: ${r.error}`); return 2; }
     console.log(`已创建 ${r.file}`);
     return 0;
@@ -777,6 +975,7 @@ async function main() {
   }
 
   if (opts.cmd === 'install' || opts.cmd === 'all') {
+    if (opts.dryRun) console.log('（dry-run 预览：OK=一致，MISSING=待安装，MISMATCH=内容待更新；不写入任何文件）');
     const { installed, skipped, failures } = runInstall(config, { dryRun: opts.dryRun, project: opts.project });
     for (const s of skipped) console.log(`- ${s}`);
     for (const f of failures) {
@@ -784,8 +983,11 @@ async function main() {
       console.error(`[GATE] ${f.code} ${f.vendor} ${f.file}: ${f.detail} → ${f.action}`);
     }
     // verify 为只读：dry-run 也执行，以输出"将安装哪些(OK)/缺失(MISSING)"的预览
-    const results = runVerify(config, installed, opts.project);
-    for (const r of results) console.log(`${r.status} ${r.dest}`);
+    const results = runVerify(config, installed);
+    for (const r of results) {
+      console.log(r.status === 'ERROR' ? `ERROR ${r.dest} (${r.detail})` : `${r.status} ${r.dest}`);
+      if (r.status === 'ERROR') exit = 1;
+    }
     if (results.length === 0) console.log('（无待安装项）');
   }
 
@@ -802,4 +1004,7 @@ async function main() {
   return exit;
 }
 
-main().then((code) => process.exit(code));
+main().then((code) => process.exit(code)).catch((err) => {
+  console.error(`致命错误: ${err && err.stack ? err.stack : err}`);
+  process.exit(1);
+});
