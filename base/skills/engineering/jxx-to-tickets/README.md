@@ -1,6 +1,6 @@
 # jxx-to-tickets
 
-将计划、规格文档或对话拆解为一组追踪弹式（tracer-bullet）工单，每个工单声明其阻塞关系，发布到已配置的跟踪器。发布后可**按需**生成 `MILESTONES.md`，按里程碑逐个交付、断点续传。
+将计划、规格文档或对话拆解为一组追踪弹式（tracer-bullet）工单，每个工单声明其阻塞关系，发布到已配置的跟踪器。发布后若需分批上线/断点续传，可运行 `/jxx-to-milestones` 按里程碑交付。
 
 ## 何时使用
 
@@ -9,4 +9,5 @@
 ## 相关技能
 
 - jxx-to-spec
+- jxx-to-milestones（下游：按可独立上线的里程碑分批交付）
 - jxx-setup-matt-pocock-skills

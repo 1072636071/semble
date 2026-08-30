@@ -1,0 +1,44 @@
+{
+  "skill_name": "jxx-to-milestones",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "工单太多了，帮我按里程碑分批交付，每批都要能单独上线",
+      "should_trigger": true,
+      "expected_output": "扫描工单依赖，归组为可独立上线的里程碑，生成 MILESTONES.md 并按里程碑逐个交付",
+      "expectations": [
+        "读取工单的 Blocked by 依赖并校验依赖闭合",
+        "每个里程碑写明用户视角交付、可独立上线判据、回滚方式、验收信号",
+        "里程碑之间串行推进，里程碑末尾过上线门禁后置 shipped"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "这批改动涉及数据库字段重命名，调用点很多，怎么分里程碑？",
+      "should_trigger": true,
+      "expected_output": "按扩展-收缩切分：扩展与迁移批次一批，收缩单独成里程碑",
+      "expectations": [
+        "识别为广泛重构，不强行塞进垂直切片",
+        "扩展（加新形式）与收缩（删旧形式）不落在同一里程碑",
+        "迁移按影响半径分批，每批保持 CI 绿"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "上次做到一半中断了，接着推进这些工单",
+      "should_trigger": true,
+      "expected_output": "从 MILESTONES.md 恢复进度，找到当前里程碑继续推进",
+      "expectations": [
+        "读取各里程碑状态行确定当前里程碑",
+        "不重做已 shipped 的里程碑"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "帮我把这个 PRD 拆成工单",
+      "should_trigger": false,
+      "expected_output": "应触发 jxx-to-tickets 而非里程碑技能",
+      "expectations": []
+    }
+  ]
+}
