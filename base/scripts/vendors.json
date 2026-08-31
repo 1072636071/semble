@@ -1,6 +1,6 @@
 {
-  "buckets": ["engineering", "productivity", "seo-geo", "code", "kimi"],
-  "managedPrefixes": ["jxx-", "huawei-cloud-", "seo-"],
+  "buckets": ["engineering", "productivity", "seo-geo", "code", "kimi", "TDB-AM"],
+  "managedPrefixes": ["jxx-", "huawei-cloud-", "seo-", "tdai-"],
   "skillsSource": "../skills",
   "agentsSource": "../agent",
   "vendors": {
