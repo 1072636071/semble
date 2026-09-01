@@ -1,6 +1,18 @@
 {
-  "buckets": ["engineering", "productivity", "seo-geo", "code", "kimi"],
-  "managedPrefixes": ["jxx-", "huawei-cloud-", "seo-"],
+  "buckets": [
+    "engineering",
+    "productivity",
+    "seo-geo",
+    "code",
+    "kimi",
+    "TDB-AM"
+  ],
+  "managedPrefixes": [
+    "jxx-",
+    "huawei-cloud-",
+    "seo-",
+    "tdai-"
+  ],
   "skillsSource": "../skills",
   "agentsSource": "../agent",
   "vendors": {
@@ -55,20 +67,32 @@
     "qoder": {
       "label": "Qoder",
       "derive": false,
-      "user": { "skills": "~/.qoder-cn/skills" },
-      "project": { "skills": ".qoder/skills" }
+      "user": {
+        "skills": "~/.qoder-cn/skills"
+      },
+      "project": {
+        "skills": ".qoder/skills"
+      }
     },
     "workbuddy": {
       "label": "WorkBuddy",
       "derive": false,
-      "user": { "skills": "~/.workbuddy/skills" },
-      "project": { "skills": ".workbuddy/skills" }
+      "user": {
+        "skills": "~/.workbuddy/skills"
+      },
+      "project": {
+        "skills": ".workbuddy/skills"
+      }
     },
     "qoderwork": {
       "label": "QoderWork",
       "derive": false,
-      "user": { "skills": "~/.qwenworkcn/skills" },
-      "project": { "skills": ".qoderwork/skills" }
+      "user": {
+        "skills": "~/.qwenworkcn/skills"
+      },
+      "project": {
+        "skills": ".qoderwork/skills"
+      }
     }
   }
 }
