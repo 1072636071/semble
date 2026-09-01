@@ -6,12 +6,12 @@
 
 **构建内容：** `tdai-memory-capture` 技能进入本仓 `base/skills/TDB-AM/` 桶、随 `tdai-` 家族
 ship 分发。本 issue 是**同步纪律的跟踪锚点**：技能正文与端点契约的**唯一权威源**在
-TencentDB-Agent-Memory 仓库（随内核 API 演进、随代码 review 维护），本仓桶内只是
+TencentDB-Agent-Memory 仓库（远端 gitee.com/jiangxiaocong/tencent-memories，取其本地 checkout）（随内核 API 演进、随代码 review 维护），本仓桶内只是
 分发镜像——**本仓不改内容，只跟随同步**。
 
 ## 同步纪律（固定方向）
 
-1. 权威源：`D:\work\space\TencentDB-Agent-Memory\docs\skills\tdai-memory-capture\`
+1. 权威源：`<TencentDB-Agent-Memory 本地 checkout>\docs\skills\tdai-memory-capture\`
    （SKILL.md + references/，MCP 端点契约核对基准 `MemoryCore/src/gateway/experiment-router.ts` 等）。
 2. 本仓库改了 API/文档 → **推本仓**：整目录覆盖 `base/skills/TDB-AM/tdai-memory-capture/`
    （当前无 `SKILL.src.md`，ship 走原样复制 fallback；勿在本仓加派生层造成双权威）。

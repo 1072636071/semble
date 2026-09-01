@@ -96,6 +96,8 @@ curl.exe -sS -X POST "$KS/experiment/result" \
 
 ### 第 ④ 步：内核落地（无需你操作）
 
+**响应 `data`**：`{ report_id, status, outcome, applied }`。若传了 `verified_section` 但未匹配到技能正文段落（常见于随 change 一起传了**修订前**的原文），响应会额外带 `warning`——本次 applied 照常生效、verified 标记未注入；按修订后的段落原文重新 run/result 补打标即可。
+
 - `verified` → 应用 change（乐观锁）→ 段落打 verified 标记 → 资产 `status/confidence`
   单步上调（成熟度联动）→ 偏差记录 `applied=true`，`experiment_result` 内含
   指示 + 证据 + 应用信息全留痕。

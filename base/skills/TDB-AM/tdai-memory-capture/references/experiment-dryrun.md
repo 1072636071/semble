@@ -25,6 +25,8 @@
 3. [ ] **verified + change 回传**：`result {outcome:"verified", evidence, change:{mode:"patch",
    expected_version:<步骤1回显值>, old_string:"dryrun-exp-fake-cmd", new_string:"echo ok"},
    verified_section:"<修订后该段首行原文>"}` → 200，`data.applied` 报 from/to version。
+3.5 [ ] **warning 负向核验**：另造一条偏差走 run → result 传**不存在**的 `verified_section` →
+    200 且 `data.warning` 含 "verified_section"、deviation 仍 applied、技能正文无新标记。
 4. [ ] **落库核验**：`skill/get`（带 `raw:true` 或走面板）确认正文已改 **且** 该段前有
    `<!-- verified -->`；`deviation/get` 确认 `status="applied"`、`applied=true`、
    `experiment_result` 留痕含指示+证据+应用信息；`asset/get` 确认 status/confidence 已流转。
