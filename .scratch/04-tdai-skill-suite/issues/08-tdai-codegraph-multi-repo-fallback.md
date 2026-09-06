@@ -1,6 +1,6 @@
 # tdai-codegraph-local 多仓库 + 远端兜底
 
-**Status:** ready-for-agent
+**Status:** pending-review
 
 **Blocked by:** 07
 
@@ -8,10 +8,10 @@
 
 **验收标准：**
 
-- [ ] 主仓库 auto-register + API 追加其余仓库
-- [ ] 远端兜底 + remote URL 认亲生效
-- [ ] 仓库增删命令
-- [ ] 集成实测通过（验收①追加资产查询刷新/认亲逐资产生效）
+- [x] 主仓库 auto-register + API 追加其余仓库
+- [x] 远端兜底 + remote URL 认亲生效
+- [x] 仓库增删命令
+- [ ] 集成实测通过（验收①追加资产查询刷新/认亲逐资产生效）— 待人工执行 `references/dryrun.md`
 
 ## 评论
 

@@ -26,7 +26,7 @@ Status: ready-for-agent
 2. 作为用户，我想要 `tdai-remote-ops` 提供 HTTP 快速巡检（四端口健康 8420/8424/8096/8125 + proxy admin 状态 + 服务器系统内存/磁盘/docker），以便几秒内判断全栈健康。
 3. 作为用户，我想要 `tdai-remote-ops` 提供容器管理（docker ps/logs/restart/stop/start，单容器或全栈），以便日常容器运维。
 4. 作为用户，我想要 `tdai-remote-ops` 提供配置管理（读 .env 与配置文件、从坚果云恢复 .env/.admin-key/gateway yaml、改 LLM 上游），以便配置可控可恢复。
-5. 作为用户，我想要 `tdai-remote-ops` 提供构建部署（本地源码上传 hub-ctx/proxy-src → build-images 重建镜像 → start-*.sh 重启 → CRLF 修正），以便把 TDAI 栈源码更新上线。
+5. 作为用户，我想要 `tdai-remote-ops` 提供构建部署（本地源码上传 hub-ctx/proxy-src → CRLF 修正 → build-images 重建镜像 → start-*.sh 重启），以便把 TDAI 栈源码更新上线。
 6. 作为用户，我想要 `tdai-remote-ops` 提供数据/备份（verify-stats、ClickHouse 状态、配置备份到坚果云），以便数据可核可备。
 7. 作为用户，我想要 `tdai-remote-ops` 通过向导落地 `tdai-ops.json`（探测坚果云 → 导入既有 → 手填），以便配置机器可读、可离线。
 8. 作为用户，我想要 `tdai-remote-ops` 的坚果云路径可探测/可覆盖，以便坚果云目录变动不破坏技能。
