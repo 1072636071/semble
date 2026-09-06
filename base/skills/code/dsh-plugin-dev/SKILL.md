@@ -2,7 +2,7 @@
 name: dsh-plugin-dev
 description: 开发、打包、安装与发布 DeepSeek Harness (dsh) 插件。dsh 一切皆插件，基于 Cordis 框架，插件即导出 apply 函数的 TypeScript 模块，可扩展工具、服务、事件、UI 等九类能力。当用户需要：(1) 写一个 dsh 插件（工具/服务/事件监听），(2) 给 dsh 新增或改写 Agent 工具，(3) 用 create-dsh-plugin 脚手架起步，(4) 构建 bundle 插件并打包发布到 GitHub/npm，(5) 用 Schemastery 定义插件配置 schema，(6) 排查插件加载失败、依赖解析、patch 配置不生效等问题时使用。含代码模板与完整示例。
 metadata:
-  version: 1.2.0
+  version: 1.2.1
 ---
 
 # DSH 插件开发

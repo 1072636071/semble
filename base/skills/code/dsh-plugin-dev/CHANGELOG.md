@@ -2,6 +2,14 @@
 
 All notable changes to this agent skill will be documented in this file.
 
+## [1.2.1] - 2026-09-01
+
+### Changed
+
+- 同步上游官方文档：`references/upstream-status.md` 刷新至 `2026-09-01` 快照（上游最近提交 `2026-08-31T16:03:39Z`）。
+- 核心依赖版本更新：`@deepseek-ai/cordis` `4.0.1` → `4.0.2`，`@deepseek-ai/schemastery` `3.18.1` → `3.18.2`。
+- 内置工具包清单（23 个）无增删，各包 npm 版本无变化。
+
 ## [1.2.0] - 2026-08-28
 
 ### Added

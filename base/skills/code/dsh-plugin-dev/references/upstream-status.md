@@ -6,17 +6,17 @@
 
 ## 最近一次核对
 
-- 更新时间：`2026-08-28`
+- 更新时间：`2026-09-01`
 - 上游仓库：`deepseek-ai/deepseek-harness`（默认分支 `master`）
 - 仓库描述：`DeepSeek Harness: Everything is a Plugin.`
-- 上游仓库最近提交（pushed_at）：`2026-08-27T17:06:36Z`
+- 上游仓库最近提交（pushed_at）：`2026-08-31T16:03:39Z`
 
 ## 核心依赖版本（@deepseek-ai/*）
 
 | 包 | 最新版本 | 用途 |
 | -- | -------- | ---- |
-| `@deepseek-ai/cordis` | `4.0.1` | 底层元框架（Context / Service） |
-| `@deepseek-ai/schemastery` | `3.18.1` | 配置 schema 定义与校验 |
+| `@deepseek-ai/cordis` | `4.0.2` | 底层元框架（Context / Service） |
+| `@deepseek-ai/schemastery` | `3.18.2` | 配置 schema 定义与校验 |
 | `@deepseek-ai/dsh-tools` | `0.0.1-rc.1` | 工具注册 API |
 | `@deepseek-ai/dsh-settings` | `0.0.1-rc.1` | 运行时设置服务 |
 | `@deepseek-ai/dsh-tool-fs` | `0.0.1-rc.1` | 文件系统工具包 |
