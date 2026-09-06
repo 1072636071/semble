@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.1 — 2026-09-06
+
+声明为默认安装技能：
+
+- frontmatter 显式 `x-install: true`（等价于缺省，但意图自证），随 `ship install` 分发到全部平台用户级目录
+- 登记进技能总目录 README 的模型调用段（此前只登记在 engineering 桶 README 与 ask-matt 路由）
+
 ## 1.1.0 — 2026-09-06
 
 令牌源文件改造为结构化凭据清单（YAML 块），读取方式改为按字段取用：

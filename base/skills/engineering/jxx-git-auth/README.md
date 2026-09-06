@@ -29,6 +29,10 @@
 
 新增平台按同样结构在源文件追加一条即可，技能无需改动。
 
+## 分发
+
+`x-install: true` —— 随 `ship install` **默认分发**到全部平台的用户级技能目录。需要装进某个项目时用 `ship install --project`。
+
 ## 硬约束
 
 - 令牌不得写入仓库文件、commit message、日志
