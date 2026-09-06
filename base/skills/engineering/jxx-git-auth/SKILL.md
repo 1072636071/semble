@@ -3,12 +3,25 @@ name: jxx-git-auth
 description: 加载 Git 平台访问令牌（cnb / GitHub / Gitee），供 push、clone 私有仓库、调用平台 API 或 gh CLI 等需要凭据的操作使用。当遇到 push/clone 报 401/403、认证失败、需要 token / 密钥 / 凭据 / 访问令牌，或要操作私有仓库时使用。
 x-install: true
 metadata:
-  version: 1.2.0
+  version: 1.3.0
 ---
 
 # Git 凭据加载
 
 取令牌、注入、闭嘴。不教 git。
+
+## 脚本
+
+`scripts/resolve-token.mjs`（零依赖）。优先用它，不要手抄令牌。
+
+| 用法 | 输出 |
+|---|---|
+| 无参数 | 全部平台，令牌**掩码** |
+| `--host <host>` | 单条，令牌**掩码** |
+| `--token <host>` | 明文令牌 |
+| `--remote <host> <owner/repo>` | 带凭据的 HTTPS remote |
+
+明文模式（后两行）只用于**直接接进命令或变量**，禁止先打印再看。令牌源缺失退出码 2，未知 host 退出码 3。脚本不写任何文件。
 
 ## 令牌源
 

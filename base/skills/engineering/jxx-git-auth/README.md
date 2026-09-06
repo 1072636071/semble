@@ -29,6 +29,19 @@
 
 新增平台按同样结构在源文件追加一条即可，技能无需改动。
 
+## 脚本
+
+`scripts/resolve-token.mjs`，零依赖。优先用它，不要手抄令牌。
+
+| 用法 | 输出 |
+| --- | --- |
+| 无参数 | 全部平台，令牌掩码 |
+| `--host <host>` | 单条，令牌掩码 |
+| `--token <host>` | 明文令牌 |
+| `--remote <host> <owner/repo>` | 带凭据的 HTTPS remote |
+
+明文模式只用于直接接进命令或变量，禁止先打印。退出码：2 = 令牌源缺失，3 = 未知 host。
+
 ## 分发
 
 `x-install: true` —— 随 `ship install` **默认分发**到全部平台的用户级技能目录。需要装进某个项目时用 `ship install --project`。

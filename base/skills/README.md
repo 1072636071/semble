@@ -51,6 +51,7 @@
 - **[impeccable](./engineering/impeccable/SKILL.md)** 🪝[待改造] — 设计、重塑、打磨前端界面，提供工艺级视觉与 UX。其 `hook*.mjs` runner 思路（一个内核 + 多 manifest）可复用，但当前 manifest 矩阵为 Claude Code 系四家，**未对齐 openCode/CodeBuddy/CodeArts/Trae**，待改造。
 - **[resolving-merge-conflicts](./engineering/jxx-resolving-merge-conflicts/SKILL.md)** — 解决合并冲突。
 - **[git-auth](./engineering/jxx-git-auth/SKILL.md)** — 加载 cnb / GitHub / Gitee 访问令牌并注入当前操作（HTTPS remote、API 头、`gh` CLI）。令牌源在仓库外，技能内只存路径。
+- **[caveman](./engineering/jxx-caveman/SKILL.md)** — 极简输出模式：保留全部技术内容，删除全部废话。安全警告与不可逆确认时自动恢复正常表达。
 - **[grill-with-memorial](./engineering/jxx-grill-with-memorial/SKILL.md)** — 通过 grill 打磨计划或设计，全过程持久化到 memorial 奏报目录。支持中断续接、调查委派、收尾审核。
 - **[wizard](./engineering/jxx-wizard/SKILL.md)** — 生成交互式 bash 向导，引导人完成手动多步流程，捕获值并写入 `.env` 或 CI 密钥。
 
