@@ -30,4 +30,6 @@
 
 - **[implement](./jxx-implement/SKILL.md)** — 实现技能。
 - **[resolving-merge-conflicts](./jxx-resolving-merge-conflicts/SKILL.md)** — 解决合并冲突。
+- **[jxx-git-auth](./jxx-git-auth/SKILL.md)** — 加载 cnb / GitHub / Gitee 访问令牌并注入当前操作（HTTPS remote、API 头、`gh` CLI）。令牌源在仓库之外，技能内只存路径。
+- **[jxx-caveman](./jxx-caveman/SKILL.md)** — 极简输出模式：保留全部技术内容，删除全部废话。安全警告与不可逆确认时自动恢复正常表达。
 - **[wizard](./jxx-wizard/SKILL.md)** — 生成交互式 bash 向导，引导人完成手动多步流程（控制台点击、创建账号、生成密钥），捕获值并写入 `.env` 或 CI 密钥。

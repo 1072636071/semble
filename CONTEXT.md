@@ -20,7 +20,7 @@ _避免使用_：硬编码平台列表
 厂商注册表中无派生规则的平台，技能目录不加改写直接复制到其安装目录（现状行为）。是**派生规则**缺位时的兼容路径，不是终态。
 
 **桶（bucket）**：
-`base/skills/` 下按用途分组的目录（`engineering/`、`productivity/`），是技能的组织单位，不是分发单位。
+`base/skills/` 下按用途分组的目录（`engineering/`、`productivity/`、`TDB-AM/`、`seo-geo/` 等），是技能的组织单位，不是分发单位。桶清单与 `managedPrefixes` 见 `vendors.json`。
 
 **双模式（dual-mode）**：
 一行命令对技能的两种处理路径——技能目录含 `SKILL.src.md` 时走**单源派生**安装；不含时走**原样复制 fallback**安装。`SKILL.src.md` 的存在与否即派生开关，存量技能随改随迁，无需迁移截止日。Agent 同理（`AGENT.src.md` 为派生开关）。
@@ -47,6 +47,23 @@ _避免使用_：为项目限定技能发明 ship 之外的分发通道
 
 **seo-geo 桶 / `seo-` 前缀家族**：
 `base/skills/seo-geo/` 桶承载 SEO/GEO 营销域技能族（审查模板、写作模板、五件套、`seo-router` 路由器），统一 `seo-` 前缀并注册进 `managedPrefixes`。特例：该族**仅项目级分发**（`x-install: project`），首次进场由 `ship --project` 哑拷贝，进场后生命周期由项目内 `seo-router` 兼任（ADR 0005）。
+
+**TDB-AM 桶 / `tdai-` 前缀家族**：
+`base/skills/TDB-AM/` 桶承载 TencentDB-Agent-Memory（TDAI）能力抽象技能族：
+- `dsh-tdai-routing`：DSH harness ↔ TDAI 路由双向接线（早期命名例外，无 `tdai-` 前缀）
+- `panel-admin`：Panel 管理域总入口（wiki/code-graph/llm-upstream/agent-团队/用量，早期命名例外）
+- `tdai-remote-ops`：运维远端——SSH 为主 + HTTP 快速巡检；容器/配置/构建部署/数据备份，仅 TDAI 栈
+- `tdai-codegraph-local`：本地 Code_Graph——常驻本地 KS + 用户级 MCP，单守护进程多仓库（ADR：单守护多仓库 / 编译件分发）
+- `tdai-wiki-local`：本地 Wiki——远端 wiki 生命周期 + 查询（复用守护 MCP 兜底转发，ADR：wiki 兜底转发）
+
+`tdai-` 前缀已注册进 `managedPrefixes`（ship 清理范围），`TDB-AM` 已加入 `buckets`。本地工作根 `~/.tdai/`（runtime/config/state/data）为该族运行时约定。技能族制品随发布仓库 `cnb.cool/hanjiangxue_xiaoxiao/jx-ai` 分发。
+
+**令牌源外置**：
+凭据类技能（首例 `jxx-git-auth`）在技能内只声明**仓库外机密文件的路径**，令牌值运行时读取、永不写入仓库任何文件。理由是技能会经 **ship** 分发到全部平台目录——一旦入库即等于向所有安装点扩散密钥。
+_避免使用_：把令牌复制到技能目录、内联进 SKILL.md、写进 `references/`
+
+**`jxx-git-auth`**：
+`engineering` 桶的凭据加载技能。按 remote host 判定平台（`cnb.cool` / `github.com` / `gitee.com`），cnb 用户名固定为 `cnb`、GitHub 与 Gitee 令牌即身份，再按操作类型选择注入通道（HTTPS remote 内嵌 / `Authorization` 头 / `GH_TOKEN` 环境变量）。只管凭据，不含 git 教学。
 
 ## 关系
 

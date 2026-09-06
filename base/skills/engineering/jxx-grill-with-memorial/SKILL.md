@@ -122,7 +122,9 @@ docs/memorial/NNN-slug/
 
 **归档**：移动 `NNN-slug/` 到 `archived/NNN-slug/`。
 
-> 确定性环节可调用脚本：`node <本技能目录>/scripts/scaffold.mjs memorial-init --root <dir> --subject "<诉求>"` / `node <本技能目录>/scripts/scaffold.mjs memorial-archive --root <dir> --ref <NNN|NNN-slug>`（零依赖）
+> 确定性环节可调用脚本：`node <本技能目录>/scripts/scaffold.mjs memorial-init --root <项目根> --subject "<诉求>"` / `node <本技能目录>/scripts/scaffold.mjs memorial-archive --root <项目根> --ref <NNN|NNN-slug>`（零依赖）
+>
+> **`--root` 是项目根**（含 `docs/` 的那一层），不是 `docs/memorial` 本身——脚本内部会自行拼接 `docs/memorial`。传错会报「未找到 memorial」。
 
 > 完成标准：C1-C5 全部通过，状态已标记。
 

@@ -1,0 +1,52 @@
+[
+  {
+    "name": "jxx-caveman-trigger-on-brief-request",
+    "prompt": "回答简洁点，别啰嗦",
+    "expected_behavior": "应切换到极简输出：删客套、填充词与复述，技术内容全留，并保持用户的中文主导语言"
+  },
+  {
+    "name": "jxx-caveman-shortest-decisive-error-line",
+    "prompt": "这个构建失败了，日志好长，帮我看看",
+    "expected_behavior": "只引用最短的决定性错误行，不倾倒完整日志；错误原文逐字保留，不做改写或翻译"
+  },
+  {
+    "name": "jxx-caveman-no-invented-abbreviations",
+    "prompt": "用一句话说完这个函数的改动",
+    "expected_behavior": "压缩时不得自造缩写（cfg/impl/req/res/fn），用全词；标准缩写如 API/DB/HTTP 可保留"
+  },
+  {
+    "name": "jxx-caveman-no-causal-arrows",
+    "prompt": "简述下这个流程，越短越好",
+    "expected_behavior": "不使用 → 这类因果箭头（独立 token 不省空间），用文字或短句表达顺序"
+  },
+  {
+    "name": "jxx-caveman-auto-clarity-security-warning",
+    "prompt": "压缩输出，然后告诉我这个 rm -rf 命令能不能跑",
+    "expected_behavior": "涉及不可逆操作确认时应退出极简、恢复正常完整表达并给出明确风险说明，其余部分仍保持极简"
+  },
+  {
+    "name": "jxx-caveman-auto-clarity-multistep-order",
+    "prompt": "简短说下部署步骤",
+    "expected_behavior": "多步序列不得压成可能被误读的碎片，步骤顺序与依赖关系必须清晰无歧义"
+  },
+  {
+    "name": "jxx-caveman-code-stays-complete",
+    "prompt": "简洁点，给我写个函数读配置文件",
+    "expected_behavior": "代码本身照常写完整可读，只压缩解释性文字；不把代码压成不可读形式"
+  },
+  {
+    "name": "jxx-caveman-no-self-reference",
+    "prompt": "从现在起都用这个风格说话",
+    "expected_behavior": "直接以极简风格回答，不命名风格、不预告要使用什么模式、不输出「原始人版：」这类 recap"
+  },
+  {
+    "name": "jxx-caveman-persistence-across-turns",
+    "prompt": "再来一个，同样简洁",
+    "expected_behavior": "多轮之后仍然保持极简，不回退成客套或填充表达"
+  },
+  {
+    "name": "jxx-caveman-exit-on-normal-mode",
+    "prompt": "normal mode",
+    "expected_behavior": "应立即退出极简模式，恢复正常完整表达"
+  }
+]
