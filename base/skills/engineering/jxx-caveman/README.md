@@ -20,6 +20,10 @@
 
 安全警告、不可逆操作确认、多步序列、压缩会造成歧义、用户要求澄清——这些恢复正常表达，清楚后回到极简。
 
+## 分发
+
+`x-install: true` —— 随 `ship install` **默认分发**到全部平台的用户级技能目录。需要装进某个项目时用 `ship install --project`。
+
 ## 边界
 
 代码 / commit / PR 正文照常写完整。`stop caveman` 或 `normal mode` 退出。
