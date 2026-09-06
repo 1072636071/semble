@@ -17,4 +17,9 @@
 
 ## 评论
 
-（评论与对话历史追加于此，新内容置于最前。）
+- 2026-09-06 · **只读冒烟已执行**（`.temp/scripts/git-auth-smoke.mjs`，仅查询当前身份，无写操作，令牌以掩码输出）：
+  - cnb — **PASS**，HTTP 200，身份 jiangxiao
+  - Gitee — **PASS**，HTTP 200，身份 jiangxiaocong
+  - GitHub — **未能验证**：`api.github.com` 与 `github.com` 在本机网络均不可达（curl 返回 000 / SSL 连接失败，无代理环境变量）。属网络限制，**非令牌问题**，需在可访问 GitHub 的网络下补验。
+  - 两次执行均无任何令牌明文输出；脚本未做任何写操作。
+- 剩余：GitHub 补验 + 三平台真实 push 写操作（需人在场执行）。故本工单仍为 `ready-for-human`。
