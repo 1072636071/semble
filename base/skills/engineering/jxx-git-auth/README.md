@@ -19,11 +19,15 @@
 
 ## 平台映射
 
-| 平台 | 用户名位 | 令牌位置 |
-| --- | --- | --- |
-| cnb | 固定 `cnb` | 令牌源文件中 `Token:` 行 |
-| GitHub | 令牌即身份（`ghp_` 前缀） | 令牌源文件中「我的github超级秘药」行 |
-| Gitee | 令牌即身份 | 令牌源文件中 `gitee：` 行 |
+令牌源文件是一份结构化凭据清单（YAML 块），每条含 `host` / `remote_user` / `token` / `auth` 等字段：
+
+| 平台 | `host` | `remote_user` | 认证 |
+| --- | --- | --- | --- |
+| cnb | `cnb.cool` | 固定 `cnb` | Bearer |
+| GitHub | `github.com` | `@token`（令牌即身份，`ghp_` 前缀） | Bearer + `GH_TOKEN` |
+| Gitee | `gitee.com` | `@token`（令牌即身份） | Bearer 或 `?access_token=` |
+
+新增平台按同样结构在源文件追加一条即可，技能无需改动。
 
 ## 硬约束
 

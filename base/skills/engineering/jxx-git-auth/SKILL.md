@@ -2,7 +2,7 @@
 name: jxx-git-auth
 description: 加载 Git 平台访问令牌（cnb / GitHub / Gitee），供 push、clone 私有仓库、调用平台 API 或 gh CLI 等需要凭据的操作使用。当遇到 push/clone 报 401/403、认证失败、需要 token / 密钥 / 凭据 / 访问令牌，或要操作私有仓库时使用。
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # Git 凭据加载
@@ -17,13 +17,15 @@ metadata:
 C:\Users\jxc123\Nutstore\1\我的坚果云\项目机密\Secret\git-tools.md
 ```
 
-需要凭据时读取该文件。它含三个平台：
+需要凭据时读取该文件。它是一份结构化的平台凭据清单（YAML 块），每条含 `name` / `host` / `api_base` / `remote_user` / `token` / `auth`，可选 `cli_env` 与 `query_param`：
 
-| 平台 | 用户名 | 令牌位置 |
-|---|---|---|
-| cnb | 固定为 `cnb` | 文件中 `Token:` 行 |
-| GitHub | 令牌即身份（`ghp_` 前缀） | 文件中「我的github超级秘药」行 |
-| Gitee | 令牌即身份 | 文件中 `gitee：` 行 |
+| 平台 | `host` | `remote_user` | 认证 |
+|---|---|---|---|
+| cnb | `cnb.cool` | 固定 `cnb` | Bearer |
+| GitHub | `github.com` | `@token`（令牌即身份，`ghp_` 前缀） | Bearer + `GH_TOKEN` |
+| Gitee | `gitee.com` | `@token`（令牌即身份） | Bearer 或 `?access_token=` |
+
+字段含义以令牌源文件中的「字段说明」为准；新增平台按同样结构追加一条即可，本技能无需改动。
 
 ## 流程
 

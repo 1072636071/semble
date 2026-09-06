@@ -60,6 +60,11 @@
     "expected_behavior": "展示报错前应先脱敏——凭据片段以掩码形式呈现，不得让令牌出现在回显或日志中"
   },
   {
+    "name": "jxx-git-auth-new-platform-from-source",
+    "prompt": "我在令牌源里加了一个自建 Gitea，推代码过去",
+    "expected_behavior": "应按源文件新增条目的 host 字段命中该平台并按其 remote_user / auth 字段注入，不要求修改技能本身、也不报'未知平台'"
+  },
+  {
     "name": "jxx-git-auth-token-source-unreadable",
     "prompt": "帮我推到 cnb",
     "expected_behavior": "令牌源不可读时应明确告知用户去更新令牌源文件，不猜测、不使用占位令牌、不静默失败"

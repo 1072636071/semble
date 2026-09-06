@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0 — 2026-09-06
+
+令牌源文件改造为结构化凭据清单（YAML 块），读取方式改为按字段取用：
+
+- 源文件每条含 `name` / `host` / `api_base` / `remote_user` / `token` / `auth`，可选 `cli_env` 与 `query_param`
+- 平台判定直接读 `host`，不再依赖行标签文本匹配
+- `remote_user` 用 `@token` 显式表达"令牌即身份"，消除"用户名位填什么"的歧义
+- 新增平台只需在源文件追加一条，技能无需改动
+- evals 增加一条：源新增平台后按 host 命中
+
 ## 1.0.0 — 2026-09-06
 
 初始版本。四项决策来源：memorial `docs/memorial/003-git-auth/`。

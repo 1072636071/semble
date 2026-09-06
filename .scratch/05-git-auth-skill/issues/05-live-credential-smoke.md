@@ -22,4 +22,5 @@
   - Gitee — **PASS**，HTTP 200，身份 jiangxiaocong
   - GitHub — **未能验证**：`api.github.com` 与 `github.com` 在本机网络均不可达（curl 返回 000 / SSL 连接失败，无代理环境变量）。属网络限制，**非令牌问题**，需在可访问 GitHub 的网络下补验。
   - 两次执行均无任何令牌明文输出；脚本未做任何写操作。
+- 2026-09-06 · **令牌源改造为结构化凭据清单后重跑**（YAML 块，字段驱动）：脚本成功解析 3 个平台，cnb PASS / Gitee PASS / GitHub 仍因网络不可达未验证。结果一致，说明改造未破坏读取链路。
 - 剩余：GitHub 补验 + 三平台真实 push 写操作（需人在场执行）。故本工单仍为 `ready-for-human`。
