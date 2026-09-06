@@ -23,3 +23,4 @@
 - `/jxx-codebase-design` — 深模块（deep module）设计词汇
 - `/jxx-handoff` — 跨会话上下文传递
 - `/jxx-research` — 后台研究
+- `/jxx-git-auth` — 加载三平台 Git 令牌并注入（令牌源在仓库外）

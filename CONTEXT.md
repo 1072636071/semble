@@ -58,6 +58,13 @@ _避免使用_：为项目限定技能发明 ship 之外的分发通道
 
 `tdai-` 前缀已注册进 `managedPrefixes`（ship 清理范围），`TDB-AM` 已加入 `buckets`。本地工作根 `~/.tdai/`（runtime/config/state/data）为该族运行时约定。技能族制品随发布仓库 `cnb.cool/hanjiangxue_xiaoxiao/jx-ai` 分发。
 
+**令牌源外置**：
+凭据类技能（首例 `jxx-git-auth`）在技能内只声明**仓库外机密文件的路径**，令牌值运行时读取、永不写入仓库任何文件。理由是技能会经 **ship** 分发到全部平台目录——一旦入库即等于向所有安装点扩散密钥。
+_避免使用_：把令牌复制到技能目录、内联进 SKILL.md、写进 `references/`
+
+**`jxx-git-auth`**：
+`engineering` 桶的凭据加载技能。按 remote host 判定平台（`cnb.cool` / `github.com` / `gitee.com`），cnb 用户名固定为 `cnb`、GitHub 与 Gitee 令牌即身份，再按操作类型选择注入通道（HTTPS remote 内嵌 / `Authorization` 头 / `GH_TOKEN` 环境变量）。只管凭据，不含 git 教学。
+
 ## 关系
 
 - 一份源文件经**派生规则**产出多份厂商适配版
