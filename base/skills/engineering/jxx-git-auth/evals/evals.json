@@ -65,6 +65,11 @@
     "expected_behavior": "应按源文件新增条目的 host 字段命中该平台并按其 remote_user / auth 字段注入，不要求修改技能本身、也不报'未知平台'"
   },
   {
+    "name": "jxx-git-auth-resolve-home-not-hardcoded",
+    "prompt": "在另一台机器上用这个技能推代码",
+    "expected_behavior": "应把令牌源路径中的用户名按当前用户解析（USERPROFILE/HOME 或运行时 API），不得使用写死的 C:\\Users\\<某个用户名>，也不得因路径对不上就报'令牌源不存在'而不尝试解析"
+  },
+  {
     "name": "jxx-git-auth-token-source-unreadable",
     "prompt": "帮我推到 cnb",
     "expected_behavior": "令牌源不可读时应明确告知用户去更新令牌源文件，不猜测、不使用占位令牌、不静默失败"

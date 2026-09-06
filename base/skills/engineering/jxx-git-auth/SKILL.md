@@ -3,7 +3,7 @@ name: jxx-git-auth
 description: 加载 Git 平台访问令牌（cnb / GitHub / Gitee），供 push、clone 私有仓库、调用平台 API 或 gh CLI 等需要凭据的操作使用。当遇到 push/clone 报 401/403、认证失败、需要 token / 密钥 / 凭据 / 访问令牌，或要操作私有仓库时使用。
 x-install: true
 metadata:
-  version: 1.1.1
+  version: 1.1.2
 ---
 
 # Git 凭据加载
@@ -12,11 +12,21 @@ metadata:
 
 ## 令牌源
 
-唯一来源，位于仓库之外（永不入库）：
+唯一来源，位于仓库之外（永不入库）。**路径中的用户名随机器而变，不要硬编码**：
 
 ```
-C:\Users\jxc123\Nutstore\1\我的坚果云\项目机密\Secret\git-tools.md
+%USERPROFILE%\Nutstore\1\我的坚果云\项目机密\Secret\git-tools.md
 ```
+
+即 `C:\Users\<当前用户名>\Nutstore\1\我的坚果云\项目机密\Secret\git-tools.md`（POSIX 写作 `~/Nutstore/1/我的坚果云/项目机密/Secret/git-tools.md`）。
+
+解析顺序：
+
+1. `USERPROFILE`（Windows）/ `HOME`（POSIX）—— 优先
+2. `os.homedir()` 等运行时 API
+3. 以上都拿不到时，才用当前登录用户名拼 `C:\Users\<用户名>`
+
+**不要把具体用户名写进任何技能文件**——技能会分发到多台机器，写死即失效。
 
 需要凭据时读取该文件。它是一份结构化的平台凭据清单（YAML 块），每条含 `name` / `host` / `api_base` / `remote_user` / `token` / `auth`，可选 `cli_env` 与 `query_param`：
 
@@ -30,8 +40,8 @@ C:\Users\jxc123\Nutstore\1\我的坚果云\项目机密\Secret\git-tools.md
 
 ## 流程
 
-1. 读令牌文件。
-2. 按目标判定平台：`cnb.cool` → cnb，`github.com` → GitHub，`gitee.com` → Gitee。
+1. 按上述解析顺序定位并读取令牌文件（用户名不硬编码）。
+2. 按目标 remote 的 host 匹配源文件中的 `host` 字段，选中平台条目（不写死平台清单）。
 3. 注入：
    - **HTTPS remote**：`https://<user>:<token>@<host>/<owner>/<repo>.git`
      - cnb：`<user>` 填 `cnb`

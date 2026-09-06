@@ -12,7 +12,7 @@
 
 ## 工作流
 
-1. **读令牌源** — 仓库外的机密文件（路径见 `SKILL.md`），令牌值永不入库
+1. **读令牌源** — 仓库外的 `%USERPROFILE%\Nutstore\1\我的坚果云\项目机密\Secret\git-tools.md`（用户名按当前用户解析，**不硬编码**），令牌值永不入库
 2. **判平台** — 按 remote host：`cnb.cool` / `github.com` / `gitee.com`
 3. **注入** — HTTPS remote 内嵌 / `Authorization` 头 / `GH_TOKEN` 环境变量，按操作类型选一种
 4. **闭嘴** — 用完即止，不持久化
