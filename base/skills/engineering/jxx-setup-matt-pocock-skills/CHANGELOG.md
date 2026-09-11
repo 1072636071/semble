@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1 — 2026-09-11
+
+### Changed
+
+- `buildAgentSkillsBlock` 的「### Issue tracker」段新增注意项：\`.scratch/\` 是仓库源码的一部分，**必须提交进 git**（不要写进 \`.gitignore\`），让 issue / PRD 随仓库一起版本化管理。生成的 AGENTS.md 与 CODEBUDDY.md 均含此说明。
+
 ## 1.3.0 — 2026-08-28
 
 ### Changed

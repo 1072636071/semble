@@ -87,6 +87,8 @@ export function buildAgentSkillsBlock({ layout = 'single', labels = {} } = {}) {
 
 本仓库的 issue 与 PRD 以本地 markdown 形式存放于仓库 \`.scratch/\` 下，不使用远程 tracker。参见 \`docs/agents/issue-tracker.md\`。
 
+> 注意：\`.scratch/\` 是仓库源码的一部分，**必须提交进 git**（不要写进 \`.gitignore\`），让 issue / PRD 随仓库一起版本化管理、可回溯、可协作。
+
 ### triage 标签
 
 ${triageLine}

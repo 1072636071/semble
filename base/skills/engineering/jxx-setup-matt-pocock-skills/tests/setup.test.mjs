@@ -110,6 +110,7 @@ test('buildAgentSkillsBlock: 默认（single，无覆盖）与 DEFAULT_AGENTS_CO
   assert.match(block, /^## Agent skills\n/);
   assert.match(block, /单一上下文布局/);
   assert.match(block, /标签字符串与角色名一致，未覆盖/);
+  assert.match(block, /\.scratch\/` 是仓库源码的一部分，\*\*必须提交进 git\*\*/, 'Issue tracker 段需说明 .scratch 要提交 git 管理');
   assert.ok(block.endsWith('\n'));
 });
 
