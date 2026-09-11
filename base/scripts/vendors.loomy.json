@@ -1,0 +1,23 @@
+{
+  "buckets": [
+    "engineering",
+    "productivity",
+    "code"
+  ],
+  "managedPrefixes": [
+    "jxx-",
+    "huawei-cloud-",
+    "seo-",
+    "tdai-"
+  ],
+  "skillsSource": "../skills",
+  "vendors": {
+    "opencode": {
+      "label": "OpenCode (Loomy)",
+      "derive": false,
+      "user": {
+        "skills": "~/opencode/skills"
+      }
+    }
+  }
+}

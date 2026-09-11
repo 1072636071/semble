@@ -46,6 +46,7 @@
 - **[domain-modeling](./engineering/jxx-domain-modeling/SKILL.md)** — 主动构建和锐化项目的领域模型。
 - **[codebase-design](./engineering/jxx-codebase-design/SKILL.md)** — 设计深层模块（deep module）的共享规范与词汇。
 - **[code-review](./engineering/jxx-code-review/SKILL.md)** — 基于固定时间点的 diff 进行双轴 review（标准轴 + spec 轴）。
+- **[architecture](./engineering/jxx-architecture/SKILL.md)** — AI 友好架构的设计与审查：以 AI agent 为第一读者的代码结构准则（小而美、显式优于隐式、语义密度、可预测模式、工程护栏、反模式）。
 
 - **[implement](./engineering/jxx-implement/SKILL.md)** — 实现技能。
 - **[impeccable](./engineering/impeccable/SKILL.md)** 🪝[待改造] — 设计、重塑、打磨前端界面，提供工艺级视觉与 UX。其 `hook*.mjs` runner 思路（一个内核 + 多 manifest）可复用，但当前 manifest 矩阵为 Claude Code 系四家，**未对齐 openCode/CodeBuddy/CodeArts/Trae**，待改造。

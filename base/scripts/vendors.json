@@ -93,6 +93,13 @@
       "project": {
         "skills": ".qoderwork/skills"
       }
+    },
+    "kimi": {
+      "label": "Kimi",
+      "derive": false,
+      "user": {
+        "skills": "D:\\aiData\\kimiData\\daimon-share\\daimon\\skills"
+      }
     }
   }
 }

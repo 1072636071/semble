@@ -1,0 +1,46 @@
+{
+  "skill_name": "jxx-architecture",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我要用 Python 写一个命令行工具：读取 Excel 订单文件，校验数据，调用下游 API 创建订单，输出结果报告。帮我设计项目架构。",
+      "expected_output": "一份架构设计：扁平的目录结构树、单一职责的模块划分、带类型签名的接口、Pydantic Schema、护栏建议（linter/测试），并通过设计自检。",
+      "files": [],
+      "assertions": [
+        { "text": "产出包含明确的目录结构树，且目录嵌套不超过 3-4 层", "type": "qualitative" },
+        { "text": "每个模块有单一职责说明", "type": "qualitative" },
+        { "text": "接口设计带类型注解，数据结构用 Schema（如 Pydantic）定义", "type": "qualitative" },
+        { "text": "提到工程护栏（linter/formatter 或测试策略）", "type": "qualitative" },
+        { "text": "参数显式化，未建议全局配置对象传参", "type": "qualitative" },
+        { "text": "产出包含显式的设计自检（逐条检查清单或对不适用项的说明）", "type": "qualitative" },
+        { "text": "明确声明不做什么：拒绝的选项或规避的反模式（如不用全局单例、不引入 asyncio、不自造 DSL）", "type": "qualitative" }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "审查 E:\\work\\sp\\JwikisSkills\\base\\scripts 目录的架构，评估它对 AI 协作的友好程度，给出改进建议。",
+      "expected_output": "一份架构审查报告：总评 + 按准则分组的发现（每条含严重度、文件路径、机制解释、改进建议）+ 不超过 3 条优先处理项。",
+      "files": [],
+      "assertions": [
+        { "text": "报告包含总评、分组发现、优先处理（≤3 条）三个部分", "type": "qualitative" },
+        { "text": "每条发现有严重度分级和具体文件路径", "type": "qualitative" },
+        { "text": "至少识别出一个真实存在的结构问题（如单文件过大、职责混杂）", "type": "qualitative" },
+        { "text": "发现附有机制解释（为什么对 AI 有害），而非只罗列规则", "type": "qualitative" },
+        { "text": "识别出文档（文件头注释 / README / AGENTS.md）与代码行为不一致的问题", "type": "qualitative" }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "我们的 Flask 项目所有代码都堆在一个 2000 行的 app.py 里：路由、SQL、业务逻辑、配置全在一起。帮我重新设计模块拆分方案。",
+      "expected_output": "一份拆分方案：按经典分层（路由/服务/数据访问）拆成小而美的模块，每模块单一职责、独立可测试，配置分离，含迁移步骤。",
+      "files": [],
+      "assertions": [
+        { "text": "给出多模块拆分方案，每个模块单一职责且可独立测试", "type": "qualitative" },
+        { "text": "采用社区主流分层模式（如 routes/services/repository），并说明每层不该做什么", "type": "qualitative" },
+        { "text": "配置与代码分离", "type": "qualitative" },
+        { "text": "包含可执行的迁移步骤而非一次性重写", "type": "qualitative" },
+        { "text": "迁移步骤包含安全网（先补冒烟/契约测试）与回滚策略", "type": "qualitative" }
+      ]
+    }
+  ]
+}

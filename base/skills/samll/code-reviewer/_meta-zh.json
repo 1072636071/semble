@@ -1,0 +1,23 @@
+{
+  "owner": "CodeArts",
+  "team": "Huawei",
+  "slug": "code-reviewer",
+  "displayName": "代码检视技能",
+  "brief": "全面的代码检视，涵盖内存安全、注入漏洞、并发问题、资源管理和信息泄露等风险点。",
+  "description": "**前置条件:**\n\n- 支持语言的代码文件（Python、JavaScript、TypeScript、Java、C/C++、Go、Rust、Ruby、ArkTS）\n- 访问Read、Grep和Glob工具\n- 动态加载的语言特定分析策略\n\n**功能特性:**\n\n- 系统化的5步评审流程\n- 语言特定的风险分析策略\n- 五大风险类别：内存、注入、并发、资源、信息\n- 基于证据的置信度评估\n- 控制台或JSON格式的结构化输出\n- 支持独立调用和被调用模式\n\n**使用场景:**\n\n- 代码文件或目录的安全评审\n- 漏洞检测和风险分析\n- 内存安全和并发问题检测\n- 全面的安全扫描\n- 通过mr-reviewer技能进行MR集成代码评审",
+  "labels": ["代码检视", "安全", "漏洞检测", "内存安全", "并发", "注入", "资源管理"],
+  "license": "Apache-2.0",
+  "type": "BEST_PRACTICE",
+  "category": "rnd-coding-review",
+  "lifecycleState": "DEVELOPING",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1744579200000
+  },
+  "history": [
+    {
+      "version": "1.0.0",
+      "publishedAt": 1744579200000
+    }
+  ]
+}
