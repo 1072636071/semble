@@ -1,0 +1,52 @@
+{
+  "slug": "openspace",
+  "name": "OpenSpace（开放世界智能体）",
+  "github": "https://github.com/HKUDS/OpenSpace",
+  "homepage": "",
+  "description": "OpenSpace 是香港大学 HKUDS 团队开源的 LLM 驱动开放世界 / 具身智能体平台，让大语言模型在开放式环境中进行感知、规划与执行。它面向具身智能与空间智能场景，支持智能体在复杂环境中完成多步任务。",
+  "summary": "港大 HKUDS 开源的 LLM 驱动开放世界 / 具身 Agent 平台。",
+  "license": "MIT",
+  "stars": "7.6k",
+  "forks": "914",
+  "language": "Python",
+  "rating": 5,
+  "category": "AI 智能体与框架",
+  "tags": [
+    "llm-agent",
+    "embodied-ai",
+    "open-world",
+    "hku",
+    "spatial-intelligence"
+  ],
+  "features": [
+    "LLM 驱动：基于大语言模型做开放世界中的感知、推理与决策",
+    "具身 / 空间智能：面向物理或虚拟环境的智能体执行能力",
+    "开放环境任务：在不确定性环境中完成多步、长程任务",
+    "模块化框架：感知、规划、执行等能力可组合扩展",
+    "科研友好：面向具身智能与空间智能研究的可复现平台"
+  ],
+  "integrations": [
+    [
+      "大模型 API",
+      "接入主流 LLM 提供语义理解与规划能力"
+    ],
+    [
+      "仿真 / 环境",
+      "对接开放世界或具身仿真环境进行任务执行"
+    ]
+  ],
+  "install": [
+    {
+      "title": "从源码安装",
+      "lang": "bash",
+      "code": "git clone https://github.com/HKUDS/OpenSpace.git\ncd OpenSpace\npip install -e ."
+    }
+  ],
+  "usage": [
+    {
+      "title": "启动智能体（示例）",
+      "lang": "bash",
+      "code": "python run_agent.py \\\n  --env openworld \\\n  --task \"探索环境并找到目标物体\" \\\n  --model gpt-4o"
+    }
+  ]
+}

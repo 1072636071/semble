@@ -1,0 +1,51 @@
+{
+  "slug": "skills-mattpocock",
+  "name": "skills (mattpocock 的 AI 规则与技能合集)",
+  "github": "https://github.com/mattpocock/skills",
+  "homepage": "",
+  "description": "skills 是由 mattpocock 维护的 Cursor / Claude Code 规则（rules）与 skills 合集。它汇集了多种可复用的 AI 编码助手配置，帮助开发者快速为项目注入一致的工程规范与最佳实践。仓库以社区协作方式持续更新，覆盖 TS/JS 等语言场景。",
+  "summary": "mattpocock 维护的 Cursor/Claude Code 规则与 skills 合集",
+  "license": "MIT",
+  "stars": "261.5k",
+  "forks": "22.1k",
+  "language": "Shell",
+  "rating": 5,
+  "category": "开发工具",
+  "tags": [
+    "skills",
+    "cursor",
+    "claude-code",
+    "rules",
+    "ai-assistant"
+  ],
+  "features": [
+    "面向 Cursor / Claude Code 的 rules 与 skills 集合",
+    "即插即用的 AI 编码助手配置",
+    "覆盖 TypeScript/JavaScript 等常见工程规范",
+    "社区驱动，持续迭代更新"
+  ],
+  "install": [
+    {
+      "title": "克隆仓库到本地",
+      "lang": "bash",
+      "code": "git clone https://github.com/mattpocock/skills.git"
+    },
+    {
+      "title": "进入仓库目录",
+      "lang": "bash",
+      "code": "cd skills"
+    }
+  ],
+  "usage": [
+    {
+      "title": "浏览可用的 rules 与 skills",
+      "lang": "bash",
+      "code": "ls skills/"
+    },
+    {
+      "title": "将所需规则复制到项目配置目录",
+      "lang": "bash",
+      "code": "cp skills/typescript/*.md .claude/rules/"
+    }
+  ]
+}

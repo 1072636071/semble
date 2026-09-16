@@ -1,0 +1,57 @@
+{
+  "slug": "page-agent",
+  "name": "Page-Agent（页面智能体）",
+  "github": "https://github.com/alibaba/page-agent",
+  "homepage": "",
+  "description": "Page-Agent 是阿里巴巴开源的网页操作 AI Agent，能够像人一样自动浏览网页、点击链接、填写表单并完成复杂的网页任务。它基于大语言模型进行页面语义理解与决策，将自然语言指令转化为可执行的浏览器操作流程。",
+  "summary": "阿里巴巴开源的网页操作 AI Agent，自动浏览、点击、填表完成网页任务。",
+  "license": "MIT",
+  "stars": "29.1k",
+  "forks": "2.6k",
+  "language": "TypeScript",
+  "rating": 5,
+  "category": "浏览器自动化",
+  "tags": [
+    "web-automation",
+    "agent",
+    "browser",
+    "alibaba",
+    "task-completion"
+  ],
+  "features": [
+    "自然语言驱动：用一句话描述任务，自动规划并执行网页操作",
+    "自动浏览与导航：自主点击链接、翻页、处理弹窗与登录流程",
+    "表单填写：识别表单字段并自动填写、提交",
+    "页面语义理解：基于大模型理解页面结构与意图，无需硬编码选择器",
+    "任务闭环：多步操作串联，直至完成用户给定的网页目标"
+  ],
+  "integrations": [
+    [
+      "浏览器",
+      "通过自动化驱动 Chromium / Chrome 完成网页操作"
+    ],
+    [
+      "大模型",
+      "依赖 LLM 做页面理解与决策规划"
+    ]
+  ],
+  "install": [
+    {
+      "title": "从源码克隆安装",
+      "lang": "bash",
+      "code": "git clone https://github.com/alibaba/page-agent.git\ncd page-agent\npip install -e ."
+    }
+  ],
+  "usage": [
+    {
+      "title": "运行网页任务（示例）",
+      "lang": "bash",
+      "code": "page-agent \\\n  --task \"在 example.com 上搜索 page-agent 并打开第一个结果\" \\\n  --headless"
+    },
+    {
+      "title": "Python 调用（示例）",
+      "lang": "python",
+      "code": "from page_agent import PageAgent\n\nagent = PageAgent()\nagent.run(\"登录 demo 站点并导出我的订单为 CSV\")"
+    }
+  ]
+}

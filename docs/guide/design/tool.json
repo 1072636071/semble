@@ -1,0 +1,81 @@
+{
+  "slug": "design",
+  "name": "design.md",
+  "github": "https://github.com/google-labs-code/design.md",
+  "description": "Google Labs 出品的设计规范格式。通过 DESIGN.md 文件向 AI 编码代理描述视觉身份，让 Agent 持续、结构化地理解设计系统。",
+  "license": "Apache-2.0",
+  "stars": "27.9k",
+  "language": "TypeScript",
+  "rating": 5,
+  "tags": [
+    "design-system",
+    "ai-agent",
+    "spec",
+    "typescript",
+    "tailwind",
+    "dtcg"
+  ],
+  "summary": "Google Labs 设计的规范格式：用 DESIGN.md（YAML 令牌 + Markdown 原理）向 AI 编码代理描述视觉身份，让 Agent 持续理解并遵循设计系统。",
+  "features": [
+    "DESIGN.md 格式：YAML front matter（设计令牌）+ Markdown 正文（设计原理）",
+    "让 AI 编码代理自动读取并遵循项目设计规范，获取准确色值/字体/间距等令牌",
+    "lint：验证 DESIGN.md 合法性",
+    "diff：对比两个设计规范版本，做设计系统版本回归检测",
+    "export：导出为 Tailwind v3（json-tailwind）、Tailwind v4（css-tailwind）、W3C Design Tokens（dtcg）",
+    "spec：输出规范文档，可注入 Agent Prompt",
+    "npm 包，跨平台（Windows 用 designmd 别名避免 .md 冲突）"
+  ],
+  "integrations": [
+    [
+      "npm",
+      "@google/design.md 包，CLI 经 npx 调用"
+    ],
+    [
+      "Tailwind",
+      "export --format json-tailwind / css-tailwind"
+    ],
+    [
+      "W3C DTCG",
+      "export --format dtcg 导出设计令牌标准"
+    ],
+    [
+      "AI 编码代理",
+      "在项目中放置 DESIGN.md，Agent 自动读取遵循"
+    ]
+  ],
+  "install": [
+    {
+      "title": "npm 安装（Linux / macOS）",
+      "lang": "bash",
+      "code": "npm install @google/design.md"
+    },
+    {
+      "title": "npm 安装（Windows PowerShell 需引号）",
+      "lang": "bash",
+      "code": "npm install \"@google/design.md\""
+    }
+  ],
+  "usage": [
+    {
+      "title": "CLI 命令",
+      "lang": "bash",
+      "code": "npx @google/design.md lint DESIGN.md                              # 验证\nnpx @google/design.md diff DESIGN.md DESIGN-v2.md                  # 版本对比\nnpx @google/design.md export --format json-tailwind DESIGN.md > tailwind.theme.json\nnpx @google/design.md export --format css-tailwind DESIGN.md > theme.css\nnpx @google/design.md export --format dtcg DESIGN.md > tokens.json\nnpx @google/design.md spec                                        # 输出规范文档"
+    },
+    {
+      "title": "Windows 别名（避免 .md 后缀冲突）",
+      "lang": "bash",
+      "code": "npx -p @google/design.md designmd lint DESIGN.md"
+    },
+    {
+      "title": "DESIGN.md 文件格式示例",
+      "lang": "yaml",
+      "code": "---\nname: Heritage\ncolors:\n  primary: \"#1A1C1E\"\n  secondary: \"#6C7278\"\n  tertiary: \"#B8422E\"\n  neutral: \"#F7F5F2\"\ntypography:\n  h1:\n    fontFamily: Public Sans\n    fontSize: 3rem\nrounded:\n  sm: 4px\n  md: 8px\nspacing:\n  sm: 8px\n  md: 16px\n---"
+    }
+  ],
+  "notes": [
+    "使用场景：UI 开发中让 Agent 获取准确设计令牌；设计系统版本对比与回归检测；导出到 Tailwind / W3C DTCG",
+    "Windows 下 .md 后缀易与文件关联冲突，需用 designmd 别名或引号包裹包名"
+  ],
+  "homepage": "https://stitch.withgoogle.com/docs/design-md/specification",
+  "category": "开发工具"
+}

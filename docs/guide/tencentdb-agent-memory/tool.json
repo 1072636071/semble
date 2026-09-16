@@ -1,0 +1,51 @@
+{
+  "slug": "tencentdb-agent-memory",
+  "name": "TencentDB Agent Memory（腾讯云智能体记忆服务）",
+  "github": "https://github.com/TencentCloud/TencentDB-Agent-Memory",
+  "homepage": "",
+  "description": "TencentDB-Agent-Memory 是腾讯云提供的面向 AI 智能体（Agent）的长期记忆（Memory）服务，为智能体提供可持久化、可检索的记忆能力。它帮助智能体在多次会话间保存上下文、用户偏好与历史经验，从而提升连续对话与任务执行的连贯性。",
+  "summary": "腾讯云提供的 Agent 记忆服务，为智能体提供长期记忆。",
+  "license": "—",
+  "stars": "26.6k",
+  "forks": "2.5k",
+  "language": "TypeScript",
+  "rating": 5,
+  "category": "知识与记忆",
+  "tags": [
+    "agent-memory",
+    "llm",
+    "rag",
+    "tencent-cloud",
+    "long-term-memory"
+  ],
+  "features": [
+    "为 AI 智能体提供持久化的长期记忆（Memory）存储",
+    "支持跨会话的上下文、用户偏好与经验检索",
+    "基于腾讯云托管，便于与现有 Agent 框架集成",
+    "提升多轮对话与任务执行的连贯性与个性化",
+    "面向智能体应用的后端记忆基础设施"
+  ],
+  "install": [
+    {
+      "title": "克隆仓库查看接入方式",
+      "lang": "bash",
+      "code": "git clone https://github.com/TencentCloud/TencentDB-Agent-Memory.git\ncd TencentDB-Agent-Memory"
+    },
+    {
+      "title": "安装 SDK（参考官方）",
+      "lang": "bash",
+      "code": "pip install tencentcloud-sdk-python   # 按仓库说明安装并配置腾讯云凭证"
+    }
+  ],
+  "usage": [
+    {
+      "title": "接入记忆服务",
+      "lang": "bash",
+      "code": "参照仓库示例，初始化 Memory 客户端 -> 写入记忆 -> 在智能体推理时读取并注入上下文"
+    }
+  ],
+  "notes": [
+    "具体 API 与部署方式以官方仓库最新文档为准",
+    "需配置腾讯云账号与访问凭证后方可使用云端服务"
+  ]
+}

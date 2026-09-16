@@ -1,0 +1,106 @@
+{
+  "slug": "agent-reach",
+  "name": "Agent Reach",
+  "github": "https://github.com/Panniantong/Agent-Reach",
+  "description": "给 AI Agent 一键装上互联网能力。读取 & 搜索 Twitter、Reddit、YouTube、GitHub、Bilibili、小红书等平台，零 API 费用。",
+  "license": "MIT",
+  "stars": "80.6k",
+  "language": "Python",
+  "rating": 5,
+  "tags": [
+    "agent",
+    "internet",
+    "web-scraping",
+    "capability-layer",
+    "mcp"
+  ],
+  "summary": "为 AI Agent 提供互联网读取与搜索能力层：自动选型、安装、体检、路由，覆盖网页/Twitter/YouTube/B站/小红书等平台，零 API 费用。",
+  "features": [
+    "能力层而非工具：负责选型/安装/体检/路由，底层读取由 Agent 直接调用上游工具，无包装层",
+    "多后端路由：每个平台都是「首选 + 备选」有序后端列表，失效自动切换、用户无感",
+    "零 API 费用：所有工具开源、所有 API 免费；本地电脑无需代理，仅服务器部署需 ~$1/月代理",
+    "开箱即用：网页/YouTube/RSS/全网搜索/GitHub/B站/V2EX 等零配置即读",
+    "登录态平台可解锁：Twitter、小红书、Reddit、Facebook、Instagram 等告诉 Agent「帮我配 XXX」即引导配置",
+    "自带诊断：agent-reach doctor 一条命令显示每个渠道当前后端与连通状态",
+    "安全：Cookie/Token 仅存本地（权限 600），含 --safe 安全模式与 --dry-run 预览"
+  ],
+  "integrations": [
+    [
+      "网页",
+      "Jina Reader，零配置读取任意网页"
+    ],
+    [
+      "YouTube",
+      "yt-dlp 字幕提取 + 视频搜索，零配置"
+    ],
+    [
+      "RSS",
+      "feedparser 读取任意 RSS/Atom 源，零配置"
+    ],
+    [
+      "全网搜索",
+      "Exa via mcporter，MCP 接入免 Key"
+    ],
+    [
+      "GitHub",
+      "gh CLI 读公开仓库/搜索，认证后解锁私有与 Issue/PR"
+    ],
+    [
+      "Twitter/X",
+      "twitter-cli ▸ OpenCLI，零配置读推文、配后搜时间线"
+    ],
+    [
+      "B站",
+      "bili-cli 搜索+视频详情，无需登录"
+    ],
+    [
+      "小红书",
+      "OpenCLI ▸ xiaohongshu-mcp ▸ xhs-cli，需登录态"
+    ],
+    [
+      "Reddit",
+      "OpenCLI ▸ rdt-cli，需登录态"
+    ],
+    [
+      "LinkedIn / Facebook / Instagram",
+      "OpenCLI 复用浏览器登录态"
+    ]
+  ],
+  "install": [
+    {
+      "title": "一键全自动（推荐，复制给 AI Agent 执行）",
+      "lang": "bash",
+      "code": "帮我安装 Agent Reach：https://raw.githubusercontent.com/Panniantong/agent-reach/main/docs/install.md"
+    },
+    {
+      "title": "安全模式（只列出所需，不自动改系统）",
+      "lang": "bash",
+      "code": "帮我安装 Agent Reach（安全模式）：https://raw.githubusercontent.com/Panniantong/agent-reach/main/docs/install.md\n# 安装时使用 --safe 参数"
+    },
+    {
+      "title": "命令行安装（安装后）",
+      "lang": "bash",
+      "code": "agent-reach install --env=auto          # 个人电脑/开发环境\nagent-reach install --env=auto --safe  # 生产服务器/多人共用\nagent-reach install --env=auto --dry-run  # 仅预览"
+    }
+  ],
+  "usage": [
+    {
+      "title": "自然语言即用（Agent 读 SKILL.md 后自动识别）",
+      "lang": "text",
+      "code": "\"帮我看看这个链接\"      → curl https://r.jina.ai/URL 读任意网页\n\"这个 GitHub 仓库是做什么的\"  → gh repo view owner/repo\n\"这个 YouTube 视频讲了什么\"    → yt-dlp 提取字幕\n\"B站搜一下 AI 教程\"           → bili search（无需登录）\n\"全网搜一下 LLM 框架对比\"      → Exa 语义搜索\n\"订阅这个 RSS\"                → feedparser 解析"
+    },
+    {
+      "title": "诊断与卸载",
+      "lang": "bash",
+      "code": "agent-reach doctor        # 查看每个渠道状态与当前后端路由\nagent-reach uninstall       # 清除配置与 skill（--dry-run 预览 / --keep-config 保留 token）\npip uninstall agent-reach   # 卸载 Python 包本身"
+    }
+  ],
+  "notes": [
+    "需登录平台（Twitter、小红书、Reddit、Facebook、Instagram）建议使用专用小号，避免主账号被封；Cookie 等同完整登录权限",
+    "OpenClaw 用户需先开启 exec 权限（openclaw config set tools.profile coding）否则 Agent 无法执行安装命令",
+    "能力边界：只负责「读」内容，登录后操作/表单提交/多账号隔离等高摩擦环节需配合 BrowserAct 等浏览器自动化工具",
+    "GitHub Star 数源文档未给出具体数值（仅 Trendshift 当日 Trending #1），故置「—」",
+    "GitHub 地址存在 agent-reach 与 Agent-Reach 两种写法，统一采用 Agent-Reach 仓库页"
+  ],
+  "category": "AI 智能体与框架"
+}

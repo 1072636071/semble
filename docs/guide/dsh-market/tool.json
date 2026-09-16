@@ -1,0 +1,48 @@
+{
+  "slug": "dsh-market",
+  "name": "dsh-market（deepseek-harness 插件市场）",
+  "github": "https://github.com/dsh-market/dsh-market",
+  "homepage": "",
+  "description": "dsh-market 是 deepseek-harness（dsh）生态的插件 / 技能市场，用于发现、分发与安装 dsh 的 agent 插件与技能。它让开发者可以集中发布和获取扩展 dsh 能力的模块，构建可复用的智能体工具链。",
+  "summary": "deepseek-harness（dsh）的插件 / 技能市场，统一分发 agent 插件。",
+  "license": "MIT",
+  "stars": "3.9k",
+  "forks": "202",
+  "language": "TypeScript",
+  "rating": 5,
+  "category": "AI 智能体与框架",
+  "tags": [
+    "dsh",
+    "deepseek-harness",
+    "plugin-market",
+    "skills",
+    "agent-plugins"
+  ],
+  "features": [
+    "插件 / 技能分发：集中发布与获取 dsh 生态的 agent 插件",
+    "一键安装：从市场拉取并安装扩展模块到本地 dsh 环境",
+    "生态共建：开发者可提交自己的插件与技能供社区使用",
+    "版本管理：追踪插件版本与依赖，便于升级与回滚",
+    "面向 dsh：专为 deepseek-harness 的插件体系设计"
+  ],
+  "integrations": [
+    [
+      "dsh",
+      "作为 deepseek-harness 的插件 / 技能来源"
+    ]
+  ],
+  "install": [
+    {
+      "title": "从源码克隆",
+      "lang": "bash",
+      "code": "git clone https://github.com/dsh-market/dsh-market.git\ncd dsh-market\npip install -e ."
+    }
+  ],
+  "usage": [
+    {
+      "title": "浏览与安装插件（示例）",
+      "lang": "bash",
+      "code": "dsh-market list\n# 安装某个插件\npython -m dsh_market install <plugin-name>"
+    }
+  ]
+}

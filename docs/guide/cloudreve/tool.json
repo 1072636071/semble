@@ -1,0 +1,41 @@
+{
+  "slug": "cloudreve",
+  "name": "Cloudreve",
+  "github": "https://github.com/cloudreve/cloudreve",
+  "homepage": "https://cloudreve.org",
+  "description": "Cloudreve 是一个自托管的网盘与文件管理服务，开箱即用，支持将文件存储在本地磁盘、对象存储（S3 兼容）、OneDrive、阿里云 OSS 等多种后端。提供 Web 界面、用户体系、分享链接与离线下载等能力，适合个人或小团队搭建私有云存储。",
+  "summary": "支持多存储后端的自托管网盘/文件管理服务。",
+  "license": "GPL-3.0",
+  "stars": "28.7k",
+  "forks": "3.9k",
+  "language": "Go",
+  "rating": 5,
+  "category": "云与自托管",
+  "tags": [
+    "self-hosted",
+    "cloud-storage",
+    "file-management",
+    "netdisk",
+    "s3"
+  ],
+  "features": [
+    "多存储后端（本地/S3/OneDrive/OSS）",
+    "Web 管理界面与用户体系",
+    "文件分享与直链下载",
+    "离线下载与拖拽上传"
+  ],
+  "install": [
+    {
+      "title": "下载并运行二进制",
+      "lang": "bash",
+      "code": "wget https://github.com/cloudreve/cloudreve/releases/latest/download/cloudreve-linux-amd64.tar.gz\ntar -xzf cloudreve-linux-amd64.tar.gz\n./cloudreve"
+    }
+  ],
+  "usage": [
+    {
+      "title": "访问管理后台",
+      "lang": "bash",
+      "code": "# 启动后访问 http://localhost:5212 使用默认管理员账号登录并修改配置"
+    }
+  ]
+}

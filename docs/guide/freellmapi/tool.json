@@ -1,0 +1,76 @@
+{
+  "slug": "freellmapi",
+  "name": "FreeLLMAPI（自托管 OpenAI 兼容代理）",
+  "github": "https://github.com/tashfeenahmed/freellmapi",
+  "homepage": "https://freellmapi.co",
+  "description": "FreeLLMAPI 是开源的自托管 OpenAI 兼容代理网关，把 34 个免费 LLM 提供商、635 个免费模型端点（约 74 亿 tokens/月）以及任意自定义 OpenAI 兼容端点，统一收敛到单个 /v1 API 之后。自带智能路由与自动故障转移：为每个请求挑选当前可用且未触限的最佳模型，遇 429/5xx 自动切到下一提供商；提供商密钥以 AES-256-GCM 加密存于 SQLite。提供全 OpenAI 风格接口（chat/responses/images/videos/audio/embeddings）、Anthropic 与 Gemini 原生路径、Fusion 多模型合成，以及 React 管理仪表板与 MCP 服务器。仅用于个人实验与学习。",
+  "summary": "自托管 OpenAI 兼容代理：把数十个免费 LLM 额度聚合成一个 /v1 端点，智能路由 + 自动故障转移。",
+  "license": "MIT",
+  "stars": "26.0k",
+  "forks": "3.5k",
+  "language": "TypeScript",
+  "rating": 5,
+  "category": "AI 平台与推理",
+  "tags": ["llm-proxy", "openai-compatible", "self-hosted", "routing"],
+  "features": [
+    "统一 /v1 端点：聚合 34 个免费提供商、635 个免费模型端点 + 任意自定义 OpenAI 兼容端点",
+    "智能路由 + 自动故障转移：六种路由策略，实时速度/能力/可靠性评分，429/5xx 自动切换",
+    "全 OpenAI 风格接口：/v1/chat/completions、/v1/responses、images、videos、audio、embeddings，支持流式",
+    "Anthropic & Gemini 原生：/v1/messages（Anthropic）、/v1beta（Gemini）、可选 Ollama 模拟",
+    "Fusion 多模型合成：虚拟 fusion 模型并行调用多个免费模型并由裁判模型综合答案",
+    "密钥加密：提供商密钥以 AES-256-GCM 存 SQLite，内存按需解密；应用只用统一 freellmapi-… token",
+    "统一模型与配置：跨提供商合并同模型，命名回退链（auto:<profile>）；按 (platform,model,key) 追踪速率",
+    "自更新模型目录：每日两次同步签名目录，免费版滞后 30 天",
+    "管理仪表板 + 数据分析：React UI（60 种语言），密钥管理、playground、24h–90d 的 p50/p95/TTFT 分析",
+    "MCP 服务器 + 客户端自动配置：代理本身可作 MCP 服务器；npx freellmapi setup-claude/codex 一键接入",
+    "跨平台：Windows/macOS/Linux/ARM SBC，空闲约 40MB RSS；提供桌面菜单栏应用（.dmg/.exe）"
+  ],
+  "integrations": [
+    ["OpenAI 兼容客户端", "任意 OpenAI SDK 把 base_url 指向 http://localhost:3001/v1 即用"],
+    ["Anthropic / Gemini", "原生 /v1/messages 与 /v1beta 路径，无需改写客户端"],
+    ["MCP 服务器", "代理本身暴露 MCP，供智能体 introspect 可调模型与状态"],
+    ["桌面应用", "macOS .dmg / Windows .exe 菜单栏应用，免账号配置"],
+    ["部署形态", "一键 Docker 脚本 / Docker Compose / 本地 npm / PaaS（docker-entrypoint 处理目录权限）"]
+  ],
+  "install": [
+    {
+      "title": "一键 Docker 脚本（推荐）",
+      "lang": "bash",
+      "code": "curl -fsSL https://freellmapi.co/install.sh | bash\n# 建立 ~/freellmapi，生成加密密钥，拉镜像并启动；重跑保留 .env"
+    },
+    {
+      "title": "桌面应用",
+      "lang": "bash",
+      "code": "# 从 Releases 下载 macOS .dmg 或 Windows .exe：\n# https://github.com/tashfeenahmed/freellmapi/releases/latest\n# 安装后无需配置账号密码"
+    },
+    {
+      "title": "本地开发 / Docker Compose",
+      "lang": "bash",
+      "code": "git clone https://github.com/tashfeenahmed/freellmapi.git\ncd freellmapi\nnpm install && npm run dev   # 服务端 :3001，仪表板 :5173 (HMR)\n# 或：docker compose up --build"
+    }
+  ],
+  "usage": [
+    {
+      "title": "添加密钥并获取统一 API Key",
+      "lang": "bash",
+      "code": "# 1) 打开 http://localhost:3001 → Keys 页面添加各提供商密钥\n# 2) 生成一个统一的 API Key（freellmapi-...）"
+    },
+    {
+      "title": "指向代理（Python 示例）",
+      "lang": "bash",
+      "code": "from openai import OpenAI\nclient = OpenAI(\n    base_url=\"http://localhost:3001/v1\",\n    api_key=\"freellmapi-your-unified-key\",\n)\nresp = client.chat.completions.create(\n    model=\"auto\",  # 或 auto:fast / auto:smart / 配置文件名 / 模型 ID\n    messages=[{\"role\": \"user\", \"content\": \"用一句话总结罗马的衰亡。\"}],\n)"
+    },
+    {
+      "title": "客户端自动配置",
+      "lang": "bash",
+      "code": "npx freellmapi setup-claude --url http://localhost:3001 --api-key <unified-key>\n# 另支持 setup-codex；或 freellmapi launch 提供零持久化启动器"
+    }
+  ],
+  "notes": [
+    "运行时要求：Node >=20.18.0 <25.0.0（.nvmrc 固定 22 LTS）",
+    "明确声明仅用于个人实验与学习，非生产环境用途",
+    "路由器本身永久免费开源（MIT）；付费仅用于实时模型目录订阅",
+    "提供商密钥 AES-256-GCM 加密存储；建议自托管以掌控密钥",
+    "免费版模型目录滞后 30 天，付费版当日更新"
+  ]
+}

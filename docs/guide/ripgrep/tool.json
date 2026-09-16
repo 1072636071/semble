@@ -1,0 +1,56 @@
+{
+  "slug": "ripgrep",
+  "name": "ripgrep (极速递归搜索工具)",
+  "github": "https://github.com/BurntSushi/ripgrep",
+  "homepage": "",
+  "description": "ripgrep 是用 Rust 编写的高性能递归搜索工具，可作为 grep 的替代方案。它默认递归搜索当前目录，并自动尊重 .gitignore 与隐藏文件规则，跳过二进制文件。搜索速度极快，同时支持完整的 Unicode 与正则表达式匹配。",
+  "summary": "Rust 编写的极速递归搜索工具，grep 的替代方案",
+  "license": "Unlicense",
+  "stars": "68.2k",
+  "forks": "2.8k",
+  "language": "Rust",
+  "rating": 5,
+  "category": "开发工具",
+  "tags": [
+    "search",
+    "grep",
+    "cli",
+    "rust",
+    "recursive"
+  ],
+  "features": [
+    "极速递归搜索，性能优于传统 grep",
+    "自动尊重 .gitignore 并跳过隐藏/二进制文件",
+    "完整 Unicode 与正则表达式支持",
+    "可作为库嵌入其它 Rust 项目"
+  ],
+  "install": [
+    {
+      "title": "使用 cargo 安装",
+      "lang": "bash",
+      "code": "cargo install ripgrep"
+    },
+    {
+      "title": "使用包管理器安装（macOS）",
+      "lang": "bash",
+      "code": "brew install ripgrep"
+    }
+  ],
+  "usage": [
+    {
+      "title": "搜索目录中包含某关键词的行",
+      "lang": "bash",
+      "code": "rg \"TODO\" src/"
+    },
+    {
+      "title": "仅显示匹配的文件名",
+      "lang": "bash",
+      "code": "rg -l \"fn main\""
+    },
+    {
+      "title": "使用正则并忽略大小写",
+      "lang": "bash",
+      "code": "rg -i --regexp \"error|warn\""
+    }
+  ]
+}

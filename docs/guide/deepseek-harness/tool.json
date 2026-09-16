@@ -1,0 +1,41 @@
+{
+  "slug": "deepseek-harness",
+  "name": "DeepSeek Harness (dsh)",
+  "github": "https://github.com/deepseek-ai/deepseek-harness",
+  "homepage": "",
+  "description": "DeepSeek 官方开源的 Agent/智能体框架（dsh），用于构建、运行与管理基于 DeepSeek 模型的多智能体工作流。框架以插件化设计为核心，支持工具调用、上下文管理与可扩展的 agent 编排能力，便于开发者快速搭建生产级 AI 应用。",
+  "summary": "DeepSeek 官方开源的 Agent/智能体运行框架。",
+  "license": "MIT",
+  "stars": "223.2k",
+  "forks": "26.5k",
+  "language": "TypeScript",
+  "rating": 5,
+  "category": "AI 智能体与框架",
+  "tags": [
+    "agent",
+    "framework",
+    "deepseek",
+    "llm",
+    "orchestration"
+  ],
+  "features": [
+    "基于 DeepSeek 模型的智能体编排",
+    "插件化架构，易于扩展工具与能力",
+    "支持多智能体协作工作流",
+    "内置上下文与工具调用管理"
+  ],
+  "install": [
+    {
+      "title": "克隆仓库",
+      "lang": "bash",
+      "code": "git clone https://github.com/deepseek-ai/deepseek-harness.git\ncd deepseek-harness"
+    }
+  ],
+  "usage": [
+    {
+      "title": "运行示例智能体",
+      "lang": "bash",
+      "code": "python -m dsh run --agent <your-agent> --prompt \"你的任务描述\""
+    }
+  ]
+}

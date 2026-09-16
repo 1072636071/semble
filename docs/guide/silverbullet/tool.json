@@ -1,0 +1,56 @@
+{
+  "slug": "silverbullet",
+  "name": "SilverBullet（纯 Markdown PKM）",
+  "github": "https://github.com/silverbulletmd/silverbullet",
+  "homepage": "https://silverbullet.md",
+  "description": "SilverBullet 是一款基于纯 Markdown 文件的个人知识管理（PKM）工具，强调极简、可移植与本地优先。它可在浏览器或 VSCode 中直接运行，通过 Space Script 与插件提供查询、双向链接、任务管理等能力，数据始终是你自己的 .md 文件。",
+  "summary": "基于纯 Markdown 的个人知识管理工具，可在浏览器/VSCode 运行。",
+  "license": "MIT",
+  "stars": "6k",
+  "forks": "478",
+  "language": "TypeScript",
+  "rating": 5,
+  "category": "知识与记忆",
+  "tags": [
+    "pkm",
+    "markdown",
+    "note-taking",
+    "knowledge-base",
+    "local-first"
+  ],
+  "features": [
+    "纯 Markdown 文件存储，本地优先、完全可移植",
+    "可在浏览器、VSCode 及 Docker 中运行，零锁定",
+    "双向链接、反向链接与全文搜索",
+    "Space Script 与插件系统，支持查询、任务、日历等扩展",
+    "离线可用，数据同步可借助 Git 或任意文件同步方案"
+  ],
+  "install": [
+    {
+      "title": "npx 快速启动",
+      "lang": "bash",
+      "code": "npx silverbullet@latest ~/silverbullet-space"
+    },
+    {
+      "title": "Docker 运行",
+      "lang": "bash",
+      "code": "docker run -d \\\n  --name silverbullet \\\n  -p 3000:3000 \\\n  -v ~/silverbullet-space:/space \\\n  zefhemel/silverbullet"
+    },
+    {
+      "title": "VSCode 扩展",
+      "lang": "bash",
+      "code": "在 VSCode 扩展市场搜索并安装 SilverBullet，打开 Markdown 文件夹即可使用"
+    }
+  ],
+  "usage": [
+    {
+      "title": "启动后访问",
+      "lang": "bash",
+      "code": "浏览器打开 http://localhost:3000 进入你的 Markdown 空间\n新建 .md 笔记，使用 [[双向链接]] 与 {query} 进行检索"
+    }
+  ],
+  "notes": [
+    "所有内容即 .md 文件，可用任意编辑器或 Git 管理",
+    "Space Script 提供类脚本扩展，可按需定制查询与自动化"
+  ]
+}

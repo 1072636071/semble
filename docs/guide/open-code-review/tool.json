@@ -1,0 +1,93 @@
+{
+  "slug": "open-code-review",
+  "name": "open-code-review（OCR）",
+  "github": "https://github.com/alibaba/open-code-review",
+  "homepage": "https://open-codereview.ai",
+  "description": "阿里巴巴开源的混合架构 AI 代码审查工具。在阿里生产规模实战验证，结合确定性静态规则流水线与 LLM Agent，输出精准行级评论。",
+  "license": "Apache-2.0",
+  "stars": "23.9k",
+  "forks": "1.8k",
+  "language": "Go",
+  "rating": 5,
+  "tags": [
+    "code-review",
+    "agent",
+    "llm"
+  ],
+  "summary": "阿里开源混合架构 AI 代码审查：确定性流水线 + LLM Agent，精准行级评论。",
+  "features": [
+    "混合架构：确定性静态规则流水线 + LLM Agent 双引擎，降低纯 LLM 误报/漏报",
+    "精准行级评论：直接定位问题代码行，可贴到 PR/提交",
+    "内置多语言规则集：NPE、线程安全、XSS、SQL 注入等开箱即用",
+    "LLM 兼容：OpenAI / Anthropic 协议，可接 DeepSeek、Qwen 等模型",
+    "阿里生产规模实战验证，仓库持续活跃维护"
+  ],
+  "integrations": [
+    [
+      "CLI",
+      "ocr 命令，本地直接审查"
+    ],
+    [
+      "GitHub Action",
+      "action.yml，CI 中审查并贴评论"
+    ],
+    [
+      "VS Code 扩展",
+      "extensions/vscode"
+    ],
+    [
+      "Claude Code / Codex 插件",
+      ".claude-plugin、.agents/plugins、OCR Skill"
+    ],
+    [
+      "Web Viewer",
+      "浏览器查看报告、对比会话、标记已修复/已忽略"
+    ]
+  ],
+  "install": [
+    {
+      "title": "npm（推荐，免 postinstall 下载）",
+      "lang": "bash",
+      "code": "npm install -g @alibaba-group/ocr-darwin-arm64   # 按平台选包名（ocr-<os>-<arch>）"
+    },
+    {
+      "title": "安装脚本（Shell）",
+      "lang": "bash",
+      "code": "curl -fsSL https://raw.githubusercontent.com/alibaba/open-code-review/main/install.sh | bash"
+    },
+    {
+      "title": "安装脚本（PowerShell）",
+      "lang": "powershell",
+      "code": "Invoke-WebRequest -Uri https://raw.githubusercontent.com/alibaba/open-code-review/main/install.ps1 -OutFile install.ps1\n.\\install.ps1"
+    },
+    {
+      "title": "受限网络镜像",
+      "lang": "bash",
+      "code": "export OCR_GITHUB_MIRROR=https://mirror.example.com   # 自动去 http(s) 前缀与尾部斜杠"
+    }
+  ],
+  "usage": [
+    {
+      "title": "本地审查",
+      "lang": "bash",
+      "code": "ocr review            # 对当前变更做审查\nocr session compare   # 对比历史审查会话\nocr viewer            # 默认浏览器打开报告"
+    },
+    {
+      "title": "CI / GitHub Action",
+      "lang": "yaml",
+      "code": "# 在 workflow 中调用，可配置：\n#   effort / max_tokens_budget / llm_reasoning_effort / stream_progress\n# 结果以评论贴到对应提交"
+    },
+    {
+      "title": "配置底层 LLM",
+      "lang": "bash",
+      "code": "export OPENAI_API_KEY=sk-...\n# 或 export ANTHROPIC_API_KEY=..."
+    }
+  ],
+  "notes": [
+    "审查可控项：effort（投入档位）、max_tokens_budget（预算上限）、llm_reasoning_effort（推理强度）、实时进度流（stream_progress）",
+    "路径跨平台：Windows 处理路径分隔符，Unix 尊重 $BROWSER",
+    "构建用 Makefile：make check / make test / make coverage",
+    "MCP 已发布，规划 delegate mode（见 ROADMAP.md）"
+  ],
+  "category": "代码审查"
+}

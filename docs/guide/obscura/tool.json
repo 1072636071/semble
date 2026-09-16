@@ -1,0 +1,85 @@
+{
+  "slug": "obscura",
+  "name": "Obscura",
+  "github": "https://github.com/h4ckf0r0day/obscura",
+  "description": "开源无头浏览器引擎，专为 AI Agent 和 Web Scraping 设计。Rust 编写，轻量、隐身、内置 V8 JavaScript 引擎。",
+  "license": "Apache-2.0",
+  "stars": "26.9k",
+  "language": "Rust",
+  "rating": 5,
+  "tags": [
+    "headless-browser",
+    "web-scraping",
+    "agent",
+    "rust",
+    "mcp"
+  ],
+  "summary": "Rust 编写的开源无头浏览器，轻量隐身、内置 V8 引擎，提供 MCP Server 与原生 CLI，专供 AI Agent 与爬虫使用。",
+  "features": [
+    "Rust 编写、零依赖：无需 Chrome、Node.js，二进制约 70 MB",
+    "内置 V8 JavaScript 引擎，原生渲染 JS 页面",
+    "轻量高效：内存约 30 MB、页面加载 85 ms、启动瞬时（对比 Headless Chrome 200+MB / ~500ms / ~2s）",
+    "隐身模式：每会话指纹随机化（GPU/屏幕/Canvas/音频/电池）、navigator.webdriver = undefined、拦截 3520 个分析/广告/遥测域名",
+    "MCP Server：obscura mcp 供 Claude Desktop / Cursor 等 Agent 使用，支持 stdio 与 HTTP 传输",
+    "Puppeteer / Playwright 兼容：通过 CDP（ws://127.0.0.1:9222）连接",
+    "原生 CLI：fetch / serve / scrape 子命令，支持并行抓取与表达式求值"
+  ],
+  "integrations": [
+    [
+      "MCP",
+      "obscura mcp 启动服务，Claude Desktop/Cursor 等 Agent 通过 mcpServers 接入"
+    ],
+    [
+      "Claude Desktop",
+      "配置 mcpServers.obscura.command = obscura, args = [mcp]"
+    ],
+    [
+      "Puppeteer",
+      "puppeteer-core.connect over ws://127.0.0.1:9222/devtools/browser"
+    ],
+    [
+      "Playwright",
+      "playwright-core.connectOverCDP endpointURL ws://127.0.0.1:9222"
+    ],
+    [
+      "Docker",
+      "docker run -d -p 127.0.0.1:9222:9222 h4ckf0r0day/obscura"
+    ]
+  ],
+  "install": [
+    {
+      "title": "下载二进制（Linux x86_64）",
+      "lang": "bash",
+      "code": "curl -LO https://github.com/h4ckf0r0day/obscura/releases/latest/download/obscura-x86_64-linux.tar.gz\ntar xzf obscura-x86_64-linux.tar.gz"
+    },
+    {
+      "title": "下载二进制（macOS Apple Silicon）",
+      "lang": "bash",
+      "code": "curl -LO https://github.com/h4ckf0r0day/obscura/releases/latest/download/obscura-aarch64-macos.tar.gz\ntar xzf obscura-aarch64-macos.tar.gz"
+    },
+    {
+      "title": "Docker",
+      "lang": "bash",
+      "code": "docker run -d -p 127.0.0.1:9222:9222 h4ckf0r0day/obscura"
+    }
+  ],
+  "usage": [
+    {
+      "title": "CLI 快速使用",
+      "lang": "bash",
+      "code": "obscura fetch https://example.com --eval \"document.title\"   # 获取页面标题\nobscura fetch https://example.com --dump links            # 提取所有链接\nobscura fetch https://example.com --dump html             # 渲染 JS 输出 HTML\nobscura serve --port 9222                                 # 启动 CDP 服务\nobscura serve --port 9222 --stealth                      # 隐身模式\nobscura scrape url1 url2 url3 --concurrency 25 --eval \"...\" --format json  # 并行抓取"
+    },
+    {
+      "title": "MCP Server 启动",
+      "lang": "bash",
+      "code": "obscura mcp                  # stdio 传输（默认）\nobscura mcp --http --port 8080 # HTTP 传输"
+    }
+  ],
+  "notes": [
+    "MCP 提供 browser_navigate / snapshot / click / fill / type / press_key / select_option / evaluate / wait_for / network_requests / console_messages / close 等工具",
+    "隐身模式指纹随机化覆盖 GPU、屏幕、Canvas、音频、电池，并拦截 3520 个追踪域名",
+    "Runtime 对比：内存 30MB（Chrome 200+MB）、二进制 70MB（Chrome 300+MB）"
+  ],
+  "homepage": "https://obscura.sh",
+  "category": "浏览器自动化"
+}

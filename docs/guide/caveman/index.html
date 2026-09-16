@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>caveman (极简输出模式) — 工具介绍</title>
+<style>
+/* ==========================================================================
+   Jxx Fresh — 统一 HTML 设计模板（自包含样式源）
+   --------------------------------------------------------------------------
+   风格：小清新 · 现代 · 轻量玻璃质感
+   单一源：base/shared/html-template/html-design.css
+   分发：node base/scripts/sync-html-template.mjs（各技能 assets/html-design.css）
+   规则：只允许内联本文件到目标 HTML，禁止外链 CDN / 字体 / 图片。
+   ========================================================================== */
+
+/* ---------- 1. 设计令牌 ---------- */
+:root {
+  color-scheme: light;
+
+  /* 纸面与容器 */
+  --paper: #f7faf8;
+  --surface: #ffffff;
+  --surface-2: #f2f7f5;
+  --surface-3: #eaf2ef;
+
+  /* 文字 */
+  --ink: #16302b;
+  --ink-2: #3f5450;
+  --muted: #7d918c;
+  --faint: #a3b4b0;
+
+  /* 线条 */
+  --line: #e4ece9;
+  --line-2: #d5e3de;
+
+  /* 品牌色：薄荷青 */
+  --brand: #12a594;
+  --brand-ink: #0b7d70;
+  --brand-soft: #e3f5f1;
+  --brand-line: #bfe9e1;
+
+  /* 辅色 */
+  --sky: #5b8def;
+  --sky-soft: #ecf2fe;
+  --sky-line: #d3e2fd;
+  --lilac: #8b7cf6;
+  --lilac-soft: #f0edfe;
+  --lilac-line: #ded7fd;
+  --gold: #eaa327;
+  --gold-soft: #fdf3e0;
+  --gold-line: #f7e2bb;
+  --coral: #ec7f6a;
+  --coral-soft: #fdeeea;
+  --coral-line: #f8d7cd;
+
+  /* 圆角 */
+  --r-xs: 8px;
+  --r-sm: 10px;
+  --r: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-pill: 999px;
+
+  /* 阴影 */
+  --sh-1: 0 1px 2px rgba(16, 52, 46, .04);
+  --sh-2: 0 2px 6px rgba(16, 52, 46, .05), 0 12px 28px -16px rgba(16, 52, 46, .18);
+  --sh-3: 0 4px 12px rgba(16, 52, 46, .06), 0 28px 56px -28px rgba(16, 52, 46, .26);
+  --ring: 0 0 0 3px rgba(18, 165, 148, .22);
+
+  /* 排版 */
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  /* 动效 */
+  --ease: cubic-bezier(.22, .61, .36, 1);
+  --dur: .22s;
+}
+
+/* ---------- 2. 基础 ---------- */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.72;
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* 纸面顶部两枚柔光斑，营造清新空气感 */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -20vh -10vw auto -10vw;
+  height: 60vh;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(38vw 34vh at 18% 0%, rgba(18, 165, 148, .10), transparent 70%),
+    radial-gradient(32vw 30vh at 82% 6%, rgba(91, 141, 239, .09), transparent 72%);
+}
+
+::selection { background: var(--brand-soft); color: var(--brand-ink); }
+
+a {
+  color: var(--brand-ink);
+  text-decoration: none;
+  transition: color var(--dur) var(--ease);
+}
+a:hover { color: var(--brand); }
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--r-xs);
+}
+
+img, svg { max-width: 100%; }
+
+hr {
+  border: 0;
+  height: 1px;
+  background: var(--line);
+  margin: 28px 0;
+}
+
+/* ---------- 3. 布局 ---------- */
+.wrap {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+.wrap--narrow { max-width: 780px; }
+
+.stack > * + * { margin-top: 18px; }
+
+.grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(288px, 1fr));
+}
+.grid--2 { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.row--between { justify-content: space-between; }
+.spacer { flex: 1; }
+
+/* ---------- 4. 站点头（sticky 玻璃） ---------- */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, .78);
+  backdrop-filter: saturate(150%) blur(14px);
+  -webkit-backdrop-filter: saturate(150%) blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+.site-header__inner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 62px;
+  flex-wrap: wrap;
+}
+.site-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -.01em;
+  color: var(--ink);
+}
+.site-header__brand:hover { color: var(--ink); }
+.site-header__dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 9px;
+  background: linear-gradient(140deg, var(--brand) 0%, #4fd1c5 55%, var(--sky) 100%);
+  box-shadow: 0 4px 12px -4px rgba(18, 165, 148, .55);
+  flex: none;
+}
+.site-header__sub { color: var(--muted); font-size: 13px; }
+
+/* ---------- 5. Hero ---------- */
+.hero {
+  position: relative;
+  overflow: hidden;
+  margin: 28px 0 26px;
+  padding: 38px 34px;
+  border: 1px solid var(--brand-line);
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(70% 120% at 8% 0%, rgba(255, 255, 255, .9), transparent 60%),
+    linear-gradient(135deg, #e8f7f3 0%, #eef3fd 52%, #fdf4ec 100%);
+  box-shadow: var(--sh-2);
+}
+.hero::after {
+  content: "";
+  position: absolute;
+  right: -70px;
+  bottom: -90px;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(18, 165, 148, .16), transparent 68%);
+  pointer-events: none;
+}
+.hero > * { position: relative; z-index: 1; }
+.hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--brand-ink);
+  background: rgba(255, 255, 255, .72);
+  border: 1px solid var(--brand-line);
+  border-radius: var(--r-pill);
+  padding: 4px 12px;
+  margin-bottom: 14px;
+}
+.hero h1 {
+  margin: 0;
+  font-size: clamp(26px, 4vw, 36px);
+  line-height: 1.25;
+  letter-spacing: -.02em;
+  font-weight: 700;
+}
+.hero__lead {
+  margin: 12px 0 0;
+  max-width: 62ch;
+  font-size: 15.5px;
+  color: var(--ink-2);
+}
+.hero__meta { margin-top: 18px; }
+
+/* 统计条 */
+.stats {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  margin: 0 0 26px;
+}
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 14px 16px;
+  box-shadow: var(--sh-1);
+}
+.stat__num {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  color: var(--brand-ink);
+  font-variant-numeric: tabular-nums;
+}
+.stat__label { font-size: 12.5px; color: var(--muted); }
+
+/* ---------- 6. 徽章 ---------- */
+.badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: var(--r-pill);
+  padding: 3px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.badge--brand { background: var(--brand-soft); color: var(--brand-ink); border-color: var(--brand-line); }
+.badge--sky { background: var(--sky-soft); color: #2f5fd0; border-color: var(--sky-line); }
+.badge--lilac { background: var(--lilac-soft); color: #5b47d6; border-color: var(--lilac-line); }
+.badge--gold { background: var(--gold-soft); color: #9a6410; border-color: var(--gold-line); }
+.badge--coral { background: var(--coral-soft); color: #b8482c; border-color: var(--coral-line); }
+.badge--muted { background: var(--surface-2); color: var(--muted); border-color: var(--line); }
+
+/* ---------- 7. 胶囊导航 / 筛选 ---------- */
+.pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  border-radius: var(--r-pill);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+}
+.pill:hover {
+  border-color: var(--brand-line);
+  color: var(--brand-ink);
+  background: var(--brand-soft);
+  text-decoration: none;
+}
+.pill__count {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-radius: var(--r-pill);
+  padding: 0 7px;
+}
+.pill.is-active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+  box-shadow: 0 6px 16px -8px rgba(18, 165, 148, .8);
+}
+.pill.is-active .pill__count { background: rgba(255, 255, 255, .22); color: #fff; }
+.pill[aria-pressed="true"] {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+.pill[aria-pressed="true"] .pill__count { background: rgba(255, 255, 255, .22); color: #fff; }
+
+/* ---------- 8. 搜索框 ---------- */
+.search {
+  position: relative;
+  flex: 1 1 260px;
+  min-width: 200px;
+}
+.search input {
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  padding: 9px 14px 9px 36px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.search input::placeholder { color: var(--faint); }
+.search input:focus {
+  outline: none;
+  border-color: var(--brand-line);
+  box-shadow: var(--ring);
+}
+.search__icon {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--faint);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+/* ---------- 9. 卡片 ---------- */
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-1);
+  color: inherit;
+  overflow: hidden;
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
+}
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--brand), #5fd8c8 45%, var(--sky));
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+a.card:hover {
+  transform: translateY(-3px);
+  border-color: var(--brand-line);
+  box-shadow: var(--sh-3);
+  text-decoration: none;
+  color: inherit;
+}
+a.card:hover::before { opacity: 1; }
+.card__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  line-height: 1.4;
+}
+.card__desc {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 14px;
+  flex: 1;
+}
+.card__meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.card__cta {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--brand-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+a.card:hover .card__cta { gap: 9px; }
+
+/* 评分星 */
+.rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--gold);
+  letter-spacing: 2px;
+  font-size: 15px;
+}
+.rating--lg { font-size: 19px; }
+.rating__num {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+/* ---------- 10. 区块与标题 ---------- */
+.section {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 24px 26px;
+  box-shadow: var(--sh-1);
+}
+.section + .section { margin-top: 18px; }
+
+.group { margin: 0 0 34px; scroll-margin-top: 84px; }
+.group__head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.group__title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.group__title::before {
+  content: "";
+  width: 5px;
+  height: 19px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--brand), #6fdccd);
+}
+.group__count { font-size: 13px; color: var(--muted); font-weight: 600; }
+
+h2.sec-title {
+  margin: 0 0 14px;
+  font-size: 16.5px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+h2.sec-title::before {
+  content: "";
+  width: 4px;
+  height: 16px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--brand), #6fdccd);
+}
+h3 {
+  margin: 22px 0 8px;
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+h4 { margin: 16px 0 6px; font-size: 14px; font-weight: 700; color: var(--ink-2); }
+p { margin: 0 0 12px; }
+p:last-child { margin-bottom: 0; }
+
+/* ---------- 11. 列表 ---------- */
+ul.list, ol.list { margin: 0; padding-left: 0; list-style: none; }
+ul.list li {
+  position: relative;
+  padding-left: 22px;
+  margin: 7px 0;
+  color: var(--ink-2);
+}
+ul.list li::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: .72em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+ol.list { counter-reset: step; }
+ol.list li {
+  position: relative;
+  padding-left: 32px;
+  margin: 10px 0;
+  color: var(--ink-2);
+}
+ol.list li::before {
+  counter-increment: step;
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: .12em;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand-ink);
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-line);
+  border-radius: 50%;
+}
+
+/* ---------- 12. 表格 ---------- */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+table.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+table.tbl th,
+table.tbl td {
+  text-align: left;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+table.tbl thead th {
+  font-size: 11.5px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+table.tbl tbody tr:last-child td { border-bottom: 0; }
+table.tbl tbody tr:hover { background: #fafdfc; }
+table.tbl th[scope="row"] {
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  background: #fcfefd;
+}
+
+/* ---------- 13. 代码块 ---------- */
+.codeblk {
+  position: relative;
+  margin: 12px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.codeblk__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  background: var(--surface-3);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.codeblk__lang {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.codeblk__copy {
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  padding: 2px 10px;
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+}
+.codeblk__copy:hover { color: var(--brand-ink); border-color: var(--brand-line); background: var(--brand-soft); }
+.codeblk__copy.is-done { color: var(--brand-ink); border-color: var(--brand-line); background: var(--brand-soft); }
+.codeblk pre {
+  margin: 0;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.62;
+  font-family: var(--mono);
+  color: var(--ink);
+  tab-size: 2;
+}
+code {
+  font-family: var(--mono);
+  font-size: .92em;
+}
+:not(pre) > code {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 6px;
+  color: var(--brand-ink);
+}
+
+/* ---------- 14. 提示框 ---------- */
+.callout {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  margin: 14px 0;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.callout__icon { flex: none; font-size: 15px; line-height: 1.6; }
+.callout p { margin: 0; }
+.callout--tip { background: var(--brand-soft); border-color: var(--brand-line); color: #0c6f64; }
+.callout--info { background: var(--sky-soft); border-color: var(--sky-line); color: #2c559e; }
+.callout--warn { background: var(--gold-soft); border-color: var(--gold-line); color: #8a5b0d; }
+.callout--danger { background: var(--coral-soft); border-color: var(--coral-line); color: #a5412a; }
+
+/* ---------- 15. 页脚 / 返回顶部 / 空状态 ---------- */
+.site-footer {
+  margin: 40px 0 0;
+  padding: 22px 0 34px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+.site-footer a { color: var(--muted); }
+.site-footer a:hover { color: var(--brand-ink); }
+
+.to-top {
+  position: fixed;
+  right: 20px;
+  bottom: 22px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .86);
+  backdrop-filter: blur(8px);
+  color: var(--ink-2);
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: var(--sh-2);
+  opacity: 0;
+  transform: translateY(8px) scale(.94);
+  pointer-events: none;
+  transition: all var(--dur) var(--ease);
+}
+.to-top.is-shown { opacity: 1; transform: none; pointer-events: auto; }
+.to-top:hover { color: var(--brand-ink); border-color: var(--brand-line); }
+
+.empty {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--muted);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.empty__title { font-weight: 700; color: var(--ink-2); margin-bottom: 4px; }
+
+/* 面包屑 */
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--muted);
+  margin: 22px 0 0;
+}
+.crumbs a { color: var(--muted); }
+.crumbs a:hover { color: var(--brand-ink); }
+
+/* ---------- 16. 入场动效 ---------- */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.rise { animation: rise .5s var(--ease) both; }
+.rise:nth-child(2) { animation-delay: .04s; }
+.rise:nth-child(3) { animation-delay: .08s; }
+.rise:nth-child(4) { animation-delay: .12s; }
+.rise:nth-child(5) { animation-delay: .16s; }
+.rise:nth-child(6) { animation-delay: .2s; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+/* ---------- 17. 暗色（跟随系统，克制不刺眼） ---------- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --paper: #0e1615;
+    --surface: #141d1b;
+    --surface-2: #182422;
+    --surface-3: #1c2a27;
+    --ink: #e5efec;
+    --ink-2: #b6c7c2;
+    --muted: #869a95;
+    --faint: #6b7f7a;
+    --line: #22302d;
+    --line-2: #2b3b37;
+    --brand: #3fd2be;
+    --brand-ink: #6fe0cf;
+    --brand-soft: #10312c;
+    --brand-line: #1d4a43;
+    --sky: #7ba4f5;
+    --sky-soft: #16233a;
+    --sky-line: #22355a;
+    --lilac: #a698fb;
+    --lilac-soft: #1e1c39;
+    --lilac-line: #322c5c;
+    --gold: #f0be5c;
+    --gold-soft: #33270f;
+    --gold-line: #4a3a17;
+    --coral: #f1967f;
+    --coral-soft: #351a14;
+    --coral-line: #56271d;
+    --sh-1: 0 1px 2px rgba(0, 0, 0, .3);
+    --sh-2: 0 2px 8px rgba(0, 0, 0, .35), 0 14px 30px -18px rgba(0, 0, 0, .7);
+    --sh-3: 0 6px 16px rgba(0, 0, 0, .4), 0 30px 60px -30px rgba(0, 0, 0, .8);
+    --ring: 0 0 0 3px rgba(63, 210, 190, .3);
+  }
+  body::before {
+    background:
+      radial-gradient(40vw 34vh at 16% 0%, rgba(63, 210, 190, .12), transparent 70%),
+      radial-gradient(34vw 30vh at 84% 4%, rgba(123, 164, 245, .10), transparent 72%);
+  }
+  .site-header { background: rgba(20, 29, 27, .8); }
+  .hero {
+    border-color: var(--brand-line);
+    background:
+      radial-gradient(70% 120% at 8% 0%, rgba(255, 255, 255, .04), transparent 60%),
+      linear-gradient(135deg, #11302b 0%, #16243a 52%, #2c2119 100%);
+  }
+  .hero__eyebrow { background: rgba(0, 0, 0, .25); }
+  table.tbl tbody tr:hover { background: #17211f; }
+  table.tbl th[scope="row"] { background: #17211f; }
+  .to-top { background: rgba(24, 36, 34, .88); }
+}
+
+/* ---------- 18. 打印 ---------- */
+@media print {
+  body { background: #fff; }
+  body::before, .site-header, .to-top, .search, .pills { display: none !important; }
+  .card, .section, .codeblk, .table-wrap {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+  a { color: inherit; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 11px; color: #666; }
+}
+
+/* ---------- 19. 响应式 ---------- */
+@media (max-width: 720px) {
+  .wrap { padding: 0 16px; }
+  .hero { padding: 28px 22px; border-radius: var(--r-lg); }
+  .section { padding: 20px 18px; }
+  .grid, .grid--2 { grid-template-columns: 1fr; }
+  .site-header__sub { display: none; }
+}
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap site-header__inner">
+    <a class="site-header__brand" href="./index.html"><span class="site-header__dot"></span>工具目录</a>
+    <span class="site-header__sub">caveman (极简输出模式)</span>
+  </div>
+</header>
+
+<main class="wrap">
+  <nav class="crumbs"><a href="./index.html">工具目录</a> <span>/</span> <span>上下文与 Token 优化</span> <span>/</span> <span>caveman (极简输出模式)</span></nav>
+
+  <section class="hero">
+    <span class="hero__eyebrow">🗂 上下文与 Token 优化</span>
+    <h1>caveman (极简输出模式)</h1>
+    <p class="hero__lead">caveman 是一种极简输出 / 节省 token 的提示法（caveman mode）。它要求 AI 去掉客套、填充词与废话，只保留技术内容本身，从而降低上下文消耗、提升回答密度。非常适合在 token 受限或追求高效沟通的会话中使用。</p>
+    <div class="badges hero__meta">
+      <span class="badge badge--gold">📁 上下文与 Token 优化</span>
+      <span class="badge badge--gold">⭐ 105.4k</span>
+      <span class="badge badge--muted">—</span>
+      <span class="badge badge--muted">Go</span>
+      <span class="badge badge--muted">#prompt</span><span class="badge badge--muted">#token</span><span class="badge badge--muted">#minimal</span><span class="badge badge--muted">#context-optimization</span><span class="badge badge--muted">#efficiency</span>
+    </div>
+    <div class="rating rating--lg" style="margin-top:14px">★★★★★<span class="rating__num">5 / 5 推荐度</span></div>
+    <div class="row" style="margin-top:16px"><a class="pill" href="https://github.com/JuliusBrussee/caveman" target="_blank" rel="noopener">GitHub ↗</a></div>
+  </section>
+
+  <section class="section" style="margin-top:18px">
+  <h2 class="sec-title">简介</h2>
+  <p>极简输出、节省 token 的提示法，去掉废话只留技术内容</p>
+</section>
+
+  <section class="section" style="margin-top:18px">
+  <h2 class="sec-title">核心特性</h2>
+  <ul class="list"><li>去除客套与填充词，仅保留技术内容</li><li>显著降低上下文 token 消耗</li><li>提升回答密度与可读性</li><li>可作为全局系统提示或会话前缀使用</li></ul>
+</section>
+
+  
+
+  <section class="section" style="margin-top:18px">
+  <h2 class="sec-title">安装</h2>
+  
+<div class="codeblk">
+  <div class="codeblk__bar">克隆仓库查看示例<span class="codeblk__lang">bash</span></div>
+  <pre><code>git clone https://github.com/JuliusBrussee/caveman.git</code></pre>
+</div>
+</section>
+
+  <section class="section" style="margin-top:18px">
+  <h2 class="sec-title">使用</h2>
+  
+<div class="codeblk">
+  <div class="codeblk__bar">在系统提示中加入 caveman 指令<span class="codeblk__lang">bash</span></div>
+  <pre><code>echo 'Respond in caveman mode: no filler, only technical content.' &gt;&gt; .claude/settings.json</code></pre>
+</div>
+</section>
+
+  
+
+  <section class="section" style="margin-top:18px">
+  <h2 class="sec-title">同类工具</h2>
+  <div class="grid"><a class="card rise" href="lean-ctx/index.html" data-filter-item data-filter-cat="上下文与 Token 优化" data-filter-text="lean-ctx（LeanCTX） 本地优先的 AI 编码代理上下文运行时：压缩/缓存/路由上下文，并追踪 token 成本与结果（Control what your AI can see）。 LeanCTX（Lean Context）是一个本地优先、模型无关的 AI 编码代理上下文运行时（定位语：Control what your AI can see）。它并行于你的编码代理运行，在「读取路径」上通过 MCP 工具与 Shell Hook 压缩/缓存上下文，在「传输路径」上可选通过本地代理压缩每一次模型请求；并承担理解任务、路由正确上下文、压缩发送内容、追踪成本与结果五大职责，适合中大型仓库、频繁切换项目、多任务并行的开发者。 上下文与 Token 优化 Rust context-runtime ai-agent token-saving context-engineering mcp shell-hook compression proxy">
+      <h3 class="card__title">lean-ctx（LeanCTX）</h3>
+      <div class="rating">★★★★★<span class="rating__num">5 星</span></div>
+      <p class="card__desc">本地优先的 AI 编码代理上下文运行时：压缩/缓存/路由上下文，并追踪 token 成本与结果（Control what your AI can see）。</p>
+      <div class="card__meta">
+        <span class="badge badge--gold">📁 上下文与 Token 优化</span>
+        <span class="badge badge--gold">⭐ 3k+</span>
+        <span class="badge badge--muted">Rust</span>
+      </div>
+      <span class="card__cta">查看详情 →</span>
+    </a><a class="card rise" href="headroom/index.html" data-filter-item data-filter-cat="上下文与 Token 优化" data-filter-text="Headroom 智能上下文压缩层：把十摞资料整理成一页提纲，省 60%–95% Token 仍保留检索能力。 智能上下文压缩工具，将喂给模型的海量资料（长日志、大文件、RAG 检索结果、多文件代码库上下文）整理成提纲，实测可减少 60%–95% Token 消耗，同时保留原始内容以便后续检索。 上下文与 Token 优化 — context-compression token-saving rag mcp">
+      <h3 class="card__title">Headroom</h3>
+      <div class="rating">★★★★★<span class="rating__num">5 星</span></div>
+      <p class="card__desc">智能上下文压缩层：把十摞资料整理成一页提纲，省 60%–95% Token 仍保留检索能力。</p>
+      <div class="card__meta">
+        <span class="badge badge--gold">📁 上下文与 Token 优化</span>
+        <span class="badge badge--gold">⭐ —</span>
+        <span class="badge badge--muted">—</span>
+      </div>
+      <span class="card__cta">查看详情 →</span>
+    </a><a class="card rise" href="rtk/index.html" data-filter-item data-filter-cat="上下文与 Token 优化" data-filter-text="RTK（Reduced Token Kit） 命令行输出精简器：过滤进度条/重复日志/模板代码，git status、npm test 省 75%–90% Token，启动 &lt;10ms。 命令行输出精简器，自动过滤进度条、重复日志、模板代码，仅保留关键信息。在 git status、npm test 等命令上可节省 75%–90% Token，启动开销低于 10ms，完全无感接入。 上下文与 Token 优化 Rust token-saving cli shell-hook filter">
+      <h3 class="card__title">RTK（Reduced Token Kit）</h3>
+      <div class="rating">★★★★★<span class="rating__num">5 星</span></div>
+      <p class="card__desc">命令行输出精简器：过滤进度条/重复日志/模板代码，git status、npm test 省 75%–90% Token，启动 &lt;10ms。</p>
+      <div class="card__meta">
+        <span class="badge badge--gold">📁 上下文与 Token 优化</span>
+        <span class="badge badge--gold">⭐ —</span>
+        <span class="badge badge--muted">Rust</span>
+      </div>
+      <span class="card__cta">查看详情 →</span>
+    </a></div>
+</section>
+
+  <div class="row" style="margin:26px 0 0"><a class="pill" href="./index.html">← 返回工具目录</a></div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">由 <strong>jxx-tool-intro</strong> 技能生成 · 设计模板 Jxx Fresh · 数据源 <code>caveman/tool.json</code></div>
+</footer>
+<button class="to-top" type="button" aria-label="返回顶部">↑</button>
+<script>
+/* ==========================================================================
+   Jxx Fresh — 模板交互（零依赖，可内联）
+   提供：代码块复制、返回顶部、卡片筛选（可选）、滚动进度
+   单一源：base/shared/html-template/html-design.js
+   ========================================================================== */
+(function () {
+  'use strict';
+
+  /* --- 代码块复制：给每个 .codeblk 注入复制按钮 --- */
+  document.querySelectorAll('.codeblk pre').forEach(function (pre) {
+    var blk = pre.closest('.codeblk');
+    if (!blk || blk.querySelector('.codeblk__copy')) return;
+    var bar = blk.querySelector('.codeblk__bar');
+    if (!bar) return;
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'codeblk__copy';
+    btn.textContent = '复制';
+    btn.setAttribute('aria-label', '复制代码');
+
+    btn.addEventListener('click', function () {
+      var text = pre.innerText;
+      var done = function () {
+        btn.textContent = '已复制';
+        btn.classList.add('is-done');
+        setTimeout(function () {
+          btn.textContent = '复制';
+          btn.classList.remove('is-done');
+        }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () {
+          fallbackCopy(text, done);
+        });
+      } else {
+        fallbackCopy(text, done);
+      }
+    });
+
+    bar.appendChild(btn);
+  });
+
+  function fallbackCopy(text, cb) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      cb();
+    } finally {
+      document.body.removeChild(ta);
+    }
+  }
+
+  /* --- 返回顶部 --- */
+  var toTop = document.querySelector('.to-top');
+  if (toTop) {
+    toTop.addEventListener('click', function () {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    var onScroll = function () {
+      toTop.classList.toggle('is-shown', window.scrollY > 400);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  }
+
+  /* --- 卡片筛选：搜索框 + 分类胶囊 ---
+     约定：[data-filter-input] 输入框，[data-filter-item] 可筛条目，
+     条目上 data-filter-text 提供检索文本，[data-filter-chip] 提供分类值。 */
+  var input = document.querySelector('[data-filter-input]');
+  var chips = Array.prototype.slice.call(document.querySelectorAll('[data-filter-chip]'));
+  var items = Array.prototype.slice.call(document.querySelectorAll('[data-filter-item]'));
+  var empty = document.querySelector('[data-filter-empty]');
+  var sections = Array.prototype.slice.call(document.querySelectorAll('[data-filter-group]'));
+
+  if (input || chips.length) {
+    var active = '';
+    var apply = function () {
+      var q = (input && input.value || '').trim().toLowerCase();
+      var shown = 0;
+      items.forEach(function (el) {
+        var text = (el.getAttribute('data-filter-text') || el.textContent || '').toLowerCase();
+        var cat = el.getAttribute('data-filter-cat') || '';
+        var ok = (!q || text.indexOf(q) >= 0) && (!active || cat === active);
+        el.hidden = !ok;
+        if (ok) shown++;
+      });
+      sections.forEach(function (sec) {
+        var kids = Array.prototype.slice.call(sec.querySelectorAll('[data-filter-item]'));
+        var has = kids.some(function (k) {
+          return !k.hidden;
+        });
+        sec.hidden = !has;
+      });
+      if (empty) empty.hidden = shown !== 0;
+    };
+
+    if (input) {
+      input.addEventListener('input', apply);
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          input.value = '';
+          apply();
+        }
+      });
+    }
+    chips.forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        var val = chip.getAttribute('data-filter-chip') || '';
+        active = active === val ? '' : val;
+        chips.forEach(function (c) {
+          var on = c.getAttribute('data-filter-chip') === active;
+          c.setAttribute('aria-pressed', on ? 'true' : 'false');
+          c.classList.toggle('is-active', on);
+        });
+        apply();
+      });
+    });
+  }
+})();
+</script>
+</body>
+</html>

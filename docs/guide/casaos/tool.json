@@ -1,0 +1,41 @@
+{
+  "slug": "casaos",
+  "name": "CasaOS",
+  "github": "https://github.com/IceWhaleTech/CasaOS",
+  "homepage": "https://casaos.io",
+  "description": "CasaOS 是一个轻量的家庭云/自托管面板，基于 Docker 提供图形化的一键应用部署与管理体验。用户无需复杂命令行即可安装、更新与监控各类自托管服务，适合在家庭NAS或小型服务器上打造个人云平台。",
+  "summary": "轻量家庭云/自托管面板，一键部署 Docker 应用。",
+  "license": "Apache-2.0",
+  "stars": "37.2k",
+  "forks": "2.2k",
+  "language": "Go",
+  "rating": 5,
+  "category": "云与自托管",
+  "tags": [
+    "self-hosted",
+    "docker",
+    "home-server",
+    "nas",
+    "dashboard"
+  ],
+  "features": [
+    "图形化 Docker 应用一键部署",
+    "轻量家庭云/NAS 管理面板",
+    "应用商店式安装与更新",
+    "资源监控与文件管理"
+  ],
+  "install": [
+    {
+      "title": "一键安装脚本",
+      "lang": "bash",
+      "code": "curl -fsSL https://get.casaos.io | sudo bash\n# 或\nwget -qO- https://get.casaos.io | sudo bash"
+    }
+  ],
+  "usage": [
+    {
+      "title": "访问面板",
+      "lang": "bash",
+      "code": "# 安装完成后浏览器访问 http://<设备IP>:80 ，按引导完成初始化"
+    }
+  ]
+}

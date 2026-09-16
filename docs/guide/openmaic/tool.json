@@ -1,0 +1,79 @@
+{
+  "slug": "openmaic",
+  "name": "OpenMAIC（开放多智能体交互课堂）",
+  "github": "https://github.com/THU-MAIC/OpenMAIC",
+  "homepage": "https://open.maic.chat",
+  "description": "Open Multi-Agent Interactive Classroom（开放多智能体交互式课堂），由清华大学 MAIC 团队开源。基于多智能体编排（LangGraph），把任意主题或文档（PDF/Word/音视频）一键转化为沉浸式课堂：AI 教师与 AI 同学实时语音讲授、白板绘图、圆桌讨论，并生成幻灯片、交互测验、HTML 仿真与项目式学习（PBL）。内置 Agent 工作台（Pro workbench）可对话式规划/构建/修订课程，支持 .pptx/.html/.maic.zip 导出与本地自托管 AI。",
+  "summary": "清华开源的多智能体交互式课堂：一键把任意主题/资料变成 AI 老师 + AI 同学驱动的沉浸式课程。",
+  "license": "MIT",
+  "stars": "36.6k",
+  "forks": "5.8k",
+  "language": "TypeScript",
+  "rating": 5,
+  "category": "AI 智能体与框架",
+  "tags": ["multi-agent", "education", "langgraph", "nextjs"],
+  "features": [
+    "一键课程生成：描述主题或上传资料（PDF/Word/音视频），数分钟构建完整课程",
+    "多智能体课堂：AI 教师与同伴实时授课、圆桌辩论、白板画图、问答",
+    "丰富场景：Slides（带语音/聚光灯/激光笔）、Quiz（实时评分）、Interactive Simulation、PBL 角色协作",
+    "深度交互模式：3D 可视化、仿真、小游戏、思维导图、在线编程五种可探索 UI",
+    "导出能力：可编辑 .pptx、自包含 .html、课堂 .maic.zip（离线/内网内联资源）",
+    "Agent 工作台（Pro workbench）：对话式规划、构建、修订课程；20+ 内置技能；持久会话可断点续跑",
+    "可插拔存储：浏览器默认存储，可选 PostgreSQL 服务端持久化 + S3 资产存储",
+    "本地化 AI：集成 Lemonade（本地 LLM/图像/TTS/ASR）、FunASR、VoxCPM2 语音克隆",
+    "国际化与体验：12 种语言区域、暗黑模式、MP4 视频导出（render-service 容器）"
+  ],
+  "integrations": [
+    ["技能包 (Skill)", "内置标准 skills/openmaic/SKILL.md，可被 OpenClaw(clawhub install openmaic)/Codex/DeepSeek/WorkBuddy 等工作台加载，从飞书/Slack/Telegram/IDE 直接生成课堂"],
+    ["多智能体编排", "LangGraph 状态机管理智能体轮次，@openmaic/* SDK（dsl/renderer/editor/importer/generation/storage）支持二次开发"],
+    ["本地 AI", "配置 LEMONADE_BASE_URL / ASR_FUNASR_BASE_URL 启用本地 LLM、ASR、TTS，数据不出域"],
+    ["服务端持久化", "配置 DATABASE_URL + NEXT_PUBLIC_PERSISTENCE=1 用 PostgreSQL，资产走 S3"],
+    ["部署形态", "Vercel 一键部署 / Docker Compose / 本地 pnpm dev 自托管"]
+  ],
+  "install": [
+    {
+      "title": "pnpm 本地启动（推荐）",
+      "lang": "bash",
+      "code": "git clone https://github.com/THU-MAIC/OpenMAIC.git\ncd OpenMAIC\npnpm install\ncp .env.example .env.local   # 填入至少一个 LLM 密钥，如 OPENAI_API_KEY\npnpm dev                     # 访问 http://localhost:3000"
+    },
+    {
+      "title": "Docker Compose",
+      "lang": "bash",
+      "code": "git clone https://github.com/THU-MAIC/OpenMAIC.git\ncd OpenMAIC\ncp .env.example .env.local\n# 国内加速可选：ALPINE_MIRROR / NPM_REGISTRY\ndocker compose up --build"
+    },
+    {
+      "title": "Vercel 部署 / 生产构建",
+      "lang": "bash",
+      "code": "pnpm build && pnpm start\n# 或导入仓库到 Vercel 一键 Deploy"
+    }
+  ],
+  "usage": [
+    {
+      "title": "一键生成课堂",
+      "lang": "bash",
+      "code": "# 1) 打开 http://localhost:3000，描述主题或上传 PDF/Word/音视频\n# 2) AI 在数分钟内生成含 Slides / Quiz / 仿真的完整课程\n# 3) 进入课堂：AI 教师语音讲授 + 白板绘图，AI 同学发起讨论/圆桌辩论"
+    },
+    {
+      "title": "开启 Agent 工作台（对话式建课）",
+      "lang": "bash",
+      "code": "# .env.local 中启用\nNEXT_PUBLIC_PRO_WORKBENCH_ENABLED=true\nOPENMAIC_AGENT_RUNTIME_ENABLED=true\n# 重启后通过对话式 Agent 规划、构建、修订课程"
+    },
+    {
+      "title": "可选：本地 AI / 持久化 / 视频导出",
+      "lang": "bash",
+      "code": "# 本地 LLM+ASR+TTS\nLEMONADE_BASE_URL=http://localhost:8000\nASR_FUNASR_BASE_URL=http://localhost:9000\n# 服务端持久化\nDATABASE_URL=postgres://... ; NEXT_PUBLIC_PERSISTENCE=1\n# 视频导出：启动 video-export compose profile 运行 render-service"
+    },
+    {
+      "title": "导出课堂",
+      "lang": "bash",
+      "code": "# 课堂内导出为：可编辑 .pptx / 自包含 .html / .maic.zip（离线内联资源）"
+    }
+  ],
+  "notes": [
+    "前置：Node.js >= 22.19、pnpm >= 10",
+    "v1.0.0（2026-08-27）引入 Pro workbench 智能体工作台；仓库活跃（频繁更新）",
+    "默认浏览器存储即可用；多用户/服务端场景才需 PostgreSQL + S3",
+    "本地化 AI（Lemonade/FunASR/VoxCPM2）为可选，需额外部署对应服务",
+    "MP4 视频导出依赖 render-service 容器（video-export compose profile）"
+  ]
+}

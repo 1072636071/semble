@@ -1,0 +1,47 @@
+{
+  "slug": "llama-cpp",
+  "name": "llama.cpp (本地 LLM 推理引擎)",
+  "github": "https://github.com/ggml-org/llama.cpp",
+  "homepage": "",
+  "description": "llama.cpp 是用 C/C++ 编写的本地大语言模型推理引擎，基于 ggml 张量库实现。它支持在 CPU 与多种 GPU 后端上运行量化后的 LLM 模型（如 GGUF 格式），无需依赖重型框架。项目以极致性能和跨平台（含纯 CPU、Apple Silicon、CUDA 等）著称。",
+  "summary": "C/C++ 编写的本地 LLM 推理引擎，支持量化模型在 CPU/GPU 上运行",
+  "license": "MIT",
+  "stars": "128.2k",
+  "forks": "23.2k",
+  "language": "C++",
+  "rating": 5,
+  "category": "AI 平台与推理",
+  "tags": [
+    "llm",
+    "inference",
+    "ggml",
+    "quantization",
+    "local",
+    "cpp"
+  ],
+  "features": [
+    "纯 C/C++ 实现，零重型依赖",
+    "支持 GGUF 量化模型在 CPU/GPU 上推理",
+    "跨平台：Apple Silicon、CUDA、Vulkan、Metal 等",
+    "提供 server、cli 与可嵌入的库接口"
+  ],
+  "install": [
+    {
+      "title": "使用 cmake 构建",
+      "lang": "bash",
+      "code": "git clone https://github.com/ggml-org/llama.cpp && cd llama.cpp && cmake -B build && cmake --build build --config Release"
+    }
+  ],
+  "usage": [
+    {
+      "title": "以命令行与本地模型对话",
+      "lang": "bash",
+      "code": "./build/bin/llama-cli -m models/llama-3.2-3b.Q4_K_M.gguf -p \"Hello\""
+    },
+    {
+      "title": "启动 OpenAI 兼容推理服务",
+      "lang": "bash",
+      "code": "./build/bin/llama-server -m models/llama-3.2-3b.Q4_K_M.gguf --host 0.0.0.0 --port 8080"
+    }
+  ]
+}

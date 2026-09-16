@@ -1,0 +1,81 @@
+{
+  "slug": "mineru",
+  "name": "MinerU",
+  "github": "https://github.com/opendatalab/MinerU",
+  "homepage": "https://opendatalab.github.io/MinerU/",
+  "description": "高精度文档解析引擎，专为 LLM / RAG / Agent 工作流设计。将 PDF、DOCX、PPTX、XLSX、图片、网页转换为结构化 Markdown / JSON。",
+  "license": "—",
+  "stars": "79.9k",
+  "language": "Python",
+  "rating": 5,
+  "tags": [
+    "document-parsing",
+    "pdf",
+    "rag",
+    "ocr",
+    "markdown",
+    "vlm"
+  ],
+  "summary": "高精度文档解析引擎，将 PDF/DOCX/PPTX/图片/网页转为结构化 Markdown/JSON，面向 LLM/RAG。",
+  "features": [
+    "公式 → LaTeX，表格 → HTML",
+    "多栏布局、跨页表格合并",
+    "页眉/页脚/页码自动去除，语义连贯输出",
+    "VLM + OCR 双引擎，109 语言 OCR 识别",
+    "支持纯 CPU / GPU / MPS 推理",
+    "输出 Markdown、JSON（阅读顺序）、HTML"
+  ],
+  "integrations": [
+    [
+      "MCP Server",
+      "Cursor、Claude Desktop、Windsurf 直接调用"
+    ],
+    [
+      "RAG 框架",
+      "LangChain、LlamaIndex、RAGFlow、Dify、FastGPT"
+    ],
+    [
+      "SDK / API",
+      "Python / Go / TypeScript SDK、CLI、REST API、Docker"
+    ],
+    [
+      "无代码",
+      "mineru.net 在线版、Gradio WebUI、桌面客户端"
+    ]
+  ],
+  "install": [
+    {
+      "title": "pip 安装",
+      "lang": "bash",
+      "code": "pip install mineru"
+    }
+  ],
+  "usage": [
+    {
+      "title": "CLI 命令行",
+      "lang": "bash",
+      "code": "mineru extract input.pdf\nmineru extract document.png\nmineru extract input.pdf --output-format md,json"
+    },
+    {
+      "title": "MCP Server 配置",
+      "lang": "json",
+      "code": "{\n  \"mcpServers\": {\n    \"mineru\": {\n      \"command\": \"mineru\",\n      \"args\": [\"mcp\"]\n    }\n  }\n}"
+    },
+    {
+      "title": "Python SDK",
+      "lang": "python",
+      "code": "from mineru import MinerU\n\nparser = MinerU()\nresult = parser.extract(\"input.pdf\")\nprint(result.markdown)"
+    },
+    {
+      "title": "API 服务",
+      "lang": "bash",
+      "code": "mineru-api --host 0.0.0.0 --port 8000\ncurl -X POST http://localhost:8000/file_parse -F \"file=@document.pdf\""
+    }
+  ],
+  "notes": [
+    "支持输入：PDF（含扫描件/手写体）、DOCX、PPTX、XLSX、图片、网页",
+    "在线版本（零安装）：https://mineru.net/OpenSourceTools/Extractor",
+    "License 为基于 Apache 2.0 的 MinerU Open Source License（spdx 取 Apache-2.0）"
+  ],
+  "category": "文档与数据"
+}

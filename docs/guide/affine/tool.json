@@ -1,0 +1,56 @@
+{
+  "slug": "affine",
+  "name": "AFFiNE（开源一体化知识库）",
+  "github": "https://github.com/toeverything/AFFiNE",
+  "homepage": "https://affine.pro",
+  "description": "AFFiNE 是一款开源的下一代一体化知识库，将文档、白板与多维表格（数据库）融合在同一画布中，可作为 Notion 与飞书多维表格的开源自托管替代。所有数据本地优先存储并支持端到端加密，隐私可控、可离线使用。",
+  "summary": "开源一体化知识库+文档+白板，Notion/飞书多维表格的自托管替代。",
+  "license": "—",
+  "stars": "72.5k",
+  "forks": "5.3k",
+  "language": "TypeScript",
+  "rating": 5,
+  "category": "知识与记忆",
+  "tags": [
+    "knowledge-base",
+    "note-taking",
+    "whiteboard",
+    "self-hosted",
+    "notion-alternative"
+  ],
+  "features": [
+    "文档、白板、多维表格（数据库）三合一，统一画布自由切换",
+    "本地优先存储，支持端到端加密与离线使用，数据完全自持",
+    "块级编辑与双向链接，支持富文本、代码、表格、看板等",
+    "可自托管，提供 Docker 部署与官方云同步",
+    "Markdown 友好，支持导入/导出，兼容主流笔记格式"
+  ],
+  "install": [
+    {
+      "title": "Docker 自托管（推荐）",
+      "lang": "bash",
+      "code": "docker run -d \\\n  --name affine \\\n  -p 3010:3000 \\\n  -v $(pwd)/affine-data:/root/.affine/data \\\n  ghcr.io/toeverything/affine-self-hosted:stable"
+    },
+    {
+      "title": "Docker Compose",
+      "lang": "bash",
+      "code": "git clone https://github.com/toeverything/AFFiNE.git\ncd AFFiNE\ncp .env.example .env\ndocker compose -f ./docs/self-host/composition.yml up -d"
+    },
+    {
+      "title": "桌面客户端",
+      "lang": "bash",
+      "code": "访问 https://affine.pro 下载 Windows / macOS / Linux 桌面版安装包"
+    }
+  ],
+  "usage": [
+    {
+      "title": "启动后访问",
+      "lang": "bash",
+      "code": "浏览器打开 http://localhost:3010 即可创建空间、文档与白板"
+    }
+  ],
+  "notes": [
+    "self-hosted 镜像与云端版本功能接近，自托管更能保证数据隐私",
+    "数据默认本地优先，可开启端到端加密后再做云端同步"
+  ]
+}

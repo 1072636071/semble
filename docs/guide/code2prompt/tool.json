@@ -1,0 +1,66 @@
+{
+  "slug": "code2prompt",
+  "name": "code2prompt（代码库转 LLM 提示词）",
+  "github": "https://github.com/mufeedvh/code2prompt",
+  "homepage": "https://github.com/mufeedvh/code2prompt",
+  "description": "code2prompt 是一款命令行工具，可将整个代码库快速转换为适合直接喂给大语言模型（LLM）的单一提示词文件。它支持按 .gitignore 规则过滤文件、统计 token 数量，并可自动生成目录树与元数据，方便开发者把项目上下文一次性提供给 AI 进行问答或重构。",
+  "summary": "把整个代码库转成适合喂给 LLM 的 prompt（含 .gitignore 过滤、token 统计）。",
+  "license": "MIT",
+  "stars": "7.7k",
+  "forks": "436",
+  "language": "Rust",
+  "rating": 5,
+  "category": "开发工具",
+  "tags": [
+    "cli",
+    "llm",
+    "prompt-engineering",
+    "codebase",
+    "token-counting"
+  ],
+  "features": [
+    "将整个代码库打包为单个可复制的 LLM 提示词",
+    "遵循 .gitignore 规则过滤无关文件",
+    "实时统计生成的 prompt 的 token 数量",
+    "自动生成目录树与文件元数据，结构清晰",
+    "支持模板自定义与多种输出格式"
+  ],
+  "install": [
+    {
+      "title": "Cargo 安装（Rust）",
+      "lang": "bash",
+      "code": "cargo install code2prompt"
+    },
+    {
+      "title": "Homebrew（macOS/Linux）",
+      "lang": "bash",
+      "code": "brew install mufeedvh/tap/code2prompt"
+    },
+    {
+      "title": "pip 安装（Python 封装）",
+      "lang": "bash",
+      "code": "pip install code2prompt"
+    },
+    {
+      "title": "从源码构建",
+      "lang": "bash",
+      "code": "git clone https://github.com/mufeedvh/code2prompt.git\ncd code2prompt\ncargo install --path ."
+    }
+  ],
+  "usage": [
+    {
+      "title": "基本用法",
+      "lang": "bash",
+      "code": "code2prompt /path/to/your/repo\ncode2prompt . --gitignore   # 按 .gitignore 过滤\ncode2prompt . --tokens      # 显示 token 统计"
+    },
+    {
+      "title": "输出到文件",
+      "lang": "bash",
+      "code": "code2prompt . --output prompt.txt\ncode2prompt . --template custom.md --tokens"
+    }
+  ],
+  "notes": [
+    "生成的提示词可能很大，注意目标模型的上下文窗口上限",
+    "用 --gitignore 可避免把依赖与构建产物塞进上下文"
+  ]
+}

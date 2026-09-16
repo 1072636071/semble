@@ -1,0 +1,52 @@
+{
+  "slug": "workdaddy",
+  "name": "WorkDaddy（桌面自动化智能体）",
+  "github": "https://github.com/babygoton/WorkDaddy",
+  "homepage": "",
+  "description": "WorkDaddy 是一个可以控制 Windows 桌面的 AI 自动化 Agent，通过 GUI 操作自动完成日常办公与桌面任务。它结合视觉理解与操作执行，像人一样点击、输入、切换窗口，把自然语言指令变成桌面上的实际动作。",
+  "summary": "可控制 Windows 桌面的 AI 自动化 Agent，直接进行 GUI 操作。",
+  "license": "—",
+  "stars": "970",
+  "forks": "97",
+  "language": "JavaScript",
+  "rating": 5,
+  "category": "AI 智能体与框架",
+  "tags": [
+    "desktop-automation",
+    "gui-agent",
+    "windows",
+    "computer-use",
+    "ai-agent"
+  ],
+  "features": [
+    "Windows 桌面控制：直接在 GUI 上点击、输入、拖拽、切换窗口",
+    "视觉理解：截图 + 大模型识别界面元素并定位操作目标",
+    "自然语言任务：用一句话描述办公 / 桌面任务，自动分步执行",
+    "办公自动化：适用于文件整理、表单填报、软件操作等重复工作",
+    "本地运行：在用户本机 Windows 环境内完成操作"
+  ],
+  "integrations": [
+    [
+      "Windows",
+      "运行于 Windows 桌面环境，控制本地 GUI 应用"
+    ],
+    [
+      "大模型",
+      "依赖视觉 / 语言模型做界面理解与决策"
+    ]
+  ],
+  "install": [
+    {
+      "title": "从源码运行（Windows）",
+      "lang": "bash",
+      "code": "git clone https://github.com/babygoton/WorkDaddy.git\ncd WorkDaddy\npip install -r requirements.txt\npython main.py"
+    }
+  ],
+  "usage": [
+    {
+      "title": "执行桌面任务（示例）",
+      "lang": "bash",
+      "code": "python main.py \\\n  --task \"打开记事本，输入今天的待办清单并保存为 todo.txt\""
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "slug": "oh-story-claudecode",
+  "name": "OH-Story for Claude Code",
+  "github": "https://github.com/zenstory-ai/oh-story-claudecode",
+  "homepage": "",
+  "description": "zenstory 出品的 Claude Code 故事化 prompt 工具，把复杂的开发任务改写成结构化的“故事”叙事，从而提升 Agent 的理解与执行表现。通过角色、场景与目标的故事化表达，让 Claude Code 在长链路任务中保持上下文一致性与目标感。",
+  "summary": "将任务写成“故事”以提升 Claude Code Agent 表现的 prompt 工具。",
+  "license": "MIT",
+  "stars": "6.9k",
+  "forks": "977",
+  "language": "JavaScript",
+  "rating": 5,
+  "category": "AI 智能体与框架",
+  "tags": [
+    "claude-code",
+    "prompt-engineering",
+    "agent",
+    "storytelling",
+    "zenstory"
+  ],
+  "features": [
+    "任务故事化 prompt 模板",
+    "提升 Claude Code 长任务表现",
+    "结构化的角色/场景/目标叙事",
+    "即插即用的 Agent 工作流增强"
+  ],
+  "install": [
+    {
+      "title": "克隆仓库",
+      "lang": "bash",
+      "code": "git clone https://github.com/zenstory-ai/oh-story-claudecode.git\ncd oh-story-claudecode"
+    }
+  ],
+  "usage": [
+    {
+      "title": "按故事模板编写任务",
+      "lang": "bash",
+      "code": "cat story-template.md   # 参考模板将你的任务改写为故事，再粘贴到 Claude Code 中执行"
+    }
+  ]
+}

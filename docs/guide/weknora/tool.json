@@ -1,0 +1,51 @@
+{
+  "slug": "weknora",
+  "name": "WeKnora（腾讯知识图谱与 RAG 框架）",
+  "github": "https://github.com/Tencent/WeKnora",
+  "homepage": "",
+  "description": "WeKnora 是腾讯开源的知识图谱构建与检索增强生成（RAG）框架，帮助开发者从多源数据中抽取实体与关系、构建知识图谱，并基于此提供可解释、可溯源的问答能力。它面向企业级知识管理与智能问答场景，降低大模型幻觉、提升回答可信度。",
+  "summary": "腾讯开源的知识图谱构建与 RAG 框架。",
+  "license": "—",
+  "stars": "23k",
+  "forks": "3.3k",
+  "language": "Go",
+  "rating": 5,
+  "category": "知识与记忆",
+  "tags": [
+    "knowledge-graph",
+    "rag",
+    "llm",
+    "tencent",
+    "open-source"
+  ],
+  "features": [
+    "多源数据抽取，自动构建实体-关系知识图谱",
+    "图谱增强的检索增强生成（GraphRAG），回答可溯源",
+    "降低大模型幻觉，提升企业问答的可信度与可解释性",
+    "模块化架构，便于接入自有数据与模型",
+    "面向企业知识管理、智能客服等场景"
+  ],
+  "install": [
+    {
+      "title": "从源码克隆安装",
+      "lang": "bash",
+      "code": "git clone https://github.com/Tencent/WeKnora.git\ncd WeKnora\npip install -e ."
+    },
+    {
+      "title": "查看最新安装说明",
+      "lang": "bash",
+      "code": "访问仓库 README 获取依赖与启动脚本：https://github.com/Tencent/WeKnora"
+    }
+  ],
+  "usage": [
+    {
+      "title": "典型流程",
+      "lang": "bash",
+      "code": "参照仓库示例，载入文档 -> 抽取图谱 -> 启动图谱 RAG 问答服务"
+    }
+  ],
+  "notes": [
+    "具体命令以官方仓库最新 README 为准，版本迭代较快",
+    "适合需要可解释、可溯源回答的知识密集型应用"
+  ]
+}

@@ -1,0 +1,129 @@
+<header class="site-header">
+  <div class="wrap site-header__inner">
+    <a class="site-header__brand" href="./index.html"><span class="site-header__dot"></span>站点标题</a>
+    <span class="site-header__sub">一句话副标题</span>
+    <span class="spacer"></span>
+    <div class="search">
+      <span class="search__icon">🔍</span>
+      <input type="search" placeholder="搜索…" data-filter-input aria-label="搜索">
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="hero">
+    <span class="hero__eyebrow">✦ Eyebrow</span>
+    <h1>小清新 · 现代 HTML 模板</h1>
+    <p class="hero__lead">这是一份自包含的设计模板：零外部依赖、内联样式与脚本、跟随系统深浅色、打印友好。把它当作所有生成型 HTML 页面的视觉基线。</p>
+    <div class="badges hero__meta">
+      <span class="badge badge--brand">薄荷青 · 主色</span>
+      <span class="badge badge--sky">天蓝 · 辅色</span>
+      <span class="badge badge--gold">琥珀 · 强调</span>
+      <span class="badge badge--muted">中性</span>
+    </div>
+  </section>
+
+  <div class="stats">
+    <div class="stat"><div class="stat__num">30</div><div class="stat__label">条目总数</div></div>
+    <div class="stat"><div class="stat__num">9</div><div class="stat__label">分类</div></div>
+    <div class="stat"><div class="stat__num">12</div><div class="stat__label">强烈推荐</div></div>
+    <div class="stat"><div class="stat__num">0</div><div class="stat__label">外部依赖</div></div>
+  </div>
+
+  <div class="row" style="margin-bottom:22px">
+    <div class="pills">
+      <button class="pill is-active" type="button" data-filter-chip="" aria-pressed="true">全部 <span class="pill__count">4</span></button>
+      <button class="pill" type="button" data-filter-chip="a" aria-pressed="false">分类 A <span class="pill__count">2</span></button>
+      <button class="pill" type="button" data-filter-chip="b" aria-pressed="false">分类 B <span class="pill__count">2</span></button>
+    </div>
+    <span class="spacer"></span>
+  </div>
+
+  <div class="grid" data-filter-group>
+    <a class="card rise" href="#" data-filter-item data-filter-cat="a" data-filter-text="卡片 卡片标题 示例">
+      <h3 class="card__title">卡片标题</h3>
+      <div class="rating">★★★★★<span class="rating__num">5.0</span></div>
+      <p class="card__desc">卡片描述文案，两到三行说明这个条目的价值与用途。</p>
+      <div class="card__meta">
+        <span class="badge badge--lilac">分类 A</span>
+        <span class="badge badge--muted">标签</span>
+      </div>
+      <span class="card__cta">查看详情 →</span>
+    </a>
+    <a class="card rise" href="#" data-filter-item data-filter-cat="a" data-filter-text="第二张卡片 演示">
+      <h3 class="card__title">第二张卡片</h3>
+      <p class="card__desc">悬停时上浮 3px，顶部出现渐变高光条。</p>
+      <div class="card__meta"><span class="badge badge--lilac">分类 A</span></div>
+      <span class="card__cta">查看详情 →</span>
+    </a>
+    <a class="card rise" href="#" data-filter-item data-filter-cat="b" data-filter-text="第三张卡片 演示">
+      <h3 class="card__title">第三张卡片</h3>
+      <p class="card__desc">网格自适应：最小 288px，窄屏自动单列。</p>
+      <div class="card__meta"><span class="badge badge--sky">分类 B</span></div>
+      <span class="card__cta">查看详情 →</span>
+    </a>
+    <a class="card rise" href="#" data-filter-item data-filter-cat="b" data-filter-text="第四张卡片 演示">
+      <h3 class="card__title">第四张卡片</h3>
+      <p class="card__desc">搜索框与分类胶囊可直接过滤本网格。</p>
+      <div class="card__meta"><span class="badge badge--sky">分类 B</span></div>
+      <span class="card__cta">查看详情 →</span>
+    </a>
+  </div>
+
+  <div class="empty" data-filter-empty hidden>
+    <div class="empty__title">没有匹配的条目</div>
+    <div>换个关键词，或点「全部」重置筛选。</div>
+  </div>
+
+  <section class="section" style="margin-top:22px">
+    <h2 class="sec-title">区块标题</h2>
+    <p>正文段落。行高 1.72，段间距 12px，中文阅读友好。行内代码写作 <code>node script.mjs</code>。</p>
+
+    <h3>无序列表</h3>
+    <ul class="list">
+      <li>自定义薄荷圆点，带柔和光晕。</li>
+      <li>列表项间距 7px，颜色用次级墨色。</li>
+    </ul>
+
+    <h3>有序步骤</h3>
+    <ol class="list">
+      <li>第一步：准备数据。</li>
+      <li>第二步：运行脚本渲染。</li>
+      <li>第三步：打开 HTML 校验。</li>
+    </ol>
+  </section>
+
+  <section class="section">
+    <h2 class="sec-title">表格</h2>
+    <div class="table-wrap">
+      <table class="tbl">
+        <thead><tr><th>形态</th><th>说明</th><th>适用</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">CLI</th><td>命令行直接调用</td><td>本地、CI</td></tr>
+          <tr><th scope="row">MCP</th><td>作为 MCP Server 接入</td><td>Agent 宿主</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="sec-title">代码块</h2>
+    <div class="codeblk">
+      <div class="codeblk__bar">安装<span class="codeblk__lang">bash</span></div>
+      <pre><code>npm i -g example-tool
+example-tool --help</code></pre>
+    </div>
+
+    <div class="callout callout--tip"><span class="callout__icon">🌿</span><p>提示框：用于最佳实践与推荐路径。</p></div>
+    <div class="callout callout--info"><span class="callout__icon">💧</span><p>信息框：用于中性说明。</p></div>
+    <div class="callout callout--warn"><span class="callout__icon">⚠️</span><p>警告框：用于注意事项与坑。</p></div>
+  </section>
+
+</main>
+
+<button class="to-top" type="button" aria-label="返回顶部">↑</button>
+
+<footer class="site-footer">
+  <div class="wrap">由统一 HTML 设计模板生成 · 小清新主题</div>
+</footer>

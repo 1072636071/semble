@@ -1,0 +1,110 @@
+{
+  "slug": "agent-browser",
+  "name": "agent-browser",
+  "github": "https://github.com/vercel-labs/agent-browser",
+  "homepage": "https://agent-browser.dev",
+  "description": "面向 AI 代理的浏览器自动化 CLI。原生 Rust 编写，快速，通过快照+引用范式做确定性元素定位。",
+  "license": "Apache-2.0",
+  "stars": "42.5k",
+  "forks": "2.8k",
+  "language": "Rust",
+  "rating": 5,
+  "tags": [
+    "browser-automation",
+    "agent",
+    "mcp",
+    "cli"
+  ],
+  "summary": "面向 AI 代理的浏览器自动化 CLI（原生 Rust），快照+引用范式做确定性元素定位。",
+  "features": [
+    "原生 Rust CLI，快速；默认 Chrome for Testing，也可 CDP 连接已有浏览器 / Electron / WebView",
+    "快照+引用（snapshot refs）：生成无障碍树快照并分配 @eN 引用，AI 精准交互，无需反复查 DOM",
+    "语义定位器：ARIA role / 文本 / label，以及传统 CSS / XPath 选择器",
+    "多会话隔离、标签页 / 窗口管理、网络拦截与 HAR 录制",
+    "Cookie / 本地存储管理、Auth Vault 身份验证保管库、Chrome 配置复用",
+    "React 组件内省、Web Vitals 指标、axe-core 无障碍审计",
+    "原生 MCP stdio 服务器（agent-browser mcp），供 Claude Code / Cursor 等 MCP 客户端调用",
+    "守护进程架构（Client-Daemon），空闲自动退出；batch 批处理降低进程启动开销",
+    "云浏览器集成（Browserbase / Browserless 等）、插件系统、AI Chat 自然语言控制、实时观测仪表板"
+  ],
+  "integrations": [
+    [
+      "CLI",
+      "agent-browser 命令，本地直接控制浏览器"
+    ],
+    [
+      "MCP Server",
+      "agent-browser mcp，stdio 模式供 MCP 客户端调用"
+    ],
+    [
+      "AI 助手技能",
+      "npx skills add vercel-labs/agent-browser"
+    ],
+    [
+      "云浏览器",
+      "-p 或环境变量接入 Browserbase / Browserless 等"
+    ]
+  ],
+  "install": [
+    {
+      "title": "npm 全局安装（推荐）",
+      "lang": "bash",
+      "code": "npm install -g agent-browser\nagent-browser install   # 首次下载 Chrome for Testing"
+    },
+    {
+      "title": "Homebrew（macOS）",
+      "lang": "bash",
+      "code": "brew install agent-browser\nagent-browser install"
+    },
+    {
+      "title": "Cargo（Rust）",
+      "lang": "bash",
+      "code": "cargo install agent-browser\nagent-browser install"
+    },
+    {
+      "title": "AI 助手技能",
+      "lang": "bash",
+      "code": "npx skills add vercel-labs/agent-browser"
+    },
+    {
+      "title": "从源码构建",
+      "lang": "bash",
+      "code": "git clone https://github.com/vercel-labs/agent-browser\ncd agent-browser\npnpm install && pnpm build && pnpm build:native\npnpm link --global\nagent-browser install"
+    }
+  ],
+  "usage": [
+    {
+      "title": "快速开始",
+      "lang": "bash",
+      "code": "agent-browser open example.com\nagent-browser snapshot                    # 获取带 refs 的无障碍树\nagent-browser click @e2                     # 按 ref 点击\nagent-browser fill @e3 \"test@example.com\"  # 按 ref 填充\nagent-browser get text @e1\nagent-browser screenshot page.png\nagent-browser close"
+    },
+    {
+      "title": "最优 AI 工作流",
+      "lang": "bash",
+      "code": "agent-browser open example.com\nagent-browser snapshot -i --json   # AI 解析树与 refs\nagent-browser click @e2\nagent-browser fill @e3 \"input text\"\nagent-browser snapshot -i --json   # 页面变化后重新快照"
+    },
+    {
+      "title": "MCP 服务器",
+      "lang": "bash",
+      "code": "agent-browser mcp\nagent-browser mcp --tools all\nagent-browser mcp --tools core,network,react"
+    },
+    {
+      "title": "MCP 客户端配置",
+      "lang": "json",
+      "code": "{\n  \"mcpServers\": {\n    \"agent-browser\": {\n      \"command\": \"agent-browser\",\n      \"args\": [\"mcp\"]\n    }\n  }\n}"
+    },
+    {
+      "title": "批量执行",
+      "lang": "bash",
+      "code": "agent-browser batch \"open https://example.com\" \"snapshot -i\" \"screenshot\"\nagent-browser batch --bail \"open https://example.com\" \"click @e1\" \"screenshot\""
+    }
+  ],
+  "notes": [
+    "快照引用（@eN）让 AI 确定性定位元素，避免反复查 DOM；-i 仅交互元素、-c 紧凑、-d 深度限制、-s CSS 范围",
+    "守护进程架构：首次命令自动启动，默认空闲 1 小时自动保存状态退出（--idle-timeout 可调）",
+    "多会话隔离：--session agent1 / agent2 各自独立",
+    "AI Chat：agent-browser chat \"打开 google 搜索 cats\"（单发）或 REPL 交互",
+    "实时观测：agent-browser dashboard start（默认端口 4848）"
+  ],
+  "category": "浏览器自动化"
+}

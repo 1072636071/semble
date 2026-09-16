@@ -1,0 +1,86 @@
+{
+  "slug": "open-webui",
+  "name": "Open WebUI",
+  "github": "https://github.com/open-webui/open-webui",
+  "description": "Open WebUI 是一个功能丰富的自托管 AI 界面，支持 Ollama 和 OpenAI 兼容 API，内置 RAG、多模型对话、图像生成、RBAC 权限管理、插件系统。",
+  "license": "—",
+  "stars": "152k",
+  "language": "Python",
+  "rating": 5,
+  "tags": [
+    "self-hosted",
+    "ai-interface",
+    "rag",
+    "ollama",
+    "llm",
+    "rbac"
+  ],
+  "summary": "功能丰富的自托管 AI 界面，支持 Ollama 与 OpenAI 兼容 API，内置 RAG、多模型对话与 RBAC 权限管理。",
+  "features": [
+    "自托管 AI 界面，支持 Ollama 与 OpenAI 兼容 API",
+    "RAG：上传文档自动向量化，对话中检索注入",
+    "多模型对话：同一对话中调度多个模型",
+    "插件系统：MCP / MCPO / OpenAPI 工具服务器",
+    "RBAC：用户角色、群组、权限与 API Key 管理",
+    "管道：输入/输出过滤器与审批流",
+    "Web 搜索集成：SearXNG、Brave、Google PSE 等",
+    "图像生成与本地语音（Whisper + TTS 多引擎）"
+  ],
+  "integrations": [
+    [
+      "Docker",
+      "ghcr.io 镜像，与 Ollama 同机或内置 Ollama 部署"
+    ],
+    [
+      "pip",
+      "pip install open-webui 后 open-webui serve"
+    ],
+    [
+      "MCP",
+      "设置 → MCP 服务器，添加工具服务器"
+    ],
+    [
+      "Web 搜索",
+      "SearXNG / Brave / Google PSE 集成"
+    ],
+    [
+      "权限与 API",
+      "RBAC 角色群组 + 生成 API Key 供外部集成"
+    ]
+  ],
+  "install": [
+    {
+      "title": "Docker（推荐）",
+      "lang": "bash",
+      "code": "docker run -d -p 3000:8080 \\\n  --add-host=host.docker.internal:host-gateway \\\n  -v open-webui:/app/backend/data \\\n  --name open-webui --restart always \\\n  ghcr.io/open-webui/open-webui:main"
+    },
+    {
+      "title": "pip 安装",
+      "lang": "bash",
+      "code": "pip install open-webui\nopen-webui serve\n# 访问 http://localhost:3000"
+    }
+  ],
+  "usage": [
+    {
+      "title": "连接模型",
+      "lang": "text",
+      "code": "Ollama 模型自动发现；在设置中添加 OpenAI、Anthropic、Gemini 等 API Key；支持 LMStudio、GroqCloud、OpenRouter 等任意 OpenAI 兼容端点。"
+    },
+    {
+      "title": "RAG 知识库使用",
+      "lang": "text",
+      "code": "工作区 → 知识库 → 上传文件（PDF、DOCX、TXT、代码）\n对话中输入 # 选择知识库，自动检索相关内容注入上下文。"
+    },
+    {
+      "title": "MCP 服务器配置",
+      "lang": "json",
+      "code": "{\n  \"name\": \"filesystem\",\n  \"url\": \"http://localhost:3001/mcp\"\n}"
+    }
+  ],
+  "notes": [
+    "默认容器内端口 8080，示例映射到宿主机 3000",
+    "权限管理：角色（管理员/编辑/查看者）、群组、API Key 外部集成"
+  ],
+  "homepage": "https://openwebui.com",
+  "category": "AI 平台与推理"
+}

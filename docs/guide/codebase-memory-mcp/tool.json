@@ -1,0 +1,83 @@
+{
+  "slug": "codebase-memory-mcp",
+  "name": "codebase-memory-mcp",
+  "github": "https://github.com/DeusData/codebase-memory-mcp",
+  "description": "高性能代码智能 MCP 服务器。将代码库索引为持久化知识图谱，支持 158 种语言、亚毫秒查询、约 99% 更少 token 消耗。单一静态二进制，零依赖。",
+  "license": "MIT",
+  "stars": "20k",
+  "language": "C",
+  "rating": 5,
+  "tags": [
+    "mcp",
+    "codebase",
+    "knowledge-graph"
+  ],
+  "summary": "高性能代码智能 MCP 服务器：代码库→知识图谱，158 语言、亚毫秒查询。",
+  "features": [
+    "158 种语言 tree-sitter AST 解析，编译进单一静态二进制，零依赖",
+    "亚毫秒级查询，代码审查/Agent 场景 token 消耗降低约 99%",
+    "Hybrid LSP：Python/TS/JS/Go/C/C++/Java/Rust/Kotlin/C#/PHP 的类型解析",
+    "跨服务链接：HTTP/gRPC/GraphQL 路由识别；跨仓库智能（CROSS_* 边）",
+    "内置 3D 图谱可视化（localhost:9749）",
+    "自动检测 11 种 Agent：Claude Code、Codex、Gemini CLI、OpenCode、Cursor、Windsurf 等",
+    "团队共享图谱：提交 .codebase-memory/graph.db.zst 到仓库，队友免重新索引"
+  ],
+  "integrations": [
+    [
+      "CLI",
+      "codebase-memory-mcp cli ... 直接查询图谱"
+    ],
+    [
+      "MCP Server",
+      "14 个工具（index_repository / search_graph / trace_path / query_graph ...）"
+    ],
+    [
+      "Agent 配置",
+      "opencode.json 的 mcpServers 中注册"
+    ],
+    [
+      "图谱 UI",
+      "--ui 安装带可视化界面"
+    ]
+  ],
+  "install": [
+    {
+      "title": "一键安装（macOS / Linux）",
+      "lang": "bash",
+      "code": "curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash\n# 带图谱可视化 UI：\ncurl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash -s -- --ui"
+    },
+    {
+      "title": "Windows（PowerShell）",
+      "lang": "powershell",
+      "code": "Invoke-WebRequest -Uri https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.ps1 -OutFile install.ps1\n.\\install.ps1"
+    },
+    {
+      "title": "通过 Claude Code 安装",
+      "lang": "text",
+      "code": "帮我安装这个 MCP 服务器：https://github.com/DeusData/codebase-memory-mcp\n# 重启 Agent，说 \"Index this project\" 即可"
+    }
+  ],
+  "usage": [
+    {
+      "title": "在 opencode.json 中配置",
+      "lang": "json",
+      "code": "{\n  \"mcpServers\": {\n    \"codebase-memory-mcp\": {\n      \"command\": \"C:\\\\path\\\\to\\\\codebase-memory-mcp.exe\",\n      \"args\": []\n    }\n  }\n}"
+    },
+    {
+      "title": "CLI 查询",
+      "lang": "bash",
+      "code": "codebase-memory-mcp cli search_graph '{\"name_pattern\": \".*Handler.*\"}'\ncodebase-memory-mcp cli list_projects\ncodebase-memory-mcp cli --raw query_graph '{\"query\": \"MATCH (f:Function) RETURN f.name LIMIT 5\"}'"
+    },
+    {
+      "title": "MCP 工具（部分）",
+      "lang": "text",
+      "code": "index_repository  索引代码库到知识图谱\nsearch_graph      按标签/名称/文件等结构化搜索\ntrace_path        BFS 调用链路追踪（谁调了谁）\nquery_graph       Cypher 查询\ndetect_changes    Git diff 影响范围分析\nmanage_adr        架构决策记录（ADR）管理"
+    }
+  ],
+  "notes": [
+    "性能：Linux 内核全量索引（28M LOC, 75K 文件）约 3 分钟；Cypher 查询 <1ms",
+    "单一静态二进制，零运行时依赖，跨平台（macOS / Linux / Windows）",
+    "团队共享：提交 .codebase-memory/graph.db.zst，队友免重新索引"
+  ],
+  "category": "知识与记忆"
+}

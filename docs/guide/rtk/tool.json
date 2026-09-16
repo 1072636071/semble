@@ -1,0 +1,76 @@
+{
+  "slug": "rtk",
+  "name": "RTK（Reduced Token Kit）",
+  "github": "",
+  "description": "命令行输出精简器，自动过滤进度条、重复日志、模板代码，仅保留关键信息。在 git status、npm test 等命令上可节省 75%–90% Token，启动开销低于 10ms，完全无感接入。",
+  "license": "—",
+  "stars": "—",
+  "language": "Rust",
+  "rating": 5,
+  "tags": [
+    "token-saving",
+    "cli",
+    "shell-hook",
+    "filter"
+  ],
+  "summary": "命令行输出精简器：过滤进度条/重复日志/模板代码，git status、npm test 省 75%–90% Token，启动 <10ms。",
+  "features": [
+    "极致精简：自动过滤进度条、重复日志、模板代码，仅保留关键信息",
+    "高效无感：git status、npm test 等命令节省 75%–90% Token，启动开销低于 10ms",
+    "管道接入：任意命令经 | rtk 即可精简输出",
+    "Shell Hook：支持 PowerShell / Bash / Zsh 自动接入，无需手动包裹",
+    "自定义规则：~/.rtkrc.toml 用正则配置过滤与保留模式"
+  ],
+  "integrations": [
+    [
+      "CLI 管道",
+      "cmd | rtk 精简任意文本输出"
+    ],
+    [
+      "Shell Hook",
+      "rtk hook <shell> 生成 PowerShell/Bash/Zsh 脚本自动接入"
+    ],
+    [
+      "AI 工具预处理器",
+      "在 Shell 配置中将 command 设为 rtk 作输出预处理器"
+    ],
+    [
+      "配置与统计",
+      "rtk config 编辑规则；rtk stats 查看已节省 Token 数"
+    ]
+  ],
+  "install": [
+    {
+      "title": "cargo 安装（需 Rust 1.70+）",
+      "lang": "bash",
+      "code": "cargo install rtk\nrtk --version   # rtk 0.1.0"
+    }
+  ],
+  "usage": [
+    {
+      "title": "基础精简",
+      "lang": "bash",
+      "code": "# 精简命令输出\ngit status | rtk\nnpm test 2>&1 | rtk\n\n# 直接管道压缩任意文本\ncat long-output.txt | rtk"
+    },
+    {
+      "title": "Shell Hook 自动接入（Bash / Zsh）",
+      "lang": "bash",
+      "code": "eval \"$(rtk hook bash)\""
+    },
+    {
+      "title": "Shell Hook 自动接入（PowerShell）",
+      "lang": "powershell",
+      "code": "Invoke-Expression (&{rtk hook powershell})"
+    },
+    {
+      "title": "AI 工具预处理器配置",
+      "lang": "json",
+      "code": "{\n  \"shell\": {\n    \"command\": \"cmd.exe\",\n    \"args\": [\"/c\", \"rtk\"]\n  }\n}"
+    }
+  ],
+  "notes": [
+    "~/.rtkrc.toml 可配置 max_lines、strip_patterns（进度条/时间戳）、keep_patterns（error/warning/FAIL）",
+    "Windows 安装后二进制位于 %USERPROFILE%\\.cargo\\bin\\rtk.exe"
+  ],
+  "category": "上下文与 Token 优化"
+}

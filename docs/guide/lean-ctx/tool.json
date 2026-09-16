@@ -1,0 +1,131 @@
+{
+  "slug": "lean-ctx",
+  "name": "lean-ctx（LeanCTX）",
+  "github": "https://github.com/yvgude/lean-ctx",
+  "homepage": "https://leanctx.com",
+  "description": "LeanCTX（Lean Context）是一个本地优先、模型无关的 AI 编码代理上下文运行时（定位语：Control what your AI can see）。它并行于你的编码代理运行，在「读取路径」上通过 MCP 工具与 Shell Hook 压缩/缓存上下文，在「传输路径」上可选通过本地代理压缩每一次模型请求；并承担理解任务、路由正确上下文、压缩发送内容、追踪成本与结果五大职责，适合中大型仓库、频繁切换项目、多任务并行的开发者。",
+  "license": "Apache-2.0",
+  "stars": "3k+",
+  "forks": "280+",
+  "language": "Rust",
+  "rating": 5,
+  "tags": [
+    "context-runtime",
+    "ai-agent",
+    "token-saving",
+    "context-engineering",
+    "mcp",
+    "shell-hook",
+    "compression",
+    "proxy"
+  ],
+  "summary": "本地优先的 AI 编码代理上下文运行时：压缩/缓存/路由上下文，并追踪 token 成本与结果（Control what your AI can see）。",
+  "features": [
+    "上下文压缩：10 种文件读取模式（full / map / signatures / diff / lines:N-M / density:X …），缓存重读仅 ~13 tokens；Shell 输出 95+ 压缩模板覆盖 git/npm/cargo/docker/kubectl/terraform（270 条直通规则）；Tree-sitter AST 支持 27 种语言；压缩可逆（CCR，剪枝内容进内容寻址存储，可 ctx_expand 恢复）",
+    "智能分诊：ModePredictor 按文件类型学习最优读取模式；IntentEngine 对查询复杂度分类，简单查询低成本",
+    "知识路由：会话记忆（CCP）跨聊天持久化任务/事实/决策；知识图谱（时间事实/情景/程序记忆）；属性图（imports/calls/exports/type_ref）；可导出 .ctxpkg 便携包",
+    "AI 价值网关：浏览器实时 token/压缩仪表盘；按角色/代理预算与节流；Context Proof（ctx_proof/ctx_verify 四层验证 + CI 漂移门）",
+    "影子推荐：Shadow Mode 对比基线，给出成本/CPAO/质量报告与节省建议",
+    "双平面架构：读取路径（MCP 工具 + Shell Hook）负责压缩与缓存；传输路径（可选本地代理）压缩每一次请求，prompt-cache 安全且可固定推理强度"
+  ],
+  "integrations": [
+    [
+      "Shell Hook（读取路径）",
+      "透明压缩 git/npm/cargo/docker 等常见命令输出，LLM 看到更少噪声；lean-ctx -c \"git status\" 压缩执行，--raw 可绕过"
+    ],
+    [
+      "MCP Server（读取路径）",
+      "标准 MCP 协议暴露 ctx_* 工具族（读取/缓存/增量/搜索/记忆/多代理/重构/验证等），如 ctx_url_read、ctx_refactor、ctx_agent、ctx_handoff、ctx_expand、ctx_retrieve、ctx_proof、ctx_verify、ctx_knowledge、ctx_callgraph"
+    ],
+    [
+      "Proxy 代理（传输路径，可选）",
+      "lean-ctx proxy enable 本地代理压缩每次请求（prompt-cache 安全），可固定推理强度 proxy.effort；Claude Pro/Max 因 OAuth 不重定向，仅启用 ctx_* 工具"
+    ],
+    [
+      "配置",
+      "全局 ~/.config/lean-ctx/config.toml；项目根 .lean-ctx.toml 自动合并覆盖；Docker 场景用 .lean-ctx-id 区分唯一名"
+    ],
+    [
+      "一键接入",
+      "lean-ctx init --agent <name>（支持 Cursor/Claude Code/Codex/Gemini/Windsurf/Copilot/Neovim/Emacs/Zed/CodeBuddy 等 30+ 代理）/ lean-ctx onboard / lean-ctx setup"
+    ]
+  ],
+  "install": [
+    {
+      "title": "通用安装（无需 Rust）",
+      "lang": "bash",
+      "code": "# 官方一键脚本，自动装好二进制与 shell hooks\ncurl -fsSL https://leanctx.com/install.sh | sh"
+    },
+    {
+      "title": "macOS / Linux（Homebrew）",
+      "lang": "bash",
+      "code": "brew tap yvgude/lean-ctx && brew install lean-ctx"
+    },
+    {
+      "title": "Node.js",
+      "lang": "bash",
+      "code": "npm install -g lean-ctx-bin"
+    },
+    {
+      "title": "Rust（cargo）",
+      "lang": "bash",
+      "code": "cargo install lean-ctx"
+    },
+    {
+      "title": "Windows 源码构建",
+      "lang": "powershell",
+      "code": "# 克隆仓库后，在 PowerShell 运行（构建 release 二进制并装入 Cargo bin）\n./install.ps1\n# 仅构建不安装：./install.ps1 -BuildOnly\n\n# 升级到最新版（自动刷新 shell hooks）\nlean-ctx update"
+    },
+    {
+      "title": "MCP Server 接入（AI 工具配置）",
+      "lang": "json",
+      "code": "{\n  \"mcpServers\": {\n    \"lean-ctx\": {\n      \"command\": \"lean-ctx\",\n      \"args\": [\"mcp\"]\n    }\n  }\n}"
+    }
+  ],
+  "usage": [
+    {
+      "title": "文件智能读取（10 种模式）",
+      "lang": "bash",
+      "code": "# 读取模式：full / map / signatures / diff / lines:N-M / density:X\nlean-ctx read src/server.rs -m map          # API 表面映射（压缩 ~98%）\nlean-ctx read src/server.rs -m signatures   # AST 签名 + 行跨度\nlean-ctx read src/server.rs -m diff         # 差异视图\nlean-ctx read src/server.rs -m density:0.4  # 保留高熵行至 ~40% token\nlean-ctx read src/server.rs -m lines:100-200 # JIT 按需展开\n# 已缓存文件重读仅需 ~13 tokens"
+    },
+    {
+      "title": "Shell 输出压缩",
+      "lang": "bash",
+      "code": "lean-ctx -c \"git status\"     # 透明压缩命令输出后喂给 LLM\nlean-ctx -c --raw \"git status\" # 单条命令跳过压缩"
+    },
+    {
+      "title": "一键包装代理（wrap）",
+      "lang": "bash",
+      "code": "lean-ctx wrap cursor     # 为某代理配置代理重定向 + ctx_* 工具\nlean-ctx wrap claude     # Claude Code 仅启用 ctx_* 工具（无 OAuth 重定向）\nlean-ctx unwrap cursor   # 撤销"
+    },
+    {
+      "title": "知识 / 调用图",
+      "lang": "bash",
+      "code": "lean-ctx overview                       # 会话/知识总览\nlean-ctx knowledge recall \"auth\"          # 召回相关知识\nlean-ctx knowledge consolidate --all      # 合并会话记忆\nlean-ctx graph impact src/auth.rs         # 影响面分析\nlean-ctx smells scan                       # 代码异味扫描"
+    },
+    {
+      "title": "成本与洞察",
+      "lang": "bash",
+      "code": "lean-ctx savings --period week              # 审计账本：本周节省\nlean-ctx value-report --format markdown --last 20\nlean-ctx shadow --latest                   # 影子模式对比报告\nlean-ctx gain --live                       # 实时增益\nlean-ctx dashboard                         # 浏览器仪表盘\nlean-ctx watch                             # TUI 监控"
+    },
+    {
+      "title": "上下文工程 / 打包 / 代理",
+      "lang": "bash",
+      "code": "lean-ctx plan \"refactor billing\" --budget 8000   # 预算内规划\nlean-ctx compile --mode balanced\nlean-ctx pack --pr                                 # 打包为 PR 上下文\nlean-ctx snapshot create|list|show|verify|restore|publish|import\nlean-ctx proxy enable                             # 传输路径压缩\nlean-ctx serve --root ./api --root ./web          # 多仓库 HTTP MCP\nlean-ctx team serve --config team.toml"
+    },
+    {
+      "title": "诊断与生命周期",
+      "lang": "bash",
+      "code": "lean-ctx doctor                 # 自检\nlean-ctx doctor --fix           # 自动修复\nlean-ctx doctor overhead --gate # 开销门禁\nlean-ctx-off                    # 当前 shell 临时禁用\nlean-ctx uninstall --dry-run    # 卸载预览"
+    }
+  ],
+  "notes": [
+    "版本：当前最新 v3.10.1（2025-09 发布）；升级用 lean-ctx update（自动刷新 shell hooks），或 cargo/npm/brew 升级后跑 lean-ctx setup 刷新别名",
+    "本地优先、零遥测、模型无关：并行于 Cursor/Claude Code/Copilot/Codex/Gemini 等 30+ 代理运行；首次用 lean-ctx init --agent <name> 或 lean-ctx onboard 接入",
+    "收益取决于三要素：reach（命令覆盖）、context lifetime（缓存复用）、provider pricing；微小仓库、需原始日志、无 shell 调用的场景收益有限",
+    "Shell Hook 行为可用配置控制：shell_activation = \"agents-only\" 仅在 AI 会话激活；单条命令加 --raw 跳过压缩",
+    "扩展机制 Addons：签名 WASM 模块（SHA-256 校验），本地文件安装、无市场；输出默认标记 untrusted 并洗脱密钥",
+    "配置层级：全局 ~/.config/lean-ctx/config.toml，项目根 .lean-ctx.toml 自动合并（Docker 用 .lean-ctx-id 区分唯一名）；可用 LEAN_CTX_NO_UPDATE_CHECK=1 关闭更新检查"
+  ],
+  "category": "上下文与 Token 优化"
+}

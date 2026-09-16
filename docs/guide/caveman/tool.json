@@ -1,0 +1,41 @@
+{
+  "slug": "caveman",
+  "name": "caveman (极简输出模式)",
+  "github": "https://github.com/JuliusBrussee/caveman",
+  "homepage": "",
+  "description": "caveman 是一种极简输出 / 节省 token 的提示法（caveman mode）。它要求 AI 去掉客套、填充词与废话，只保留技术内容本身，从而降低上下文消耗、提升回答密度。非常适合在 token 受限或追求高效沟通的会话中使用。",
+  "summary": "极简输出、节省 token 的提示法，去掉废话只留技术内容",
+  "license": "—",
+  "stars": "105.4k",
+  "forks": "6.1k",
+  "language": "Go",
+  "rating": 5,
+  "category": "上下文与 Token 优化",
+  "tags": [
+    "prompt",
+    "token",
+    "minimal",
+    "context-optimization",
+    "efficiency"
+  ],
+  "features": [
+    "去除客套与填充词，仅保留技术内容",
+    "显著降低上下文 token 消耗",
+    "提升回答密度与可读性",
+    "可作为全局系统提示或会话前缀使用"
+  ],
+  "install": [
+    {
+      "title": "克隆仓库查看示例",
+      "lang": "bash",
+      "code": "git clone https://github.com/JuliusBrussee/caveman.git"
+    }
+  ],
+  "usage": [
+    {
+      "title": "在系统提示中加入 caveman 指令",
+      "lang": "bash",
+      "code": "echo 'Respond in caveman mode: no filler, only technical content.' >> .claude/settings.json"
+    }
+  ]
+}

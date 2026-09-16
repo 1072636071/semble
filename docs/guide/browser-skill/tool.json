@@ -1,0 +1,107 @@
+{
+  "slug": "browser-skill",
+  "name": "BrowserSkill",
+  "github": "https://github.com/Tencent/BrowserSkill",
+  "description": "让 AI 代理使用你真实已登录的浏览器，不打断你的工作。CLI + 浏览器扩展，跨任何支持 shell 的 AI Agent 做浏览器自动化。",
+  "license": "MIT",
+  "stars": "2.0k",
+  "forks": "154",
+  "language": "TypeScript",
+  "rating": 5,
+  "tags": [
+    "browser-automation",
+    "agent",
+    "browser-extension"
+  ],
+  "summary": "让 AI 代理复用你真实已登录的浏览器（CLI + 扩展），不打断你工作。",
+  "features": [
+    "复用真实登录态：Agent 可直接操作你已登录的站点，无需单独测试账号",
+    "不打断工作：浏览器任务跑在独立的、可见的 Agent Window，你仍可正常使用自己的浏览器",
+    "支持任意 Agent：只要能调用 shell 即可通过 bsk CLI 使用，不绑定特定模型 / 框架 / harness",
+    "内置 human-in-loop：遇到验证码、登录、确认弹窗等人-only 步骤，Agent 可请你接管，之后继续",
+    "本地桥接架构：Agent → bsk CLI → 本地 daemon → 扩展（WebSocket 127.0.0.1）→ Agent Window；永不直连浏览器",
+    "标签页借用（tab borrow）：显式借用在开的标签页，用完归还，其余浏览器不受影响",
+    "长截图：Quick actions 全页截图，或 bsk screenshot --full-page",
+    "内置 skill 教学：bsk install-skill 一键装进 Cursor / Claude Code / Codex / CodeBuddy / WorkBuddy 等",
+    "跨平台：macOS / Linux / Windows；Chrome、Edge 及 Chromium 系浏览器"
+  ],
+  "integrations": [
+    [
+      "CLI",
+      "bsk 命令 + 本地 daemon，Agent 通过 shell 调用"
+    ],
+    [
+      "浏览器扩展",
+      "Chrome Web Store / Microsoft Edge Add-ons"
+    ],
+    [
+      "AI Agent skill",
+      "bsk install-skill 装进各 harness（含 WorkBuddy）"
+    ],
+    [
+      "DeepSeek Harness 插件",
+      "@wxg-prc-cpg/browser-skill-dsh-plugin（注入 browser_* 工具）"
+    ]
+  ],
+  "install": [
+    {
+      "title": "让 Agent 自动安装（推荐）",
+      "lang": "text",
+      "code": "把这句话发给你的 Agent：\nSet up browser-skill on this machine by following https://raw.githubusercontent.com/Tencent/BrowserSkill/main/AGENT_INSTALL.md\n# Agent 会装好 CLI 与 skill，并引导你加载扩展"
+    },
+    {
+      "title": "CLI（macOS / Linux）",
+      "lang": "bash",
+      "code": "curl -fsSL https://raw.githubusercontent.com/Tencent/BrowserSkill/main/install.sh | sh\nbsk --version"
+    },
+    {
+      "title": "CLI（Windows PowerShell）",
+      "lang": "powershell",
+      "code": "irm https://raw.githubusercontent.com/Tencent/BrowserSkill/main/install.ps1 | iex\nbsk --version"
+    },
+    {
+      "title": "浏览器扩展",
+      "lang": "text",
+      "code": "从 Chrome Web Store 或 Microsoft Edge Add-ons 安装 BrowserSkill 扩展"
+    },
+    {
+      "title": "安装 skill 到 Agent",
+      "lang": "bash",
+      "code": "bsk install-skill   # 空格选择 harness，回车安装\nbsk install-skill --list   # 查看内置变体与安装路径"
+    },
+    {
+      "title": "DeepSeek Harness 插件",
+      "lang": "bash",
+      "code": "dsh plugin --profile web add @wxg-prc-cpg/browser-skill-dsh-plugin\ndsh --profile web"
+    }
+  ],
+  "usage": [
+    {
+      "title": "开始一个会话",
+      "lang": "bash",
+      "code": "bsk session start          # 启动 Agent Window 会话\nbsk session start --no-focus # 不抢焦点\nbsk session list --json\nbsk status\nbsk doctor"
+    },
+    {
+      "title": "在 Agent 里使用",
+      "lang": "text",
+      "code": "在支持 skill 的 harness 中，直接写需要浏览器的 prompt：\n/browser-skill open example.com and summarize what is on the page."
+    },
+    {
+      "title": "常用操作",
+      "lang": "bash",
+      "code": "bsk screenshot --session <id> --full-page --out page.png   # 长截图\n# Agent 通过 bsk CLI 调用：open / click / fill / get text / scroll ...\n# 需要人接管时：request-help（human-in-loop）"
+    },
+    {
+      "title": "沙箱 Agent 注意",
+      "lang": "bash",
+      "code": "export BSK_HOME=~/.bsk\n# 命令结束后会回收后台进程的沙箱 Agent：用持久宿主环境跑 daemon\n# 配合共享 BSK_HOME + BSK_AUTO_START=0\nexport BSK_AUTO_START=0"
+    }
+  ],
+  "notes": [
+    "架构：Agent 只跟 bsk CLI 通信，CLI → daemon → 扩展 → Agent Window；浏览器永不暴露给 Agent 直连",
+    "标签页借用需确认（扩展弹窗可关）；human-in-loop 开关在扩展 popup，默认开启",
+    "仓库为 Cargo + pnpm workspace：crates/bsk-cli（CLI+daemon）、apps/extension（扩展）、packages/dsh-plugin-browserskill（dsh 插件）",
+    "与 agent-browser 区别：BrowserSkill 复用你真实已登录浏览器、带扩展与 human-in-loop；agent-browser 是原生 Rust 的干净自动化 CLI"
+  ],
+  "category": "浏览器自动化"
+}
