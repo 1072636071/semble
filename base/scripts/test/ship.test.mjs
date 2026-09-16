@@ -235,9 +235,9 @@ test('未知选项报错非零退出', () => {
   assert.match(r.stderr, /未知选项/);
 });
 
-test('默认 vendors.json 声明 7 家、4 家有派生规则', () => {
+test('默认 vendors.json 声明 8 家、4 家有派生规则', () => {
   const real = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'vendors.json'), 'utf-8'));
-  assert.equal(Object.keys(real.vendors).length, 7);
+  assert.equal(Object.keys(real.vendors).length, 8);
   const deriveCount = Object.values(real.vendors).filter((v) => v.derive).length;
   assert.equal(deriveCount, 4);
 });

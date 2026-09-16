@@ -16,7 +16,12 @@ import {
   runToTickets,
   runResolveBlock,
   DEFAULT_STATUS,
+  resolveScratchRoot,
 } from '../issue-flow.mjs';
+import { fileURLToPath } from 'node:url';
+
+/** 仓库根（base/scripts/test/ → 上三级）。 */
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
 let tmp;
 let scratch;
@@ -184,4 +189,61 @@ test('runResolveBlock: 规范化 Blocked by 行并输出拓扑序（阻塞者在
 
 test('模块 DEFAULT_STATUS 导出正确', () => {
   assert.equal(DEFAULT_STATUS, 'ready-for-agent');
+});
+
+// ---------------------------------------------------------------- .scratch 根解析（回归：副本深度漂移）
+// 历史 bug：DEFAULT_SCRATCH 用 __dirname 相对常量，复制进技能 scripts/ 后 `../../` 落到
+// base/skills/engineering/，安装到 ~/.workbuddy/skills/<skill>/scripts/ 后落到 ~/.workbuddy/skills/。
+// 现场无报错（nextSeq 返回 01、writeFileSafe 自动建树），只在编号与路径上静默出错。
+
+test('resolveScratchRoot: 显式 root 优先，且相对 cwd 解析', () => {
+  assert.equal(resolveScratchRoot({ root: '.scratch', cwd: tmp }), path.join(tmp, '.scratch'));
+  assert.equal(
+    resolveScratchRoot({ root: 'custom/scratch', cwd: tmp }),
+    path.join(tmp, 'custom', 'scratch'),
+  );
+});
+
+test('resolveScratchRoot: 从任意子目录向上命中最近的 .git / .scratch', () => {
+  const repo = path.join(tmp, 'repo-x');
+  fs.mkdirSync(path.join(repo, '.git'), { recursive: true });
+  const deep = path.join(repo, 'a', 'b', 'c');
+  fs.mkdirSync(deep, { recursive: true });
+  assert.equal(resolveScratchRoot({ cwd: repo }), path.join(repo, '.scratch'));
+  assert.equal(resolveScratchRoot({ cwd: deep }), path.join(repo, '.scratch'), '深层子目录也要回到仓库根');
+});
+
+test('resolveScratchRoot: 找不到仓库标记时抛错，不静默返回脚本旁边的目录', () => {
+  // 必须落在「整条祖先链都没有 .git / .scratch」的空目录里——tmp 下已有 .scratch 夹具，
+  // 直接用它会让本用例提前命中标记而测不到抛错分支。
+  const bareRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'issue-flow-bare-'));
+  const bare = path.join(bareRoot, 'no-marker');
+  fs.mkdirSync(bare, { recursive: true });
+  assert.throws(() => resolveScratchRoot({ cwd: bare }), /\.git \/ \.scratch|--root/);
+});
+
+test('resolveScratchRoot: 技能脚本目录出发也回到仓库根 .scratch（历史 bug 场景）', () => {
+  const skillScripts = path.join(repoRoot, 'base', 'skills', 'engineering', 'jxx-to-spec', 'scripts');
+  assert.equal(resolveScratchRoot({ cwd: skillScripts }), path.join(repoRoot, '.scratch'));
+  assert.equal(resolveScratchRoot({ cwd: repoRoot }), path.join(repoRoot, '.scratch'));
+});
+
+test('issue-flow.mjs 三份副本字节一致，且不得再用 __dirname 锚定 .scratch', () => {
+  const src = path.join(repoRoot, 'base', 'scripts', 'issue-flow.mjs');
+  const copies = [
+    path.join(repoRoot, 'base', 'skills', 'engineering', 'jxx-to-spec', 'scripts', 'issue-flow.mjs'),
+    path.join(repoRoot, 'base', 'skills', 'engineering', 'jxx-to-tickets', 'scripts', 'issue-flow.mjs'),
+  ];
+  for (const copy of copies) {
+    assert.ok(fs.existsSync(copy), `副本缺失: ${copy}`);
+    assert.ok(
+      fs.readFileSync(src).equals(fs.readFileSync(copy)),
+      `副本与本源漂移，跑 node base/scripts/check-copies.mjs --fix 同步: ${copy}`,
+    );
+  }
+  assert.doesNotMatch(
+    fs.readFileSync(src, 'utf-8'),
+    /DEFAULT_SCRATCH\s*=\s*path\.join\(__dirname/,
+    '本源不得再用 __dirname 相对常量锚定 .scratch（副本深度会变）',
+  );
 });

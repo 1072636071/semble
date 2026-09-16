@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.2] - 2026-09-16
+
+### Changed
+
+- 文档内脚本调用统一改为 `node <本技能目录>/scripts/...`：原先写 `node scripts/detect-env.mjs` / `sync-docs.mjs`，只有把 cwd 切到技能目录才成立；agent 在目标项目里照抄会找不到脚本。脚本自身的写入目标（`references/upstream-status.md`）本来就锚定技能目录，无需改动。
+
 All notable changes to this agent skill will be documented in this file.
 
 ## [1.2.1] - 2026-09-01

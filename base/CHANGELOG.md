@@ -1,5 +1,25 @@
 # mattpocock-skills
 
+## 目录锚定与副本一致性治理 2026-09-16
+
+### 修复（「生成文件的技能」写错目录）
+
+- **`jxx-to-spec` / `jxx-to-tickets` 的 `issue-flow.mjs`**：原先用 `path.join(__dirname, '..','..','.scratch')` 锚定 `.scratch` 根，复制进技能 `scripts/` 与安装到各平台后指错目录且**静默**（编号回落 `01`、`writeFileSafe` 自动建目录树）。改为 `resolveScratchRoot()`：显式 `--root` 优先，否则从 **cwd 向上**找含 `.git`/`.scratch` 的仓库，找不到直接报错退出（退出码 1）。
+- **`jxx-tool-intro` 的 `gen-tool-page.mjs`**：原先用 `path.resolve(__dirname, "../../../../../")` 定位仓库根，安装布局下解析成 `C:\Users`（实测报「工具数据源不存在: C:\Users\docs\guide」）。改为从 cwd 向上找含 `.git`/`docs` 的项目根，保留 `--root` / `--src` / `--out` 与 `SRC_DIR` / `OUT_DIR` 覆盖；失败时打印解析到的根与纠正办法。SKILL.src.md 同步改写（`<本技能目录>` 路径 + 去掉「auto-detected from repo root」的假承诺）。
+- **`jxx-research`**：严格模式落盘指引补「`--out` 相对 cwd 解析，必须在目标仓库根执行或写绝对路径」。
+- 清 `base/scripts/{milestones,report-flow}.mjs` 中未使用的 `__dirname` / `fileURLToPath` 死代码。
+
+### 新增（门禁与护栏）
+
+- **`base/scripts/check-copies.mjs`**：统一的脚本副本一致性门禁。登记 **47 处**副本（`shared/{fs-utils,next-seq,render-template,open-in-browser,report-html}`、`report-flow`、`scaffold`、`milestones`、`issue-flow`），`--check` 校验字节一致（含行尾）、`--fix` 唯一下发通道、并报出**未登记副本**防止私自分叉。
+- **`base/scripts/test/copies-parity.test.mjs`**：副本一致 + 无未登记副本 + HTML 资产（`sync-html-template --check`）+ 「不得用固定层级 `__dirname` 上跳定位输出目录」的守则断言。
+- **`base/skills/engineering/jxx-tool-intro/tests/gen-tool-page.test.mjs`**：把技能复制到任意深层布局再运行，锁住「锚定 cwd、不锚定脚本位置」，并断言失败路径不静默建目录。
+- `base/scripts/shared/README.md` 补「副本分发」纪律（只改本源 → `--fix` 下发；`__dirname` 只用于自带只读资源）。
+
+### 顺带发现（未改，另行处理）
+
+- `base/scripts/ship.mjs` 有在途 WIP（含整文件 CRLF 化），本轮未改动；`check-copies.mjs` 建议后续接进 `ship check`。
+
 ## ship 跨厂商分发 2026-08-27（01-ship-multi-vendor-distribution，工单 01-06）
 
 ### 重大变更

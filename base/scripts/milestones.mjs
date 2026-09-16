@@ -6,11 +6,9 @@
 // 零第三方依赖，仅 Node 内建模块 + ./shared 相对 import。
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { writeFileSafe } from './shared/fs-utils.mjs';
 import { renderTemplate } from './shared/render-template.mjs';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const MILESTONE_FILE = 'MILESTONES.md';
 export const ISSUES_DIRNAME = 'issues';

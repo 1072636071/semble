@@ -2,7 +2,7 @@
 name: jxx-research
 description: 调研主题、收集资料。默认自由模式：不规定流程，agent 自主决定如何调研和呈现。严格模式（用户说"生成报告""严格模式""按模板"时触发）：按模板生成结构化 Markdown 报告到 docs/report/，详情见 references/strict-mode.md。当用户需要调研、研究、查资料、写报告、技术选型评估时使用。
 metadata:
-  version: 2.2.0
+  version: 2.2.1
 ---
 
 # 调研与报告生成
@@ -17,6 +17,8 @@ metadata:
 | "生成报告""写报告""严格模式""按模板""输出报告" | **严格模式** → [references/strict-mode.md](references/strict-mode.md) |
 
 > 确定性环节可调用脚本：`node <本技能目录>/scripts/report-flow.mjs research-file --prefix <前缀> --slug <slug> --out docs/report`（零依赖，严格模式落盘）
+>
+> `--out` 是**相对当前工作目录**解析的，因此**必须在目标仓库根目录下执行**（或直接把 `--out` 写成绝对路径）。脚本不锚定自身安装位置——技能会被分发到各平台的 `skills/<skill>/scripts/` 下，固定层级的相对路径会写到无关目录。
 
 自由模式是默认。当前模型很强大 —— 给目标、不规定流程，有时效果更好。严格模式用于需要正式存档、汇报给他人的场景，详细工作流、模板选择、完成标准见严格模式定义文件。
 

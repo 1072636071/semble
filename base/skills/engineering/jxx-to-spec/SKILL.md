@@ -3,7 +3,7 @@ name: jxx-to-spec
 description: 将当前对话转化为 spec（规格文档）并发布到项目 issue tracker——无需访谈，仅综合已有讨论内容。
 disable-model-invocation: true
 metadata:
-  version: 1.0.0
+  version: 1.1.1
 ---
 
 本技能将当前对话上下文和代码库理解转化为规格文档（你可能称之为 PRD）。不要访谈用户——仅综合你已知的内容。
@@ -22,7 +22,11 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 
 发布路径：在仓库根目录的 `.scratch/` 下创建功能目录 `<NN>-<feature-slug>/`，将规格文档写入 `.scratch/<NN>-<feature-slug>/PRD.md`。`<NN>` 为从 `01` 起的全局递增顺序号，按创建先后排列（如第一个功能为 `01-login/`）。具体目录与文件约定见 issue tracker 定义（`/jxx-setup-matt-pocock-skills`）。
 
-> 确定性环节可调用脚本：`node <本技能目录>/scripts/issue-flow.mjs to-spec --slug <name>`（零依赖）
+> 确定性环节可调用脚本（零依赖）：`node <本技能目录>/scripts/issue-flow.mjs to-spec --slug <name> --root "$PWD/.scratch"`。
+>
+> 根目录解析：不给 `--root` 时，脚本从 **cwd 向上**寻找含 `.git` / `.scratch` 的仓库，再取该仓库的 `.scratch`。因此**必须在目标仓库目录内执行**；不在任何仓库内时脚本直接报错退出——它绝不会把 PRD 静默写进技能安装目录旁边。
+>
+> 维护：`issue-flow.mjs` 有三份同步副本（本源 `base/scripts/issue-flow.mjs`）。改完本源执行 `node base/scripts/check-copies.mjs --fix` 同步全部副本（`check-copies.mjs` 不带参数即校验）。
 
 <spec-template>
 

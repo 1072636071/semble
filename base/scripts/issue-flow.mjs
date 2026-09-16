@@ -3,17 +3,49 @@
 // 覆盖确定性规则：全局递增 topic 编号（NN）、topic 内递增工单编号、slug 化、
 // 模板实例化（Status / Blocked by / 构建内容 / 验收 checkbox）、阻塞边规范化与依赖拓扑排序。
 // 判读性内容（问题陈述、用户故事、验收标准语义、依赖边取舍）留模型，不脚本化。
-// 零第三方依赖，仅 Node 内建模块 + base/scripts/shared 相对 import。
+// 零第三方依赖，仅 Node 内建模块 + 同目录 shared/ 相对 import（各副本自带 scripts/shared/）。
+//
+// ⚠ 本文件是三份同步副本之一：base/scripts/issue-flow.mjs，以及
+//   base/skills/engineering/{jxx-to-spec,jxx-to-tickets}/scripts/issue-flow.mjs。
+//   改完任一份都要跑 `node base/scripts/check-copies.mjs --fix` 同步全部副本（不带参数即校验）；
+//   base/scripts/test/issue-flow.test.mjs 的 parity 用例与 check-copies 门禁会校验一致性。
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { nextSeq, slugify } from './shared/next-seq.mjs';
 import { renderTemplate } from './shared/render-template.mjs';
 import { writeFileSafe } from './shared/fs-utils.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_SCRATCH = path.join(__dirname, '..', '..', '.scratch');
 export const DEFAULT_STATUS = 'ready-for-agent';
+const ROOT_MARKERS = ['.git', '.scratch'];
+
+/**
+ * 解析 `.scratch` 根目录——**锚定 cwd，绝不锚定脚本自身位置**。
+ *
+ * 本脚本会被逐字复制到技能目录（`base/skills/engineering/<skill>/scripts/`）并随 ship
+ * 安装到各平台（如 `~/.workbuddy/skills/<skill>/scripts/`）。任何
+ * `path.join(__dirname, '..', '..', '.scratch')` 式常量都会因副本深度不同而指错目录，
+ * 且错误是**静默**的：`nextSeq` 对不存在的目录返回 `01`，`writeFileSafe` 会
+ * `mkdirSync(recursive)` 直接建出新目录树。故此处只认 cwd。
+ * @param {{root?: string, cwd?: string}} [opts] root 显式指定时直接采用（相对 cwd 解析）
+ * @returns {string} `.scratch` 绝对路径
+ * @throws 从 cwd 向上找不到 .git / .scratch 标记时抛错（宁失败，不静默写错目录）
+ */
+export function resolveScratchRoot({ root, cwd = process.cwd() } = {}) {
+  if (root) return path.resolve(cwd, root);
+  const start = path.resolve(cwd);
+  for (let cur = start; ; ) {
+    if (ROOT_MARKERS.some((m) => fs.existsSync(path.join(cur, m)))) {
+      return path.join(cur, '.scratch');
+    }
+    const up = path.dirname(cur);
+    if (up === cur) break;
+    cur = up;
+  }
+  throw new Error(
+    `未在 ${start} 及其父目录中找到 .git / .scratch 标记，无法确定 .scratch 根；请进入仓库目录后重试或显式传 --root <path>`,
+  );
+}
 
 // ---------------------------------------------------------------- 纯函数
 
@@ -248,7 +280,7 @@ function usage() {
   resolve-block     规范化 <dir>/issues/ 各工单 Blocked by 行并输出依赖拓扑序（阻塞者在前）
 
 选项：
-  --root <path>     .scratch 根（默认 ../../.scratch）
+  --root <path>     .scratch 根（默认：从 cwd 向上找含 .git/.scratch 的仓库，取其 .scratch）
   --dir <path>      功能目录 <NN>-<slug>（to-tickets / resolve-block）
   --slug <name>     slug（中文回落 untitled）
   --title <text>    标题
@@ -301,11 +333,11 @@ async function main() {
     console.error(`错误: 未知子命令 "${opts.cmd}"（缺省需显式）\n\n${usage()}`);
     return 2;
   }
-  const root = opts.root || DEFAULT_SCRATCH;
   const dry = opts.dryRun ? ' [dry-run]' : '';
   try {
+    const root = resolveScratchRoot({ root: opts.root });
     if (opts.cmd === 'next-topic') {
-      console.log(`下一个 topic 编号: ${topicNum(root)}${dry}`);
+      console.log(`下一个 topic 编号: ${topicNum(root)}${dry}（根: ${root}）`);
       return 0;
     }
     if (opts.cmd === 'next-issue') {
@@ -325,7 +357,7 @@ async function main() {
     if (opts.cmd === 'to-tickets') {
       if (!opts.dir || !opts.slug) { console.error('错误: to-tickets 需 --dir <功能目录> --slug <name>'); return 2; }
       const r = runToTickets({
-        dir: opts.dir, slug: opts.slug, num: opts.num, deps: opts.deps,
+        dir: path.resolve(opts.dir), slug: opts.slug, num: opts.num, deps: opts.deps,
         title: opts.title, build: opts.build, accept: opts.accept, dryRun: opts.dryRun,
       });
       console.log(`${dry ? '将创建' : '已创建'} ${r.file}`);
@@ -333,7 +365,7 @@ async function main() {
     }
     if (opts.cmd === 'resolve-block') {
       if (!opts.dir) { console.error('错误: resolve-block 需 --dir <功能目录>'); return 2; }
-      const r = runResolveBlock({ dir: opts.dir, dryRun: opts.dryRun });
+      const r = runResolveBlock({ dir: path.resolve(opts.dir), dryRun: opts.dryRun });
       console.log(`依赖序（阻塞者在前）: ${r.order.join(', ')}`);
       for (const f of r.files) console.log(`${dry ? '将规范化' : '规范化'} ${f}`);
       return 0;

@@ -14,13 +14,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { renderTemplate, instantiateTemplate } from './shared/render-template.mjs';
 import { writeFileSafe } from './shared/fs-utils.mjs';
 import { nextSeq } from './shared/next-seq.mjs';
 import { renderReportHtml, writeReport, writeTempReport } from './shared/report-html.mjs';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 
 // ================================================================ report-html

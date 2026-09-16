@@ -2,7 +2,7 @@
 name: dsh-plugin-dev
 description: 开发、打包、安装与发布 DeepSeek Harness (dsh) 插件。dsh 一切皆插件，基于 Cordis 框架，插件即导出 apply 函数的 TypeScript 模块，可扩展工具、服务、事件、UI 等九类能力。当用户需要：(1) 写一个 dsh 插件（工具/服务/事件监听），(2) 给 dsh 新增或改写 Agent 工具，(3) 用 create-dsh-plugin 脚手架起步，(4) 构建 bundle 插件并打包发布到 GitHub/npm，(5) 用 Schemastery 定义插件配置 schema，(6) 排查插件加载失败、依赖解析、patch 配置不生效等问题时使用。含代码模板与完整示例。
 metadata:
-  version: 1.2.1
+  version: 1.2.2
 ---
 
 # DSH 插件开发
@@ -14,7 +14,7 @@ metadata:
 进入任何场景之前，先运行技能自带的探测脚本获取本机 dsh 环境报告（在技能根目录执行，stdout 输出 JSON，退出码恒为 0）：
 
 ```bash
-node scripts/detect-env.mjs
+node <本技能目录>/scripts/detect-env.mjs
 ```
 
 **不要手写 shell 逐条探测环境**——固定流程一律跑脚本。脚本探测项：
@@ -138,7 +138,7 @@ dsh plugin --profile demo remove dsh-hello-plugin # 卸载
 
 **官方内置工具包（`@deepseek-ai/dsh-tool-*`）**：完整清单与每个包的最新版本/用途，由 [references/upstream-status.md](references/upstream-status.md) 统一维护，通过 `scripts/sync-docs.mjs` 自动从上游 GitHub 仓库核对更新。**SKILL.md 不重复维护该清单**，开发时以上游状态文档为准，避免清单过期。
 
-> 提示：工具包名会随上游演进增删。不确定某个能力有没有现成内置包时，先跑 `node scripts/sync-docs.mjs --json` 拉最新清单，或查 [upstream-status.md](references/upstream-status.md) 的「内置工具包清单」小节。
+> 提示：工具包名会随上游演进增删。不确定某个能力有没有现成内置包时，先跑 `node <本技能目录>/scripts/sync-docs.mjs --json` 拉最新清单，或查 [upstream-status.md](references/upstream-status.md) 的「内置工具包清单」小节。
 
 ## 通用护栏
 
@@ -164,7 +164,7 @@ dsh plugin --profile demo remove dsh-hello-plugin # 卸载
 
 ## 反模式
 
-- **手写 shell 逐条探测环境**：固定流程直接跑 `node scripts/detect-env.mjs`，读 JSON 报告。
+- **手写 shell 逐条探测环境**：固定流程直接跑 `node <本技能目录>/scripts/detect-env.mjs`，读 JSON 报告。
 - **用裸名 cordis/schemastery**：解析失败，必须用 `@deepseek-ai/*`。
 - **未声明 inject 就访问服务**：Proxy 拒绝。
 - **patch config 只写改动的字段**：config 是整行替换，没写的字段走 schema 默认。

@@ -36,6 +36,24 @@ import { openInBrowser } from './open-in-browser.mjs';
 openInBrowser('./report.html');
 ```
 
+## 副本分发（重要）
+
+技能安装产物里**没有** `base/scripts/`（ship 按目录逐字安装），所以用到本层的技能必须在自己
+`scripts/shared/` 下自带一份。副本一致性由门禁锁定：
+
+```bash
+node base/scripts/check-copies.mjs          # 校验（漂移/缺失/未登记 → 退出码 1）
+node base/scripts/check-copies.mjs --fix    # 用本源覆盖全部副本（唯一允许的同步方式）
+```
+
+纪律：
+
+- **只改本源**（`base/scripts/shared/*.mjs`、`base/scripts/*.mjs`），改完跑 `--fix`，不要手改副本。
+- 新技能需要某份脚本 → 补进 `check-copies.mjs` 的 `REGISTRY_SPEC`，否则门禁报 `UNREGISTERED`。
+- **禁止用 `__dirname` 定位项目根/输出目录**：副本深度与本源不同，固定层级的 `..` 会指到无关目录
+  （jxx-to-spec 的 `.scratch` 定位 bug 就是这么来的）。要用 `process.cwd()` 向上找 `.git`/目标目录，
+  找不到就**报错退出**；`__dirname` 只用于定位脚本自带的只读资源（如 `assets/`）。
+
 ## 约定
 
 - **配置驱动**：需要平台/路径清单的场景用 `loadJsonConfig` 读外部 JSON，脚本内不硬编码路径（对齐 `vendors.json` 思路）。
