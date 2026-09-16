@@ -22,6 +22,8 @@ function resolveSource() {
 function parse(text) {
   const block = text.match(/```ya?ml\s*([\s\S]*?)```/i);
   if (!block) throw new Error('令牌源中未找到 YAML 块');
+  /** 去掉 YAML 标量两端的引号——否则 `remote_user: "@token"` 会带着引号参与比较（曾导致 gitee 403）。 */
+  const unquote = (v) => v.replace(/^(['"])(.*)\1$/, '$2');
   const items = [];
   let cur = null;
   for (const raw of block[1].split(/\r?\n/)) {
@@ -31,11 +33,11 @@ function parse(text) {
     if (item) {
       cur = {};
       items.push(cur);
-      cur[item[1]] = item[2].trim();
+      cur[item[1]] = unquote(item[2].trim());
       continue;
     }
     const kv = line.match(/^\s+([A-Za-z_]+)\s*:\s*(.*)$/);
-    if (kv && cur) cur[kv[1]] = kv[2].trim();
+    if (kv && cur) cur[kv[1]] = unquote(kv[2].trim());
   }
   return items;
 }
@@ -80,7 +82,7 @@ if (argv.includes('--remote')) {
     console.error('用法: --remote <host> <owner/repo>');
     process.exit(3);
   }
-  const user = p.remote_user === '@token' ? p.token : p.remote_user;
+  const user = p.remote_user === '@token' ? 'oauth2' : p.remote_user;
   warnPlaintext();
   process.stdout.write(`https://${user}:${p.token}@${p.host}/${repo}.git\n`);
   process.exit(0);

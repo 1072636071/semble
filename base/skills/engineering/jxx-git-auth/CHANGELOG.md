@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.1 — 2026-09-16
+
+修 `--remote` 生成的 HTTPS 凭据 URL 无法用于 gitee：
+
+- `parse()` 未剥离 YAML 标量两端的引号，`remote_user: "@token"` 带着引号参与比较 → `@token` 分支失效，
+  用户名位被填成字面量 `"@token"`，gitee 回 `The token username invalid` 并 403。
+- `@token`（令牌即身份）的 userinfo 由「用户名=令牌」改为固定 `oauth2`（`https://oauth2:<token>@…`）——
+  用令牌当用户名同样被 gitee 拒；`oauth2:<token>` 在 gitee 与 github 均实测通过。
+- SKILL.md 流程节补 userinfo 形态说明，避免再按「用户名=令牌」实现。
+
 ## 1.3.0 — 2026-09-06
 
 新增解析脚本 `scripts/resolve-token.mjs`（零依赖）：
