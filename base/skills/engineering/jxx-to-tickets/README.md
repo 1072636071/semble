@@ -10,4 +10,4 @@
 
 - jxx-to-spec
 - jxx-to-milestones（下游：按可独立上线的里程碑分批交付）
-- jxx-setup-matt-pocock-skills
+- jxx-setup-skills

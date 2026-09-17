@@ -38,9 +38,9 @@
 - 工单 02/03 修复项已回写并补齐（`x-install: false` 清单、derive 层跳过）；工单 06 文档同步完成。
 - 后续 effort 02-js-ification、03-seo-geo-skill-suite 见下方记录。
 
-## jxx-setup-matt-pocock-skills 脚本化 2026-08-27
+## jxx-setup-skills 脚本化 2026-08-27
 
-- **脚本自包含迁移**：setup-matt-pocock 的 `detect`/`sync-doc` 从共享 `base/scripts/scaffold.mjs` 迁入技能目录 `scripts/setup.mjs`（测试迁至 `tests/setup.test.mjs`，种子模板即技能目录三份 `.md`），技能可整体拷贝分发；`scaffold.mjs` 保留 memorial/exercises/precommit 子命令。
+- **脚本自包含迁移**：setup-skills（原名 jxx-setup-matt-pocock-skills）的 `detect`/`sync-doc` 从共享 `base/scripts/scaffold.mjs` 迁入技能目录 `scripts/setup.mjs`（测试迁至 `tests/setup.test.mjs`，种子模板即技能目录三份 `.md`），技能可整体拷贝分发；`scaffold.mjs` 保留 memorial/exercises/precommit 子命令。
 - **`detect` 子命令**：步骤 1「探索」脚本化，输出只读 JSON 报告（canonical 选择、五文件存在性、块检测、CODEBUDDY 一致性、目录与既有产物清单），逐项区分「文件存在/不存在」。
 - **`sync-doc` 增强**：`## Agent skills` 块 upsert（就地替换/追加、保留周围内容）、`## 多代理要求` 块自动注入、`--layout`/`--labels` 参数化、逐文件执行结果日志（`created`/`updated`/`unchanged`/`skipped`）；CLI 默认启用块 upsert，`--no-block` 退化为纯同步。块内容单源收敛到 `buildAgentSkillsBlock()`。
 - **技能 SKILL.md 改写**（v1.1.0）：步骤 1/3/4 全部改为跑脚本，不再由模型手工写文件；步骤 3 简化为 `--dry-run` 演练确认。

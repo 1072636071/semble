@@ -31,7 +31,7 @@
 - **[grill-with-docs](./engineering/jxx-grill-with-docs/SKILL.md)** — grill 会话，同时构建项目的领域模型，锐化术语并内联更新 `CONTEXT.md` 和 ADR。
 - **[triage](./engineering/jxx-triage/SKILL.md)** — 通过 triage 角色的状态机流转 issue。
 - **[improve-codebase-architecture](./engineering/jxx-improve-codebase-architecture/SKILL.md)** — 扫描代码库寻找深化机会，以可视化 HTML 报告呈现，然后对你选择的项目进行 grill。
-- **[setup-matt-pocock-skills](./engineering/jxx-setup-matt-pocock-skills/SKILL.md)** — 为本仓库配置工程技能（issue 跟踪器、triage 标签、领域文档布局）。每个仓库运行一次。
+- **[setup-skills](./engineering/jxx-setup-skills/SKILL.md)** — 为本仓库配置工程技能（issue 跟踪器、triage 标签、领域文档布局）。每个仓库运行一次。
 - **[to-spec](./engineering/jxx-to-spec/SKILL.md)** — 将当前对话转化为规格文档并发布到 issue 跟踪器。
 - **[to-tickets](./engineering/jxx-to-tickets/SKILL.md)** — 将任何计划、规格文档或对话拆解为一组追踪弹式（tracer-bullet）工单，每个工单声明其阻塞关系。
 - **[wayfinder](./engineering/jxx-wayfinder/SKILL.md)** — 规划大型工作，在 issue tracker 上创建共享调查地图，逐个解决直到路径清晰。

@@ -24,7 +24,7 @@ Wayfinder 默认是**规划**：每个工单解决一个决策，地图在路径
 
 地图是一个**索引**，不是存储。它列出已做出的决策并指向持有其详情的工单；一个决策只存在于一个地方——它的工单——所以地图从不复述它，只做摘要并链接。
 
-**地图、其子工单、阻塞关系和前沿查询的物理存放位置取决于 tracker。** issue tracker 应已提供——如果没有，运行 `/jxx-setup-matt-pocock-skills`。查阅 tracker 文档的"寻路操作"节，了解*此* repo 如何表达它们。如果没有提供 tracker，默认使用本地 markdown tracker。
+**地图、其子工单、阻塞关系和前沿查询的物理存放位置取决于 tracker。** issue tracker 应已提供——如果没有，运行 `/jxx-setup-skills`。查阅 tracker 文档的"寻路操作"节，了解*此* repo 如何表达它们。如果没有提供 tracker，默认使用本地 markdown tracker。
 
 ### 地图正文
 

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// setup.mjs — jxx-setup-matt-pocock-skills 的确定性流程 CLI（零第三方依赖，ESM，自包含）
+// setup.mjs — jxx-setup-skills 的确定性流程 CLI（零第三方依赖，ESM，自包含）
 //
 // 子命令：
 //   init      一键初始化（默认）：detect 现状 + sync-doc 落盘，全部默认参数即"全部默认"
 //   detect    只读探索：扫描仓库初始状态，输出 JSON 报告（含与种子的漂移）
+//   ocr       只读检测 OCR（open-code-review CLI）是否已安装（未安装退出码 4，由模型询问用户）
 //   sync-doc  写入：双文件逐字节一致 + Agent skills 块 upsert + docs/agents/*.md 克隆
 //   template  输出全部文件内容到 stdout（不落盘），供预览/手动复制
 //
@@ -14,6 +15,7 @@
 // 本脚本随技能目录分发，不依赖技能目录之外的任何文件（种子模板即技能目录根下的三份 .md）。
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const SKILL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -408,6 +410,56 @@ export function buildTemplateOutput({ seedsDir = SKILL_ROOT, layout = 'single', 
   return files;
 }
 
+// ---------------------------------------------------------------- OCR 检测
+
+/**
+ * 在 PATH 中查找可执行文件（跨平台：Windows 需依次尝试 .exe/.cmd/.bat）。
+ * @param {string} name 可执行文件名（不含扩展名）
+ * @returns {string|null} 命中则返回绝对路径，否则 null
+ */
+export function findOnPath(name) {
+  const isWin = process.platform === 'win32';
+  const candidates = isWin ? [`${name}.exe`, `${name}.cmd`, `${name}.bat`, name] : [name];
+  const dirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  for (const dir of dirs) {
+    for (const c of candidates) {
+      try {
+        const p = path.join(dir, c);
+        if (fs.existsSync(p) && fs.statSync(p).isFile()) return p;
+      } catch {
+        /* PATH 条目可能不可读或含非法字符，逐个跳过即可 */
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * 检测 OCR（open-code-review CLI）在当前环境是否可用。
+ * 只读、无副作用；未安装时 installed=false，由模型据此询问用户是否安装。
+ * @returns {{installed: boolean, path: string|null, version: string|null, error: string|null}}
+ */
+export function detectOcr() {
+  const p = findOnPath('ocr');
+  if (!p) return { installed: false, path: null, version: null, error: null };
+  try {
+    // Windows 下 PATH 命中的常是 npm 包装的 .cmd/.bat，直接 spawn 会 EINVAL，须经 cmd.exe /c
+    const ext = path.extname(p).toLowerCase();
+    const viaShell = process.platform === 'win32' && (ext === '.cmd' || ext === '.bat');
+    const r = viaShell
+      ? spawnSync(process.env.ComSpec || 'cmd.exe', ['/c', p, '--version'], { encoding: 'utf8', timeout: 20000, windowsHide: true })
+      : spawnSync(p, ['--version'], { encoding: 'utf8', timeout: 20000, windowsHide: true });
+    const out = `${r.stdout || ''}${r.stderr || ''}`.trim();
+    const version = out ? out.split('\n')[0].trim() : null;
+    if (r.error) {
+      return { installed: true, path: p, version: null, error: String(r.error.message || r.error) };
+    }
+    return { installed: true, path: p, version, error: null };
+  } catch (err) {
+    return { installed: true, path: p, version: null, error: String(err && err.message ? err.message : err) };
+  }
+}
+
 // ---------------------------------------------------------------- CLI
 
 function parseArgs(argv) {
@@ -443,6 +495,7 @@ function usage() {
 子命令：
   init               一键初始化（默认入口）：读取仓库已有文件并自行处理，落盘完成全部配置
   detect             只读探索：扫描仓库初始状态，输出 JSON 报告
+  ocr                只读检测 OCR（open-code-review CLI）是否已安装，输出 JSON（未安装退出码 4）
   sync-doc           写入：双文件逐字节一致 + Agent skills 块 upsert + docs/agents/*.md 模板
   template           输出全部默认文件模板内容到 stdout（不落盘），仅供预览/手动复制
 
@@ -456,7 +509,7 @@ function usage() {
   --overwrite <file> init / sync-doc：仅覆盖该冲突文件（可重复，路径相对仓库根）
   --force            init / sync-doc：覆盖全部冲突文件（默认一律保留并报 conflict）
 
-退出码：0 完成且无冲突；3 存在冲突且已保留原文件（需模型读取后决定）；2 一致性 MISMATCH；1 参数/运行错误
+退出码：0 完成且无冲突；3 存在冲突且已保留原文件（需模型读取后决定）；2 一致性 MISMATCH；1 参数/运行错误；4 OCR 未安装
 `;
 }
 
@@ -478,6 +531,14 @@ export function main(argv) {
   const cmd = opts.cmd || 'init';
 
   try {
+    if (cmd === 'ocr') {
+      const info = detectOcr();
+      console.log(JSON.stringify(info, null, 2));
+      if (!info.installed) {
+        console.log('\nOCR 未安装 —— 请询问用户是否安装（安装步骤见 SKILL.md「检查并安装 OCR」节）。');
+      }
+      return info.installed ? 0 : 4; // 4 = 未安装，等模型询问后处置
+    }
     if (cmd === 'detect') {
       console.log(JSON.stringify(runDetect({ root: opts.root }), null, 2));
       return 0;

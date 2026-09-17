@@ -9,4 +9,4 @@
 ## 相关技能
 
 - jxx-to-tickets
-- jxx-setup-matt-pocock-skills
+- jxx-setup-skills

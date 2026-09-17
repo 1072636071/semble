@@ -38,7 +38,7 @@ triage 期间写入 issue 文件的每条评论**必须**以此免责声明开�
 
 每个经 triage 的 issue 应恰好携带一个分类角色和一个状态角色。如果状态角色冲突，先标记并询问维护者再做其他操作。
 
-这些是规范角色名——issue tracker 中使用的实际标签字符串可能不同。映射应该已提供给你——如果没有，运行 `/jxx-setup-matt-pocock-skills`。
+这些是规范角色名——issue tracker 中使用的实际标签字符串可能不同。映射应该已提供给你——如果没有，运行 `/jxx-setup-skills`。
 
 状态转换：未标记的 issue 通常先进入 `needs-triage`；然后移至 `needs-info`、`ready-for-agent`、`ready-for-human` 或 `wontfix`。`needs-info` 在报告者回复后返回 `needs-triage`。维护者可随时覆盖——标记看起来异常的转换并在继续前询问。
 

@@ -1,6 +1,6 @@
 # Matt Pocock 技能
 
-由 Claude Code 加载的 agent 技能集合（斜杠命令和行为）。技能按桶组织，由 `/setup-matt-pocock-skills` 生成的按仓库配置消费。
+由 Claude Code 加载的 agent 技能集合（斜杠命令和行为）。技能按桶组织，由 `/setup-skills` 生成的按仓库配置消费。
 
 ## 语言
 

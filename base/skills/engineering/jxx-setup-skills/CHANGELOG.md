@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.0 — 2026-09-17
+
+### Changed
+
+- **技能改名**：`jxx-setup-matt-pocock-skills` → `jxx-setup-skills`（目录、`SKILL.md` 的 `name`、全仓库引用均已同步）。技能标题由「设置 Matt Pocock 的工程技能」改为「设置工程技能环境」。
+- **新增 OCR 检测与安装能力**：流程新增「步骤 4：检查 OCR（代码审查工具）」。
+  - 新增 `ocr` 子命令（`scripts/setup.mjs ocr`）：**只读**检测 `ocr` CLI 是否在 PATH 上可用，输出 `{installed, path, version, error}`；未安装时退出码 `4`。
+  - 新增 `findOnPath()`（跨平台 PATH 查找，Windows 依次尝试 `.exe/.cmd/.bat`）与 `detectOcr()`。Windows 下 PATH 命中的常是 npm 包装的 `.cmd`，直接 spawn 会报 `EINVAL`，须经 `cmd.exe /c` 调用。
+  - 未安装时**必须询问用户**是否安装，不得擅自执行（安装会改动全局环境，是「无输入快速通道」的唯一例外）。SKILL.md 内置各平台安装步骤（npm / Homebrew / MacPorts / 安装脚本 / GitHub Release 二进制）与 Windows 多 Node 并存时的注意事项。
+  - 装上 OCR 后 `jxx-code-review` 启用委托模式 **3 维度**审查（标准 + spec + 规则），未装则降级为 **2 维度**；委托模式由宿主 Agent 用自身 LLM 审查，**无需配置 LLM**。
+
 ## 1.3.1 — 2026-09-11
 
 ### Changed

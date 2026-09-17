@@ -30,7 +30,7 @@ function read(root, rel) { return fs.readFileSync(path.join(root, rel), 'utf-8')
 
 // 为每个测试独立 root，保证确定性。
 // 注：sync-doc / detect / Agent skills 块相关测试已随实现迁移至
-// skills/engineering/jxx-setup-matt-pocock-skills/tests/setup.test.mjs（技能自包含）。
+// skills/engineering/jxx-setup-skills/tests/setup.test.mjs（技能自包含）。
 function fixtureRoot(tag) {
   const root = path.join(tmp, tag);
   fs.mkdirSync(root, { recursive: true });

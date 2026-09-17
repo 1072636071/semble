@@ -81,4 +81,4 @@ wayfinder 完成调查后交出接力棒——它自己不构建。汇入主流�
 
 ## 前置条件
 
-**`/jxx-setup-matt-pocock-skills`** — 在第一次工程流程之前运行，配置其他技能所依赖的 issue 跟踪器、triage 标签和文档布局。自定义 issue 跟踪器也可使用。
+**`/jxx-setup-skills`** — 在第一次工程流程之前运行，配置其他技能所依赖的 issue 跟踪器、triage 标签和文档布局。自定义 issue 跟踪器也可使用。

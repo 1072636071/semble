@@ -4,7 +4,7 @@
 //   memorial-init     grill-with-memorial 初始化：NNN 递增编号 + slug 目录脚手架 + context.md 模板 + C1–C5 checklist
 //   memorial-archive  grill-with-memorial 归档：把已「已完成」的 memorial 目录移动到 archived/
 //   scaffold-exercises / setup-precommit 见 usage()
-// 注：jxx-setup-matt-pocock-skills 的 detect/sync-doc 已迁移至该技能目录的 scripts/setup.mjs（自包含）。
+// 注：jxx-setup-skills 的 detect/sync-doc 已迁移至该技能目录的 scripts/setup.mjs（自包含）。
 // 判读（内容起草、编号是否该继续、语义审查）一律留模型，本脚本只做确定性机械动作。
 import fs from 'node:fs';
 import path from 'node:path';

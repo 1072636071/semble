@@ -21,6 +21,8 @@ import {
   runSyncDoc,
   runInit,
   filesIdentical,
+  findOnPath,
+  detectOcr,
 } from '../scripts/setup.mjs';
 
 // 临时目录 fixture：name 命名隔离，结束即清
@@ -462,4 +464,36 @@ test('e2e: CLI template 输出 5 份文件内容到 stdout 且不落盘', () => 
   assert.equal(fs.existsSync(path.join(root, 'AGENTS.md')), false);
   assert.equal(fs.existsSync(path.join(root, 'CODEBUDDY.md')), false);
   assert.equal(fs.existsSync(path.join(root, 'docs/agents')), false);
+});
+
+// ---------------------------------------------------------------- OCR 检测
+
+test('findOnPath: 命中 PATH 上真实存在的可执行文件（node）', () => {
+  const p = findOnPath('node');
+  assert.ok(p, 'node 应在 PATH 上');
+  assert.equal(fs.existsSync(p), true);
+  assert.equal(fs.statSync(p).isFile(), true);
+});
+
+test('findOnPath: 不存在的名字返回 null', () => {
+  assert.equal(findOnPath('definitely-not-a-real-binary-xyz-12345'), null);
+});
+
+test('detectOcr: 返回结构合规（只读，不假设本机是否安装了 OCR）', () => {
+  const r = detectOcr();
+  assert.equal(typeof r.installed, 'boolean');
+  if (r.installed) {
+    assert.ok(r.path, 'installed=true 时应给出路径');
+    if (r.version !== null) assert.equal(typeof r.version, 'string');
+  } else {
+    assert.equal(r.path, null);
+    assert.equal(r.version, null);
+  }
+  assert.ok('error' in r, '应始终带 error 字段');
+});
+
+test('e2e: CLI ocr 子命令输出含 installed 字段的 JSON', () => {
+  const out = execFileSync(process.execPath, [SETUP_MJS, 'ocr'], { encoding: 'utf-8' });
+  assert.match(out, /"installed":\s*(true|false)/);
+  assert.match(out, /"path":/);
 });

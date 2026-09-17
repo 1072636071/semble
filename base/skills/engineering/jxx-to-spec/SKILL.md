@@ -8,7 +8,7 @@ metadata:
 
 本技能将当前对话上下文和代码库理解转化为规格文档（你可能称之为 PRD）。不要访谈用户——仅综合你已知的内容。
 
-issue tracker 和 triage 标签词汇表应该已提供给你——如果没有，运行 `/jxx-setup-matt-pocock-skills`。
+issue tracker 和 triage 标签词汇表应该已提供给你——如果没有，运行 `/jxx-setup-skills`。
 
 ## 流程
 
@@ -20,7 +20,7 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 
 3. 使用下面的模板编写规格文档，然后发布到项目 issue tracker。应用 `ready-for-agent` triage 标签——无需额外 triage。
 
-发布路径：在仓库根目录的 `.scratch/` 下创建功能目录 `<NN>-<feature-slug>/`，将规格文档写入 `.scratch/<NN>-<feature-slug>/PRD.md`。`<NN>` 为从 `01` 起的全局递增顺序号，按创建先后排列（如第一个功能为 `01-login/`）。具体目录与文件约定见 issue tracker 定义（`/jxx-setup-matt-pocock-skills`）。
+发布路径：在仓库根目录的 `.scratch/` 下创建功能目录 `<NN>-<feature-slug>/`，将规格文档写入 `.scratch/<NN>-<feature-slug>/PRD.md`。`<NN>` 为从 `01` 起的全局递增顺序号，按创建先后排列（如第一个功能为 `01-login/`）。具体目录与文件约定见 issue tracker 定义（`/jxx-setup-skills`）。
 
 > 确定性环节可调用脚本（零依赖）：`node <本技能目录>/scripts/issue-flow.mjs to-spec --slug <name> --root "$PWD/.scratch"`。
 >

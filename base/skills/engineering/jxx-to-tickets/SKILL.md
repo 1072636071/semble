@@ -10,7 +10,7 @@ metadata:
 
 将计划、规格文档或对话拆解为一组**工单**——追踪弹式（tracer-bullet）垂直切片（vertical slice），每个声明**阻塞它的**工单。
 
-issue tracker 和 triage 标签词汇表应该已提供给你——如果没有，运行 `/jxx-setup-matt-pocock-skills`。
+issue tracker 和 triage 标签词汇表应该已提供给你——如果没有，运行 `/jxx-setup-skills`。
 
 ## 流程
 

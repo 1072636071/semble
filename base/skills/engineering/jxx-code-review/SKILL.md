@@ -1,20 +1,128 @@
 ---
 name: jxx-code-review
-description: 从两个维度审查自固定点（commit、branch、tag 或 merge-base）以来的变更 — 标准（代码是否遵循仓库编码标准？）和 spec（代码是否匹配原始 issue/PRD 要求？）。两个审查以并行子 agent 运行，并排报告。当用户想审查 branch、PR、进行中的变更，或要求"review since X"/"review 自 X 以来"时使用。
+description: 审查自固定点（commit、branch、tag 或 merge-base）以来的变更，维度数由执行模式决定 — 检测到 ocr CLI 时启用委托模式做 3 维度审查（标准：是否遵循仓库编码标准；spec：是否匹配原始 issue/PRD；规则：是否违反 OCR 解析出的文件级规则组；OCR 负责文件筛选与规则解析，宿主 Agent 用自身 LLM 审查，OCR 端无需配置 LLM）；未安装 ocr 时自动降级为内置 2 维度审查（标准 + spec）。各维度以并行子 agent 运行并并排报告。当用户想审查 branch、PR、进行中的变更，或要求"review since X"/"review 自 X 以来"时使用。
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
-从两个维度审查 `HEAD` 与用户指定固定点（fixed point）之间的 diff：
+审查 `HEAD` 与用户指定固定点（fixed point）之间的 diff。**审查维度数由执行模式决定**：
+
+- **委托模式**（检测到 `ocr` CLI）— **3 个维度**：标准 + spec + **规则**。
+- **内置模式**（未检测到 `ocr`，降级路径）— **2 个维度**：标准 + spec。
+
+各维度的含义：
 
 - **标准** — 代码是否符合仓库文档中记录的编码标准？
 - **spec** — 代码是否忠实实现了原始 issue / PRD / spec？
+- **规则**（仅委托模式）— 代码是否违反 OCR 为该文件解析出的规则组？即 OCR 内置的多语言规则集（NPE、线程安全、XSS、SQL 注入、依赖与配置等）。
 
-两个维度作为**并行子 agent** 运行，上下文互不污染，然后本技能汇总它们的发现。
+各维度作为**并行子 agent** 运行，上下文互不污染，然后本技能汇总它们的发现。
 
-Issue 跟踪器应已配置好 — 若 `docs/agents/issue-tracker.md` 缺失，运行 `/jxx-setup-matt-pocock-skills`。
+Issue 跟踪器应已配置好 — 若 `docs/agents/issue-tracker.md` 缺失，运行 `/jxx-setup-skills`。
 
 ## 流程
+
+### 0. 选择执行模式
+
+本技能有两种执行模式，**按当前环境是否安装 `ocr` CLI 自动选择**：
+
+| 模式 | 触发条件 | 审查维度 | 分工 |
+| --- | --- | --- | --- |
+| **委托模式** | 检测到 `ocr` | **3 维度**：标准 + spec + **规则** | OCR 负责确定性工程（文件筛选、规则解析、范围判定）；**宿主 Agent（即运行本技能的 harness）用自身 LLM 能力执行实际代码审查**。OCR 端**不需要任何 LLM 配置**。 |
+| **内置模式**（降级） | 未检测到 `ocr` | **2 维度**：标准 + spec | 沿用本技能原有的双轴并行子 agent 流程（步骤 1–5），无「规则」维度。 |
+
+**只检测一次**（取第一条成功的命令）：
+
+```bash
+which ocr 2>/dev/null || command -v ocr 2>/dev/null || where ocr 2>/dev/null
+```
+
+- 检测到 `ocr` → 走**委托模式**（下方 D1–D5），完成后直接跳到步骤 6「更新工单状态」。
+- 未检测到 → **先明确告知用户**「未检测到 ocr，已降级为内置模式」，再走**内置模式**（步骤 1–5），然后步骤 6。
+
+用户可显式指定 `--mode delegate` 或 `--mode builtin` 覆盖自动选择。
+
+### 委托模式（ocr 可用时启用）— D1–D5
+
+委托模式专为订阅制 AI 编码代理设计（Claude Code、Codex、Cursor、Open Code、Qoder 等）—— 这些工具已内置 LLM 订阅额度，委托模式直接复用宿主 Agent 的额度做审查，**无需额外配置模型或 API Key**。适用于：
+
+- 你的 AI 编码代理是订阅制，希望复用已有额度审查 —— 无需 API Key 或模型端点。
+- 你只需要 OCR 的工程脚手架 —— 文件过滤、规则解析、排除逻辑 —— 由宿主 Agent 负责全部 LLM 推理。
+- 你在构建自定义 Agent 流水线，需要结构化输入（文件列表 + 规则）喂给自己的审查步骤。
+
+**前置条件**：只需安装 `ocr` CLI（`which ocr || npm install -g @alibaba-group/open-code-review`）。**无需配置 LLM** —— 委托模式在 OCR 端不调用任何 LLM，因此不需要 `ocr config set` 或任何 LLM 环境变量。
+
+#### D1. 确定审查范围
+
+```bash
+ocr delegate preview [--from <ref> --to <ref>] [--commit <hash>] [--exclude <patterns>]
+```
+
+输出：`mode`（workspace / range / commit）、ref 元数据（from、to、commit、merge_base）、可审查文件列表（路径、状态、增删行数）、已排除文件及排除原因。
+
+| 场景 | 命令 |
+| --- | --- |
+| 工作区变更 | `ocr delegate preview` |
+| 分支对比 | `ocr delegate preview --from main --to feature` |
+| 单次提交 | `ocr delegate preview -c abc123` |
+
+用户若给了固定点（commit / branch / tag），用 `--from <fixed-point> --to HEAD` 或 `-c <commit>`，与内置模式语义对齐。加 `-f json` 得到机器可读输出。
+
+#### D2. 获取文件规则
+
+```bash
+ocr delegate rule <path1> <path2> ...
+```
+
+传入 D1 输出的可审查文件路径。输出**按规则内容分组** —— 共享相同规则的文件归为一组，避免重复。
+
+#### D3. 获取 diff
+
+按 D1 的 `mode` 与 ref 元数据，用 git 直接获取：
+
+- **Range 模式**（有 `merge_base`）：`git diff <merge_base>..<to> -- <path>`
+- **Commit 模式**：`git show <commit> -- <path>`
+- **Workspace 模式**：`git diff HEAD -- <path>`（已跟踪文件）；`cat <path>`（未跟踪新文件）
+
+#### D4. 审查每个文件
+
+对每个可审查文件：取它的 diff（D3），由**宿主 Agent 用自身 LLM** 按下方三个维度并行深入审查，按需探索上下文。
+
+委托模式在内置 2 维度之上**新增「规则」维度**，共 **3 个维度**并行（上下文互不污染）：
+
+1. **标准维度** — 仓库记录的编码标准 + 代码异味基线（基线全文见步骤 3，来源判定同步骤 3）。
+2. **spec 维度** — 原始 issue / PRD / spec（来源判定见步骤 2）。
+3. **规则维度**（委托模式新增）— D2 输出的该文件所属规则组。OCR 按规则内容把文件分组、同组共享一份规则；逐条对照该规则检查 diff。
+
+「规则」维度是 OCR 的工程产出 —— **没有 `ocr` 时该维度不存在**，因此内置模式只有 2 个维度（标准 + spec）。
+
+#### D5. 报告
+
+按严重程度分类：
+
+- **Critical / High** — Bug、安全问题、数据丢失风险。**始终报告。**
+- **Medium** — 性能问题、错误处理缺失。附带上下文报告。
+- **Low** — 风格建议、细微改进。**静默丢弃**，除非确有价值。
+
+每个发现给出：文件 + 行号（或代码块）、**所属维度（标准 / spec / 规则）**、依据（引用的仓库标准、spec 行，或 OCR 规则条目）、严重程度。
+
+汇总时按三个维度分节呈现（`## 标准` / `## spec` / `## 规则`），**不要**合并或跨维度重新排序（理由见「为什么分维度」）。
+
+**委托模式通用标志**
+
+| 标志 | 描述 |
+| --- | --- |
+| `--from <ref>` | Range 模式源引用 |
+| `--to <ref>` | Range 模式目标引用 |
+| `-c, --commit <hash>` | 单次提交模式（别名 `d`：`ocr d preview`） |
+| `--repo <path>` | 仓库根目录（默认 cwd） |
+| `--rule <path>` | 自定义 rule.json 路径 |
+| `--exclude <patterns>` | 逗号分隔排除模式（与 rule.json 的 exclude 合并） |
+| `-f, --format` | text / json（委托模式**不支持** sarif） |
+| `-b, --background <text>` | 业务上下文 |
+| `-B, --background-file <path>` | 从 Markdown 读取业务上下文（优先于 `-b`） |
+
+### 内置模式（ocr 不可用时降级）— 步骤 1–5
 
 ### 1. 确定固定点
 
@@ -81,9 +189,9 @@ Issue 跟踪器应已配置好 — 若 `docs/agents/issue-tracker.md` 缺失，�
 
 ### 5. 汇总
 
-在 `## 标准` 和 `## spec` 标题下呈现两份报告，逐字或轻度整理。**不要**合并或重新排序发现 — 两个维度刻意分离（见*为什么两个维度*）。
+在 `## 标准` 和 `## spec` 标题下呈现报告（委托模式再加 `## 规则`），逐字或轻度整理。**不要**合并或重新排序发现 — 各维度刻意分离（见*为什么分维度*）。
 
-以一行总结结尾：每个维度的发现总数，以及每个维度内最严重的问题（如有）。不要跨轴选出一个最严重问题 — 那正是分离所防止的重新排序。
+以一行总结结尾：每个维度的发现总数，以及每个维度内最严重的问题（如有）。不要跨维度选出一个最严重问题 — 那正是分离所防止的重新排序。
 
 ### 6. 更新工单状态
 
@@ -94,11 +202,14 @@ Issue 跟踪器应已配置好 — 若 `docs/agents/issue-tracker.md` 缺失，�
 
 工单状态流转见 `docs/agents/issue-tracker.md` 的「工单状态与生命周期」节。
 
-## 为什么两个维度
+## 为什么分维度（2 或 3）
 
-一个变更可能通过一个维度而未通过另一个：
+一个变更可能通过某些维度而未通过另一些：
 
 - 代码遵循了每个标准但实现了错误的东西 → **标准通过，spec 失败。**
 - 代码完全按照 issue 要求做了但违反了项目约定 → **spec 通过，标准失败。**
+- 代码满足了需求与项目约定，却引入了 NPE / SQL 注入 / 线程安全等具体缺陷 → **标准与 spec 通过，规则失败。**
 
 分开报告防止一个维度掩盖另一个。
+
+第三个「规则」维度**仅在委托模式下存在** —— 它把 OCR 解析出的具体规则作为独立清单，避免这类可定位的缺陷被前两个维度的讨论淹没。没有 `ocr` 时该维度缺失，审查降级为 2 维度，仍然有效，只是少了一层自动规则覆盖。
