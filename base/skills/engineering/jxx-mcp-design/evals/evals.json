@@ -1,0 +1,29 @@
+{
+  "skill_name": "jxx-mcp-design",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我要给一个 Postgres 数据库写个 MCP Server，现在有一百多个 API，我不知道该暴露哪些工具给 LLM。帮我想想怎么组织。",
+      "expected_output": "技能应引导用户从工具堆砌转向渐进式发现：按工作流分层暴露工具，初始工具集控制在少量入口，返回值嵌入下一步提示，危险操作走沙箱/预览机制。应提及 Neon MCP 作为参考案例。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "我现有的 MCP Server 暴露了 50 个工具，LLM 经常选错工具或者上下文不够用。怎么重构？",
+      "expected_output": "技能应诊断工具堆砌问题，建议按用户意图/工作流重新组织工具，减少初始暴露数量，引入动态展开机制，并检查是否有危险操作缺少预览/回滚机制。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "帮我设计一个文件系统的 MCP Server，要求能读文件、写文件、删除文件、列目录，还要支持批量操作和撤销。",
+      "expected_output": "技能应建议：工作流入口模式（list → read/write），写/删除走沙箱或预览提交模式（先预览变更再确认），批量操作用批量工具模式，撤销机制内建。应引用工具设计模式库中的相关模式。",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "我写了个 MCP Server，工具分层已经按工作流做好了。除了工具本身，还有什么必须一起交付的？",
+      "expected_output": "技能应给出两项交付契约：一是不阻塞启动的 UI HTML（ui/index.html，单文件离线可开，启动路径不创建/打开/等待它，UI 缺失不影响 MCP 可用，含 6 段内容骨架）；二是披露式配套引导技能（技能名同 MCP 名，SKILL.md 只留最小可用路径与 reference 指针，全量细节下沉 references，与 UI 内容同源）。应指向 references/ui-html-contract.md 与 references/guide-skill.md。",
+      "files": []
+    }
+  ]
+}

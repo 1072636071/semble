@@ -504,6 +504,33 @@ function getXInstall(filePath) {
 }
 
 // 安装目标：'user' 级技能在用户级与项目级都装；'project' 级技能仅项目级装；false 不装
+// 按 vendor 排除清单：agent/技能 frontmatter 的 x-skip-vendors: [vendorId,...] 表示
+// 不安装到列出的 vendor（用于「普通 .md agent 原样复制到所有用户级目录」时排除个别 vendor）。
+// 只依赖 x-skip-vendors，退回正则提取以便普通 .md 也能生效。
+function getSkipVendors(filePath) {
+  let meta = {};
+  try {
+    meta = parseFrontmatter(filePath).meta || {};
+  } catch {
+    const raw2 = fs.readFileSync(filePath, 'utf-8');
+    const fm = raw2.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+    if (fm) {
+      const line = fm[1].split(/\r?\n/).find((l) => /^\s*x-skip-vendors\s*:/.test(l));
+      if (line) {
+        const v = line.split(/:/).slice(1).join(':').trim();
+        return v
+          .replace(/^\s*\[/, '')
+          .replace(/]\s*$/, '')
+          .split(/,/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
+    }
+    return [];
+  }
+  const v = meta['x-skip-vendors'];
+  return Array.isArray(v) ? v.map(String).filter(Boolean) : [];
+}
 function shouldInstallForTarget(xInstallValue, projectTarget) {
   if (xInstallValue === false) return false;
   if (xInstallValue === 'project') return projectTarget === true;
@@ -755,8 +782,14 @@ function runInstall(config, { dryRun, project }) {
   }
 
   // Agent 分发
-  const agents = listAgents(config).filter((a) => shouldInstallForTarget(getXInstall(a.file), project));
+const allAgents = listAgents(config).filter((a) => shouldInstallForTarget(getXInstall(a.file), project));
+const skipVendorMap = new Map(allAgents.map((a) => [a.name, getSkipVendors(a.file)]));
   for (const vendor of config.vendors) {
+  const agents = allAgents.filter((a) => !(skipVendorMap.get(a.name) || []).includes(vendor.id));
+  if (agents.length === 0) {
+    skipped.push(`agents all skipped for ${vendor.label} (x-skip-vendors)`);
+    continue;
+  }
     const agentsTarget = targetAgentsDir(config, vendor, project);
     if (!agentsTarget) {
       skipped.push(`agents dir not declared for ${vendor.label} — skipped`);
