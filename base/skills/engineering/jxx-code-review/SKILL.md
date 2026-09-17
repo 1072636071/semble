@@ -2,7 +2,7 @@
 name: jxx-code-review
 description: 审查自固定点（commit、branch、tag 或 merge-base）以来的变更，维度数由执行模式决定 — 检测到 ocr CLI 时启用委托模式做 3 维度审查（标准：是否遵循仓库编码标准；spec：是否匹配原始 issue/PRD；规则：是否违反 OCR 解析出的文件级规则组；OCR 负责文件筛选与规则解析，宿主 Agent 用自身 LLM 审查，OCR 端无需配置 LLM）；未安装 ocr 时自动降级为内置 2 维度审查（标准 + spec）。各维度以并行子 agent 运行并并排报告。当用户想审查 branch、PR、进行中的变更，或要求"review since X"/"review 自 X 以来"时使用。
 metadata:
-  version: 1.1.1
+  version: 1.1.2
 ---
 
 审查 `HEAD` 与用户指定固定点（fixed point）之间的 diff。**审查维度数由执行模式决定**：
@@ -31,34 +31,21 @@ Issue 跟踪器应已配置好 — 若 `docs/agents/issue-tracker.md` 缺失，�
 | **委托模式** | 检测到 `ocr` | **3 维度**：标准 + spec + **规则** | OCR 负责确定性工程（文件筛选、规则解析、范围判定）；**宿主 Agent（即运行本技能的 harness）用自身 LLM 能力执行实际代码审查**。OCR 端**不需要任何 LLM 配置**。 |
 | **内置模式**（降级） | 未检测到 `ocr` | **2 维度**：标准 + spec | 沿用本技能原有的双轴并行子 agent 流程（步骤 1–5），无「规则」维度。 |
 
-**只检测一次**，并验证二进制确实可运行。
-
-> ⚠️ **shell 陷阱（曾导致误降级）**：本技能默认由 Bash 工具（Git Bash）执行，命令必须是 POSIX 写法。
-> 切勿把 stderr 重定向写成 PowerShell 风格 `2>$null`：在 bash 里 `$null` 是未定义变量，会展开成**空字符串**，
-> 使 `2>` 后无目标 → 报 `ambiguous redirect`，**整条命令不执行** → 零输出 → 误判「未检测到 ocr」→ 错误降级为内置模式。
-> 同理，在 PowerShell 里 `where` 是 `Where-Object` 别名（不搜 PATH）、`command -v` 不存在，混用也会零输出。
-> 若某次调用确实跑在 PowerShell 中，改用下方 PowerShell 变体，不要混写。
-
-**Bash / Git Bash / Linux / macOS（首选）**：
+**只检测一次**：直接运行二进制自证存在 —— 这是跨 shell 唯一不会写错的探针（无重定向、无 `which`/`where`/`command -v` 的 bash↔PowerShell 差异）。
 
 ```bash
-ocr_bin="$(command -v ocr 2>/dev/null)"
-[ -z "$ocr_bin" ] && ocr_bin="$(where.exe ocr 2>/dev/null | head -n1)"
-if [ -n "$ocr_bin" ]; then
-  echo "DETECTED:$ocr_bin"
-  "$ocr_bin" --version >/dev/null 2>&1 && echo "RUNNABLE" || echo "NOT_RUNNABLE"
-fi
+ocr --version
 ```
 
-**PowerShell（仅当该步确实在 PowerShell 中运行）**：
+（PowerShell 中同样直接 `ocr --version`，语法一致，无需改写。）
 
-```powershell
-$ocrBin = (Get-Command ocr -ErrorAction SilentlyContinue).Source
-if ($ocrBin) { Write-Host "DETECTED:$ocrBin"; & $ocrBin --version > $null 2>&1 }
-```
+- 打印出版本号（如 `open-code-review v1.12.4 ...`）→ 走**委托模式**（下方 D1–D5），完成后直接跳到步骤 6「更新工单状态」。
+- 报「command not found」/「不是内部或外部命令」/「无法将 ocr 项识别为 cmdlet」或非零退出 → **先明确告知用户**「未检测到 ocr，已降级为内置模式」，再走**内置模式**（步骤 1–5），然后步骤 6。
 
-- 输出含 `DETECTED:` 且 `RUNNABLE` → 走**委托模式**（下方 D1–D5），完成后直接跳到步骤 6「更新工单状态」。
-- 无 `DETECTED:` → **先明确告知用户**「未检测到 ocr，已降级为内置模式」，再走**内置模式**（步骤 1–5），然后步骤 6。
+> **切勿**把探测写成 `where ocr 2>$null; command -v ocr 2>$null` 这类混写（曾在真实运行中出现）。
+> bash 下 `$null` 展开为空 → `ambiguous redirect`，命令不执行 → 零输出 → 误降级；
+> PowerShell 下 `where` 是 `Where-Object` 别名（不搜 PATH）、`command -v` 不存在 → 同样零输出。
+> 直接 `ocr --version` 判存在，绕开以上全部陷阱。
 
 用户可显式指定 `--mode delegate` 或 `--mode builtin` 覆盖自动选择。
 
