@@ -1,0 +1,62 @@
+{
+  "$schema": "recommended-setup.v1",
+  "harness": "workbuddy",
+  "mirror": "auto",
+  "items": [
+    {
+      "id": "browser-skill",
+      "name": "BrowserSkill",
+      "tier": "required",
+      "doc": "docs/guide/browser-skill/index.html",
+      "steps": [
+        {
+          "id": "cli",
+          "type": "install-script",
+          "verify": "bsk --version",
+          "windows": "irm https://raw.githubusercontent.com/Tencent/BrowserSkill/main/install.ps1 | iex",
+          "unix": "curl -fsSL https://raw.githubusercontent.com/Tencent/BrowserSkill/main/install.sh | sh"
+        },
+        {
+          "id": "skill",
+          "type": "bsk-install-skill",
+          "verify": "test -d <skillsDir>/browser-skill",
+          "command": "bsk install-skill --harness {harness} --json"
+        },
+        {
+          "id": "extension",
+          "type": "manual",
+          "title": "安装浏览器扩展并开启连接",
+          "instructions": "Chrome: https://chromewebstore.google.com/detail/hhcmgoofomhgciiibhipgmgkgnoenaoi ；Edge: https://microsoftedge.microsoft.com/addons/detail/browserskill/emacgiaaaiojkkpkddmmdfhmokgmnikg 。安装后在扩展弹窗开启连接，并确认端口匹配本地 daemon。",
+          "expected": "bsk doctor 中 extension connected 失败属预期，可标记为已就绪（待同事手动连扩展）"
+        }
+      ]
+    },
+    {
+      "id": "open-code-review",
+      "name": "open-code-review（OCR）委托模式",
+      "tier": "required",
+      "doc": "docs/guide/open-code-review/index.html",
+      "steps": [
+        {
+          "id": "cli",
+          "type": "npm-global",
+          "verify": "ocr --version",
+          "package": "@alibaba-group/open-code-review",
+          "note": "装 ocr CLI；委托模式无需配置 LLM"
+        },
+        {
+          "id": "delegate-skill",
+          "type": "skill-install",
+          "verify": "test -d <skillsDir>/open-code-review-delegate",
+          "primary": "npx skills add alibaba/open-code-review --skill open-code-review-delegate",
+          "fallback": {
+            "clone": "https://github.com/alibaba/open-code-review",
+            "copyFrom": "skills/open-code-review-delegate",
+            "copyTo": "<skillsDir>/open-code-review-delegate"
+          }
+        }
+      ],
+      "notes": "委托模式：OCR 负责确定性工程（文件筛选、规则解析），宿主 Agent 用自身订阅额度做审查，OCR 端无需配 LLM。"
+    }
+  ]
+}
