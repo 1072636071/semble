@@ -3,7 +3,7 @@ name: jxx-ticket-board
 description: 工单公告板工作区——把任意 git 仓库开辟为多 worktree 并行工单协作场。加载本会话即领导者（只分解投卡、记账汇总，不干预开发组），worker 由用户拉起自发领卡，卡片目录即状态机、文件原子 move 防抢，领导者每个行为即时落盘账本，断线可重连自检。当用户想搭建工单公告板/开多个工单工作区/以领导者身份派发任务/恢复领导者会话/看板对账时使用。触发词：公告板, 领卡, 投卡, 工单看板, worktree工作区, 领导者, reconnect。
 disable-model-invocation: true
 metadata:
-  version: 0.7.0
+  version: 0.7.3
 argument-hint: init --repo <git-url> | board | verify | ledger --action <文本>
 ---
 
@@ -23,8 +23,9 @@ argument-hint: init --repo <git-url> | board | verify | ledger --action <文本>
     ├── workspace.json     工作区元数据（repoPath 指向权威主工作区）
     ├── CARD-TEMPLATE.md   卡模板
     ├── starter/           角色启动提示词（dev / merger 两份）
-    └── cards/
-        ├── inbox/ claimed/ review/ done/ blocked/
+    ├── cards/
+    │   └── inbox/ claimed/ review/ done/ blocked/
+    └── held/              领导者暂缓道：依赖未就绪的卡停这里，worker 不可见
 
 <权威主工作区>/        既有的主 clone（可在 root 之外，如用户日常开发目录）
 ```
@@ -58,7 +59,9 @@ node <skill>/scripts/board.mjs init --root <工作区绝对路径> --repo <git-u
 node <skill>/scripts/board.mjs new-card --root <root> --id 033-foo --level L2 --model "中档及以上" --ticket-file <权威仓>\.scratch\<PRD>\issues\NN-xxx.md [--title x] [--deps 031-bar]
 ```
 
-**状态闸门（失鲜投卡硬防线）**：开发卡 `new-card` **必须**带 `--ticket-file`（缺了直接拒投，`--force` 才可越），脚本会读该文件 `**Status:**` 行、非 `ready-for-agent` 拒绝。且投卡前领导者必须先在权威仓 `git -c credential.helper=store fetch origin` 后用**最新 HEAD** 的工单文件判断——**禁止**从旧 clone、看板缓存或记忆投卡（v0.5.3 事故教训：三张卡投出时工单已 done）。`verify` 持续兜底：①权威仓 fetch 龄期 >6h 报 WARN（`verify --fetch` 可让脚本自己拉）；②在飞卡对应工单已 done/wontfix → MISMATCH 失鲜卡；③`review/` 卡对应分支与 origin/main 零差异 → MISMATCH 假交付嫌疑。
+**状态闸门（失鲜投卡硬防线）**：开发卡 `new-card` **必须**带 `--ticket-file`（缺了直接拒投，`--force` 才可越），脚本会读该文件 `**Status:**` 行、非 `ready-for-agent` 拒绝。且投卡前领导者必须先在权威仓 `git -c credential.helper=store fetch origin` 后用**最新 HEAD** 的工单文件判断——**禁止**从旧 clone、看板缓存或记忆投卡（v0.5.3 事故教训：三张卡投出时工单已 done）。`verify` 持续兜底：①权威仓 fetch 龄期 >6h 报 WARN（`verify --fetch` 可让脚本自己拉）；②在飞卡对应工单已 done/wontfix → MISMATCH 失鲜卡；③`review/` 卡对应分支与 origin/main 零差异 → MISMATCH 假交付嫌疑；④交付分支上工单 Status=done 但验收勾选框 0/N 已勾 → MISMATCH 假勾选卡（claimed/review 都查，勾一部分只 INFO；防「文档即载荷」单的形态未尽，70-04 打回教训的工具化）。
+
+**依赖闸门（v0.7.1）**：`--deps` 里写全卡 id（如 `69-03-gateway-refresh-and-proxy-leg`）且该卡尚未归档 `done/` ⇒ `new-card` 自动把卡收进 `control/held/`（worker 不可见的暂缓道），不进 inbox 待领列；`verify` 双向兜底——inbox 卡有未就绪依赖 → MISMATCH（应收 held），held 卡依赖已齐 → INFO（提示 `mv` 回 inbox 释放，移卡照旧记 `move <卡id>.md held->inbox` 账）。简写（"01"）、裸编号、以「无」开头的软引用散文不触发；merge 卡与 `--keep-inbox` 豁免。看板把 held 渲染为独立「暂缓·等依赖」列并隐藏领取按钮。
 
 一卡 = 一工单 = 一分支，大工单不拆卡；工单正文写仓库 `.scratch/`，卡只放指针+目标+依赖+**难度**+**定位三件套**（带 `--ticket-file` 时 `PRD:` 行自动写成该工单文件的绝对路径，`分支:`/`worktree:` 两行由卡 id 推确定性路径，任何 agent 拿到卡即可找到工单文件）。开发卡默认 **`/jxx-implement` 推进**（三段硬出口写进 PROTOCOL §2，卡面 `推进:` 行自带）。`--level`（L1 机械改 / L2 有界实现 / L3 需判断 / L4 设计级，判据见 PROTOCOL §1）与 `--model` 必填——**难度是给用户看的**：用户照卡拉起会话、选配 LLM（快模型领 L1/L2，强模型领 L3/L4），worker 不按档位互相挑活。投卡后记账（含定级理由）：
 
@@ -107,7 +110,7 @@ node <skill>/scripts/board.mjs card-move --root <root> --id <卡id> --to <inbox|
 node <skill>/scripts/board.mjs card-rm   --root <root> --id <卡id> --force  # 删卡（慎用，优先 card-move 到 done/）
 ```
 
-`html` 产物是单文件深色看板：四状态泳道（`inbox/claimed/review/blocked`；**done 不在看板显示**，仅页头计数「已完成 N，看板不显示」——归档卡随 `done/` 目录与账本留存）、L1-L4 难度色标、合并卡紫标、领取者、依赖、分支名、**worktree 路径与预开状态**、PRD 可点击 file:// 链接，以及每卡**「复制启动提示词」按钮**（starter 全文 + 指定卡号 + 工作区状态，用户点一下贴给新会话即可开工）。投卡后跑一次（或常驻 `--watch`）即有全局进度。
+`html` 产物是单文件深色看板：状态泳道（`inbox/claimed/review/blocked` + 独立「暂缓·等依赖」列渲染 `control/held/`（无领取按钮，仅领导者可见此语义）；**done 不在看板显示**，仅页头计数「已完成 N，看板不显示」——归档卡随 `done/` 目录与账本留存）、L1-L4 难度色标、合并卡紫标、领取者、依赖、分支名、**worktree 路径与预开状态**、PRD 可点击 file:// 链接，以及每卡**「复制启动提示词」按钮**（starter 全文 + 指定卡号 + 工作区状态，用户点一下贴给新会话即可开工）。投卡后跑一次（或常驻 `--watch`）即有全局进度。
 
 `control/human.html` 是同一次 `html` 生成的**人工待办面板**（只给用户看）：扫权威仓 `.scratch/` 下 `**Status:** ready-for-human` 的工单，逐张呈现编号 / 标题 / 验收勾进度 / **需要人工处理什么**（取自工单未勾验收项；全勾则提示待签收、无勾选项则提示按正文判定），点标题或「打开完整工单」在新标签页打开工单。每卡一个**「复制决策提示词」按钮**：一键复制该单的**决策单提示词**（含**工作区＝权威仓路径 → 先检索代码/看资料取证**、工单路径 + 待决项 + 用 jxx-grilling 逐条摆「选项/影响/推荐」追问到可拍板、结论写回工单评论/改 Status、回写走隔离 worktree、不可逆动作先回显）贴给新会话即可推进决策；提示词**默认不显示在界面上**（只藏在页面脚本的 PROMPTS 里，点击才复制）。与 `board.html` 顶部互链（各一个返回按钮）。
 
@@ -128,7 +131,7 @@ node <skill>/scripts/board.mjs rm-wt  --root <root> --ticket <NNN-slug> [--delet
 
 0. 上岗即拉起看板服务面：`html --watch` 后台常驻（或每次动作后补跑 `html`），浏览器打开 `control/board.html` 给用户。
 1. 读用户诉求 / 仓库 `.scratch/` PRD → 用 `new-card` 分解投卡进 `inbox/`，逐张定级（每投一张记一笔账，含定级理由）。**不轻信 Status 行**：对"是否真开放/真完成"有疑点时，派只读子代理逐条对码实证（读验收标准→查实物→能跑则跑测试），实证结论记入卡与账本，再决定投/撤。
-2. 卡进入 `review/` 时按 v0.6.0 分级：**L1-L3 直接投 merge 卡**（技术定点复核由合并专员按协议 §3 先审后合执行，打回机制兜底）；**L4 卡与跨单口径问题**（范围/判据二选一这类判断）领导者先亲自裁决或派子代理实证，裁决点写进 merge 卡「领导者口径裁决」段。合并顺序与理由记入账本。
+2. 卡进入 `review/` 时按 v0.6.0 分级：**L1-L3 直接投 merge 卡**（技术定点复核由合并专员按协议 §3 先审后合执行，打回机制兜底）；**L4 卡与跨单口径问题**（范围/判据二选一这类判断）领导者先亲自裁决或派子代理实证，裁决点写进 merge 卡「领导者口径裁决」段。合并顺序与理由记入账本。**交付载荷是纯文档的卡（双仓单的本仓侧、纯回写单）**：投 merge 卡前必须通读分支版工单验收段全文——勾选框与 Status 一致、同文件数字前后一致、无乱码病句；假勾选闸门（verify ④）只兜形态，内容级矛盾靠这一读（70-04 打回复盘：终审当时只 grep 了 Status 行，未数勾选、未读正文）。
 3. 合并卡回报 done 后，把对应开发卡 move 到 `done/`，记一笔账。
 3b. **合并卡被合并专员打回时（§3 复核不过）**：领导者复核其发现项后裁决——**确认打回**则把 merge 卡移 `blocked/`，卡内写明「返工重交付后放回 `inbox/` 复审、diff 变了必须复审」，开发卡停在 `claimed/` 等返工（合并专员已退回）；**不确认**则在卡内写明理由并把卡片放回 `inbox/`（此时须显式覆盖 §3 的复核结论，别让合并专员再打回一次）。两种情况都记一笔账，理由里写清「哪几条发现项成立、哪几条降级为建议」。
 4. 随时可 `board` 汇总向用户汇报；被中断后 `verify` 重建认知。
@@ -138,10 +141,10 @@ node <skill>/scripts/board.mjs rm-wt  --root <root> --ticket <NNN-slug> [--delet
 `control/ledger.md` 表尾追加，一行一动作：
 
 ```
-| 2026-09-21T14:05:33+08:00 | leader | move 033-foo review->done | wt/033-foo | 合并完成 |
+| 2026-09-21T14:05:33+08:00 | leader | move 033-foo.md review->done | wt/033-foo | 合并完成 |
 ```
 
-移卡动作必须写成 `move <卡id> <from>-><to>`，`verify` 依赖该文法回放对账。
+移卡动作必须写成 `move <卡id>.md <from>-><to>`——**`.md` 后缀不可省**，`verify` 的回放正则按 `<卡id>.md` 整格精确匹配，缺后缀的账行不参与回放（v0.6.10 事故：leader 手写不带后缀的行被 verify 判 MISMATCH）。
 
 ## Resources
 

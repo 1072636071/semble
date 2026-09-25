@@ -4,6 +4,7 @@
 - 难度: {{LEVEL}}
 - 模型档位: {{MODEL}}
 - 依赖: {{DEPS}}
+- PRD: （投卡带 --ticket-file 自动填工单绝对路径）
 - 目标: （一句话，领导者填写）
 
 <!-- 确定性路径（card read 实时推导，不占卡面）：分支 ticket/{{ID}} · worktree {{ROOT}}/wt/{{ID}}/ · 推进 /jxx-implement（PROTOCOL §2） -->

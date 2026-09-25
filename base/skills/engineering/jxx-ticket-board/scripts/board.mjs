@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 
 const SKILL_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STATES = ['inbox', 'claimed', 'review', 'done', 'blocked'];
+// held = 领导者暂缓泳道（control/held/，worker 不可见）：依赖未就绪的新卡投进这里，依赖卡归档 done 后释放回 inbox
+const HELD = 'held';
 
 const arg = (argv, name) => {
   const eq = argv.find(a => a === `--${name}=` || a.startsWith(`--${name}=`));
@@ -33,11 +35,17 @@ function needWs(root) {
   return meta;
 }
 
-function cardsDir(root, state) { return path.join(root, 'control', 'cards', state); }
+function cardsDir(root, state) {
+  return state === HELD
+    ? path.join(root, 'control', 'held')
+    : path.join(root, 'control', 'cards', state);
+}
 function listCards(root, state) {
   const d = cardsDir(root, state);
   return fs.existsSync(d) ? fs.readdirSync(d).filter(f => f.endsWith('.md')).sort() : [];
 }
+// All lanes including held, for scanBoard / verify / cardPath / dependency resolution.
+const LANES = [...STATES, HELD];
 
 // ---------- init ----------
 function cmdInit(argv) {
@@ -98,11 +106,22 @@ function cardFields(body) {
     prd: f('PRD'), branch: f('分支'), wt: f('worktree'), deps: f('依赖') };
 }
 function scanBoard(root) {
-  return STATES.map(s => ({ state: s, cards: listCards(root, s).map(c => {
+  return LANES.map(s => ({ state: s, cards: listCards(root, s).map(c => {
     const body = fs.readFileSync(path.join(cardsDir(root, s), c), 'utf8');
     const id = c.replace(/\.md$/, '');
     return { id, merge: /^merge-/.test(id), wtExists: fs.existsSync(path.join(root, 'wt', id)), ...cardFields(body) };
   }) }));
+}
+// 依赖闸门口径：只认依赖行里写全卡 id 的依赖（如 69-03-gateway-refresh-and-proxy-leg）；
+// 该卡已归档 done 才算就绪；简写（"01"）、裸编号（"69-03"）与散文描述不参与判定；
+// 依赖行以「无」开头（含"无——软引用/联动说明"这类散文）视为无硬依赖。merge 卡豁免——它在开发卡过审后投出。
+function pendingDeps(root, depsLine, selfId) {
+  if (!depsLine || /^无/.test(depsLine.trim()) || /^merge-/.test(selfId)) return [];
+  const known = new Set();
+  for (const s of LANES) for (const c of listCards(root, s)) known.add(c.replace(/\.md$/, ''));
+  const doneIds = new Set(listCards(root, 'done').map(c => c.replace(/\.md$/, '')));
+  return [...new Set((depsLine.match(/\d+-[a-z0-9][a-z0-9-]*/g) || []))]
+    .filter(t => t !== selfId && known.has(t) && !doneIds.has(t));
 }
 
 // ---------- board ----------
@@ -110,9 +129,12 @@ function cmdBoard(argv) {
   const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));
   needWs(root);
   for (const col of scanBoard(root)) {
-    console.log(`\n== ${col.state} (${col.cards.length}) ==`);
-    for (const c of col.cards)
-      console.log(`  [${c.level || '?'}] ${c.id}.md${c.title ? ` — ${c.title}` : ''}${c.by ? `  [${c.by}]` : ''}`);
+    if (col.state === 'held' && !col.cards.length) continue;
+    console.log(`\n== ${col.state === 'held' ? 'held（暂缓·等依赖，worker 不可领）' : col.state} (${col.cards.length}) ==`);
+    for (const c of col.cards) {
+      const pend = (col.state === 'inbox' || col.state === HELD) ? pendingDeps(root, c.deps, c.id) : [];
+      console.log(`  [${c.level || '?'}] ${c.id}.md${c.title ? ` — ${c.title}` : ''}${c.by ? `  [${c.by}]` : ''}${pend.length ? `  ⛓ 等依赖: ${pend.join(', ')}` : ''}`);
+    }
   }
 }
 
@@ -120,11 +142,11 @@ function cmdBoard(argv) {
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const fileHref = p => /^[A-Za-z]:[\\/]/.test(p) ? 'file:///' + p.replace(/\\/g, '/') : '';
 const LV_COLOR = { L1: '#6b7280', L2: '#2563eb', L3: '#d97706', L4: '#dc2626' };
-const STATE_LABEL = { inbox: '待领取 inbox', claimed: '开发中 claimed', review: '待终审 review', done: '已完成 done', blocked: '受阻 blocked' };
+const STATE_LABEL = { inbox: '待领取 inbox', claimed: '开发中 claimed', review: '待终审 review', done: '已完成 done', blocked: '受阻 blocked', held: '暂缓·等依赖（不可领）' };
 
 function renderHtml(root, meta, cols, starters) {
   const shown = cols.filter(c => c.state !== 'done');
-  const total = shown.reduce((n, c) => n + c.cards.length, 0);
+  const total = shown.reduce((n, c) => n + c.cards.length, 0) - (shown.find(c => c.state === HELD)?.cards.length || 0);
   const doneCount = (cols.find(c => c.state === 'done') || { cards: [] }).cards.length;
   const prompts = {};
   const cardsHtml = c => {
@@ -133,13 +155,18 @@ function renderHtml(root, meta, cols, starters) {
     const starter = starters[c.merge ? 'merger' : 'dev'] || '';
     prompts[c.id] = starter + `\n\n---\n本次指定：优先领取卡片 \`${c.id}\`（难度 ${c.level || '?'}）。` +
       (c.wtExists ? `工作区已预开：${c.wt}，领卡 move 成功后直接进入装依赖开工。` : `领卡后按协议 §1 用 add-wt 开辟工作区。`);
-    return `<div class="card${c.merge ? ' merge' : ''}">
+    const pend = (c.state === 'inbox' || c.state === HELD) ? pendingDeps(root, c.deps, c.id) : [];
+    const depNote = pend.length ? `<div class="dep">⛓ 等依赖未归档: ${esc(pend.join('、'))}</div>` : '';
+    const btn = c.state === HELD
+      ? '<div class="m">⏸ 暂缓中：依赖归档后由领导者 mv 回 inbox 释放</div>'
+      : '<button class="cp" data-id="' + esc(c.id) + '">📋 复制启动提示词</button>';
+    return `<div class="card${c.merge ? ' merge' : ''}${c.state === HELD ? ' heldc' : ''}">
 <span class="lv" style="background:${LV_COLOR[c.level] || '#6b7280'}">${esc(c.level || '?')}</span>
 <b>${esc(c.id)}</b>${c.merge ? '<span class="tagm">合并</span>' : ''}
 <div class="t">${esc(c.title || '')}</div>
-${wtLine}
+${wtLine}${depNote}
 <div class="m">${c.by ? `👤 ${esc(c.by)}　` : ''}${c.deps && c.deps !== '无' ? `⛓ ${esc(c.deps)}　` : ''}${prd}${c.branch ? `　⎇ ${esc(c.branch)}` : ''}</div>
-<button class="cp" data-id="${esc(c.id)}">📋 复制启动提示词</button>
+${btn}
 </div>`;
   };
   return `<!doctype html><html lang="zh"><head><meta charset="utf-8">
@@ -148,7 +175,7 @@ ${wtLine}
 body{font:14px/1.5 "Segoe UI",system-ui,sans-serif;background:#0f1115;color:#e5e7eb;margin:16px}
 header{display:flex;gap:16px;align-items:baseline;margin-bottom:12px;flex-wrap:wrap}
 header h1{font-size:18px;margin:0}header .info{color:#9ca3af;font-size:12px}
-.cols{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:start}
+.cols{display:grid;grid-template-columns:repeat(var(--nc,4),1fr);gap:10px;align-items:start}
 .col{background:#161a22;border-radius:10px;padding:10px;min-height:120px}
 .col h2{font-size:13px;margin:0 0 8px;color:#9ca3af;text-transform:uppercase}
 .card{background:#1e2430;border:1px solid #2b3342;border-radius:8px;padding:8px 10px;margin-bottom:8px}
@@ -158,6 +185,8 @@ header h1{font-size:18px;margin:0}header .info{color:#9ca3af;font-size:12px}
 .t{margin:2px 0;color:#d1d5db}.m{color:#8b94a3;font-size:12px;word-break:break-all}
 .wt{color:#8b94a3;font-size:11px;word-break:break-all;margin:2px 0}
 .ok{color:#34d399;font-size:11px}.no{color:#6b7280;font-size:11px}
+.dep{color:#f59e0b;font-size:12px;margin:2px 0}
+.card.heldc{opacity:.75;border-style:dashed}
 .cp{margin-top:6px;background:#2b3342;color:#cbd5e1;border:1px solid #3b4356;border-radius:6px;font-size:12px;padding:3px 8px;cursor:pointer}
 .cp:hover{background:#3b4356}.cp.done{background:#064e3b;border-color:#34d399;color:#6ee7b7}
 a{color:#60a5fa;text-decoration:none}
@@ -166,7 +195,7 @@ a{color:#60a5fa;text-decoration:none}
 footer{margin-top:10px;color:#6b7280;font-size:12px}
 </style></head><body>
 <header><h1>工单公告板</h1><a class="nav" href="human.html" target="_blank" rel="noopener">人工待办面板 →</a><span class="info">${esc(root)} · 权威仓 ${esc(meta.repoPath || '')} · 基准 ${esc(meta.baseBranch)} · ${total} 张在办（已完成 ${doneCount}，看板不显示）· 生成于 ${localIso()} · 每 5s 自动刷新</span></header>
-<div class="cols">${shown.map(c => `<div class="col"><h2>${STATE_LABEL[c.state]} (${c.cards.length})</h2>${c.cards.map(cardsHtml).join('')}</div>`).join('')}</div>
+<div class="cols" style="--nc:${Math.max(shown.length, 4)}">${shown.map(c => `<div class="col"><h2>${STATE_LABEL[c.state]} (${c.cards.length})</h2>${c.cards.map(x => cardsHtml({ ...x, state: c.state })).join('')}</div>`).join('')}</div>
 <footer>协议真源 control/PROTOCOL.md · 领导者账本 control/ledger.md · 复制按钮=对应角色 starter 提示词+指定卡号，贴给新拉起会话即可开工</footer>
 <script>const PROMPTS=${JSON.stringify(prompts).replace(/</g, '\\u003c')};
 document.querySelectorAll('.cp').forEach(b=>b.addEventListener('click',async()=>{
@@ -330,7 +359,7 @@ function cmdVerify(argv) {
   }
   const problems = [];
   const where = {}; // cardId -> [states]
-  for (const s of STATES) for (const c of listCards(root, s)) {
+  for (const s of LANES) for (const c of listCards(root, s)) {
     const id = c.replace(/\.md$/, '');
     (where[id] ||= []).push(s);
     if (where[id].length > 1) problems.push(`MISMATCH 卡 ${id} 同时存在于 ${where[id].join(' + ')}`);
@@ -348,11 +377,11 @@ function cmdVerify(argv) {
   }
   for (const [id, mv] of Object.entries(lastMove)) {
     const loc = where[id];
-    if (!loc) problems.push(`MISMATCH 账本最后记录 ${id} 应在 ${mv.to}，但五目录均未找到该卡`);
+    if (!loc) problems.push(`MISMATCH 账本最后记录 ${id} 应在 ${mv.to}，但各泳道目录均未找到该卡`);
     else if (!loc.includes(mv.to)) problems.push(`MISMATCH 账本记 ${id} 在 ${mv.to}，实况在 ${loc.join('/')}`);
   }
   // PRD 指针有效性（防迁移/改名漂移）
-  for (const s of STATES) for (const c of listCards(root, s)) {
+  for (const s of LANES) for (const c of listCards(root, s)) {
     const cbody = fs.readFileSync(path.join(cardsDir(root, s), c), 'utf8');
     const { prd, branch } = cardFields(cbody);
     if (prd && !fs.existsSync(prd)) problems.push(`MISMATCH 卡 ${c} 的 PRD 指针不存在: ${prd}`);
@@ -384,6 +413,48 @@ function cmdVerify(argv) {
       }
     }
   }
+  // 假勾选闸门：交付分支上的工单 Status=done 但验收勾选框一条未勾 ⇒ 文档载荷形态未尽（70-04 打回教训＊done+0/17 未勾属确定性缺陷）。工单定位：优先卡面 PRD 行；无则按卡 id 的工单号在分支 .scratch 树里扼 issues/<NN>- 文件
+  for (const s of ['claimed', 'review']) for (const c of listCards(root, s)) {
+    const cbody = fs.readFileSync(path.join(cardsDir(root, s), c), 'utf8');
+    const { prd, branch } = cardFields(cbody);
+    const devId = c.replace(/\.md$/, '').replace(/^merge-/, '');
+    const num = ((devId.match(/^\d+-(\d+)-/) || [])[1] || '').padStart(2, '0');
+    let prdRel = '';
+    if (prd && fs.existsSync(prd)) { const r = path.relative(meta.repoPath, path.resolve(prd)).replace(/\\/g, '/'); if (r && !r.startsWith('..')) prdRel = r; }
+    for (const b of [...new Set([`ticket/${devId}`, (branch || '').trim()].filter(Boolean))]) {
+      let rels = [];
+      if (prdRel) rels = [prdRel];
+      else if (num) {
+        const prdnum = (devId.match(/^(\d+)-/) || [])[1] || '';
+        try {
+          const all = git(meta.repoPath, `ls-tree -r --name-only ${b} .scratch`).split('\n').filter(f => f.includes('/issues/' + num + '-') && f.endsWith('.md'));
+          // 卡 id 的 PRD 号可定位目录时只认该目录，防跨 PRD 同号工单误抓（v0.7.3 事故：70-02 被误判抓中 PRD01 的 02-*.md）
+          const pref = prdnum ? new RegExp('^\\.scratch\\/' + prdnum + '(-|\\/)') : null;
+          rels = (pref ? all.filter(f => pref.test(f)) : all);
+        } catch { continue; }
+      }
+      if (!rels.length) continue;
+      let txt = null;
+      for (const rel of rels) { try { const t = git(meta.repoPath, `show ${b}:${rel}`); if (/\*\*Status:\*\*\s*done/i.test(t)) { txt = t; break; } txt ??= t; } catch { } }
+      if (txt === null) continue;
+      const st = (txt.match(/\*\*Status:\*\*\s*([A-Za-z-]+)/) || [])[1] || '';
+      if (!/^done$/i.test(st)) break;
+      const total = (txt.match(/^ {0,3}[-*] \[[ xX]\]/gm) || []).length;
+      const checked = (txt.match(/^ {0,3}[-*] \[[xX]\]/gm) || []).length;
+      if (total > 0 && checked === 0) problems.push(`MISMATCH 假勾选卡 ${c}（在 ${s}/）：分支 ${b} 工单 Status=done 但验收勾选框 0/${total} 已勾`);
+      else if (total > 0 && checked < total) console.log(`INFO ${c}：分支 ${b} 工单有 ${total - checked}/${total} 项验收未勾（若系留给 merger 打勾则忽略）`);
+      break;
+    }
+  }
+  // 依赖闸门：inbox 卡的依赖若指向未归档(done)的已知卡 id ⇒ 不该可领，应收 held；held 卡依赖齐 ⇒ 提示释放
+  for (const s of ['inbox', HELD]) for (const c of listCards(root, s)) {
+    const { deps } = cardFields(fs.readFileSync(path.join(cardsDir(root, s), c), 'utf8'));
+    const pend = pendingDeps(root, deps, c.replace(/\.md$/, ''));
+    if (s === 'inbox' && pend.length)
+      problems.push(`MISMATCH 依赖未就绪卡 ${c}（在 inbox/）：依赖 ${pend.join(', ')} 未归档 done ⇒ 应 mv 到 control/held/`);
+    if (s === HELD && !pend.length)
+      console.log(`INFO held 卡 ${c} 依赖已齐，可 mv 回 inbox 释放待领`);
+  }
   // 在飞卡分支差异检测：review 有卡却零差异 = 假交付；claimed 零差异仅 INFO（刚开工正常）
   for (const s of ['claimed', 'review']) for (const c of listCards(root, s)) {
     const { branch } = cardFields(fs.readFileSync(path.join(cardsDir(root, s), c), 'utf8'));
@@ -406,12 +477,12 @@ function cmdVerify(argv) {
       problems.push(`MISMATCH claimed 卡 ${id} 无对应 wt/${id} 工作目录`);
   }
   const claimedIds = new Set(listCards(root, 'claimed').map(c => c.replace(/\.md$/, '')));
-  const inboxIds = new Set(listCards(root, 'inbox').map(c => c.replace(/\.md$/, '')));
+  const inboxIds = new Set([...listCards(root, 'inbox'), ...listCards(root, HELD)].map(c => c.replace(/\.md$/, '')));
   const reviewIds = new Set(listCards(root, 'review').map(c => c.replace(/\.md$/, '')));
   const blockedIds = new Set(listCards(root, 'blocked').map(c => c.replace(/\.md$/, '')));
   // 卡上 worktree: 行声明的工作目录（决策会话等可自开非规范名目录，按声明认领，避免误报无主）
   const declaredWt = new Map();
-  for (const s of STATES) for (const c of listCards(root, s)) {
+  for (const s of LANES) for (const c of listCards(root, s)) {
     const { wt } = cardFields(fs.readFileSync(path.join(cardsDir(root, s), c), 'utf8'));
     const w = (wt || '').split(/[\s（(]/)[0].replace(/[\\/]+$/, '');
     if (w) declaredWt.set(path.basename(w).toLowerCase(), `${c.replace(/\.md$/, '')}（在 ${s}/）`);
@@ -460,36 +531,46 @@ function cmdNewCard(argv) {
       if (bb) { depsArg = bb.trim(); console.log(`new-card: 依赖自动取自工单 Blocked by → "${depsArg}"`); }
     }
   }
-  const dest = path.join(cardsDir(root, 'inbox'), `${id}.md`);
-  if (STATES.some(s => fs.existsSync(path.join(cardsDir(root, s), `${id}.md`)))) die(`卡 ${id} 已存在`);
+  const pendDeps = pendingDeps(root, depsArg, id);
+  const parked = pendDeps.length > 0 && !flag(argv, 'keep-inbox');
+  const destLane = parked ? HELD : 'inbox';
+  const dest = path.join(cardsDir(root, destLane), `${id}.md`);
+  if (LANES.some(s => fs.existsSync(path.join(cardsDir(root, s), `${id}.md`)))) die(`卡 ${id} 已存在`);
   const tpl = fs.readFileSync(path.join(root, 'control', 'CARD-TEMPLATE.md'), 'utf8');
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   let body = tpl.replaceAll('{{ID}}', id).replaceAll('{{PRD-ID}}', id.replace(/^merge-/, ''))
     .replaceAll('{{TITLE}}', arg(argv, 'title') || id)
     .replaceAll('{{DEPS}}', depsArg || '无').replaceAll('{{LEVEL}}', level)
     .replaceAll('{{MODEL}}', model);
-  if (tf) body = body.replace(/^- PRD: [^\r\n]*/m, `- PRD: ${path.resolve(tf)}`);
+  // PRD 行 upsert：模板可能没有 "- PRD:" 行（v0.7.3 事故：70 波 merge 卡静默丢 PRD 指针），缺则插到目标行前
+  const setPrd = (b, v) => /^- PRD:[^\r\n]*$/m.test(b)
+    ? b.replace(/^- PRD:[^\r\n]*/m, `- PRD: ${v}`)
+    : b.replace(/^- 目标:[^\r\n]*/m, `- PRD: ${v}\n$&`);
+  if (tf) body = setPrd(body, path.resolve(tf));
   else if (/^merge-/.test(id)) {
     // merge 卡通常不带 --ticket-file：从同名去前缀的开发卡继承真实 PRD 指针，免留模板占位假路径
     const devId = id.replace(/^merge-/, '');
     let inherited = '';
-    for (const s of STATES) {
+    for (const s of LANES) {
       const p = path.join(cardsDir(root, s), `${devId}.md`);
       if (!fs.existsSync(p)) continue;
       const { prd } = cardFields(fs.readFileSync(p, 'utf8'));
       if (prd && fs.existsSync(prd)) { inherited = prd; console.log(`new-card: PRD 指针继承自 ${s}/${devId}.md`); break; }
     }
-    if (inherited) body = body.replace(/^- PRD: [^\r\n]*/m, `- PRD: ${inherited}`);
+    if (inherited) body = setPrd(body, inherited);
     else console.log(`WARN new-card: 未找到可继承 PRD 的开发卡 ${devId}.md，PRD 行仍是模板占位路径——请手工改成真实工单路径，否则 verify 会报 MISMATCH`);
   }
   fs.writeFileSync(dest, body);
   autoHtml(root);
-  console.log(`new-card: inbox/${id}.md 已创建（${level}）。填完卡落后记得 ledger 记投卡+定级理由。`);
+  if (parked)
+    console.log(`new-card: ${HELD}/${id}.md —— 依赖未归档（${pendDeps.join(', ')}），自动收进 held 暂缓道，worker 不可见；依赖卡归档 done 后 mv 回 inbox 释放。确要直投 inbox 可重跑加 --keep-inbox`);
+  else
+    console.log(`new-card: inbox/${id}.md 已创建（${level}）。填完卡落后记得 ledger 记投卡+定级理由。`);
 }
 
 // ---------- card CRUD（瘦卡 v2：确定性字段由脚本推导，卡内只留真增量） ----------
 function cardPath(root, id) {
-  for (const s of STATES) {
+  for (const s of LANES) {
     const p = path.join(cardsDir(root, s), `${id}.md`);
     if (fs.existsSync(p)) return { state: s, path: p };
   }
@@ -503,7 +584,7 @@ function deriveFields(root, id, body) {
   let prd = f.prd;
   if (!prd && /^merge-/.test(id)) {
     const devId = id.replace(/^merge-/, '');
-    for (const s of STATES) {
+    for (const s of LANES) {
       const p = path.join(cardsDir(root, s), `${devId}.md`);
       if (!fs.existsSync(p)) continue;
       const d = cardFields(fs.readFileSync(p, 'utf8')).prd;
@@ -554,9 +635,14 @@ function cmdCardMove(argv) {
   needWs(root);
   const id = arg(argv, 'id') || die('缺少 --id <卡id>');
   const to = arg(argv, 'to') || die('缺少 --to <目标状态>');
-  if (!STATES.includes(to)) die(`--to 必须是 ${STATES.join('/')}`);
+  if (!LANES.includes(to)) die(`--to 必须是 ${LANES.join('/')}`);
+  if (to === HELD && !flag(argv, 'leader')) die(`card move: held 是领导者泳道，worker 不可移入（--leader 显式声明方可）`);
   const loc = cardPath(root, id);
   if (!loc) die(`卡 ${id} 不存在`);
+  if (to === 'claimed') {
+    const pend = pendingDeps(root, cardFields(fs.readFileSync(loc.path, 'utf8')).deps, id);
+    if (pend.length) die(`card move: 卡 ${id} 依赖未归档（${pend.join(', ')}）不可领取——等依赖 done 后由领导者释放回 inbox`);
+  }
   if (loc.state === to) { console.log(`card move: ${id} 已在 ${to}/，无需移动`); return; }
   const dest = path.join(cardsDir(root, to), `${id}.md`);
   if (fs.existsSync(dest)) die(`目标已存在 ${to}/${id}.md`);
