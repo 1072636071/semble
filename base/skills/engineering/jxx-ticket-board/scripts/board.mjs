@@ -446,6 +446,30 @@ function cmdVerify(argv) {
       break;
     }
   }
+  // 批量关账卡审计（v0.7.4，B1 教训）：批量卡没有本编号工单，上面的单工单闸门结构性逸出；
+  // 从卡体提取 NN-slug token，匹配分支树同 PRD 目录下的 issues/NN-slug.md，逐张跑 done+零勾选红灯
+  for (const s of ['claimed', 'review']) for (const c of listCards(root, s)) {
+    if (/^merge-/.test(c)) continue;
+    const cbody = fs.readFileSync(path.join(cardsDir(root, s), c), 'utf8');
+    const devId = c.replace(/\.md$/, '');
+    const prdnum = (devId.match(/^(\d+)-/) || [])[1] || '';
+    const tokens = new Set([...cbody.matchAll(/\b\d{2}-[a-z][a-z0-9-]+\b/g)].map(m => m[0]));
+    if (!prdnum || !tokens.size) continue;
+    const { branch } = cardFields(cbody);
+    for (const b of [...new Set([`ticket/${devId}`, (branch || '').trim()].filter(Boolean))]) {
+      let tree = '';
+      try { tree = git(meta.repoPath, `ls-tree -r --name-only ${b} .scratch`); } catch { continue; }
+      const pref = new RegExp('^\\.scratch\\/' + prdnum + '(-[^/]+)?\\/issues\\/');
+      for (const rel of tree.split('\n').filter(f => pref.test(f) && f.endsWith('.md') && [...tokens].some(t => f.endsWith('/issues/' + t + '.md')))) {
+        let txt; try { txt = git(meta.repoPath, `show ${b}:${rel}`); } catch { continue; }
+        if (!/\*\*Status:\*\*\s*done/i.test(txt)) continue;
+        const total = (txt.match(/^ {0,3}[-*] \[[ xX]\]/gm) || []).length;
+        const checked = (txt.match(/^ {0,3}[-*] \[[xX]\]/gm) || []).length;
+        if (total > 0 && checked === 0) problems.push(`MISMATCH 假勾选卡 ${c}（在 ${s}/）：分支 ${b} 工单 ${rel.split('/').pop()} Status=done 但验收框 0/${total} 未勾（批量卡审计）`);
+      }
+      break;
+    }
+  }
   // 依赖闸门：inbox 卡的依赖若指向未归档(done)的已知卡 id ⇒ 不该可领，应收 held；held 卡依赖齐 ⇒ 提示释放
   for (const s of ['inbox', HELD]) for (const c of listCards(root, s)) {
     const { deps } = cardFields(fs.readFileSync(path.join(cardsDir(root, s), c), 'utf8'));
