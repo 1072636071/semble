@@ -457,10 +457,13 @@ function cmdVerify(argv) {
     if (!prdnum || !tokens.size) continue;
     const { branch } = cardFields(cbody);
     for (const b of [...new Set([`ticket/${devId}`, (branch || '').trim()].filter(Boolean))]) {
-      let tree = '';
+      let tree = '', touched = '';
       try { tree = git(meta.repoPath, `ls-tree -r --name-only ${b} .scratch`); } catch { continue; }
+      // v0.7.5：只审计本分支实际改动过的工单——依赖引用/正文提及他单号不算本单交付面（60-06 误归因教训）
+      try { touched = git(meta.repoPath, `diff --name-only origin/main...${b} .scratch`); } catch { touched = ''; }
       const pref = new RegExp('^\\.scratch\\/' + prdnum + '(-[^/]+)?\\/issues\\/');
-      for (const rel of tree.split('\n').filter(f => pref.test(f) && f.endsWith('.md') && [...tokens].some(t => f.endsWith('/issues/' + t + '.md')))) {
+      const tset = new Set(touched.split('\n'));
+      for (const rel of tree.split('\n').filter(f => pref.test(f) && f.endsWith('.md') && tset.has(f) && [...tokens].some(t => f.endsWith('/issues/' + t + '.md')))) {
         let txt; try { txt = git(meta.repoPath, `show ${b}:${rel}`); } catch { continue; }
         if (!/\*\*Status:\*\*\s*done/i.test(txt)) continue;
         const total = (txt.match(/^ {0,3}[-*] \[[ xX]\]/gm) || []).length;
