@@ -473,6 +473,29 @@ function cmdVerify(argv) {
       break;
     }
   }
+  // v0.7.6：BACKLOG 撞号闸门——在飞分支给 .scratch/BACKLOG.md 新增的 `### N.` 号，
+  // 与 origin/main 现号或彼此互撞即红灯（#53、#75 两波并行登号事故的工具化）
+  let mainBSet;
+  try { mainBSet = new Set([...git(meta.repoPath, 'show origin/main:.scratch/BACKLOG.md').matchAll(/^#{2,3} (\d+)\./gm)].map(m => m[1])); } catch { mainBSet = new Set(); }
+  const bAdd = new Map();
+  for (const s of ['claimed', 'review']) for (const c of listCards(root, s)) {
+    if (/^merge-/.test(c)) continue;
+    const cbody = fs.readFileSync(path.join(cardsDir(root, s), c), 'utf8');
+    const devId = c.replace(/\.md$/, '');
+    const { branch } = cardFields(cbody);
+    for (const b of [...new Set([`ticket/${devId}`, (branch || '').trim()].filter(Boolean))]) {
+      let d = ''; try { d = git(meta.repoPath, `diff origin/main...${b} -- .scratch/BACKLOG.md`); } catch { continue; }
+      for (const n of new Set([...d.matchAll(/^\+#{2,3} (\d+)\./gm)].map(m => m[1]))) {
+        if (!bAdd.has(n)) bAdd.set(n, []);
+        bAdd.get(n).push(c);
+      }
+      break;
+    }
+  }
+  for (const [n, cards] of [...bAdd.entries()].sort((a, b) => a[0] - b[0])) {
+    if (mainBSet.has(n)) problems.push(`MISMATCH BACKLOG 撞号：卡 ${cards.join(', ')} 分支新增 #${n} 已存在于 origin/main ⇒ 合入时以 main 现尾顺延重编并改尽交叉引用`);
+    else if (cards.length > 1) problems.push(`MISMATCH BACKLOG 撞号：卡 ${cards.join(', ')} 分支同登 #${n} ⇒ 按合入次序逐张顺延重编`);
+  }
   // 依赖闸门：inbox 卡的依赖若指向未归档(done)的已知卡 id ⇒ 不该可领，应收 held；held 卡依赖齐 ⇒ 提示释放
   for (const s of ['inbox', HELD]) for (const c of listCards(root, s)) {
     const { deps } = cardFields(fs.readFileSync(path.join(cardsDir(root, s), c), 'utf8'));
