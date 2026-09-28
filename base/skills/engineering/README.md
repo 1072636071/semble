@@ -14,6 +14,7 @@
 - **[setup-skills](./jxx-setup-skills/SKILL.md)** — 为本仓库配置工程技能（issue 跟踪器、triage 标签、领域文档布局）。每个仓库运行一次。
 - **[to-spec](./jxx-to-spec/SKILL.md)** — 将当前对话转化为规格文档并发布到 issue 跟踪器。
 - **[to-tickets](./jxx-to-tickets/SKILL.md)** — 将任何计划、规格文档或对话拆解为一组追踪弹式工单，每个工单声明其阻塞关系——本地文件中以 `Blocked by:` 文本行表示阻塞边。
+- **[implement-spec](./jxx-implement-spec/SKILL.md)** — 按 spec 与其关联 ticket（任务图）实现整个 spec：单分支一支 PR，实现者子 agent 按"就绪前沿"并发认领，探索/合并各司其职。用户调用。
 - **[wayfinder](./jxx-wayfinder/SKILL.md)** — 规划大型工作——超过单个 agent 会话能承载的范围——在 issue tracker 上创建共享调查地图，逐个解决直到通往目的地的路径清晰。
 
 ## 模型调用

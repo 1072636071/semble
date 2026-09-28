@@ -1,0 +1,12 @@
+[
+  {
+    "name": "jxx-implement-spec-basic",
+    "prompt": "实现 spec-042，相关 ticket 已经拆好了",
+    "expected_behavior": "阅读 spec 与 ticket 画出任务图，创建分支与草稿 PR，按就绪前沿用后台实现者子 agent（各自 worktree/分支）并发实现，完成后合并、跑 /jxx-code-review、修复、转 ready、清理 worktree"
+  },
+  {
+    "name": "jxx-implement-spec-frontier",
+    "prompt": "实现这份 spec，ticket 之间有阻塞关系",
+    "expected_behavior": "识别任务图的就绪前沿，某 ticket 完成后立即检查前沿变化并启动新的实现者子 agent，保持最大并发；与子 agent 通过上下文指针而非复述内容沟通"
+  }
+]
