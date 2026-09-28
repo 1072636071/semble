@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>技能目录 — JwikisSkills 全量技能与关系图</title>
+<style>
+/* ==========================================================================
+   技能目录 — 沿用 Jxx Fresh 设计体系（同 docs/guide/index.html 令牌）
+   自包含：无外链 CSS / 字体 / 图片 / CDN。
+   ========================================================================== */
+:root {
+  color-scheme: light;
+  --paper: #f7faf8;
+  --surface: #ffffff;
+  --surface-2: #f2f7f5;
+  --surface-3: #eaf2ef;
+  --ink: #16302b;
+  --ink-2: #3f5450;
+  --muted: #7d918c;
+  --faint: #a3b4b0;
+  --line: #e4ece9;
+  --line-2: #d5e3de;
+  --brand: #12a594;
+  --brand-ink: #0b7d70;
+  --brand-soft: #e3f5f1;
+  --brand-line: #bfe9e1;
+  --sky: #5b8def;      --sky-soft: #ecf2fe;  --sky-line: #d3e2fd;
+  --lilac: #8b7cf6;    --lilac-soft: #f0edfe; --lilac-line: #ded7fd;
+  --gold: #eaa327;     --gold-soft: #fdf3e0;  --gold-line: #f7e2bb;
+  --coral: #ec7f6a;    --coral-soft: #fdeeea; --coral-line: #f8d7cd;
+  --r-sm: 10px; --r: 14px; --r-lg: 20px; --r-pill: 999px;
+  --sh-2: 0 2px 6px rgba(16,52,46,.05), 0 12px 28px -16px rgba(16,52,46,.18);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--font); font-size: 15px; line-height: 1.65;
+}
+a { color: var(--brand-ink); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px 80px; }
+
+/* ---------- hero ---------- */
+.hero {
+  padding: 40px 0 24px; border-bottom: 1px solid var(--line);
+  display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-end; justify-content: space-between;
+}
+.hero h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: .5px; }
+.hero .lead { margin: 0; color: var(--ink-2); max-width: 720px; }
+.hero .lead code { font-family: var(--mono); font-size: 13px; background: var(--surface-2); padding: 1px 6px; border-radius: 6px; }
+.stats { display: flex; gap: 12px; flex-wrap: wrap; }
+.stat {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 10px 18px; text-align: center; box-shadow: var(--sh-2);
+}
+.stat b { display: block; font-size: 22px; color: var(--brand-ink); }
+.stat span { font-size: 12px; color: var(--muted); }
+
+/* ---------- toc ---------- */
+.toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 8px; }
+.toc a {
+  font-size: 13px; padding: 5px 12px; border-radius: var(--r-pill);
+  background: var(--surface); border: 1px solid var(--line); color: var(--ink-2);
+}
+.toc a:hover { border-color: var(--brand-line); color: var(--brand-ink); text-decoration: none; }
+.search-row { margin: 8px 0 0; }
+.search-row input {
+  width: 320px; max-width: 100%; padding: 8px 14px; font-size: 14px; font-family: var(--font);
+  border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface); color: var(--ink); outline: none;
+}
+.search-row input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(18,165,148,.15); }
+
+/* ---------- sections ---------- */
+section { margin-top: 44px; }
+h2 { font-size: 22px; margin: 0 0 6px; display: flex; align-items: center; gap: 10px; }
+h2 .cnt { font-size: 13px; font-weight: 400; color: var(--muted); }
+.sec-lead { color: var(--ink-2); margin: 0 0 16px; font-size: 14px; }
+
+/* ---------- graph ---------- */
+.graph-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--sh-2); padding: 18px 18px 8px; overflow-x: auto;
+}
+.graph-card svg { display: block; min-width: 900px; width: 100%; height: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; padding: 10px 6px 6px; font-size: 12.5px; color: var(--ink-2); }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 4px; margin-right: 5px; vertical-align: -1px; }
+.legend .dash { width: 22px; height: 0; border-top: 2px dashed var(--muted); border-radius: 0; vertical-align: 3px; }
+.legend .solid { width: 22px; height: 0; border-top: 2px solid var(--muted); border-radius: 0; vertical-align: 3px; }
+.graph-notes { font-size: 13px; color: var(--muted); margin: 12px 2px 0; }
+.graph-notes ul { margin: 6px 0 0; padding-left: 20px; }
+.graph-notes li { margin: 3px 0; }
+.graph-notes code { font-family: var(--mono); font-size: 12px; background: var(--surface-2); padding: 0 5px; border-radius: 5px; }
+
+/* SVG node text */
+svg text { font-family: var(--font); }
+svg .nm { font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+svg .sub { font-size: 10.5px; fill: var(--ink-2); }
+svg .lbl { font-size: 10px; fill: var(--muted); }
+svg .grp { font-size: 12px; font-weight: 600; }
+
+/* ---------- bucket catalog ---------- */
+.bucket {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--sh-2); padding: 20px 22px; margin-bottom: 22px;
+}
+.bucket h3 { margin: 0 0 2px; font-size: 17px; font-family: var(--mono); }
+.bucket .bmeta { font-size: 12.5px; color: var(--muted); margin: 0 0 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; padding: 6px 10px; border-bottom: 1px solid var(--line-2); white-space: nowrap; }
+td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--surface-2); }
+td.sk { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+td.desc { color: var(--ink-2); }
+.badge {
+  display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: var(--r-pill);
+  border: 1px solid var(--line-2); background: var(--surface-2); color: var(--ink-2); white-space: nowrap;
+}
+.badge.user  { background: var(--brand-soft); border-color: var(--brand-line); color: var(--brand-ink); }
+.badge.model { background: var(--sky-soft);  border-color: var(--sky-line);  color: #3b5fc0; }
+.badge.i-true    { background: var(--gold-soft);  border-color: var(--gold-line);  color: #9a6a10; }
+.badge.i-project { background: var(--lilac-soft); border-color: var(--lilac-line); color: #5b48c0; }
+.badge.i-false   { background: var(--surface-3);  color: var(--muted); }
+.bucket-note { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; }
+
+footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
+@media (max-width: 720px) {
+  .hero h1 { font-size: 24px; }
+  td.desc { min-width: 200px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ======================= HERO ======================= -->
+  <header class="hero">
+    <div>
+      <h1>技能目录 <span style="color:var(--brand)">·</span> Skill Catalog</h1>
+      <p class="lead">JwikisSkills 仓库 <code>base/skills/</code> 下全部 73 个技能的总目录与关系图。技能按「桶（bucket）」组织，见 <a href="../../base/skills/README.md">base/skills/README.md</a>；分发由 <code>base/scripts/ship.mjs</code> 按 <code>x-install</code> 字段驱动。</p>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>73</b><span>技能</span></div>
+      <div class="stat"><b>10</b><span>桶</span></div>
+      <div class="stat"><b>30</b><span>工程技能</span></div>
+      <div class="stat"><b>25+</b><span>关系边</span></div>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <a href="#engineering">engineering（30）</a>
+    <a href="#productivity">productivity（10）</a>
+    <a href="#seo-geo">seo-geo（9）</a>
+    <a href="#samll">samll（8）</a>
+    <a href="#in-progress">in-progress（6）</a>
+    <a href="#code">code（2）</a>
+    <a href="#TDB-AM">TDB-AM（2）</a>
+    <a href="#misc">misc（3）</a>
+    <a href="#personal">personal（2）</a>
+    <a href="#kimi">kimi（1）</a>
+    <a href="#graph">⬆ 关系图</a>
+  </nav>
+  <div class="search-row">
+    <input id="q" type="search" placeholder="过滤技能：输入名称或关键词…" aria-label="过滤技能">
+  </div>
+
+  <!-- ======================= 关系图 ======================= -->
+  <section id="graph">
+    <h2>技能关系图 <span class="cnt">jxx 工程族主线 + 周边支撑族</span></h2>
+    <p class="sec-lead">实线 = 流程产出/调用依赖；虚线 = 支撑、环境或可选路径。节点颜色代表职能分区。大多数独立技能（wizard、teach、caveman 族、SEO 五件套等）不画入图中，见下方目录。</p>
+
+    <div class="graph-card">
+      <svg viewBox="0 0 1200 890" role="img" aria-label="技能关系图">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#7d918c"/>
+          </marker>
+        </defs>
+
+        <!-- ============ edges (先画线，节点覆盖在上) ============ -->
+        <g fill="none" stroke="#9db3ae" stroke-width="1.6">
+          <!-- ask-matt 路由入口 -->
+          <path d="M 150 86 C 200 106, 245 122, 272 136" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+          <!-- setup-skills 环境 -->
+          <path d="M 470 86 L 470 338 L 502 354" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+          <!-- grilling 包装三兄弟 -->
+          <path d="M 128 138 C 250 100, 640 100, 756 134" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+          <path d="M 122 138 C 230 116, 410 114, 490 136" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+          <!-- gwm -> research -->
+          <path d="M 640 138 C 740 112, 900 112, 972 134" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+          <!-- gwd -> domain-modeling -->
+          <path d="M 350 202 L 350 248" marker-end="url(#ar)"/>
+          <!-- gwd -> to-spec -->
+          <path d="M 285 202 C 220 250, 168 300, 142 356" marker-end="url(#ar)"/>
+          <!-- wayfinder -> grilling -->
+          <path d="M 508 252 C 380 232, 255 232, 178 202" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+          <!-- wayfinder -> prototype -->
+          <path d="M 707 280 L 743 280" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+          <!-- wayfinder -> to-spec -->
+          <path d="M 528 312 C 410 330, 300 348, 226 384" marker-end="url(#ar)"/>
+          <!-- to-spec -> to-tickets -->
+          <path d="M 130 422 L 130 468" marker-end="url(#ar)"/>
+          <!-- to-tickets -> implement -->
+          <path d="M 130 532 L 130 578" marker-end="url(#ar)"/>
+          <!-- to-tickets -> to-milestones -->
+          <path d="M 222 500 L 248 500" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+          <!-- to-milestones -> implement -->
+          <path d="M 305 532 C 245 548, 185 560, 152 576" marker-end="url(#ar)"/>
+          <!-- triage -> implement -->
+          <path d="M 492 398 C 470 432, 466 500, 468 546 C 420 592, 302 606, 224 610" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+          <!-- implement -> tdd -->
+          <path d="M 222 616 L 248 616" marker-end="url(#ar)"/>
+          <!-- implement -> code-review -->
+          <path d="M 218 594 C 290 558, 372 556, 448 590" marker-end="url(#ar)"/>
+          <!-- ocr -> code-review -->
+          <path d="M 668 614 L 634 614" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+          <!-- implement-spec -> code-review -->
+          <path d="M 428 692 C 488 678, 524 664, 534 644" marker-end="url(#ar)"/>
+          <!-- ticket-board -> implement -->
+          <path d="M 488 702 C 400 684, 262 672, 182 646" marker-end="url(#ar)"/>
+          <!-- ticket-board -> implement-spec -->
+          <path d="M 488 728 L 454 728" marker-end="url(#ar)"/>
+          <!-- diagnosing -> improve-arch -->
+          <path d="M 1047 312 L 1047 356" marker-end="url(#ar)"/>
+          <!-- improve-arch -> codebase-design -->
+          <path d="M 1047 422 L 1047 466" marker-end="url(#ar)"/>
+          <!-- architecture -> codebase-design -->
+          <path d="M 1047 578 L 1047 534" marker-end="url(#ar)"/>
+          <!-- codebase-design -> tdd -->
+          <path d="M 933 502 C 760 528, 560 566, 406 602" marker-end="url(#ar)"/>
+        </g>
+
+        <!-- ============ edge labels ============ -->
+        <g class="lbl" text-anchor="middle">
+          <text x="196" y="118">路由入口</text>
+          <text x="452" y="220">提供 tracker 环境</text>
+          <text x="150" y="312">产出 spec</text>
+          <text x="330" y="345">汇入主流程</text>
+          <text x="118" y="449">发布</text>
+          <text x="118" y="559">逐单推进</text>
+          <text x="236" y="492">可选分组</text>
+          <text x="350" y="231">同步领域模型</text>
+          <text x="300" y="576">分批交付</text>
+          <text x="392" y="564">交付前审查</text>
+          <text x="651" y="606">委托模式</text>
+          <text x="1040" y="339">接缝交接</text>
+          <text x="1072" y="449">深化词汇</text>
+          <text x="470" y="594">接缝词汇</text>
+          <text x="806" y="104">委派调查</text>
+        </g>
+
+        <!-- ============ nodes ============ -->
+        <!-- 路由与环境（mint） -->
+        <g>
+          <rect x="40" y="24" width="220" height="60" rx="10" fill="var(--brand-soft)" stroke="var(--brand-line)"/>
+          <text class="nm" x="150" y="50" text-anchor="middle">jxx-ask-matt</text>
+          <text class="sub" x="150" y="68" text-anchor="middle">技能路由器（用户调用）</text>
+
+          <rect x="310" y="24" width="220" height="60" rx="10" fill="var(--brand-soft)" stroke="var(--brand-line)"/>
+          <text class="nm" x="420" y="50" text-anchor="middle">jxx-setup-skills</text>
+          <text class="sub" x="420" y="68" text-anchor="middle">tracker / triage / OCR 环境</text>
+
+          <rect x="590" y="24" width="190" height="60" rx="10" fill="var(--brand-soft)" stroke="var(--brand-line)"/>
+          <text class="nm" x="685" y="50" text-anchor="middle">jxx-skill-init</text>
+          <text class="sub" x="685" y="68" text-anchor="middle">新建技能骨架</text>
+
+          <rect x="830" y="24" width="190" height="60" rx="10" fill="var(--brand-soft)" stroke="var(--brand-line)"/>
+          <text class="nm" x="925" y="50" text-anchor="middle">jxx-agent-generator</text>
+          <text class="sub" x="925" y="68" text-anchor="middle">生成 Agent 文件</text>
+        </g>
+
+        <!-- 想法与访谈（sky） -->
+        <g>
+          <rect x="40" y="140" width="170" height="60" rx="10" fill="var(--sky-soft)" stroke="var(--sky-line)"/>
+          <text class="nm" x="125" y="166" text-anchor="middle">jxx-grilling</text>
+          <text class="sub" x="125" y="184" text-anchor="middle">访谈原语</text>
+
+          <rect x="250" y="140" width="200" height="60" rx="10" fill="var(--sky-soft)" stroke="var(--sky-line)"/>
+          <text class="nm" x="350" y="166" text-anchor="middle">jxx-grill-with-docs</text>
+          <text class="sub" x="350" y="184" text-anchor="middle">grill + CONTEXT/ADR</text>
+
+          <rect x="490" y="140" width="215" height="60" rx="10" fill="var(--sky-soft)" stroke="var(--sky-line)"/>
+          <text class="nm" x="597" y="166" text-anchor="middle">jxx-grill-with-memorial</text>
+          <text class="sub" x="597" y="184" text-anchor="middle">grill + 奏报持久化</text>
+
+          <rect x="745" y="140" width="150" height="60" rx="10" fill="var(--sky-soft)" stroke="var(--sky-line)"/>
+          <text class="nm" x="820" y="166" text-anchor="middle">jxx-grill-me</text>
+          <text class="sub" x="820" y="184" text-anchor="middle">无状态 grill</text>
+
+          <rect x="935" y="140" width="225" height="60" rx="10" fill="var(--sky-soft)" stroke="var(--sky-line)"/>
+          <text class="nm" x="1047" y="166" text-anchor="middle">jxx-research</text>
+          <text class="sub" x="1047" y="184" text-anchor="middle">后台调研 → 引用报告</text>
+
+          <rect x="250" y="250" width="200" height="60" rx="10" fill="var(--sky-soft)" stroke="var(--sky-line)"/>
+          <text class="nm" x="350" y="276" text-anchor="middle">jxx-domain-modeling</text>
+          <text class="sub" x="350" y="294" text-anchor="middle">领域模型维护</text>
+
+          <rect x="490" y="250" width="215" height="60" rx="10" fill="var(--sky-soft)" stroke="var(--sky-line)"/>
+          <text class="nm" x="597" y="276" text-anchor="middle">jxx-wayfinder</text>
+          <text class="sub" x="597" y="294" text-anchor="middle">大型工作共享调查地图</text>
+
+          <rect x="745" y="250" width="150" height="60" rx="10" fill="var(--sky-soft)" stroke="var(--sky-line)"/>
+          <text class="nm" x="820" y="276" text-anchor="middle">jxx-prototype</text>
+          <text class="sub" x="820" y="294" text-anchor="middle">一次性原型</text>
+        </g>
+
+        <!-- 诊断与架构（lilac） -->
+        <g>
+          <rect x="935" y="250" width="225" height="60" rx="10" fill="var(--lilac-soft)" stroke="var(--lilac-line)"/>
+          <text class="nm" x="1047" y="276" text-anchor="middle">jxx-diagnosing-bugs</text>
+          <text class="sub" x="1047" y="294" text-anchor="middle">疑难 bug 诊断循环</text>
+
+          <rect x="935" y="360" width="225" height="60" rx="10" fill="var(--lilac-soft)" stroke="var(--lilac-line)"/>
+          <text class="nm" x="1047" y="386" text-anchor="middle">jxx-improve-codebase-architecture</text>
+          <text class="sub" x="1047" y="404" text-anchor="middle">扫描深化机会并 grill</text>
+
+          <rect x="935" y="470" width="225" height="60" rx="10" fill="var(--lilac-soft)" stroke="var(--lilac-line)"/>
+          <text class="nm" x="1047" y="496" text-anchor="middle">jxx-codebase-design</text>
+          <text class="sub" x="1047" y="514" text-anchor="middle">深模块共享词汇</text>
+
+          <rect x="935" y="580" width="225" height="60" rx="10" fill="var(--lilac-soft)" stroke="var(--lilac-line)"/>
+          <text class="nm" x="1047" y="606" text-anchor="middle">jxx-architecture</text>
+          <text class="sub" x="1047" y="624" text-anchor="middle">AI 友好架构准则</text>
+        </g>
+
+        <!-- 计划与拆解（gold） -->
+        <g>
+          <rect x="40" y="360" width="180" height="60" rx="10" fill="var(--gold-soft)" stroke="var(--gold-line)"/>
+          <text class="nm" x="130" y="386" text-anchor="middle">jxx-to-spec</text>
+          <text class="sub" x="130" y="404" text-anchor="middle">对话 → spec 发布</text>
+
+          <rect x="490" y="360" width="215" height="60" rx="10" fill="var(--gold-soft)" stroke="var(--gold-line)"/>
+          <text class="nm" x="597" y="386" text-anchor="middle">jxx-triage</text>
+          <text class="sub" x="597" y="404" text-anchor="middle">issue 状态机流转</text>
+
+          <rect x="40" y="470" width="180" height="60" rx="10" fill="var(--gold-soft)" stroke="var(--gold-line)"/>
+          <text class="nm" x="130" y="496" text-anchor="middle">jxx-to-tickets</text>
+          <text class="sub" x="130" y="514" text-anchor="middle">拆解 tracer-bullet 工单</text>
+
+          <rect x="250" y="470" width="200" height="60" rx="10" fill="var(--gold-soft)" stroke="var(--gold-line)"/>
+          <text class="nm" x="350" y="496" text-anchor="middle">jxx-to-milestones</text>
+          <text class="sub" x="350" y="514" text-anchor="middle">归组可上线里程碑</text>
+        </g>
+
+        <!-- 实现与审查（coral） -->
+        <g>
+          <rect x="40" y="580" width="180" height="60" rx="10" fill="var(--coral-soft)" stroke="var(--coral-line)"/>
+          <text class="nm" x="130" y="606" text-anchor="middle">jxx-implement</text>
+          <text class="sub" x="130" y="624" text-anchor="middle">实现单张工单</text>
+
+          <rect x="250" y="580" width="150" height="60" rx="10" fill="var(--coral-soft)" stroke="var(--coral-line)"/>
+          <text class="nm" x="325" y="606" text-anchor="middle">jxx-tdd</text>
+          <text class="sub" x="325" y="624" text-anchor="middle">红-绿-重构</text>
+
+          <rect x="440" y="580" width="190" height="60" rx="10" fill="var(--coral-soft)" stroke="var(--coral-line)"/>
+          <text class="nm" x="535" y="606" text-anchor="middle">jxx-code-review</text>
+          <text class="sub" x="535" y="624" text-anchor="middle">双轴 / 三维审查</text>
+
+          <rect x="670" y="580" width="225" height="60" rx="10" fill="var(--coral-soft)" stroke="var(--coral-line)"/>
+          <text class="nm" x="782" y="606" text-anchor="middle">open-code-review-delegate</text>
+          <text class="sub" x="782" y="624" text-anchor="middle">OCR 管工程 · 宿主 LLM 审查</text>
+
+          <rect x="250" y="690" width="200" height="60" rx="10" fill="var(--coral-soft)" stroke="var(--coral-line)"/>
+          <text class="nm" x="350" y="716" text-anchor="middle">jxx-implement-spec</text>
+          <text class="sub" x="350" y="734" text-anchor="middle">整 spec 单分支交付 PR</text>
+
+          <rect x="490" y="690" width="215" height="60" rx="10" fill="var(--coral-soft)" stroke="var(--coral-line)"/>
+          <text class="nm" x="597" y="716" text-anchor="middle">jxx-ticket-board</text>
+          <text class="sub" x="597" y="734" text-anchor="middle">多 worktree 工单看板</text>
+        </g>
+
+        <!-- 独立辅助（gray） -->
+        <g>
+          <rect x="745" y="690" width="150" height="60" rx="10" fill="var(--surface-2)" stroke="var(--line-2)"/>
+          <text class="nm" x="820" y="716" text-anchor="middle">jxx-git-auth</text>
+          <text class="sub" x="820" y="734" text-anchor="middle">Git 平台令牌</text>
+
+          <rect x="935" y="690" width="225" height="60" rx="10" fill="var(--surface-2)" stroke="var(--line-2)"/>
+          <text class="nm" x="1047" y="716" text-anchor="middle">jxx-resolving-merge-conflicts</text>
+          <text class="sub" x="1047" y="734" text-anchor="middle">保留双方意图解冲突</text>
+
+          <rect x="40" y="800" width="180" height="60" rx="10" fill="var(--surface-2)" stroke="var(--line-2)"/>
+          <text class="nm" x="130" y="826" text-anchor="middle">skill-creator</text>
+          <text class="sub" x="130" y="844" text-anchor="middle">技能创建指南</text>
+
+          <rect x="260" y="800" width="200" height="60" rx="10" fill="var(--surface-2)" stroke="var(--line-2)"/>
+          <text class="nm" x="360" y="826" text-anchor="middle">jxx-writing-for-agents</text>
+          <text class="sub" x="360" y="844" text-anchor="middle">为 agent 写文档</text>
+
+          <rect x="490" y="800" width="215" height="60" rx="10" fill="var(--surface-2)" stroke="var(--line-2)"/>
+          <text class="nm" x="597" y="826" text-anchor="middle">jxx-handoff</text>
+          <text class="sub" x="597" y="844" text-anchor="middle">上下文窗口间桥梁</text>
+
+          <rect x="745" y="800" width="215" height="60" rx="10" fill="var(--surface-2)" stroke="var(--line-2)"/>
+          <text class="nm" x="852" y="826" text-anchor="middle">TDB-AM 记忆族</text>
+          <text class="sub" x="852" y="844" text-anchor="middle">memory-local ↔ capture</text>
+        </g>
+
+        <!-- 图例（SVG 内左下角，与 HTML 图例互补） -->
+        <g class="lbl">
+          <text x="40" y="878">● 实线＝流程产出/调用　┄ 虚线＝支撑/环境/可选　颜色＝职能分区（见下图例）</text>
+        </g>
+      </svg>
+
+      <div class="legend">
+        <span><i style="background:var(--brand-soft);border:1px solid var(--brand-line)"></i>路由与环境</span>
+        <span><i style="background:var(--sky-soft);border:1px solid var(--sky-line)"></i>想法与访谈</span>
+        <span><i style="background:var(--gold-soft);border:1px solid var(--gold-line)"></i>计划与拆解</span>
+        <span><i style="background:var(--coral-soft);border:1px solid var(--coral-line)"></i>实现与审查</span>
+        <span><i style="background:var(--lilac-soft);border:1px solid var(--lilac-line)"></i>诊断与架构</span>
+        <span><i style="background:var(--surface-2);border:1px solid var(--line-2)"></i>独立辅助</span>
+      </div>
+    </div>
+
+    <div class="graph-notes">
+      <strong>未画入图中的真实引用边</strong>（低频或跨族，读到目录时留意）：
+      <ul>
+        <li><code>jxx-skill-init</code> → <code>skill-creator</code>（evals → benchmark → viewer 迭代）；→ <code>jxx-agent-generator</code>（创建 Agent 而非 Skill）。</li>
+        <li><code>jxx-retro</code> → <code>jxx-writing-for-agents</code>（回顾报告遵循其写作规范）。</li>
+        <li><code>seo-audit-template</code> / <code>seo-blog-template</code> → <code>skill-reviewer</code> / <code>skill-tester</code>（生成子技能前的入库门禁）。</li>
+        <li><code>jxx-ask-matt</code> 是全族路由器，另路由到 <code>jxx-handoff</code>、<code>jxx-teach</code>、<code>jxx-wait-what</code>、<code>jxx-to-questionnaire</code>、<code>jxx-wizard</code>、<code>jxx-caveman</code>、<code>jxx-git-auth</code>、<code>jxx-resolving-merge-conflicts</code> 等辅助技能。</li>
+        <li><code>tdai-memory-local</code> 的注册/拉起脚本复用隔壁 <code>tdai-codegraph-local/scripts/</code>（该目录无 SKILL.md，是脚本守护目录）；写入通道为 <code>tdai-memory-capture</code>。</li>
+        <li><code>mzg-init</code> 定位的 mzg fork 与 TDB-AM 仓库同源（<code>TencentDB-Agent-Memory/mzg/</code>）。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ======================= 目录 ======================= -->
+  <section id="catalog">
+    <h2>全量技能目录 <span class="cnt">按桶分组 · 共 73 个</span></h2>
+    <p class="sec-lead">「调用」列：<span class="badge user">👤 用户调用</span> 表示 <code>disable-model-invocation: true</code>，仅手动触发；<span class="badge model">🤖 模型调用</span> 表示模型可依触发词自主调用。「安装」列是 <code>x-install</code> 分发控制：<span class="badge i-true">true</span> 装入用户级、<span class="badge i-project">project</span> 仅项目级、<span class="badge i-false">false</span> 不分发，未标注＝默认安装。</p>
+
+    <!-- engineering -->
+    <div class="bucket" id="engineering">
+      <h3>engineering/</h3>
+      <p class="bmeta">日常代码工作 · 推广 · 30 个技能</p>
+      <table>
+        <thead><tr><th>技能</th><th>调用</th><th>安装</th><th>一句话</th></tr></thead>
+        <tbody>
+          <tr><td class="sk">jxx-ask-matt</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">本仓库技能的路由器：问哪个流程适合当前场景。</td></tr>
+          <tr><td class="sk">jxx-setup-skills</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">为仓库配置 issue tracker、triage 标签与领域文档布局，检测 OCR；工程流程前运行一次。</td></tr>
+          <tr><td class="sk">jxx-grill-with-docs</td><td><span class="badge user">👤 用户</span></td><td><span class="badge i-false">false</span></td><td class="desc">grill 打磨计划，同时内联更新 CONTEXT.md 与 ADR。</td></tr>
+          <tr><td class="sk">jxx-grill-with-memorial</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">grill 全程持久化到 memorial 奏报目录，支持中断续接与调查委派。</td></tr>
+          <tr><td class="sk">jxx-domain-modeling</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">构建与锐化领域模型：质疑术语、场景压测、更新 CONTEXT/ADR。</td></tr>
+          <tr><td class="sk">jxx-to-spec</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">将当前对话转化为 spec 并发布到 issue tracker。</td></tr>
+          <tr><td class="sk">jxx-to-tickets</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">计划/spec/对话拆解为一组 tracer-bullet 工单，声明阻塞边。</td></tr>
+          <tr><td class="sk">jxx-to-milestones</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">把已发布工单归组为可独立上线的里程碑并逐个交付。</td></tr>
+          <tr><td class="sk">jxx-implement</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">基于 spec 或工单实现；内含 TDD 与交付前代码审查硬出口。</td></tr>
+          <tr><td class="sk">jxx-implement-spec</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">按 spec 与工单任务图整轨实现：单分支交付一支 PR，后台子 agent 并发。</td></tr>
+          <tr><td class="sk">jxx-ticket-board</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">把仓库开辟为多 worktree 并行工单公告板：领导者投卡、worker 领卡。</td></tr>
+          <tr><td class="sk">jxx-tdd</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">红-绿-重构循环的测试驱动开发，逐个纵向切片。</td></tr>
+          <tr><td class="sk">jxx-code-review</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">双轴/三维代码审查：装 ocr 走委托模式 3 维，否则降级 2 维，子 agent 并行。</td></tr>
+          <tr><td class="sk">open-code-review-delegate</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">OCR 委托模式参考：OCR 负责文件筛选与规则解析，宿主 agent 执行审查。</td></tr>
+          <tr><td class="sk">jxx-triage</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">把外部 issue 推过 triage 角色状态机，产出 agent 可执行的工单。</td></tr>
+          <tr><td class="sk">jxx-wayfinder</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">超出单会话的大型工作：在 tracker 上建共享调查地图，逐单解决出路径。</td></tr>
+          <tr><td class="sk">jxx-prototype</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">构建一次性 prototype 回答设计问题，产物捕获到 prototype/&lt;name&gt; 分支。</td></tr>
+          <tr><td class="sk">jxx-research</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">后台 agent 调研一手资料，落盘带引用的 Markdown 报告。</td></tr>
+          <tr><td class="sk">jxx-diagnosing-bugs</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">疑难 bug/性能 regression 诊断循环：复现→最小化→假设→埋点→修复→回归测试。</td></tr>
+          <tr><td class="sk">jxx-improve-codebase-architecture</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">扫描代码库找深化机会，HTML 报告呈现，再对选中项 grill。</td></tr>
+          <tr><td class="sk">jxx-codebase-design</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">深模块（deep module）设计共享词汇：小接口、清晰接缝、接口即测试面。</td></tr>
+          <tr><td class="sk">jxx-architecture</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">AI 友好架构设计与审查：以 AI agent 为第一读者的代码结构准则。</td></tr>
+          <tr><td class="sk">jxx-mcp-design</td><td><span class="badge user">👤 用户</span></td><td><span class="badge i-true">true</span></td><td class="desc">MCP Server 渐进式发现架构与工具分层设计，含两项交付契约。</td></tr>
+          <tr><td class="sk">jxx-resolving-merge-conflicts</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">追溯冲突原始来源，保留双方意图逐 hunk 解决；绝不 --abort。</td></tr>
+          <tr><td class="sk">jxx-git-auth</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-true">true</span></td><td class="desc">加载 cnb/GitHub/Gitee 访问令牌并注入 push/clone/API/gh 操作。</td></tr>
+          <tr><td class="sk">jxx-caveman</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-true">true</span></td><td class="desc">极简输出模式：删全部废话留技术内容，安全场景自动恢复正常表达。</td></tr>
+          <tr><td class="sk">jxx-wizard</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">生成交互式 bash 向导，引导人完成手动多步流程并捕获值。</td></tr>
+          <tr><td class="sk">jxx-skill-init</td><td><span class="badge user">👤 用户</span></td><td><span class="badge i-true">true</span></td><td class="desc">本仓库新建技能：ship init 模板 + 桶选择 + frontmatter 规范，一次过 check 门禁。</td></tr>
+          <tr><td class="sk">jxx-agent-generator</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">按「姜姓身份 + 统一 frontmatter + 既有风格」生成 CodeBuddy agent 文件。</td></tr>
+          <tr><td class="sk">impeccable</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">前端界面设计/审查/打磨（工艺级视觉与 UX）；hook runner 待对齐四厂商。</td></tr>
+        </tbody>
+      </table>
+      <p class="bucket-note">主流程：grill → to-spec → to-tickets →（to-milestones）→ implement → code-review，见上方关系图。</p>
+    </div>
+
+    <!-- productivity -->
+    <div class="bucket" id="productivity">
+      <h3>productivity/</h3>
+      <p class="bmeta">通用工作流工具（非代码专用）· 推广 · 10 个技能</p>
+      <table>
+        <thead><tr><th>技能</th><th>调用</th><th>安装</th><th>一句话</th></tr></thead>
+        <tbody>
+          <tr><td class="sk">jxx-grill-me</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">无状态 grill：不在工作目录时对计划穷追不舍地追问。</td></tr>
+          <tr><td class="sk">jxx-grilling</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">grill 访谈原语（与 engineering 桶同名技能同源）。</td></tr>
+          <tr><td class="sk">jxx-handoff</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">把当前对话压缩成交接文档，供下一个 agent 续接。</td></tr>
+          <tr><td class="sk">jxx-teach</td><td><span class="badge user">👤 用户</span></td><td><span class="badge i-false">false</span></td><td class="desc">以当前工作区为有状态工作区，跨会话教授新概念。</td></tr>
+          <tr><td class="sk">jxx-to-questionnaire</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">把待决策项转化为措辞中立的问卷，交给持有答案的人填写。</td></tr>
+          <tr><td class="sk">jxx-wait-what</td><td><span class="badge user">👤 用户</span></td><td><span class="badge i-false">false</span></td><td class="desc">用户没听懂时，用简化技术语言重讲上一段回答。</td></tr>
+          <tr><td class="sk">jxx-writing-for-agents</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">为 agent 编写文档的参考：AGENTS.md / README / skill / issue。</td></tr>
+          <tr><td class="sk">skill-creator</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-false">false</span></td><td class="desc">创建/改进高效 skill 的指南（含 evals → benchmark → viewer）。</td></tr>
+          <tr><td class="sk">skill-reviewer</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-false">false</span></td><td class="desc">基于华为规范的 skill 合规检查：结构/命名/内容/格式。</td></tr>
+          <tr><td class="sk">skill-tester</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-false">false</span></td><td class="desc">用 JSON 测试套件对项目级 skill 做自动化触发与期望评估。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- seo-geo -->
+    <div class="bucket" id="seo-geo">
+      <h3>seo-geo/</h3>
+      <p class="bmeta">SEO/GEO 技能族 · 全部 <span class="badge i-project">project</span> 仅项目级分发（ADR 0005）· 9 个技能</p>
+      <table>
+        <thead><tr><th>技能</th><th>调用</th><th>安装</th><th>一句话</th></tr></thead>
+        <tbody>
+          <tr><td class="sk">seo-router</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-project">project</span></td><td class="desc">族内统一路由器兼安装器：与 jxx-ask-matt 并列，一族一路由。</td></tr>
+          <tr><td class="sk">seo-keyword-research</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-project">project</span></td><td class="desc">关键词发现、评分与聚类（volume/difficulty/intent/cluster）。</td></tr>
+          <tr><td class="sk">seo-competitor-analysis</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-project">project</span></td><td class="desc">竞品关键词/内容/外链/AI 引用基准化为优劣势与行动计划。</td></tr>
+          <tr><td class="sk">seo-backlink-analysis</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-project">project</span></td><td class="desc">外链分析：referring domain、anchor 分布、toxic link、链接缺口。</td></tr>
+          <tr><td class="sk">seo-content-writing</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-project">project</span></td><td class="desc">SEO 优化的文章/落地页写作：关键词、标题层级、snippet、证据边界。</td></tr>
+          <tr><td class="sk">seo-technical-audit</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-project">project</span></td><td class="desc">技术 SEO 审计：crawlability、indexing、CWV、robots、sitemap。</td></tr>
+          <tr><td class="sk">seo-audit-template</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-project">project</span></td><td class="desc">skill-as-generator：追问收集参数后生成 seo-geo-audit 审查子技能。</td></tr>
+          <tr><td class="sk">seo-blog-template</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-project">project</span></td><td class="desc">skill-as-generator：生成 blog-writer 写作子技能（含样式契约）。</td></tr>
+          <tr><td class="sk">humanizer</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">去 AI 味：中英文 AI 痕迹检测（0-100 指数）+ 改写 + 复评，纯 stdlib。</td></tr>
+        </tbody>
+      </table>
+      <p class="bucket-note">路由链：seo-router → 五件套 / 模板 →（生成）seo-geo-audit、blog-writer 子技能；入库门禁走 skill-reviewer / skill-tester。</p>
+    </div>
+
+    <!-- samll -->
+    <div class="bucket" id="samll">
+      <h3>samll/</h3>
+      <p class="bmeta">caveman 极简输出家族 + 代码风险审查 · 8 个技能（保留原目录名）</p>
+      <table>
+        <thead><tr><th>技能</th><th>调用</th><th>安装</th><th>一句话</th></tr></thead>
+        <tbody>
+          <tr><td class="sk">caveman</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">超压缩沟通模式，实测省 65% 输出 token；lite/full/ultra × 白话/文言 六档。</td></tr>
+          <tr><td class="sk">cavecrew</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">caveman 风格子 agent 委派决策：investigator / builder / reviewer，结果压缩回注主上下文。</td></tr>
+          <tr><td class="sk">caveman-commit</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">精简 Conventional Commits：主题 ≤50 字符，只写 why。</td></tr>
+          <tr><td class="sk">caveman-compress</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">把 CLAUDE.md/todos 等记忆文件压成 caveman 文风省输入 token，留 .original 备份。</td></tr>
+          <tr><td class="sk">caveman-help</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">caveman 全家族模式与命令的快速参考卡（一次性输出）。</td></tr>
+          <tr><td class="sk">caveman-review</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">单行 PR 审查评论：位置、问题、修法。</td></tr>
+          <tr><td class="sk">caveman-stats</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">会话真实 token 用量与节省量统计，由 mode-tracker hook 注入。</td></tr>
+          <tr><td class="sk">code-reviewer</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">代码风险审查：内存安全/注入/并发/资源管理，结构化评论 + 置信度。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- in-progress -->
+    <div class="bucket" id="in-progress">
+      <h3>in-progress/</h3>
+      <p class="bmeta">开发中草稿 · 未发布 · 全部用户调用 · 6 个技能</p>
+      <table>
+        <thead><tr><th>技能</th><th>调用</th><th>安装</th><th>一句话</th></tr></thead>
+        <tbody>
+          <tr><td class="sk">jxx-claude-handoff</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">把当前对话交接给新的后台 agent 并立即接手。</td></tr>
+          <tr><td class="sk">jxx-pr</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">PR 正文三段式模板：Summary / Evidence / Merge Danger。</td></tr>
+          <tr><td class="sk">jxx-retro</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">编码会话回顾，产出对 agent 环境的改进建议。</td></tr>
+          <tr><td class="sk">jxx-writing-beats</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">写作 exploit：把素材组装为节奏（beat）旅程，概念先锚定后使用。</td></tr>
+          <tr><td class="sk">jxx-writing-fragments</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">写作 explore：挖掘原始碎片，暂不建结构。</td></tr>
+          <tr><td class="sk">jxx-writing-shape</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">写作 exploit：把原始素材逐段塑造为完整文章。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- code -->
+    <div class="bucket" id="code">
+      <h3>code/</h3>
+      <p class="bmeta">绑定特定代码库/工具的开发技能 · 2 个技能</p>
+      <table>
+        <thead><tr><th>技能</th><th>调用</th><th>安装</th><th>一句话</th></tr></thead>
+        <tbody>
+          <tr><td class="sk">dsh-plugin-dev</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">DeepSeek Harness (dsh) 插件开发/打包/发布全流程，含模板与示例。</td></tr>
+          <tr><td class="sk">mzg-init</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">为任意目录初始化 mzg（zvec-grep fork）代码索引：探测→建索引→就绪校验。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- TDB-AM -->
+    <div class="bucket" id="TDB-AM">
+      <h3>TDB-AM/</h3>
+      <p class="bmeta">TencentDB-Agent-Memory 记忆面技能 · 2 个技能（另含 tdai-codegraph-local 脚本守护目录，无 SKILL.md）</p>
+      <table>
+        <thead><tr><th>技能</th><th>调用</th><th>安装</th><th>一句话</th></tr></thead>
+        <tbody>
+          <tr><td class="sk">tdai-memory-capture</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">记忆写入通道：对话上传 / 精华直落 / 技能管理 / 任务通道领取回传。</td></tr>
+          <tr><td class="sk">tdai-memory-local</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">本地守护记忆面：离线兜底检索、项目记忆落盘与上行、capture 暂存队列。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- misc -->
+    <div class="bucket" id="misc">
+      <h3>misc/</h3>
+      <p class="bmeta">保留但很少使用 · 不推广 · 3 个技能</p>
+      <table>
+        <thead><tr><th>技能</th><th>调用</th><th>安装</th><th>一句话</th></tr></thead>
+        <tbody>
+          <tr><td class="sk">jxx-migrate-to-shoehorn</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">把测试里的 <code>as</code> 类型断言迁移到 @total-typescript/shoehorn。</td></tr>
+          <tr><td class="sk">jxx-scaffold-exercises</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">创建含 sections/problems/solutions/explainers 的练习目录骨架。</td></tr>
+          <tr><td class="sk">jxx-setup-pre-commit</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">Husky pre-commit + lint-staged + 类型检查 + 测试（🪝 git，厂商无关）。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- personal -->
+    <div class="bucket" id="personal">
+      <h3>personal/</h3>
+      <p class="bmeta">绑定个人配置 · 不推广 · 2 个技能</p>
+      <table>
+        <thead><tr><th>技能</th><th>调用</th><th>安装</th><th>一句话</th></tr></thead>
+        <tbody>
+          <tr><td class="sk">jxx-edit-article</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">重组章节、提升清晰度、精炼文字来编辑改进文章。</td></tr>
+          <tr><td class="sk">jxx-obsidian-vault</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">在 Obsidian vault 中搜索、创建、管理笔记（wikilinks + 索引笔记）。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- kimi -->
+    <div class="bucket" id="kimi">
+      <h3>kimi/</h3>
+      <p class="bmeta">Kimi 专用 · 1 个技能</p>
+      <table>
+        <thead><tr><th>技能</th><th>调用</th><th>安装</th><th>一句话</th></tr></thead>
+        <tbody>
+          <tr><td class="sk">kimi-webbridge</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">经本地守护（127.0.0.1:10086）用用户真实登录会话控制浏览器。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    数据来源：<code>base/skills/**/SKILL.md</code> frontmatter 与正文交叉引用（截至生成时共 73 个 SKILL.md）。桶状态与 Hook 约定见 <code>base/skills/README.md</code>；分发规则见 <code>base/scripts/ship.mjs</code> + <code>vendors.json</code>。本页自包含、无外部依赖，可离线打开。
+  </footer>
+</div>
+
+<script>
+// 轻量过滤：按桶隐藏无匹配行的表格；无匹配行时整桶折叠
+(function () {
+  var input = document.getElementById('q');
+  var buckets = document.querySelectorAll('.bucket');
+  input.addEventListener('input', function () {
+    var q = input.value.trim().toLowerCase();
+    buckets.forEach(function (b) {
+      var rows = b.querySelectorAll('tbody tr');
+      var visible = 0;
+      rows.forEach(function (tr) {
+        var hit = !q || tr.textContent.toLowerCase().indexOf(q) !== -1;
+        tr.style.display = hit ? '' : 'none';
+        if (hit) visible++;
+      });
+      b.style.display = visible ? '' : 'none';
+    });
+  });
+})();
+</script>
+</body>
+</html>
