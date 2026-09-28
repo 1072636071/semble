@@ -16,6 +16,8 @@
 - **[to-tickets](./jxx-to-tickets/SKILL.md)** — 将任何计划、规格文档或对话拆解为一组追踪弹式工单，每个工单声明其阻塞关系——本地文件中以 `Blocked by:` 文本行表示阻塞边。
 - **[implement-spec](./jxx-implement-spec/SKILL.md)** — 按 spec 与其关联 ticket（任务图）实现整个 spec：单分支一支 PR，实现者子 agent 按"就绪前沿"并发认领，探索/合并各司其职。用户调用。
 - **[wayfinder](./jxx-wayfinder/SKILL.md)** — 规划大型工作——超过单个 agent 会话能承载的范围——在 issue tracker 上创建共享调查地图，逐个解决直到通往目的地的路径清晰。
+- **[pr](./jxx-pr/SKILL.md)** — 用 Summary（图示摘要）/ Evidence（前后对照证据）/ Merge Danger（单向双向门 + 爆炸半径）三段式模板撰写 PR 正文。用户调用。
+- **[retro](./jxx-retro/SKILL.md)** — 对一次编码会话做回顾，从导航/自动化检查/编码标准/工具经济性等类别提出环境改进建议。用户调用。
 
 ## 模型调用
 

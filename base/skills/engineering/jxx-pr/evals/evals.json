@@ -1,0 +1,12 @@
+[
+  {
+    "name": "jxx-pr-basic",
+    "prompt": "帮我给这个分支写 PR 正文",
+    "expected_behavior": "按 Summary/Evidence/Merge Danger 三段式模板输出：Summary 选取最小图示视图，Evidence 给出前后对照证据，Merge Danger 说明单向/双向门与爆炸半径"
+  },
+  {
+    "name": "jxx-pr-diagram-choice",
+    "prompt": "为一次涉及调用链变更的改动写 PR 描述",
+    "expected_behavior": "Summary 优先选用调用树或对应形态的 diff 展示调用链变化，而不是堆砌全部图示类型"
+  }
+]

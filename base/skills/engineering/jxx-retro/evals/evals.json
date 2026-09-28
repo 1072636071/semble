@@ -1,0 +1,12 @@
+[
+  {
+    "name": "jxx-retro-basic",
+    "prompt": "复盘一下刚才这次会话",
+    "expected_behavior": "阅读会话第一手资料，按导航/自动化检查/编码标准/AGENTS.md/工具经济性/无效指令/信息可达性七类寻找改进候选，按严重程度排序呈现"
+  },
+  {
+    "name": "jxx-retro-guardrail-first",
+    "prompt": "复盘这次会话，agent 刚才把 import 写错了位置",
+    "expected_behavior": "对机械性违例默认建议建确定性检查（linter 自定义规则/pre-commit/CI），而不是往 CODING_STANDARDS.md 写规则"
+  }
+]
