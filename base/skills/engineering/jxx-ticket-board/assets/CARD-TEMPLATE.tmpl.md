@@ -13,6 +13,10 @@
 
 （领取者 / 领取时间 / 依赖核对——分支与 worktree 为确定性路径，由 card read 推导）
 
+## 外部契约
+
+（**本卡若消费别仓/别分支的服务端契约，必须写取证坐标**：仓库 + 分支 + commit SHA + `文件:行`，例 `MyWeKnora` 分支 `fork/<卡id>` @ `0b2e3cdc` · `internal/router/routes_jxx_ticket.go:25`。`/jxx-code-review` 步骤 0b 与合并专员终审都按该坐标**只读**取证：`git -C <仓> show <SHA>:<路径>`，禁 checkout 对方分支（PROTOCOL §3 尚未列这一步，欠账登记在口径正文）。**本节留空 = 判定为无外部契约**；若实现明显消费了外部接口而本节空着，审查按发现项报「契约坐标缺失」。口径正文见 `docs/agents/external-contract-evidence.md`。）
+
 ## 交付记录
 
 （提交范围 + 审查报告指针，交付时由开发组追加）

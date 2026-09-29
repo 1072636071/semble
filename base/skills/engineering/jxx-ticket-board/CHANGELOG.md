@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.2 — 2026-09-29
+
+卡模板 `assets/CARD-TEMPLATE.tmpl.md`（及 init 渲染的 live `control/CARD-TEMPLATE.md`）新增 **`## 外部契约` 节**：双仓交付的卡必须写取证坐标（仓库 + 分支 + SHA + `文件:行`），`/jxx-code-review` 步骤 0b 与合并专员终审按该坐标**只读**取证（`git -C <仓> show <SHA>:<路径>`，禁 checkout 对方分支）；节留空 = 判无外部契约，实现明显消费外部接口而节空着 ⇒ 审查报「契约坐标缺失」。注：PROTOCOL §3 的定点复核清单**尚未**列这一步（欠账登记在 `docs/agents/external-contract-evidence.md`，协议归领导者改）。
+
+- **为什么是 `## 节` 而不是 `- 字段:` 行**：`board.mjs` 的 `cmdCardRead` 只打印 `标题/难度/模型档位/依赖/PRD/分支/worktree` 七个固定字段 + 全部 `## ` 段，卡头其它 `- x:` 行**会被静默丢弃**（`cardFields` 无该键、`card-set` 白名单亦不含），审查者与终审恰恰都走 `card read` —— 与 v0.7.3「PRD 行静默丢失」同型坑（见 `board.mjs` new-card 处注释）。落 `## ` 段则零脚本改动即随 `card read` 出。
+
 ## 0.9.1 — 2026-09-28
 
 **auto 投卡两处致命缺陷修复**（PRD 75/76 波次实跑暴露）。
