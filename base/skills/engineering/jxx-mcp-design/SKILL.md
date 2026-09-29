@@ -1,7 +1,7 @@
 ---
 name: jxx-mcp-design
 description: 设计 MCP Server 的渐进式发现架构与工具分层，并落实两项交付契约：不阻塞启动的 UI HTML、披露式配套引导技能。
-disable-model-invocation: true
+disable-model-invocation: false
 x-install: true
 x-vendors:
   codearts:

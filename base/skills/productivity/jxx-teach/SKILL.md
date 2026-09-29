@@ -4,7 +4,7 @@ description: 在当前工作区内 teach（教授）用户新技能或概念，�
 metadata:
   version: 1.0.0
 argument-hint: "你想学习什么？"
-disable-model-invocation: true
+disable-model-invocation: false
 x-install: false
 ---
 

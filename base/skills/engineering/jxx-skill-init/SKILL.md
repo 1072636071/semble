@@ -1,7 +1,7 @@
 ---
 name: jxx-skill-init
 description: 在本仓库中新增一个 SKILL。
-disable-model-invocation: true
+disable-model-invocation: false
 x-install: true
 x-vendors:
   codearts:

@@ -264,7 +264,7 @@ Run the `init-skill.mjs` script to generate a new template directory. This autom
 Usage:
 
 ```bash
-node scripts/init-skill.mjs <skill-name> --path <output-directory>
+node <本技能目录>/scripts/init-skill.mjs <skill-name> --path "<输出目录绝对路径>"
 ```
 
 The script:
@@ -365,7 +365,7 @@ First, check the `scripts/` folder for the target skill.
 Once development of the skill is complete, it must be validated with below script:
 
 ```bash
-node scripts/validate-skill.mjs <path/to/skill-folder>
+node <本技能目录>/scripts/validate-skill.mjs "<技能目录绝对路径>"
 ```
 
 The validating script will automatically check:

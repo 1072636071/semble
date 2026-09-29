@@ -3,7 +3,7 @@ name: jxx-grill-me
 description: 对计划或设计穷追不舍地 grill（追问），直到我们达成共同理解。当用户想在构建前对计划做压力测试，或使用任何 "grill" 触发词时启用。
 metadata:
   version: 1.0.0
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 对用户提供的计划或设计穷追不舍地盘问，直到达成共同理解。逐一走遍设计树的每个分支，逐个解决决策之间的依赖关系。

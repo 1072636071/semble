@@ -1,0 +1,10 @@
+{
+  "name": "去AI味助手",
+  "installedAt": 1788925718742,
+  "source": "marketplace",
+  "version": "1.0.0",
+  "skillId": "skill_2095616110808244224",
+  "description_zh": "去除文本中的AI写作痕迹，让文字读起来更像人类写作，检测并修复八类AI通病。",
+  "description_en": "Removes AI writing traces so text reads like natural human writing, detecting and fixing eight common AI tells.",
+  "iconSource": "letter:auto"
+}

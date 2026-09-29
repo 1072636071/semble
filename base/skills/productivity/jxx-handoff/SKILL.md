@@ -4,7 +4,7 @@ description: 将当前对话压缩成 handoff（交接）文档，供下一个 a
 metadata:
   version: 1.0.0
 argument-hint: "下一个会话将用于什么？"
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 撰写一份交接文档，总结当前对话内容，使新的 agent 能够继续工作。保存到用户操作系统的临时目录——而非当前工作区。

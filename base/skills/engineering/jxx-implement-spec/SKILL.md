@@ -1,7 +1,7 @@
 ---
 name: jxx-implement-spec
 description: "按 spec 与其关联 ticket（任务图）实现整个 spec：单分支交付一支 PR，用后台子 agent 并发实现 ticket。触发词：实现 spec、implement the spec、按工单实现。"
-disable-model-invocation: true
+disable-model-invocation: false
 metadata:
   version: 1.0.0
 ---

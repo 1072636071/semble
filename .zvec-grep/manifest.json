@@ -1,0 +1,25 @@
+{
+  "manifestVersion": 1,
+  "id": "da06cf90-1ba7-4026-bf11-5a05acc2a1a2",
+  "name": "JwikisSkills",
+  "path": "E:\\work\\sp\\JwikisSkills\\.zvec-grep",
+  "rootPaths": [
+    {
+      "absolutePath": "E:\\work\\sp\\JwikisSkills",
+      "recursive": true
+    }
+  ],
+  "indexPolicy": "enabled",
+  "embedding": {
+    "provider": "local",
+    "model": "potion-code-16m-v2",
+    "dimension": 256,
+    "metric": "cosine"
+  },
+  "indexVersion": 1,
+  "createdTime": 1789395124458,
+  "updatedTime": 1789395143118,
+  "embeddingRuntime": {
+    "device": "auto"
+  }
+}

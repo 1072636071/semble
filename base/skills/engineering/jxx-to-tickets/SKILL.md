@@ -1,9 +1,9 @@
 ---
 name: jxx-to-tickets
 description: 将计划、spec 或当前对话拆解为一组 tracer-bullet（追踪弹）工单，每个声明其 blocking edges（阻塞边），发布到已配置的 issue 跟踪器——本地文件中以文本表示，或真实 tracker（如 GitHub、Linear）上的原生阻塞链接。当需将计划或规格文档分解为可执行工作项时使用。
-disable-model-invocation: true
+disable-model-invocation: false
 metadata:
-  version: 1.2.2
+  version: 1.2.3
 ---
 
 # 转化工单
@@ -88,11 +88,17 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 
 工单发布后，若工单多、改动大、涉及广泛重构或需要分批上线/断点续传，可询问用户是否按里程碑交付——运行 `/jxx-to-milestones`：把工单归组为**可独立上线**的里程碑，生成 `.scratch/<NN>-<工作简称-slug>/MILESTONES.md` 并按里程碑逐个交付。此环节**非必需**——仅在上述场景顺带询问；其余情况不主动提，用户要求时再运行。里程碑文件格式由 `/jxx-to-milestones` 负责，本技能不自行生成另一套格式。
 
-> 确定性环节可调用脚本（零依赖）：`node <本技能目录>/scripts/issue-flow.mjs to-tickets --dir "<仓库>/.scratch/<NN>-<slug>" --slug <name> --root "$PWD/.scratch"` / `node <本技能目录>/scripts/issue-flow.mjs resolve-block --dir "<仓库>/.scratch/<NN>-<slug>"`。
+> 确定性环节可调用脚本（零依赖）：`node <本技能目录>/scripts/issue-flow.mjs to-tickets --dir "<仓库绝对路径>/.scratch/<NN>-<slug>" --slug <name> --root "<仓库绝对路径>/.scratch"` / `node <本技能目录>/scripts/issue-flow.mjs resolve-block --dir "<仓库绝对路径>/.scratch/<NN>-<slug>"`。
 >
-> 根目录解析：不给 `--root` 时，脚本从 **cwd 向上**寻找含 `.git` / `.scratch` 的仓库，再取该仓库的 `.scratch`。因此**必须在目标仓库目录内执行**；不在任何仓库内时脚本直接报错退出——它绝不会把工单静默写进技能安装目录旁边。
+> **路径一律用绝对路径。** 脚本会在任意 cwd 下被调用，相对路径按 cwd 解析——cwd 一旦不是目标仓库（例如停在技能安装目录），产出就会落到错误位置。
+>
+> 根目录解析：不给 `--root` 时，脚本从 **cwd 向上**寻找含 `.git` / `.scratch` 的仓库，再取该仓库的 `.scratch`。因此**必须在目标仓库目录内执行**。三种情况脚本直接报错退出，绝不静默写错目录：① 不在任何仓库内；② cwd 落在工具安装目录（`~/.workbuddy`、`~/.codebuddy` 等）内；③ `--dir` 传相对路径且 cwd 位于工具安装目录内。
+>
+> 落盘前先 `--dry-run` 打印目标路径，确认它在目标仓库内再正式执行。
 >
 > 维护：`issue-flow.mjs` 有三份同步副本（本源 `base/scripts/issue-flow.mjs`）。改完本源执行 `node base/scripts/check-copies.mjs --fix` 同步全部副本（`check-copies.mjs` 不带参数即校验）。
+>
+> **改完必须再跑 `node base/scripts/ship.mjs install` 刷新各平台已安装副本**——安装副本不会随仓库改动自动更新，而过期的安装副本会让上述全部防护失效（这正是 1.2.3 修的历史事故）。
 
 <issue-template>
 

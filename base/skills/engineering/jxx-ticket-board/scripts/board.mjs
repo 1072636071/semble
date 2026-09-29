@@ -88,6 +88,8 @@ function cmdInit(argv) {
   put(path.join(root, 'control', 'CARD-TEMPLATE.md'), render('CARD-TEMPLATE.tmpl.md'));
   put(path.join(root, 'control', 'starter', 'dev.md'), render('starter-dev.tmpl.md'));
   put(path.join(root, 'control', 'starter', 'merger.md'), render('starter-merger.tmpl.md'));
+  put(path.join(root, 'control', 'starter', 'reviewer.md'), render('starter-reviewer.tmpl.md'));
+  put(path.join(root, 'control', 'starter', 'auto.md'), render('starter-auto.tmpl.md'));
   put(path.join(root, 'control', 'ledger.md'),
     `# 领导者账本（只追加，一行一动作）\n\n| 时间 | 角色 | 动作 | 对象 | 理由 |\n|---|---|---|---|---|\n`);
   put(path.join(root, 'control', 'workspace.json'),
@@ -194,9 +196,9 @@ a{color:#60a5fa;text-decoration:none}
 .nav:hover{background:#1e2430}
 footer{margin-top:10px;color:#6b7280;font-size:12px}
 </style></head><body>
-<header><h1>工单公告板</h1><a class="nav" href="human.html" target="_blank" rel="noopener">人工待办面板 →</a><span class="info">${esc(root)} · 权威仓 ${esc(meta.repoPath || '')} · 基准 ${esc(meta.baseBranch)} · ${total} 张在办（已完成 ${doneCount}，看板不显示）· 生成于 ${localIso()} · 每 5s 自动刷新</span></header>
+<header><h1>工单公告板</h1><a class="nav" href="prd.html" target="_blank" rel="noopener">PRD 看板 →</a><a class="nav" href="human.html" target="_blank" rel="noopener">人工待办面板 →</a><span class="info">${esc(root)} · 权威仓 ${esc(meta.repoPath || '')} · 基准 ${esc(meta.baseBranch)} · ${total} 张在办（已完成 ${doneCount}，看板不显示）· 生成于 ${localIso()} · 每 5s 自动刷新</span></header>
 <div class="cols" style="--nc:${Math.max(shown.length, 4)}">${shown.map(c => `<div class="col"><h2>${STATE_LABEL[c.state]} (${c.cards.length})</h2>${c.cards.map(x => cardsHtml({ ...x, state: c.state })).join('')}</div>`).join('')}</div>
-<footer>协议真源 control/PROTOCOL.md · 领导者账本 control/ledger.md · 复制按钮=对应角色 starter 提示词+指定卡号，贴给新拉起会话即可开工</footer>
+<footer>协议真源 control/PROTOCOL.md · 领导者账本 control/ledger.md · 复制按钮=对应角色 starter 提示词+指定卡号，贴给新拉起会话即可开工 · 工单级执行=/jxx-implement 领卡推进；整份 PRD 一次交付请用 PRD 看板的整轨提示词（/jxx-implement-spec）</footer>
 <script>const PROMPTS=${JSON.stringify(prompts).replace(/</g, '\\u003c')};
 document.querySelectorAll('.cp').forEach(b=>b.addEventListener('click',async()=>{
 const t=PROMPTS[b.dataset.id]||'';
@@ -286,7 +288,7 @@ ${action}
   return `<!doctype html><html lang="zh"><head><meta charset="utf-8">`
     + `<meta http-equiv="refresh" content="10"><title>人工待办 · ${esc(path.basename(root))}</title>`
     + `<style>${HUMAN_STYLE}</style></head><body>`
-    + `<header><h1>人工待办</h1><a class="nav" href="board.html" target="_blank" rel="noopener">← 工单看板</a>`
+    + `<header><h1>人工待办</h1><a class="nav" href="board.html" target="_blank" rel="noopener">← 工单看板</a><a class="nav" href="prd.html" target="_blank" rel="noopener">PRD 看板 →</a>`
     + `<div class="info">需要你的决策 / 验收 / 操作 · ${todos.length} 项 · 权威仓 ${esc(meta.repoPath || '')} · 生成于 ${localIso()} · 每 10s 刷新</div></header>`
     + `${body}`
     + `<footer>数据源＝权威仓 .scratch 下 **Status:** ready-for-human 的工单 · 标题/「打开完整工单」在新标签页打开 · 「复制决策提示词」把决策单贴给新会话即可推进（提示词默认不显示在界面上）</footer>`
@@ -295,19 +297,143 @@ document.querySelectorAll('.cp').forEach(b=>b.addEventListener('click',async()=>
     + `</body></html>`;
 }
 
+// ---------- PRD 看板（control/prd.html，第三页）----------
+// 面板三职责：发布任务 + PRD/工单状态展示 + 提供任务提示词。执行分流：整份 PRD 一次交付 → /jxx-implement-spec（单分支整轨）；
+// 单工单推进 → 公告板领卡 /jxx-implement。同一 PRD 二选一，防双轨并作。
+function parsePrd(md) {
+  let b; try { b = fs.readFileSync(md, 'utf8').replace(/\r/g, ''); } catch { return null; }
+  const status = (b.match(/\*\*Status:\*\*\s*([A-Za-z-]+)/) || [])[1] || '';
+  const title = (((b.match(/^ {0,3}#\s+(.+?)\s*$/m) || [])[1] || path.basename(path.dirname(md))).trim());
+  const rel = md.replace(/\\/g, '/');
+  const g = rel.match(/\.scratch\/([^/]+)\/PRD\.md$/i);
+  if (!g) return null;
+  return { code: g[1], num: (g[1].match(/^(\d+)/) || [])[1] || g[1], title, status, file: md, href: fileHref(md) };
+}
+function scanPrds(repoPath) {
+  const sc = path.join(repoPath, '.scratch');
+  const out = [];
+  let ents; try { ents = fs.readdirSync(sc, { withFileTypes: true }); } catch { return out; }
+  for (const e of ents) {
+    if (!e.isDirectory()) continue;
+    const prdFile = path.join(sc, e.name, 'PRD.md');
+    if (!fs.existsSync(prdFile)) continue;
+    const prd = parsePrd(prdFile) || { code: e.name, num: (e.name.match(/^(\d+)/) || [])[1] || e.name, title: e.name, status: '', file: prdFile, href: fileHref(prdFile) };
+    const issues = [];
+    let files; try { files = fs.readdirSync(path.join(sc, e.name, 'issues')).filter(f => f.endsWith('.md')).sort(); } catch { files = []; }
+    for (const f of files) {
+      const p = path.join(sc, e.name, 'issues', f);
+      let b; try { b = fs.readFileSync(p, 'utf8').replace(/\r/g, ''); } catch { continue; }
+      const status = (b.match(/\*\*Status:\*\*\s*([A-Za-z-]+)/) || [])[1] || 'unknown';
+      const blocked = ((b.match(/\*\*Blocked by:\*\*\s*(.+)/) || [])[1] || '').trim();
+      const title = (((b.match(/^ {0,3}#\s+(.+?)\s*$/m) || [])[1] || path.basename(f, '.md')).trim()).replace(/^\d{1,3}\s*[·・.、-]\s*/, '');
+      const total = (b.match(/^ {0,3}[-*] \[[ xX]\]/gm) || []).length;
+      const checked = (b.match(/^ {0,3}[-*] \[[xX]\]/gm) || []).length;
+      issues.push({ file: p, href: fileHref(p), name: path.basename(f, '.md'), title, status, blocked, total, checked });
+    }
+    out.push({ ...prd, issues });
+  }
+  return out.sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
+}
+const PRD_STATUS_LABEL = { draft: '草稿', 'in-progress': '进行中', 'pending-review': '待评审', review: '待评审', done: '已完成', wontfix: '已放弃', 'ready-for-agent': '可执行', 'ready-for-human': '等人工' };
+function renderPrdHtml(root, meta, cols, todos) {
+  // 卡映射：cardId -> 卡对象（merge 卡不计入工单映射）
+  const cardOf = new Map();
+  for (const col of cols) for (const c of col.cards) cardOf.set(c.id, { state: col.state, ...c });
+  // 工单号 → 卡：卡 id 形如 <PRD号>-<工单号>-<slug>
+  const issueCard = new Map();
+  for (const [id, c] of cardOf) {
+    if (/^merge-/.test(id)) continue;
+    const m = id.match(/^(\d+)-(\d+)-/);
+    if (m) issueCard.set(`${m[1]}-${m[2]}`, c);
+  }
+  const prds = scanPrds(meta.repoPath);
+  const prdPrompts = {};
+  const ISSUE_GROUP = [
+    ['ready-for-agent', '▶️ 前沿可领（ready-for-agent，尚无卡）'],
+    ['in-flight', '🔄 在办（已有卡：inbox/claimed/review/held）'],
+    ['ready-for-human', '⛔ 等人工（ready-for-human）'],
+    ['pending-review', '📋 待评审（pending-review/review）'],
+    ['done', '✅ 已完成（done）'],
+    ['wontfix', '🚫 已放弃（wontfix）'],
+    ['other', '❓ 其他状态'],
+  ];
+  const issueLi = ({ it, card }) => {
+    const chk = it.total ? ` <span class="chk">${it.checked}/${it.total}</span>` : '';
+    const dep = it.blocked && !/^无/.test(it.blocked) ? ` <span class="dep">⛓ ${esc(it.blocked)}</span>` : '';
+    const stateTag = card ? ` <span class="ctag ${card.state}">${esc(card.state)}${card.by ? ' · ' + esc(card.by) : ''}</span>` : '';
+    return `<li><a href="${esc(it.href || '')}" target="_blank" rel="noopener">${esc(it.name)}</a> ${esc(it.title)}${chk}${dep}${stateTag}</li>`;
+  };
+  const blocks = prds.map(p => {
+    const groups = Object.fromEntries(ISSUE_GROUP.map(([k]) => [k, []]));
+    for (const it of p.issues) {
+      const st = (it.status || 'unknown').toLowerCase();
+      const card = issueCard.get(it.name) || issueCard.get(`${p.num}-${(it.name.match(/^(\d+)-/) || [])[1]}`);
+      let gk = 'other';
+      if (card && ['inbox', HELD, 'claimed', 'review'].includes(card.state)) gk = 'in-flight';
+      else if (/^ready-for-agent$/i.test(st) && !card) gk = 'ready-for-agent';
+      else if (/^ready-for-human$/i.test(st)) gk = 'ready-for-human';
+      else if (/^pending-review$|^review$/i.test(st)) gk = 'pending-review';
+      else if (/^done$/i.test(st)) gk = 'done';
+      else if (/^wontfix$/i.test(st)) gk = 'wontfix';
+      groups[gk].push({ it, card });
+    }
+    const total = p.issues.length;
+    const doneN = groups['done'].length + groups['wontfix'].length;
+    const frontier = groups['ready-for-agent'].length;
+    const pct = total ? Math.round(doneN / total * 100) : 0;
+    const groupHtml = ISSUE_GROUP.filter(([k]) => groups[k].length).map(([k, label]) =>
+      `<div class="grp"><div class="glbl">${label} (${groups[k].length})</div><ul>${groups[k].map(issueLi).join('')}</ul></div>`).join('');
+    const prdSt = PRD_STATUS_LABEL[(p.status || '').toLowerCase()] || (p.status || '未标注');
+    prdPrompts[p.code] = '【PRD 级整轨执行 · ' + p.code + ' ' + p.title + '】\n工作区（权威仓）：' + meta.repoPath + '\nPRD：' + p.file + '\n工单任务图：.scratch/' + p.code + '/issues/*.md（各工单 **Status:** 与 **Blocked by:** 已声明阻塞关系）\n\n请用 /jxx-implement-spec 技能整轨推进本 PRD：\n1) 读 PRD 与全部工单，构建任务图，识别就绪前沿（Blocked by 全部 done 的工单）；\n2) 单分支交付：从 ' + (meta.baseBranch || 'main') + ' 建分支 ticket/' + p.code + '-spec，先开 draft PR；\n3) 后台子 agent 并发实现前沿工单，每收口一张即更新该工单 **Status:** 与验收勾选框，前沿推进继续派发；\n4) 全部工单 done 后跑 /jxx-code-review 审整支分支，修复后转 ready；\n5) 完成判据：本 PRD 全部工单 Status=done 且验收全勾。\n注意：若工单看板已有本 PRD 的在办卡（claimed/review），先与用户确认走整轨还是分轨，勿双轨并作。';
+    return `<div class="prd"><div class="phead"><b class="pcode">${esc(p.code)}</b><a class="ptitle" href="${esc(p.href || '')}" target="_blank" rel="noopener">${esc(p.title)}</a><span class="pst">${esc(prdSt)}</span><span class="pprog">${doneN}/${total} 工单收口 · ${pct}%</span><button class="cp-prd" data-prd="${esc(p.code)}">📋 PRD 级整轨提示词</button></div>${groupHtml}</div>`;
+  }).join('');
+  const totalFrontier = prds.reduce((n, p) => n + p.issues.filter(it => /^ready-for-agent$/i.test(it.status) ).length, 0);
+  return `<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<meta http-equiv="refresh" content="10"><title>PRD 看板 · ${esc(path.basename(root))}</title>
+<style>
+body{font:14px/1.6 "Segoe UI",system-ui,sans-serif;background:#0f1115;color:#e5e7eb;margin:0;padding:24px 16px}
+header{max-width:920px;margin:0 auto 18px}h1{font-size:20px;margin:0;display:inline-block}
+.nav{margin-left:12px;font-size:13px;color:#60a5fa;text-decoration:none;border:1px solid #2b3342;padding:4px 10px;border-radius:8px;background:#161a22}
+.nav:hover{background:#1e2430}.info{color:#9ca3af;font-size:12px;margin-top:6px}
+.list{max-width:920px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.prd{background:#161a22;border:1px solid #232b38;border-radius:12px;padding:14px 16px}
+.phead{margin-bottom:8px}.pcode{display:inline-block;background:#1d4ed8;color:#fff;border-radius:6px;font-size:12px;padding:1px 8px;margin-right:8px}
+.ptitle{color:#f3f4f6;font-weight:700;font-size:15px;text-decoration:none}.ptitle:hover{text-decoration:underline}
+.pst{margin-left:8px;font-size:12px;color:#9ca3af;border:1px solid #2b3342;border-radius:999px;padding:1px 8px}
+.pprog{float:right;font-size:12px;color:#9ca3af;background:#1e2430;border-radius:999px;padding:2px 10px}
+.grp{margin:8px 0 0}.glbl{font-size:12px;color:#8b94a3;margin-bottom:2px}
+.grp ul{margin:0;padding-left:18px}.grp li{color:#d1d5db;font-size:13px;margin:2px 0;word-break:break-all}
+.grp a{color:#60a5fa;text-decoration:none}.chk{color:#34d399;font-size:12px}.dep{color:#f59e0b;font-size:12px}
+.ctag{font-size:11px;border-radius:4px;padding:0 6px;border:1px solid #2b3342;color:#9ca3af}
+.ctag.claimed{color:#60a5fa}.ctag.review{color:#d97706}.ctag.held{color:#f59e0b}.ctag.inbox{color:#34d399}.ctag.done{color:#6b7280}
+.cp-prd{margin-top:8px;background:#2b3342;color:#cbd5e1;border:1px solid #3b4356;border-radius:6px;font-size:12px;padding:3px 10px;cursor:pointer}
+.cp-prd:hover{background:#3b4356}.cp-prd.done{background:#064e3b;border-color:#34d399;color:#6ee7b7}
+.empty{max-width:920px;margin:0 auto;background:#161a22;border:1px solid #232b38;border-radius:12px;padding:40px;text-align:center;color:#9ca3af}
+footer{max-width:920px;margin:18px auto 0;color:#6b7280;font-size:12px}
+</style></head><body>
+<header><h1>PRD 看板</h1><a class="nav" href="board.html" target="_blank" rel="noopener">工单看板 →</a><a class="nav" href="human.html" target="_blank" rel="noopener">人工待办 →</a>
+<div class="info">执行分流：整份 PRD 一次交付 → 复制下方「PRD 级整轨提示词」给新会话跑 /jxx-implement-spec · 单工单推进 → 工单看板领卡跑 /jxx-implement · ${prds.length} 份 PRD · 前沿可领 ${totalFrontier} 张工单 · 权威仓 ${esc(meta.repoPath || '')} · 生成于 ${localIso()} · 每 10s 刷新</div></header>
+${prds.length ? `<div class="list">${blocks}</div>` : `<div class="empty">权威仓 .scratch/ 下还没有 &lt;NN-slug&gt;/PRD.md + issues/ 结构——先用 jxx-to-spec 出 PRD、jxx-to-tickets 拆工单，再刷新本页。</div>`}
+<footer>数据源＝权威仓 .scratch/&lt;NN-slug&gt;/PRD.md + issues/*.md 的 **Status:** 行 · 有卡的工单按卡泳道显示真实协调状态（优先于文档 Status）· PRD 级整轨提示词＝/jxx-implement-spec（单分支整份交付）· 工单级请去工单看板领卡（/jxx-implement）</footer>
+<script>const PRD_PROMPTS=${JSON.stringify(prdPrompts).replace(/</g, '\\u003c')};</script>
+</body></html>`;
+}
+
 function cmdHtml(argv) {
   const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));
   const meta = needWs(root);
   const out = path.resolve(arg(argv, 'out') || path.join(root, 'control', 'board.html'));
   const humanOut = path.resolve(arg(argv, 'human-out') || path.join(path.dirname(out), 'human.html'));
+  const prdOut = path.resolve(arg(argv, 'prd-out') || path.join(path.dirname(out), 'prd.html'));
   const once = () => {
     fs.writeFileSync(out, renderHtml(root, meta, scanBoard(root), startersOf(root)));
     fs.writeFileSync(humanOut, renderHumanHtml(root, meta, scanHumanTodos(meta.repoPath)));
+    fs.writeFileSync(prdOut, renderPrdHtml(root, meta, scanBoard(root), scanHumanTodos(meta.repoPath)));
   };
   once();
-  console.log(`html: 看板 ${out} + 人工待办 ${humanOut} 已生成（两页互链，链接默认新标签页打开）`);
+  console.log(`html: 看板 ${out} + 人工待办 ${humanOut} + PRD 看板 ${prdOut} 已生成（三页互链，链接默认新标签页打开）`);
   if (flag(argv, 'watch')) {
-    console.log('html: watch 模式运行中（每 3s 重扫两页，Ctrl+C 退出）。');
+    console.log('html: watch 模式运行中（每 3s 重扫三页，Ctrl+C 退出）。');
     setInterval(() => { try { once(); } catch { /* 文件被占用时跳过本轮 */ } }, 3000);
   }
 }
@@ -323,6 +449,7 @@ function autoHtml(root) {
     const meta = needWs(root);
     fs.writeFileSync(path.join(root, 'control', 'board.html'), renderHtml(root, meta, scanBoard(root), startersOf(root)));
     fs.writeFileSync(path.join(root, 'control', 'human.html'), renderHumanHtml(root, meta, scanHumanTodos(meta.repoPath)));
+    fs.writeFileSync(path.join(root, 'control', 'prd.html'), renderPrdHtml(root, meta, scanBoard(root), scanHumanTodos(meta.repoPath)));
   } catch { /* 看板保鲜失败不影响命令结果 */ }
 }
 
@@ -728,7 +855,7 @@ function cmdAddWt(argv) {
   const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));
   const meta = needWs(root);
   const id = arg(argv, 'ticket') || die('缺少 --ticket <NNN-slug>');
-  const base = arg(argv, 'base') || meta.baseBranch;
+  const base = arg(argv, 'base') || 'origin/main';
   const repoDir = meta.repoPath, wtPath = path.join(root, 'wt', id), branch = `ticket/${id}`;
   try { git(repoDir, `rev-parse --verify ${branch}`); git(repoDir, `worktree add "${wtPath}" ${branch}`); }
   catch { git(repoDir, `worktree add "${wtPath}" -b ${branch} ${base}`); }
@@ -745,9 +872,116 @@ function cmdRmWt(argv) {
   console.log(`rm-wt: wt/${id} 已回收${flag(argv, 'delete-branch') ? '，分支已删' : ''}。`);
 }
 
+// ---------- auto（自动编排模式 v0.9.0） ----------
+function cmdAuto(argv) {
+  const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));
+  const meta = needWs(root);
+  const ticketsIdx = argv.indexOf('--tickets');
+  if (ticketsIdx < 0) die('缺少 --tickets <工单文件1> <工单文件2> ...');
+  const ticketFiles = [];
+  for (let i = ticketsIdx + 1; i < argv.length && !argv[i].startsWith('--'); i++) {
+    ticketFiles.push(path.resolve(argv[i]));
+  }
+  if (!ticketFiles.length) die('--tickets 后至少给一个工单文件');
+
+  const parallel = parseInt(arg(argv, 'parallel') || '3', 10);
+  const maxRetry = parseInt(arg(argv, 'retry') || '1', 10);
+
+  // 1. 投卡
+  const cardIds = [];
+  const errors = [];
+  for (const tf of ticketFiles) {
+    if (!fs.existsSync(tf)) { errors.push(`工单文件不存在: ${tf}`); continue; }
+    const bn = path.basename(tf, '.md');
+    const m = bn.match(/^([a-z]?\d+)-(.+)$/);
+    if (!m) { errors.push(`工单文件名不合规范（NN-slug）: ${bn}`); continue; }
+    // 字母前缀工单（b01/f01/i01 这类，多 PRD 并行时跨 PRD 重号）用所属 PRD 目录号做卡 id 前缀，
+    // 否则推导出的 id 过不了 new-card 的 ^\d+- 正则，其 die() 会终止整条 auto 命令。
+    const prdNum = (path.basename(path.dirname(path.dirname(tf))).match(/^(\d+)/) || [])[1];
+    const id = /^\d/.test(m[1]) || !prdNum ? `${m[1]}-${m[2]}` : `${prdNum}-${bn}`;
+    if (!/^\d+-[a-z0-9-]+$/.test(id)) { errors.push(`卡 id 不合规范，跳过投卡: ${id}`); continue; }
+    if (cardPath(root, id)) { console.log(`auto: 卡 ${id} 已存在，跳过投卡`); cardIds.push(id); continue; }
+    // 状态闸门预检：cmdNewCard 的 die() 会 process.exit，直接终止整条 auto（一批工单里混一张
+    // 非 ready-for-agent 就拿不到后续编排指令）。预检后降级为 errors 记录，继续处理其余工单。
+    const st = (fs.readFileSync(tf, 'utf8').match(/\*\*Status:\*\*\s*([A-Za-z-]+)/) || [])[1] || 'unknown';
+    if (!/^ready-for-agent$/i.test(st)) { errors.push(`投卡跳过 ${id}: 工单状态 "${st}" 非 ready-for-agent`); continue; }
+    try {
+      cmdNewCard(['--root', root, '--id', id, '--level', 'L2', '--model', 'auto', '--ticket-file', tf]);
+      cardIds.push(id);
+    } catch (e) {
+      errors.push(`投卡失败 ${id}: ${e.message}`);
+    }
+  }
+
+  // 2. 读 starter 模板
+  const r = f => { const p = path.join(root, 'control', 'starter', f); return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : ''; };
+  const devStarter = r('dev.md');
+  const reviewerStarter = r('reviewer.md');
+  const mergerStarter = r('merger.md');
+  const autoStarter = r('auto.md');
+
+  if (!autoStarter) die('control/starter/auto.md 不存在——请用 v0.9.0+ 的 init 重新渲染 starter');
+
+  // 3. 输出编排指令
+  console.log('=== AUTO 模式编排指令 ===\n');
+  console.log(`工作区: ${root}`);
+  console.log(`权威仓: ${meta.repoPath}`);
+  console.log(`并行上限: ${parallel} · 重试次数: ${maxRetry}`);
+  console.log(`投卡: ${cardIds.length} 张${errors.length ? ` · 失败: ${errors.length}` : ''}`);
+  for (const e of errors) console.log(`  ⚠ ${e}`);
+  console.log('');
+
+  // 释放 held 卡（依赖已就绪的）
+  const heldCards = listCards(root, HELD);
+  for (const h of heldCards) {
+    const hid = h.replace(/\.md$/, '');
+    const body = fs.readFileSync(path.join(cardsDir(root, HELD), h), 'utf8');
+    const pend = pendingDeps(root, cardFields(body).deps, hid);
+    if (!pend.length) {
+      console.log(`📋 held 卡 ${hid} 依赖已就绪，请手动释放: card-move --id ${hid} --to inbox --actor orchestrator --reason "auto: deps ready"`);
+    }
+  }
+
+  // 可领卡
+  const inboxCards = listCards(root, 'inbox').map(f => f.replace(/\.md$/, ''));
+  console.log(`\n可领卡（inbox）: ${inboxCards.join(', ') || '无'}`);
+
+  // 输出编排提示词
+  console.log('\n=== 编排者提示词（复制给编排者会话） ===\n');
+  const prompt = autoStarter
+    .replaceAll('{{PARALLEL}}', String(parallel))
+    .replaceAll('{{MAX_RETRY}}', String(maxRetry))
+    .replaceAll('{{CARD_LIST}}', cardIds.join(', '))
+    .replaceAll('{{INBOX_CARDS}}', inboxCards.join(', '));
+  console.log(prompt);
+
+  // 输出每个 worker 的 spawn 提示词
+  console.log('\n=== Worker Spawn 提示词（每卡一份） ===\n');
+  for (const id of inboxCards) {
+    console.log(`--- Worker: ${id} ---`);
+    console.log(devStarter + `\n\n---\n本次指定：优先领取卡片 \`${id}\`。`);
+    console.log('');
+  }
+
+  // 输出审查者提示词模板
+  console.log('\n=== 审查者 Spawn 提示词（每卡 3 份，维度 std/spec/rule） ===\n');
+  for (const dim of ['std', 'spec', 'rule']) {
+    console.log(`--- Reviewer (${dim}) ---`);
+    console.log(reviewerStarter.replaceAll('{{REVIEW_DIMENSION}}', dim).replaceAll('{{CARD_ID}}', '<卡id>').replaceAll('{{BASE_BRANCH}}', meta.baseBranch || 'main'));
+    console.log('');
+  }
+
+  // 输出合并专员提示词模板
+  console.log('\n=== 合并专员 Spawn 提示词 ===\n');
+  console.log(mergerStarter);
+
+  autoHtml(root);
+}
+
+// ---------- command table ----------
 const cmd = process.argv[2];
 const argv = process.argv.slice(3);
-const table = { init: cmdInit, board: cmdBoard, html: cmdHtml, ledger: cmdLedger, verify: cmdVerify, 'new-card': cmdNewCard, 'add-wt': cmdAddWt, 'rm-wt': cmdRmWt, 'card-read': cmdCardRead, 'card-set': cmdCardSet, 'card-move': cmdCardMove, 'card-rm': cmdCardRm };
+const table = { init: cmdInit, board: cmdBoard, html: cmdHtml, ledger: cmdLedger, verify: cmdVerify, 'new-card': cmdNewCard, 'add-wt': cmdAddWt, 'rm-wt': cmdRmWt, 'card-read': cmdCardRead, 'card-set': cmdCardSet, 'card-move': cmdCardMove, 'card-rm': cmdCardRm, auto: cmdAuto };
 if (!cmd || !table[cmd]) die(`未知子命令 "${cmd || '(空)'}"。可用：${Object.keys(table).join(' / ')}`);
 try { table[cmd](argv); }
 catch (e) { die(`${cmd} 失败：${e.stderr?.toString().trim().split('\n')[0] || e.message}`); }

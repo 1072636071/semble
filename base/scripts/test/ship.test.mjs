@@ -303,6 +303,15 @@ test('install：残留清理覆盖 seo- 前缀', () => {
   assert.match(r.stdout, /cleaned seo-stale/);
 });
 
+test('install：src 技能的 CodeArts 派生副本（前缀改名）不被残留清理误删', () => {
+  const r = run(['install']);
+  assert.equal(r.code, 0);
+  const dest = path.join(fixture.userHome, '.codeartsdoer', 'skills', 'huawei-cloud-codebuddy-jxx-modern', 'SKILL.md');
+  assert.ok(fs.existsSync(dest), 'CodeArts 派生副本应保留（其落盘名带 huawei-cloud- 前缀，不等于源目录名）');
+  assert.match(r.stdout, /OK .*huawei-cloud-codebuddy-jxx-modern[\\/]SKILL\.md/);
+  assert.doesNotMatch(r.stdout, /cleaned huawei-cloud-codebuddy-jxx-modern/);
+});
+
 test('install --dry-run：不落盘', () => {
   const beforeDir = fs.existsSync(path.join(fixture.userHome, '.codebuddy', 'skills'));
   const r = run(['install', '--dry-run']);

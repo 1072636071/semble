@@ -10,6 +10,7 @@
 //   改完任一份都要跑 `node base/scripts/check-copies.mjs --fix` 同步全部副本（不带参数即校验）；
 //   base/scripts/test/issue-flow.test.mjs 的 parity 用例与 check-copies 门禁会校验一致性。
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { nextSeq, slugify } from './shared/next-seq.mjs';
@@ -18,6 +19,25 @@ import { writeFileSafe } from './shared/fs-utils.mjs';
 
 export const DEFAULT_STATUS = 'ready-for-agent';
 const ROOT_MARKERS = ['.git', '.scratch'];
+
+// 工具安装目录段：脚本被 ship 安装到这些目录下（如 ~/.workbuddy/skills/<skill>/scripts/）。
+// 若从这类目录向上"找到"了含 .git 的仓库（用户 home 下的 dotfiles 仓库等），几乎必然是误判。
+const SUSPECT_SEGMENTS = ['.workbuddy', '.codebuddy', '.claude', '.qwenworkcn'];
+
+/**
+ * 判定一个"根"是否可疑（工具安装目录内 / 用户 home 本身）。
+ * 可疑根不接受隐式解析——宁失败，也不静默把 PRD/工单写进技能安装目录。
+ * @param {string} abs 待判定路径
+ * @returns {string|null} 命中原因；未命中返回 null
+ */
+export function suspectRootReason(abs) {
+  const resolved = path.resolve(abs);
+  let home = '';
+  try { home = os.homedir(); } catch { home = ''; }
+  if (home && resolved === path.resolve(home)) return '就是用户 home 目录本身';
+  const hit = SUSPECT_SEGMENTS.find((s) => resolved.split(path.sep).some((seg) => seg.toLowerCase() === s));
+  return hit ? `位于工具安装目录段 "${hit}" 内` : null;
+}
 
 /**
  * 解析 `.scratch` 根目录——**锚定 cwd，绝不锚定脚本自身位置**。
@@ -34,6 +54,12 @@ const ROOT_MARKERS = ['.git', '.scratch'];
 export function resolveScratchRoot({ root, cwd = process.cwd() } = {}) {
   if (root) return path.resolve(cwd, root);
   const start = path.resolve(cwd);
+  const suspect = suspectRootReason(start);
+  if (suspect) {
+    throw new Error(
+      `当前目录 ${start} ${suspect}，拒绝隐式推断 .scratch 根（这会把产出写进技能安装目录）；请 cd 到目标仓库后重试，或显式传 --root <path>`,
+    );
+  }
   for (let cur = start; ; ) {
     if (ROOT_MARKERS.some((m) => fs.existsSync(path.join(cur, m)))) {
       return path.join(cur, '.scratch');
@@ -45,6 +71,27 @@ export function resolveScratchRoot({ root, cwd = process.cwd() } = {}) {
   throw new Error(
     `未在 ${start} 及其父目录中找到 .git / .scratch 标记，无法确定 .scratch 根；请进入仓库目录后重试或显式传 --root <path>`,
   );
+}
+
+/**
+ * 解析 `--dir` 指向的功能目录。
+ * 相对路径按 cwd 解析；但 cwd 位于工具安装目录内时拒绝相对路径——那种情况下
+ * 相对路径几乎必然指错位置，且 `writeFileSafe` 会静默建出目录树。
+ * @param {string} dir --dir 原始值
+ * @param {{cwd?: string}} [opts]
+ * @returns {string} 绝对路径
+ * @throws cwd 可疑且 dir 为相对路径时抛错
+ */
+export function resolveDirArg(dir, { cwd = process.cwd() } = {}) {
+  if (!path.isAbsolute(dir)) {
+    const suspect = suspectRootReason(cwd);
+    if (suspect) {
+      throw new Error(
+        `--dir "${dir}" 是相对路径，而当前目录 ${path.resolve(cwd)} ${suspect}；请传绝对路径`,
+      );
+    }
+  }
+  return path.resolve(cwd, dir);
 }
 
 // ---------------------------------------------------------------- 纯函数
@@ -281,7 +328,7 @@ function usage() {
 
 选项：
   --root <path>     .scratch 根（默认：从 cwd 向上找含 .git/.scratch 的仓库，取其 .scratch）
-  --dir <path>      功能目录 <NN>-<slug>（to-tickets / resolve-block）
+  --dir <path>      功能目录 <NN>-<slug>（to-tickets / resolve-block；相对路径按 cwd 解析）
   --slug <name>     slug（中文回落 untitled）
   --title <text>    标题
   --num <NN>        工单编号（缺省自动，首批 01）
@@ -341,8 +388,9 @@ async function main() {
       return 0;
     }
     if (opts.cmd === 'next-issue') {
-      const dir = opts.dir || opts.dirArg;
-      if (!dir) { console.error('错误: next-issue 需 --dir <功能目录/issues 路径>'); return 2; }
+      const dirArg = opts.dir || opts.dirArg;
+      if (!dirArg) { console.error('错误: next-issue 需 --dir <功能目录/issues 路径>'); return 2; }
+      const dir = resolveDirArg(dirArg);
       const issuesDir = /issues$/.test(dir) ? dir : path.join(dir, 'issues');
       console.log(`下一个工单编号: ${issueNum(issuesDir)}${dry}`);
       return 0;
@@ -357,7 +405,7 @@ async function main() {
     if (opts.cmd === 'to-tickets') {
       if (!opts.dir || !opts.slug) { console.error('错误: to-tickets 需 --dir <功能目录> --slug <name>'); return 2; }
       const r = runToTickets({
-        dir: path.resolve(opts.dir), slug: opts.slug, num: opts.num, deps: opts.deps,
+        dir: resolveDirArg(opts.dir), slug: opts.slug, num: opts.num, deps: opts.deps,
         title: opts.title, build: opts.build, accept: opts.accept, dryRun: opts.dryRun,
       });
       console.log(`${dry ? '将创建' : '已创建'} ${r.file}`);
@@ -365,7 +413,7 @@ async function main() {
     }
     if (opts.cmd === 'resolve-block') {
       if (!opts.dir) { console.error('错误: resolve-block 需 --dir <功能目录>'); return 2; }
-      const r = runResolveBlock({ dir: path.resolve(opts.dir), dryRun: opts.dryRun });
+      const r = runResolveBlock({ dir: resolveDirArg(opts.dir), dryRun: opts.dryRun });
       console.log(`依赖序（阻塞者在前）: ${r.order.join(', ')}`);
       for (const f of r.files) console.log(`${dry ? '将规范化' : '规范化'} ${f}`);
       return 0;

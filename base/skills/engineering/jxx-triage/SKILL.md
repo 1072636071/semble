@@ -1,7 +1,7 @@
 ---
 name: jxx-triage
 description: 将 issue 与 external PR 推过 triage 状态机——分类（categorise）、验证、必要时 grill，并编写 agent 可执行的简报。
-disable-model-invocation: true
+disable-model-invocation: false
 metadata:
   version: 1.0.0
 ---

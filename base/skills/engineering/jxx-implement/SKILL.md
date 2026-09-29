@@ -1,7 +1,7 @@
 ---
 name: jxx-implement
 description: 基于 spec 或一组 ticket 实现（implement）用户描述的工作。
-disable-model-invocation: true
+disable-model-invocation: false
 metadata:
   version: 1.0.0
 ---

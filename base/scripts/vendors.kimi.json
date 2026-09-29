@@ -1,0 +1,26 @@
+{
+  "buckets": [
+    "engineering",
+    "productivity",
+    "seo-geo",
+    "code",
+    "kimi",
+    "TDB-AM"
+  ],
+  "managedPrefixes": [
+    "jxx-",
+    "huawei-cloud-",
+    "seo-",
+    "tdai-"
+  ],
+  "skillsSource": "../skills",
+  "vendors": {
+    "kimi": {
+      "label": "Kimi Work",
+      "derive": true,
+      "user": {
+        "skills": "~/.agents/skills"
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "去AI味·中文",
+  "installedAt": 1788925713190,
+  "source": "marketplace",
+  "version": "1.0.0",
+  "skillId": "skill_2095703026453680128",
+  "description_zh": "中文文档去 AI 味三合一技能：检测 + 量化评分 + 改写建议。\n专门覆盖中文官方腔、模板口水、营销黑话、模糊归因、伪深度、结尾升华等中文 AI 写作特征。\n含纯 stdlib 检测脚本（无需联网、无需第三方依赖），可单文件扫描、管道集成或批量处理。\n适用于公众号、小红书、知乎、工作汇报、产品文案等中文场景。",
+  "description_en": "Chinese document AI-flavor removal skill: three-in-one detection + quantitative scoring + rewrite suggestions.\nSpecifically covers Chinese AI writing tells: officialese, template phrasing, internet buzzwords, vague attribution, fake depth, grandiose endings.\nBundles a pure-stdlib scanner script (no network, no third-party deps), supports single-file scan, pipe integration, or batch processing.\nDesigned for WeChat articles, Xiaohongshu, Zhihu, work reports, product copy, and other Chinese-language scenarios.\nTrigger when user asks to \"remove AI flavor\", \"make it sound human\", \"humanize\", \"去掉 AI 味\", \"改得像人写的\", \"人话化\", \"去掉机器味\", or \"优化文案\".",
+  "iconSource": "https://openplatform-cdn.codebuddy.cn/public/common/capability_cover/337023ea-3ad7-4893-a77e-4ae1799744d2/6581a20f-e3fe-4f35-ab68-19e4ea8c90df.png",
+  "iconLocalPath": "C:\\Users\\jxc123\\.workbuddy\\skills\\qu-aiwei-zh\\_icon.png",
+  "iconDownloadedFrom": "https://openplatform-cdn.codebuddy.cn/public/common/capability_cover/337023ea-3ad7-4893-a77e-4ae1799744d2/6581a20f-e3fe-4f35-ab68-19e4ea8c90df.png"
+}

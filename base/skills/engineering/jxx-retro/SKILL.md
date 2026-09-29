@@ -1,7 +1,7 @@
 ---
 name: jxx-retro
 description: "对一次编码会话做回顾（retrospective），提出对 agent 环境的改进建议。触发词：retro、复盘、回顾这次会话、session retrospective。"
-disable-model-invocation: true
+disable-model-invocation: false
 metadata:
   version: 1.0.0
 ---

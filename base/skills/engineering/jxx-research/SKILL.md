@@ -16,9 +16,9 @@ metadata:
 | "调研 X""研究一下 Y""帮我查查 Z""了解下 W" | **自由模式**（默认） |
 | "生成报告""写报告""严格模式""按模板""输出报告" | **严格模式** → [references/strict-mode.md](references/strict-mode.md) |
 
-> 确定性环节可调用脚本：`node <本技能目录>/scripts/report-flow.mjs research-file --prefix <前缀> --slug <slug> --out docs/report`（零依赖，严格模式落盘）
+> 确定性环节可调用脚本：`node <本技能目录>/scripts/report-flow.mjs research-file --prefix <前缀> --slug <slug> --out "<仓库绝对路径>/docs/report"`（零依赖，严格模式落盘）
 >
-> `--out` 是**相对当前工作目录**解析的，因此**必须在目标仓库根目录下执行**（或直接把 `--out` 写成绝对路径）。脚本不锚定自身安装位置——技能会被分发到各平台的 `skills/<skill>/scripts/` 下，固定层级的相对路径会写到无关目录。
+> `--out` 是**相对当前工作目录**解析的，因此**路径一律写绝对路径**（或确保 cwd 就是目标仓库根）。脚本不锚定自身安装位置——技能会被分发到各平台的 `skills/<skill>/scripts/` 下，固定层级的相对路径会写到无关目录。
 
 自由模式是默认。当前模型很强大 —— 给目标、不规定流程，有时效果更好。严格模式用于需要正式存档、汇报给他人的场景，详细工作流、模板选择、完成标准见严格模式定义文件。
 

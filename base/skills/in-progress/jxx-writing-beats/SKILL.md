@@ -1,7 +1,7 @@
 ---
 name: jxx-writing-beats
 description: 写作（writing）的 exploit 阶段——将原始素材组装为节奏（beat）旅程，在每个节奏依赖某概念前先将其锚定（grounding）。
-disable-model-invocation: true
+disable-model-invocation: false
 metadata:
   version: 1.0.0
 ---

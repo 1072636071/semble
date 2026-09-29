@@ -1,7 +1,7 @@
 ---
 name: jxx-setup-skills
 description: 为仓库配置工程技能环境——设置 issue tracker、triage 标签词汇表与领域文档布局，并检测 OCR（open-code-review CLI）是否可用、未安装时询问用户是否安装。首次使用其他工程技能前运行一次。
-disable-model-invocation: true
+disable-model-invocation: false
 metadata:
   version: 1.4.0
 ---

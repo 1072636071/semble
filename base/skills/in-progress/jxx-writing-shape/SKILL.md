@@ -1,7 +1,7 @@
 ---
 name: jxx-writing-shape
 description: 写作 exploit——将原始素材逐段塑造（shape）为完整文章。
-disable-model-invocation: true
+disable-model-invocation: false
 metadata:
   version: 1.0.0
 ---

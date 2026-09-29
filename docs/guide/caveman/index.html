@@ -893,7 +893,17 @@ code {
 
   <section class="section" style="margin-top:18px">
   <h2 class="sec-title">同类工具</h2>
-  <div class="grid"><a class="card rise" href="lean-ctx/index.html" data-filter-item data-filter-cat="上下文与 Token 优化" data-filter-text="lean-ctx（LeanCTX） 本地优先的 AI 编码代理上下文运行时：压缩/缓存/路由上下文，并追踪 token 成本与结果（Control what your AI can see）。 LeanCTX（Lean Context）是一个本地优先、模型无关的 AI 编码代理上下文运行时（定位语：Control what your AI can see）。它并行于你的编码代理运行，在「读取路径」上通过 MCP 工具与 Shell Hook 压缩/缓存上下文，在「传输路径」上可选通过本地代理压缩每一次模型请求；并承担理解任务、路由正确上下文、压缩发送内容、追踪成本与结果五大职责，适合中大型仓库、频繁切换项目、多任务并行的开发者。 上下文与 Token 优化 Rust context-runtime ai-agent token-saving context-engineering mcp shell-hook compression proxy">
+  <div class="grid"><a class="card rise" href="context-mode/index.html" data-filter-item data-filter-cat="上下文与 Token 优化" data-filter-text="context-mode（上下文窗口优化 MCP） 面向 AI 编码代理的上下文窗口优化 MCP 服务：把工具原始输出留在本地沙箱、只回传计算结果，实测 315 KB → 5.4 KB（降 98%），并跨会话压缩持久化记忆，强制「用代码思考」范式。 面向 AI 编码代理的上下文窗口优化工具：把工具原始输出留在本地沙箱（减少 98% 上下文占用），持久化跨压缩会话的记忆，并通过 MCP + hooks 在 17 个平台上强制数据路由。 上下文与 Token 优化 TypeScript context-window token-saving mcp session-continuity sandbox hooks context-engineering compression">
+      <h3 class="card__title">context-mode（上下文窗口优化 MCP）</h3>
+      <div class="rating">★★★★★<span class="rating__num">5 星</span></div>
+      <p class="card__desc">面向 AI 编码代理的上下文窗口优化 MCP 服务：把工具原始输出留在本地沙箱、只回传计算结果，实测 315 KB → 5.4 KB（降 98%），并跨会话压缩持久化记忆，强制「用代码思考」范式。</p>
+      <div class="card__meta">
+        <span class="badge badge--gold">📁 上下文与 Token 优化</span>
+        <span class="badge badge--gold">⭐ 23k+</span>
+        <span class="badge badge--muted">TypeScript</span>
+      </div>
+      <span class="card__cta">查看详情 →</span>
+    </a><a class="card rise" href="lean-ctx/index.html" data-filter-item data-filter-cat="上下文与 Token 优化" data-filter-text="lean-ctx（LeanCTX） 本地优先的 AI 编码代理上下文运行时：压缩/缓存/路由上下文，并追踪 token 成本与结果（Control what your AI can see）。 LeanCTX（Lean Context）是一个本地优先、模型无关的 AI 编码代理上下文运行时（定位语：Control what your AI can see）。它并行于你的编码代理运行，在「读取路径」上通过 MCP 工具与 Shell Hook 压缩/缓存上下文，在「传输路径」上可选通过本地代理压缩每一次模型请求；并承担理解任务、路由正确上下文、压缩发送内容、追踪成本与结果五大职责，适合中大型仓库、频繁切换项目、多任务并行的开发者。 上下文与 Token 优化 Rust context-runtime ai-agent token-saving context-engineering mcp shell-hook compression proxy">
       <h3 class="card__title">lean-ctx（LeanCTX）</h3>
       <div class="rating">★★★★★<span class="rating__num">5 星</span></div>
       <p class="card__desc">本地优先的 AI 编码代理上下文运行时：压缩/缓存/路由上下文，并追踪 token 成本与结果（Control what your AI can see）。</p>
@@ -911,16 +921,6 @@ code {
         <span class="badge badge--gold">📁 上下文与 Token 优化</span>
         <span class="badge badge--gold">⭐ —</span>
         <span class="badge badge--muted">—</span>
-      </div>
-      <span class="card__cta">查看详情 →</span>
-    </a><a class="card rise" href="rtk/index.html" data-filter-item data-filter-cat="上下文与 Token 优化" data-filter-text="RTK（Reduced Token Kit） 命令行输出精简器：过滤进度条/重复日志/模板代码，git status、npm test 省 75%–90% Token，启动 &lt;10ms。 命令行输出精简器，自动过滤进度条、重复日志、模板代码，仅保留关键信息。在 git status、npm test 等命令上可节省 75%–90% Token，启动开销低于 10ms，完全无感接入。 上下文与 Token 优化 Rust token-saving cli shell-hook filter">
-      <h3 class="card__title">RTK（Reduced Token Kit）</h3>
-      <div class="rating">★★★★★<span class="rating__num">5 星</span></div>
-      <p class="card__desc">命令行输出精简器：过滤进度条/重复日志/模板代码，git status、npm test 省 75%–90% Token，启动 &lt;10ms。</p>
-      <div class="card__meta">
-        <span class="badge badge--gold">📁 上下文与 Token 优化</span>
-        <span class="badge badge--gold">⭐ —</span>
-        <span class="badge badge--muted">Rust</span>
       </div>
       <span class="card__cta">查看详情 →</span>
     </a></div>

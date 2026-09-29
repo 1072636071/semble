@@ -1,7 +1,7 @@
 ---
 name: jxx-writing-fragments
 description: 写作（writing）explore 阶段——挖掘原始碎片，暂不构建结构。
-disable-model-invocation: true
+disable-model-invocation: false
 metadata:
   version: 1.0.0
 ---

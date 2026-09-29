@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.3 — 2026-09-18
+
+根因补充与二次加固：1.2.2 改对了本源，但**已安装副本不会自动更新**——`~/.workbuddy/skills/jxx-to-tickets/scripts/issue-flow.mjs` 仍是旧的 `__dirname` 锚定版，实际执行时依旧写错目录。本次同步 `jxx-to-spec` 1.1.2：可疑根拦截（工具安装目录段 / 用户 home 本身）、`--dir` 相对路径在可疑 cwd 下拒绝、测试补 4 例、SKILL.md 改绝对路径示例并写明"改完必须跑 `ship install` 刷新已安装副本"。
+
 ## 1.2.2 — 2026-09-16
 
 修 `.scratch` 根解析写错目录：`issue-flow.mjs` 原先用 `path.join(__dirname, '..', '..', '.scratch')` 锚定，复制进技能 `scripts/`（`../../` 落到 `base/skills/engineering/`）并安装到 `~/.workbuddy/skills/<skill>/scripts/`（落到 `~/.workbuddy/skills/`）后失效，且是**静默**失效（编号回落 01、自动建目录树）。现改为 `resolveScratchRoot()`：显式 `--root` 优先，否则从 cwd 向上寻找含 `.git`/`.scratch` 的仓库；找不到直接报错退出。SKILL.md 调用示例补 `--root` 与执行位置说明；三份副本由 `base/scripts/check-copies.mjs --fix` 统一同步、并有 parity 门禁兜底。

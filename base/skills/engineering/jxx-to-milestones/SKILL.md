@@ -1,7 +1,7 @@
 ---
 name: jxx-to-milestones
 description: 把一批已发布的工单归组为可独立上线的里程碑，生成 MILESTONES.md，并按里程碑逐个交付（实现 → 上线门禁 → 验收 → 续接）。当工单多、改动大、涉及广泛重构或破坏性变更、需要分批发布、要求每批都能单独回滚、或需要中断后续传时使用。通常在 /jxx-to-tickets 之后运行，也可直接对任意已存在的工单目录运行。
-disable-model-invocation: true
+disable-model-invocation: false
 metadata:
   version: 1.0.0
 ---
@@ -19,6 +19,8 @@ metadata:
 - 用户也可直接指定工单目录路径，或给出一份工单编号清单。
 
 ## 流程
+
+> 所有 `--dir` **一律传绝对路径**（`<仓库>/.scratch/<NN>-<slug>`）。相对路径按 cwd 解析，而脚本会在任意 cwd 下被调用——cwd 一旦不是目标仓库（例如停在技能安装目录），脚本就会读错工单、把 `MILESTONES.md` 写进无关目录。
 
 ### 1. 扫描工单
 

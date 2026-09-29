@@ -1,9 +1,9 @@
 ---
 name: jxx-to-spec
 description: 将当前对话转化为 spec（规格文档）并发布到项目 issue tracker——无需访谈，仅综合已有讨论内容。
-disable-model-invocation: true
+disable-model-invocation: false
 metadata:
-  version: 1.1.1
+  version: 1.1.2
 ---
 
 本技能将当前对话上下文和代码库理解转化为规格文档（你可能称之为 PRD）。不要访谈用户——仅综合你已知的内容。
@@ -22,11 +22,17 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 
 发布路径：在仓库根目录的 `.scratch/` 下创建功能目录 `<NN>-<feature-slug>/`，将规格文档写入 `.scratch/<NN>-<feature-slug>/PRD.md`。`<NN>` 为从 `01` 起的全局递增顺序号，按创建先后排列（如第一个功能为 `01-login/`）。具体目录与文件约定见 issue tracker 定义（`/jxx-setup-skills`）。
 
-> 确定性环节可调用脚本（零依赖）：`node <本技能目录>/scripts/issue-flow.mjs to-spec --slug <name> --root "$PWD/.scratch"`。
+> 确定性环节可调用脚本（零依赖）：`node <本技能目录>/scripts/issue-flow.mjs to-spec --slug <name> --root "<仓库绝对路径>/.scratch"`。
 >
-> 根目录解析：不给 `--root` 时，脚本从 **cwd 向上**寻找含 `.git` / `.scratch` 的仓库，再取该仓库的 `.scratch`。因此**必须在目标仓库目录内执行**；不在任何仓库内时脚本直接报错退出——它绝不会把 PRD 静默写进技能安装目录旁边。
+> **路径一律用绝对路径。** 脚本会在任意 cwd 下被调用，相对路径按 cwd 解析——cwd 一旦不是目标仓库（例如停在技能安装目录），产出就会落到错误位置。
+>
+> 根目录解析：不给 `--root` 时，脚本从 **cwd 向上**寻找含 `.git` / `.scratch` 的仓库，再取该仓库的 `.scratch`。因此**必须在目标仓库目录内执行**。三种情况脚本直接报错退出，绝不静默写错目录：① 不在任何仓库内；② cwd 落在工具安装目录（`~/.workbuddy`、`~/.codebuddy` 等）内；③ `--dir` 传相对路径且 cwd 位于工具安装目录内。
+>
+> 落盘前先 `--dry-run` 打印目标路径，确认它在目标仓库内再正式执行。
 >
 > 维护：`issue-flow.mjs` 有三份同步副本（本源 `base/scripts/issue-flow.mjs`）。改完本源执行 `node base/scripts/check-copies.mjs --fix` 同步全部副本（`check-copies.mjs` 不带参数即校验）。
+>
+> **改完必须再跑 `node base/scripts/ship.mjs install` 刷新各平台已安装副本**——安装副本不会随仓库改动自动更新，而过期的安装副本会让上述全部防护失效（这正是 1.1.2 修的历史事故）。
 
 <spec-template>
 

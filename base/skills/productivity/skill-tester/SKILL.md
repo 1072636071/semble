@@ -87,7 +87,7 @@ Upon receiving user confirmation, execute the evaluation script using the calibr
 Run the following command with 10 minutes timeout:
 
 ```bash
-node scripts/run-eval.mjs --eval-set <evals_path> --skill-path <skill_path> --verbose <verbose>
+node <本技能目录>/scripts/run-eval.mjs --eval-set "<eval set 绝对路径>" --skill-path "<技能目录绝对路径>" --verbose <verbose>
 ```
 
 NOTE: Use bash timeout of 600000ms (10 minutes) when executing above command.

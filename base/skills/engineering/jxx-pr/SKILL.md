@@ -1,7 +1,7 @@
 ---
 name: jxx-pr
 description: "撰写 PR 正文时使用。提供 Summary（图示摘要）/ Evidence（前后对照证据）/ Merge Danger（单向双向门 + 爆炸半径）三段式模板与图示选型指南。触发词：写 PR、PR 描述、pull request 正文。"
-disable-model-invocation: true
+disable-model-invocation: false
 metadata:
   version: 1.0.0
   credits:

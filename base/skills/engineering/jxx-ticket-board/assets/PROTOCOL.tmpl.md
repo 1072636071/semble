@@ -14,8 +14,9 @@
     ├── ledger.md    领导者账本（只有领导者可写）
     ├── board.html   用户进度看板（领导者保鲜职责）
     ├── CARD-TEMPLATE.md
-    ├── starter\     角色启动提示词（dev / merger）
-    └── cards\{inbox,claimed,review,done,blocked}\   目录即状态
+    ├── starter\     角色启动提示词（dev / merger / reviewer / auto）
+    ├── cards\{inbox,claimed,review,done,blocked}\   目录即状态
+    └── held\        领导者暂缓道（依赖未就绪的卡停这里，worker 不可见、不可移入移出）
 ```
 
 - **工单卡**：一个 md 文件 = 一张卡 = 一个 `.scratch\` 工单 = 一个分支，严格 1:1（薄卡：卡只放指针与协调记录，**成果正文一律进 git 分支**）。
@@ -30,7 +31,7 @@
    | L2 | 有界实现：规格清晰、跨 2-4 文件、无设计决策 | 中档 |
    | L3 | 需判断：跨模块、要选实现方案、要动测试架构 | 强模型 |
    | L4 | 设计级：改公共接口/数据模型/协议本身 | 最强模型 + 双重审查（组内审 + 独立干净会话复审） |
-1. 看活只找 `cards\inbox\` 中的卡；**开发卡** id 形如 `NNN-slug`，**合并卡** 形如 `merge-NNN-slug`（只有合并专员领后者）。
+1. 看活只找 `cards\inbox\` 中的卡；**开发卡** id 形如 `NNN-slug`，**合并卡** 形如 `merge-NNN-slug`（只有合并专员领后者）。依赖未就绪的卡由领导者投卡时自动收进 `control\held\`（等依赖卡归档 done 后释放回 inbox），worker 对 held 既不看也不动。
 2. 领取 = 先移动文件，后填卡：
    ```bash
    mv "<root>\control\cards\inbox\<卡id>.md" "<root>\control\cards\claimed\<卡id>.md"
@@ -74,7 +75,62 @@
 - 领导者记账的移卡动作：`move <卡id>.md <from>-><to>`（写在 `control\ledger.md`）。
 - 卡内记录行统一以 `- ` 开头，字段名前缀固定：`- 标题:`、`- 难度:`、`- 模型档位:`、`- 领取者:`、`- PRD:`、`- 分支:`、`- worktree:`、`- 依赖:`（PRD/分支/worktree 即工单定位三件套，agent 据此找文件）。
 
-## 5. 断线 / 交接
+## 5. 自动编排模式（auto）
+
+> 本节仅在 auto 模式下生效。auto 模式 = 领导者自动 spawn 子 agent 完成全流程，无需人工拉会话。
+
+### 5.1 角色与职责
+
+| 角色 | 职责 | 启动方式 |
+|------|------|---------|
+| **编排者（orchestrator）** | 投卡 → spawn worker → 监控进度 → 触发审查 → 触发合入 | 用户 `/jxx-ticket-board auto` 启动 |
+| **开发 worker** | 领卡 → 实现 → 自审 → 交付 | 编排者 spawn |
+| **审查者（reviewer）** | 三维度独立审查代码 | 编排者 spawn（3 个并行实例） |
+| **合并专员（merger）** | 处理合并 + 冲突解决 | 编排者 spawn |
+
+### 5.2 编排者规则
+
+1. **投卡**：读用户指定的工单文件列表，逐张 `new-card` 投卡（含 `--ticket-file` 状态闸门）。
+2. **spawn worker**：对每张无阻塞的 inbox 卡，spawn 一个独立子 agent（`subagent` 或 `spawn_teammate`，agent 自行选择——只要能独立上下文、尽可能并行）。worker 提示词 = `control/starter/starter-dev.md` 全文 + 指定卡 id。
+3. **监控**：worker 回报后，检查卡位置——
+   - 卡在 `review/` → 触发审查（§5.3）
+   - 卡在 `blocked/` → 读卡内原因，**先重试一次**（重新 spawn worker 或提示用户）；重试仍 blocked → 保留 blocked，**继续推进其他不阻塞的卡**
+   - 卡在 `claimed/` 超时（默认 30 分钟无动静）→ 视为僵死，重新 spawn worker 接力
+4. **spawn 审查者**：卡在 `review/` 时，spawn 3 个独立审查者（§5.3），并行审查。
+5. **审查结果处理**：
+   - 3 个审查者全部通过 → spawn 合并专员（§5.4）
+   - 任一审查者有发现项 → 把发现项汇总写回卡的「流转追加段」，卡移回 `claimed/` 返工，重新 spawn worker
+6. **spawn 合并专员**：合并专员领 merge 卡，执行合并 + 冲突解决。
+7. **合入完成**：merge 卡移 `done/`，开发卡移 `done/`，记账，刷看板。
+
+### 5.3 审查者规则（三维度并行）
+
+三个审查者各自独立 spawn，**并行执行**，各审一个维度：
+
+| 审查者 | 维度 | 审查内容 |
+|--------|------|---------|
+| **reviewer-std** | 标准 | 是否遵循仓库编码标准（命名、格式、import 形态、文件位置、错误处理模式） |
+| **reviewer-spec** | spec | 是否匹配工单验收标准（每条验收标准逐条对码实证、功能完整性、边界情况） |
+| **reviewer-rule** | 规则 | 是否违反文件级规则（CODING_STANDARDS.md / biome 规则 / 项目特定约束） |
+
+- 每个审查者：读卡 + 读工单 PRD → `git diff {{BASE_BRANCH}}...ticket/<卡id>` 看全部变更 → 按各自维度审查 → 输出结构化报告（通过/不通过 + 发现项列表）。
+- 审查者**不修改代码**——只审不改，发现项写给编排者汇总。
+- 审查者用只读 git（`git show` / `git diff` / `git grep`），不 checkout 分支。
+
+### 5.4 合并专员规则（auto 模式）
+
+- auto 模式下合并专员由编排者 spawn，职责与 §3 一致——先审后合、冲突红线、禁止带伤合并。
+- 合并专员处理合并冲突时：机械冲突（重命名、import 路径、格式）可自行解决；**需发明新行为的冲突** → 卡移 `blocked/`，等人工处理。
+- 合并成功 → merge 卡 + 开发卡移 `done/`，记账，刷看板。
+
+### 5.5 失败处理
+
+- **worker 失败**：先重试一次（重新 spawn）；仍失败 → 卡 `blocked/`，编排者继续推进其他卡。
+- **审查失败**：发现项汇总 → 卡 `claimed/` 返工 → 重新 spawn worker → 重新审查。
+- **合并冲突**：机械冲突 merger 自解；非机械冲突 → 卡 `blocked/` 等人工。
+- **编排者自身失败**：`verify` 重建状态，从断点续接。
+
+## 6. 断线 / 交接
 
 - 你的全部状态都在：卡内流转段 + 分支历史 + worktree。会话死了，新会话领同一张卡（用户指示下手动改「领取者」）即可续接。
 - 拿不准现状就少做一步、多问用户一句；协议没覆盖的情况，**停下来问**，不要发明规矩。

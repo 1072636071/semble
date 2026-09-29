@@ -1,7 +1,7 @@
 ---
 name: jxx-wait-what
 description: 当 agent 刚解释或描述了什么而用户不理解时使用。以简化技术英语和共享词汇重讲上一段回答。
-disable-model-invocation: true
+disable-model-invocation: false
 metadata:
   version: 1.0.0
 x-install: false

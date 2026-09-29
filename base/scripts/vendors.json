@@ -95,10 +95,10 @@
       }
     },
     "kimi": {
-      "label": "Kimi",
-      "derive": false,
+      "label": "Kimi Work",
+      "derive": true,
       "user": {
-        "skills": "D:\\aiData\\kimiData\\daimon-share\\daimon\\skills"
+        "skills": "~/.agents/skills"
       }
     }
   }

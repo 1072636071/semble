@@ -17,6 +17,8 @@ import {
   runResolveBlock,
   DEFAULT_STATUS,
   resolveScratchRoot,
+  suspectRootReason,
+  resolveDirArg,
 } from '../issue-flow.mjs';
 import { fileURLToPath } from 'node:url';
 
@@ -226,6 +228,36 @@ test('resolveScratchRoot: 技能脚本目录出发也回到仓库根 .scratch（
   const skillScripts = path.join(repoRoot, 'base', 'skills', 'engineering', 'jxx-to-spec', 'scripts');
   assert.equal(resolveScratchRoot({ cwd: skillScripts }), path.join(repoRoot, '.scratch'));
   assert.equal(resolveScratchRoot({ cwd: repoRoot }), path.join(repoRoot, '.scratch'));
+});
+
+test('suspectRootReason: 命中 home 本身与工具安装目录段，普通目录不命中', () => {
+  assert.equal(suspectRootReason(os.homedir()), '就是用户 home 目录本身');
+  assert.match(suspectRootReason(path.join(tmp, '.workbuddy', 'skills', 'x')), /工具安装目录/);
+  assert.match(suspectRootReason(path.join(tmp, '.codebuddy', 'skills', 'x')), /工具安装目录/);
+  assert.equal(suspectRootReason(path.join(tmp, 'repo-x')), null);
+});
+
+test('resolveScratchRoot: cwd 在工具安装目录内时抛错，即使祖先有 .git（dotfiles 仓库误判）', () => {
+  const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'issue-flow-home-'));
+  fs.mkdirSync(path.join(fakeHome, '.git'), { recursive: true }); // 模拟 home 下的 dotfiles 仓库
+  const scripts = path.join(fakeHome, '.workbuddy', 'skills', 'jxx-to-spec', 'scripts');
+  fs.mkdirSync(scripts, { recursive: true });
+  assert.throws(() => resolveScratchRoot({ cwd: scripts }), /工具安装目录|--root/);
+  // 显式 --root 仍是逃生口
+  assert.equal(
+    resolveScratchRoot({ root: path.join(fakeHome, '.scratch'), cwd: scripts }),
+    path.join(fakeHome, '.scratch'),
+  );
+  fs.rmSync(fakeHome, { recursive: true, force: true });
+});
+
+test('resolveDirArg: 绝对路径放行；可疑 cwd 下拒绝相对路径', () => {
+  const abs = path.join(tmp, '.scratch', '01-x');
+  assert.equal(resolveDirArg(abs, { cwd: tmp }), abs, '绝对路径按原样');
+  assert.equal(resolveDirArg('.scratch/01-x', { cwd: tmp }), abs, '普通 cwd 下相对路径按 cwd 解析');
+  const skillDir = path.join(tmp, '.workbuddy', 'skills', 'jxx-to-spec', 'scripts');
+  assert.throws(() => resolveDirArg('.scratch/01-x', { cwd: skillDir }), /相对路径/);
+  assert.equal(resolveDirArg(abs, { cwd: skillDir }), abs, '绝对路径不受可疑 cwd 影响');
 });
 
 test('issue-flow.mjs 三份副本字节一致，且不得再用 __dirname 锚定 .scratch', () => {

@@ -1,7 +1,7 @@
 ---
 name: tdai-memory-local
-description: 本地守护记忆面（离线兜底）—— 开工前回忆、多项目 .agents/memory 检索、本地技能目录索引、离线 capture 暂存队列、服务端技能只读镜像。当远端记忆服务不可达、需要离线检索项目记忆、要找本机技能目录里的技能、或要把内容暂存待回连补传时使用。工具：memory_search / skill_search / memory_capture / memory_sync / skill_mirror。
-version: 0.1.0
+description: 本地守护记忆面（离线兜底 + 项目记忆统一写入门面）—— 开工前回忆、多项目 .agents/memory 检索、本地技能目录索引、项目记忆落盘与上行 L1、离线 capture 暂存队列、服务端技能只读镜像。当远端记忆服务不可达、需要离线检索项目记忆、要沉淀一条项目经验、要找本机技能目录里的技能、或要把内容暂存待回连补传时使用。工具：memory_search / skill_search / memory_capture / memory_sync / skill_mirror。
+version: 0.2.0
 ---
 
 ## 目的与适用
@@ -12,10 +12,13 @@ version: 0.1.0
 实现本体在 TencentDB-Agent-Memory 仓库 `tools/memory-mcp.mjs`（零依赖 stdio MCP server），
 注册/拉起脚本在 `tdai-codegraph-local/scripts/memory-mcp.mjs`——本目录**不复制、不维护第二份**。
 
-**本面只读。** 五个工具里没有一个是写服务端技能或写远端记忆的写入口 ——
-`memory_capture` 只是**入本地暂存队列**（或转发 `conversation/add`），`skill_mirror` 只读服务端镜像。
+**本面不写服务端技能。** 五个工具里没有技能写入口——`skill_mirror` 只读服务端镜像。
 **写技能 / 删技能 / 改技能一律走 `memory-admin` CLI**（`memory-admin skill create|update|patch|delete`），
 本面没有、也不打算有这些能力。完整双写回路归口工单 12。
+
+记忆侧自 PRD 57 起是**统一写入门面**（不再是「只入队」）：`memory_capture` 一条 seam 决定落点——
+项目本地的经验落 `.agents/memory/` 日志原文，远端可达时**顺带**上行一条 L1（`/v3/atomic/create`），
+断网时入队待回连补传。agent 不需要知道落了几处，只有**冲突**才回抛给人/裁决通道。
 
 ---
 
@@ -26,7 +29,8 @@ version: 0.1.0
 | **开工前回忆**——接手项目 / 要动与已有结论相关的代码，先找历史上下文 | `memory_search` |
 | 想知道某件事之前做过没有、踩过什么坑（多项目一起找） | `memory_search` |
 | 找个技能：本机技能目录里有没有能用的 | `skill_search` |
-| **离线**：远端不可达，先把要记的东西存下来别丢 | `memory_capture`（入队） |
+| **离线**：远端不可达，先把要记的东西存下来别丢 | `memory_capture`（本地已安全 + 入队待补传） |
+| 项目里沉淀一条经验/结论（在线也一样） | `memory_capture`（同一条 seam，落点对 agent 透明） |
 | **回连后**：把攒下的队列补传上去 | `memory_sync` |
 | 看服务端技能镜像新不新、要不要刷新、导出备份 | `skill_mirror` |
 
@@ -55,13 +59,21 @@ version: 0.1.0
 
 `query` **留空列全部**。本地技能目录命中优先；本地缺失时**补服务端镜像条目**（镜像陈旧则先对账一次，再读）。
 
-### `memory_capture` — 暂存（离线可用）
+### `memory_capture` — 统一写入门面（落点对 agent 透明）
 
 ```json
-{ "text": "改用 PG 后 FTS 要抽成纯函数", "role": "user" }
+{ "text": "改用 PG 后 FTS 要抽成纯函数", "title": "FTS 抽纯函数" }
 ```
 
-或完整消息数组（与 `conversation/add` 同形）：
+`text` + `title` 落在**当前项目**时即走项目记忆通道：本地 `.agents/memory/YYYY-MM-DD.md` 追加原文
+（新建日志会同时补 `MEMORY.md` 索引行），远端可达时顺带上行一条 L1，回执给出两态：
+`{ local: "written|appended|exists", remote: "sent|skip|drift|conflict|queued", remoteId }`。
+`skip`=内容指纹一致（幂等真源在本地状态文件，服务端 L1 没有内容 hash）；
+`drift`=本地改过已上行条目 ⇒ **只报不改**，原文落待办等裁决，绝不覆盖远端；
+`conflict`=服务端近似闸 block（业务码 40902 走 HTTP 200）⇒ 冲突候选回抛 + 落本地待办。
+
+对话原文（带 `session_id` 或 `messages`）**不入项目记忆**，仍按原路转发 `conversation/add`；
+显式改落点用 `sink` ∈ `auto|file|conversation`。落点判定不接受 agent 猜：只给 `text` 且当前目录不是仓库 ⇒ 走对话通道。
 
 ```json
 { "messages": [{ "role": "user", "content": "…", "timestamp": "2026-09-15T09:00:00Z" }],
@@ -69,16 +81,23 @@ version: 0.1.0
 ```
 
 `session_id` 缺省按当天生成（`local-YYYY-MM-DD`）。
-**远端可达** → 直接 `conversation/add`，回 `{ sent: true }`；**不可达** → 入本地队列，回 `{ queued: true, id }`；
-**服务端拒收（HTTP 非 2xx）** → 同样入队，并回传 `error` 字段（区分离线与拒收，不静默吞掉）。
+**远端不可达 / 服务端拒收（HTTP 非 2xx）** → 入本地队列等 `memory_sync` 补传，回执 `queued: true`；
+拒收额外带 `error` 字段（区分离线与拒收，不静默吞掉）。
+**门面不建卡**：`/v3/task/*` 控制面要写面 `user_key`，只读 token 建不了；建卡是执行面 CLI 动作：
 
-### `memory_sync` — 回连补传
+```bash
+node tools/memory-uplink.mjs --root <仓库根> --push-conflicts   # 需 TDAI_USER_KEY
+```
+
+### `memory_sync` — 回连补传（恰好一次）
 
 ```json
 {}
 ```
 
 按序补传队列，成功一条移除一条，**遇失败即停**并回报剩余条数。需要远端，离线时明确回报不可达。
+两条不成文的坑由本层兜住：近似闸 block **不算投递失败**（转待办 + 出队，否则队头永久堵塞）；
+超单条正文上限（8192）的条目**按行拆片**补传，与门面/批量 CLI 同一套片键，不截断。
 
 ### `skill_mirror` — 服务端技能只读镜像
 
@@ -96,12 +115,13 @@ version: 0.1.0
 | --- | --- |
 | 查**远端**记忆 / 技能 / 知识 / wiki / code-graph（只读） | **`memory-gateway`** 只读 MCP 门面 |
 | 查**本地**记忆 / 本机技能目录（离线兜底） | **本面 `tdai-memory-local`** |
+| 沉淀**项目记忆**（一条经验/结论，本地原文 + 顺带上行 L1） | **本面 `memory_capture`**（统一写入门面，PRD 57） |
 | 写入（对话上传 / 精华直落 / 技能增删改） | **`memory-admin` CLI**（`sk-mem-` user_key） |
 | 任务执行（偏差验证 / 演化评估） | **`memory-admin` CLI**（`task` 子命令） |
 
-判定口诀：**「查远端 → memory-gateway；查本地 / 离线 → tdai-memory-local；写 / 管 → memory-admin CLI」**。
+判定口诀：**「查远端 → memory-gateway；查本地 / 离线 / 沉淀项目记忆 → tdai-memory-local；技能与精华写入 / 管理 → memory-admin CLI」**。
 
-三者不是替代关系：`memory-gateway` 在**线**时给全局视图，本面在**离线**时给本地视图，写面永远是 `memory-admin`。
+三者不是替代关系：`memory-gateway` 在**线**时给全局视图，本面在**离线**时给本地视图，技能写面永远是 `memory-admin`。
 
 ---
 
@@ -111,10 +131,19 @@ version: 0.1.0
 （坚果云同步根探测，或用 `--credentials <file>` / `TDAI_MEMORY_MCP_CREDENTIALS` 指定）。
 
 **凭据缺失不是故障。** 此时本面降级为纯本地能力：`memory_search` / `skill_search` / `skill_mirror`（读本地镜像）照常工作，
-`memory_capture` 只入队不出队，`memory_sync` 明确回报不可达。那正是本层存在的理由。
+`memory_capture` 本地原文照写、远端那半入队不出队，`memory_sync` 明确回报不可达。那正是本层存在的理由。
 
-状态目录 `~/.tdai/memory-mcp/`（队列 `capture-queue.jsonl`、镜像 `skills-mirror.json`），
-与守护进程的 `~/.tdai/state/` 平级、不混用。
+状态目录 `~/.tdai/memory-mcp/`：队列 `capture-queue.jsonl`、镜像 `skills-mirror.json`、
+上行幂等状态 `file-memory-state.json`（键 = 仓库命名空间 + 逻辑路径 + 锚 + 片号）、
+待办冲突 `conflicts-pending.jsonl`（门面回抛、执行面建卡后消费）。
+与守护进程的 `~/.tdai/state/` 平级、不混用。批量补历史与首次全量走 CLI：
+
+```bash
+node tools/memory-uplink.mjs --root <仓库根> --dry-run     # 先看会发多少，一次网络都不发
+node tools/memory-uplink.mjs --root <仓库根> --verify <文本>  # 上行后回读 /v3/recall 确认在召回里
+node tools/memory-uplink.mjs --root <仓库根> --distill-brief   # 蒸馏简报（本地条目 + L2 上下文包），零写入
+node tools/memory-uplink.mjs --root <仓库根> --distill-submit <投影.json>  # 派生投影落 L1/L2（不改源 md）
+```
 
 ---
 
@@ -131,6 +160,17 @@ node ../../tdai-codegraph-local/scripts/memory-mcp.mjs start      # 需要时前
 ```
 
 注册进 MCP 配置的 server 名就是 `tdai-memory-local`。
+
+注册腿**本体在仓库**（工单 57-01 起，`tools/memory-mcp.mjs` 自带 `register` 子命令，幂等合并、不改别的 server）：
+
+```bash
+node tools/memory-mcp.mjs register --status            # 只读：各家 harness 注没注上
+node tools/memory-mcp.mjs register                      # 默认 dry-run，只打将写入什么
+node tools/memory-mcp.mjs register --all --force        # 写进探测到的各家配置（内容不同才需 --force）
+```
+
+`--target <mcp.json>` 指到探测表之外的路径时同样要 `--force`——防的是「一条命令改坏他人 MCP 配置」。
+守护进程入口 `npm run daemon -- register-mcp` 现在就是把上面这条命令转出去（codegraph 腿与记忆腿各自独立，不再互相抹掉）。
 
 ---
 
@@ -161,7 +201,7 @@ node ../../tdai-codegraph-local/scripts/memory-mcp.mjs start      # 需要时前
 
 ## 验收
 
-- 本体的自动化测试在 TencentDB-Agent-Memory：`npm run test:memory-tools`（117 例，沙盒内，不碰真实 `~/.tdai`）。
+- 本体的自动化测试在 TencentDB-Agent-Memory：`npm run test:memory-tools`（298 例，沙盒内，不碰真实 `~/.tdai`）。
 - 注册/拉起脚本的测试：`node --test base/skills/TDB-AM/tdai-codegraph-local/scripts/memory-mcp.test.mjs`（12 例）。
 - **集成验收（守护自动拉起）未实测**：需在装了 `tdai-codegraph-local` 守护的机器上跑一次
   `node memory-mcp.mjs start`，确认进程起来且 `tools/list` 返回五个工具。

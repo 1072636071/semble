@@ -543,6 +543,13 @@ function deriveError(code, file, vendor, detail) {
   return { code, file, vendor, detail };
 }
 
+// Kimi Work 技能风格：frontmatter 只保留 name + description（与其内置技能一致），
+// 剥掉 x-install / x-vendors / metadata.version 等分发元数据。
+function kimiStyleFrontmatter(name, meta) {
+  const description = typeof meta.description === 'string' ? meta.description : '';
+  return { name, description };
+}
+
 function deriveSkill(vendor, skill, config) {
   let parsed;
   try {
@@ -558,6 +565,9 @@ function deriveSkill(vendor, skill, config) {
     return { name: skill.name, frontmatter: common, body, mode: 'passthrough' };
   }
   switch (vendor.id) {
+    case 'kimi': {
+      return { name: skill.name, frontmatter: kimiStyleFrontmatter(skill.name, common), body, mode: 'derive' };
+    }
     case 'opencode': {
       delete common.name;
       return { name: skill.name, frontmatter: common, body, mode: 'derive' };
@@ -607,6 +617,9 @@ function deriveAgent(vendor, agent, config) {
     return { name: agent.name, frontmatter: fm, body, mode: 'passthrough' };
   }
   switch (vendor.id) {
+    case 'kimi': {
+      return { name: agent.name, frontmatter: kimiStyleFrontmatter(agent.name, common), body, mode: 'derive' };
+    }
     case 'opencode': {
       delete common.name;
       return { name: agent.name, frontmatter: common, body, mode: 'derive' };
@@ -712,8 +725,14 @@ function runInstall(config, { dryRun, project }) {
   const allSkills = listSkillDirs(config);
   const skills = allSkills.filter((s) => shouldInstallForTarget(getXInstall(s.srcPath), project));
   // 残留清理依据“源中全部技能”，而非“本次应装的技能”，
-  // 避免误删 x-install: project / false 的已装目录（它们在本次目标级别本就不装）
-  const srcNames = new Set(allSkills.map((s) => s.name));
+  // 避免误删 x-install: project / false 的已装目录（它们在本次目标级别本就不装）。
+  // 名字须按“该厂商的落盘名”算：src 技能经派生可能改名（如 CodeArts 的 huawei-cloud-<product>- 前缀），
+  // 只比源目录名会把刚装好的派生副本当残留删掉（本仓 jxx-tool-intro 踩过）。
+  const expectedNamesFor = (vendor) => new Set(allSkills.map((s) => {
+    if (!s.srcMode) return s.name;
+    const d = deriveSkill(vendor, s, config);
+    return d.error ? s.name : d.name;
+  }));
   // 危险操作护栏：禁止 rmrf 这些根目录自身或其祖先
   const guards = [config.configDir, config.projectRoot, config.skillsBase, config.agentsBase, config.userHome];
 
@@ -750,26 +769,47 @@ function runInstall(config, { dryRun, project }) {
           installed.push({ dest: destFile, expectedHash: expected });
         } else {
           const destDir = path.join(skillsTarget, skill.name);
+          // Kimi Work 风格适配：普通 SKILL.md 也把 frontmatter 归一化为 name + description；
+          // 解析失败则回退原样复制（与透传派生行为一致）。
+          let kimiContent = null;
+          if (vendor.id === 'kimi') {
+            try {
+              const parsed = parseFrontmatter(skill.srcPath);
+              kimiContent = renderDoc(kimiStyleFrontmatter(skill.name, parsed.meta), parsed.body);
+            } catch (e) {
+              failures.push({ code: 'E_PARSE', file: skill.srcPath, vendor: vendor.id, detail: `Kimi 归一化失败，回退原样复制: ${e.message}`, action: `fallback raw copy for ${skill.name}` });
+            }
+          }
           if (!dryRun) {
             try {
-              rmrf(destDir, guards);
-              copyDir(skill.dir, destDir);
+              if (kimiContent !== null) {
+                fs.mkdirSync(destDir, { recursive: true });
+                fs.writeFileSync(path.join(destDir, 'SKILL.md'), kimiContent, 'utf-8');
+                copyAuxFiles(skill.dir, destDir);
+              } else {
+                rmrf(destDir, guards);
+                copyDir(skill.dir, destDir);
+              }
             } catch (e) {
               failures.push({ code: 'E_INSTALL', file: destDir, vendor: vendor.id, detail: `安装失败: ${e.message}`, action: `skip ${vendor.label} install of ${skill.name}` });
               continue;
             }
           }
-          installed.push({ dest: path.join(destDir, 'SKILL.md'), expectedHash: sha256(skill.srcPath) });
+          const expectedHash = kimiContent !== null
+            ? crypto.createHash('sha256').update(kimiContent, 'utf-8').digest('hex')
+            : sha256(skill.srcPath);
+          installed.push({ dest: path.join(destDir, 'SKILL.md'), expectedHash });
         }
       }
     }
 
     // 残留清理（仅 skills 目录，只动 managedPrefixes 前缀）
     if (skillsTarget && fs.existsSync(skillsTarget) && !dryRun) {
+      const expectedNames = expectedNamesFor(vendor);
       for (const entry of fs.readdirSync(skillsTarget, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
         if (!config.managedPrefixes.some((p) => entry.name.startsWith(p))) continue;
-        if (srcNames.has(entry.name)) continue;
+        if (expectedNames.has(entry.name)) continue;
         try {
           rmrf(path.join(skillsTarget, entry.name), guards);
         } catch (e) {
@@ -1028,6 +1068,8 @@ async function main() {
     const errors = runCheck(config);
     if (errors.length === 0) {
       console.log('check: 全部通过');
+      // 提醒：本仓库内的副本一致性（check-copies）与「已安装副本是否跟上」是两回事。
+      console.log('提示: 改过 base/scripts 或技能源码后，须跑 `ship install` 刷新各平台已安装副本——安装副本不会自动更新，过期副本会让源码里修好的防护失效。');
     } else {
       exit = 1;
       for (const e of errors) console.error(`[FAIL] ${e.code} ${e.vendor} ${e.file}: ${e.detail}`);
