@@ -1,6 +1,6 @@
 # ADR-008：公告板改「三态目录 + 文件名执行态 + triage 标签」三轴正交（D9 落地）
 
-- 状态：已接受（2026-09-30，工单 75-c01；开发自采口径，待合并专员/领导者终审确认）
+- 状态：已接受（2026-09-30 · 领导者终审批准，账本 10:37:24 订正版；工单 75-c01 落地件，独立复审报告见权威仓 `.scratch/75-jxx-ticket-system/reviews/75-c01-code-review.md`）
 - 关联：ADR-004（本单修订其决策 1/3）、ADR-002、ADR-007；PRD 75「解决方案」段 D9 决策、`docs/agents/triage-labels.md`
 - 说明：本 ADR 属 **jxx-ticket-board 技能系列**（`references/ADR-00N`），与权威仓 `docs/adr/` 的产品 ADR 编号无关，别混引。
 
