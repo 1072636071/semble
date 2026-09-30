@@ -9,8 +9,22 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const BOARD = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), 'board.mjs');
+// 兄弟文件用同一套 URL→路径形态（board.mjs 走 fileURLToPath）：手搓的
+// `new URL(...).pathname.replace(...)` 保留百分号编码，技能目录含空格/非 ASCII 时直接拿到 %20 路径而失败（审查 STD-05）。
+const BOARD = path.join(path.dirname(fileURLToPath(import.meta.url)), 'board.mjs');
+
+// 列名不写死中文字面量：从 board.mjs 的 TOKEN_TEXT（唯一词汇源）取词。改词时断言跟着实现走，
+// 而不是「改实现顺手改断言」的自证型断言（审查 RUL-06）。
+const BOARD_SRC = fs.readFileSync(BOARD, 'utf8');
+const TOKEN_TEXT = (() => {
+  const m = BOARD_SRC.match(/const TOKEN_TEXT = (\{[^}]*\});/);
+  if (!m) return {};
+  try { return JSON.parse(m[1].replace(/([A-Za-z_][A-Za-z0-9_]*):/g, '"$1":').replace(/'/g, '"')); } catch { return {}; }
+})();
+// 四泳道 = 未收口 token 全集，列名由 TOKEN_TEXT 派生
+const LANE4 = [TOKEN_TEXT.inbox, TOKEN_TEXT.claimed, TOKEN_TEXT.review, TOKEN_TEXT.blocked];
 const results = [];
 const check = (name, ok, detail = '') => { results.push([name, ok, detail]); console.log(`  ${ok ? '✓' : '✗'} ${name}${detail ? ' — ' + detail : ''}`); };
 const run = (args, cwd) => {
@@ -52,6 +66,22 @@ try {
   // 跨行泄漏回归（0.9.3「正文 - PRD: 假 MISMATCH」同型坑）：空的 doc_ref 不得把下一行抄成自己的值
   check('空 doc_ref 不吞下一行（跨行泄漏回归）',
     /^- doc_ref: \(未填\)$/m.test(run(['card-read', '--root', root, '--id', '001-smoke'], tmp).out));
+
+  // STD-08：--labels 的判据是「是否含非法标签」，不是「是否等于五标签之一」。
+  // PROTOCOL §4 明许「五标签之一或其子集」，整串等值会把合法子集误报成越界，并与 verify 第 5 路自相矛盾。
+  r = run(['new-card', '--root', root, '--id', '099-labelsubset', '--level', 'L1', '--model', 'test', '--force',
+    '--labels', 'ready-for-agent needs-info'], tmp);
+  check('new-card --labels 合法子集不误报 WARN（判据=是否含非法标签）',
+    r.code === 0 && !/WARN/.test(r.out) && /^- labels: ready-for-agent needs-info$/m.test(fs.readFileSync(cards('open', '099-labelsubset.md'), 'utf8')),
+    firstLine(r.out));
+  r = run(['verify', '--root', root], tmp);
+  check('合法子集标签的卡 verify 仍绿（原 WARN 与 verify 绿自相矛盾的那一半）', r.code === 0, lastLine(r.out));
+  run(['card-rm', '--root', root, '--id', '099-labelsubset', '--force'], tmp);
+  r = run(['new-card', '--root', root, '--id', '098-labelsbad', '--level', 'L1', '--model', 'test', '--force',
+    '--labels', 'ready-for-agent bogus'], tmp);
+  check('--labels 含非法标签仍 WARN（反例，判据真的在判）',
+    r.code === 0 && /WARN/.test(r.out) && /bogus/.test(r.out), firstLine(r.out));
+  run(['card-rm', '--root', root, '--id', '098-labelsbad', '--force'], tmp);
 
   r = run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'claimed', '--actor', 'selftest'], tmp);
   check('领取 = 原子改名到 .claimed（防抢地基仍在）', r.code === 0 && fs.existsSync(cards('open', '001-smoke.claimed.md')) && !fs.existsSync(cards('open', '001-smoke.md')));
@@ -121,6 +151,27 @@ try {
   r = run(['rm-wt', '--root', root, '--ticket', 'no-such-card'], tmp);
   check('rm-wt 拒绝不存在的卡', r.code === 1);
 
+  // ---------- 命令拼串注入面（RUL-04）----------
+  // 旧实现是 execSync('git ' + cmd) 的 shell 拼串：--ticket / 卡面「分支」行原样进 shell。
+  // 现在 git() 走 argv（execFileSync，不过 shell），外加两道白名单闸门；下面四条钉住它。
+  // 诱饵写成「shell 真跑就会落一个文件」的形态：cmd 下 & 即命令分隔，旧实现会执行 `echo PWNED>pwned.txt`。
+  r = run(['add-wt', '--root', root, '--ticket', 'zz&echo PWNED>pwned.txt'], tmp);
+  check('add-wt 拒绝含 shell 元字符的 --ticket（id 闸门，与 new-card 同款）',
+    r.code === 1 && /不符规范/.test(r.out), firstLine(r.out));
+  check('add-wt 被拒后没有任何落点（注入诱饵文件未生成）',
+    !fs.existsSync(path.join(root, 'wt', 'zz&echo PWNED>pwned.txt')) && !fs.existsSync(path.join(tmp, 'pwned.txt')));
+  r = run(['rm-wt', '--root', root, '--ticket', 'a b|c'], tmp);
+  check('rm-wt 白名单拒绝空格与竖线（破坏性命令收口）', r.code === 1 && /非法/.test(r.out), firstLine(r.out));
+  // 卡面「分支」行是**别人写的文本**：含 shell 元字符时 safeRef 判为不可信引用直接跳过。
+  // 旧实现把它拼进 rev-list 的 shell 字符串（cmd 下 & 即命令分隔）⇒ 诱饵真的落一个文件。
+  fs.writeFileSync(cards('open', '097-branchinject.claimed.md'),
+    '# 097-branchinject\n\n- 标题: 分支行注入诱饵\n- labels: ready-for-agent\n- 分支: ticket/x&echo PWNED>pwned.txt\n\n## 流转追加段\n\n（占位）\n');
+  r = run(['verify', '--root', root], tmp);
+  check('卡面分支行的 shell 元字符不被当命令执行（无 INJECTED 回显、无落盘诱饵）',
+    !/INJECTED/.test(r.out) && !fs.existsSync(path.join(repo, 'pwned.txt')) && !fs.existsSync(path.join(tmp, 'pwned.txt')),
+    (r.out.match(/.*INJECTED.*/) || ['(无回显)'])[0]);
+  fs.rmSync(cards('open', '097-branchinject.claimed.md'));
+
   // 假字段：正文里写 - PRD: 反引号路径不得被当卡头字段
   fs.appendFileSync(cards('open', '001-smoke.md'), '\n## 正文\n\n- PRD: `E:\\nowhere\\missing.md`\n');
   r = run(['verify', '--root', root], tmp);
@@ -153,8 +204,9 @@ try {
   };
   run(['html', '--root', root], tmp);
   const html = fs.readFileSync(path.join(root, 'control', 'board.html'), 'utf8');
-  check('board.html 渲染四泳道（待领取/处理中/待审核/阻塞）',
-    ['待领取', '处理中', '待审核', '阻塞'].every(n => new RegExp(`<h2>${n} \\(\\d+\\)</h2>`).test(html)),
+  check('TOKEN_TEXT 单源可解析（下面列名断言的前提）', LANE4.length === 4 && LANE4.every(Boolean), JSON.stringify(TOKEN_TEXT));
+  check('board.html 渲染四泳道（列名从 board.mjs 的 TOKEN_TEXT 单源取词，不写死中文）',
+    LANE4.every(n => new RegExp(`<h2>${n} \\(\\d+\\)</h2>`).test(html)),
     (html.match(/<h2>[^<]*<\/h2>/g) || []).join(' | '));
   check('已完成/已归档列默认不显示（hist 列带 display:none）',
     /<div class="col hist" style="display:none"><h2>已完成 \(\d+\)<\/h2>/.test(html)
@@ -191,6 +243,22 @@ try {
     /本轮处理时长/.test(rLeave.out)
     && /^- 结束处理: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/m.test(fs.readFileSync(cards('open', '001-smoke.md'), 'utf8')),
     firstLine(rLeave.out));
+
+  // RUL-05：重领不抹旧值（v0.11.1 新增的分支此前零断言）。001-smoke 此刻在待领位，
+  // 卡上留着上一轮的 Harness: Qoder / LLM: Claude Sonnet 4.5（上面用 card-set 填的）。
+  const reclaimBody = () => fs.readFileSync(cards('open', '001-smoke.claimed.md'), 'utf8');
+  r = run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'claimed', '--actor', 'selftest', '--reason', '冒烟：重领不抹旧值'], tmp);
+  check('重领未带 --harness/--llm 时保留卡上原值（不抹成「未标注」）',
+    /保留卡上原值/.test(r.out) && /^- Harness: Qoder$/m.test(reclaimBody()) && /^- LLM: Claude Sonnet 4\.5$/m.test(reclaimBody()),
+    firstLine(r.out));
+  check('重领重盖开始处理、清空结束处理（本轮计时重新起算）',
+    /^- 开始处理: \d{4}-\d{2}-\d{2}T/m.test(reclaimBody()) && /^- 结束处理: $/m.test(reclaimBody()));
+  run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'blocked', '--actor', 'selftest', '--reason', '冒烟：重领测完回待领位'], tmp);
+  r = run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'claimed', '--actor', 'selftest', '--harness', 'selftest-h0', '--llm', 'test-model-0', '--reason', '冒烟：重领带新值'], tmp);
+  check('重领带新 --harness/--llm 时用新值覆盖，且不再提示保留',
+    /^- Harness: selftest-h0$/m.test(reclaimBody()) && /^- LLM: test-model-0$/m.test(reclaimBody()) && !/保留卡上原值/.test(r.out),
+    firstLine(r.out));
+  run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'blocked', '--actor', 'selftest', '--reason', '冒烟：重领测完复位'], tmp);
   // 老板（v0.11.0 之前投的卡）没有计时字段：看板与 card-read 必须能从流转段回推出开始时间，否则升级当天全板空白
   fs.writeFileSync(cards('open', '006-legacy.claimed.md'),
     '# 006-legacy\n\n- 标题: 老板在办卡（无计时字段）\n- labels: ready-for-agent\n\n## 领取记录\n\n（略）\n\n## 流转追加段\n\n- 2026-09-28 09:00 | inbox->claimed | old-runner | 老板留下的在办卡\n');
@@ -243,6 +311,32 @@ try {
   fs.rmSync(cards('open', '006-legacy.review.md'));
   fs.writeFileSync(path.join(root, 'control', 'ledger.md'), ledgerBefore);
 
+  // ---------- 卡面缺段与零换行卡（STD-01 / STD-06，写卡数据面）----------
+  const ledgerSnap2 = fs.readFileSync(path.join(root, 'control', 'ledger.md'), 'utf8');
+  // STD-01：卡面没有「流转追加段」小节时，旧实现的 body.replace 原样返回 —— 改名与账本都成功，
+  // 卡内流转行却静默丢失（读卡者与计时回退读数都看不到本轮流转）。缺段必须补段再追加。
+  fs.writeFileSync(cards('open', '007-noflow.md'),
+    '# 007-noflow\n\n- 标题: 缺流转追加段的卡\n- 依赖: 无\n- labels: ready-for-agent\n\n## 交付记录\n\n（略）\n');
+  r = run(['card-move', '--root', root, '--id', '007-noflow', '--to', 'claimed', '--actor', 'selftest', '--reason', '冒烟：缺段追加'], tmp);
+  const noflow = fs.readFileSync(cards('open', '007-noflow.claimed.md'), 'utf8');
+  check('卡面缺「流转追加段」时 card-move 先补段再追加（不静默丢流转行）',
+    r.code === 0 && /^## 流转追加段$/m.test(noflow) && /^- \d{4}-\d{2}-\d{2} \d{2}:\d{2} \| inbox->claimed \| selftest \| 冒烟：缺段追加$/m.test(noflow),
+    (noflow.match(/^- \d{4}.*$/m) || ['(无流转行)'])[0]);
+  check('补段追加同样进账本（卡内 + 账本两处都在，可回放）',
+    /move 007-noflow\.md inbox->claimed/.test(fs.readFileSync(path.join(root, 'control', 'ledger.md'), 'utf8')));
+  check('补出来的流转段落在卡尾，原有小节不被挤掉',
+    noflow.indexOf('## 交付记录') < noflow.indexOf('## 流转追加段'));
+  fs.rmSync(cards('open', '007-noflow.claimed.md'));
+  // STD-06：零换行输入（整张卡面不含 \n）旧 eolOf 两侧计数同为 0，判成 CRLF —— 插一行就把 LF 卡写成 CRLF。
+  fs.writeFileSync(cards('open', '008-nonl.md'), '- 依赖: 无');
+  r = run(['card-move', '--root', root, '--id', '008-nonl', '--to', 'blocked', '--actor', 'selftest', '--reason', '冒烟：零换行卡'], tmp);
+  const nonl = fs.readFileSync(cards('open', '008-nonl.md'), 'utf8');
+  check('零换行卡面插行回退 LF（旧实现 0>=0 会判成 CRLF）',
+    r.code === 0 && nonl.startsWith('- labels: needs-info\n- 依赖: 无\n') && !nonl.includes('\r'),
+    JSON.stringify(nonl.slice(0, 40)));
+  fs.rmSync(cards('open', '008-nonl.md'));
+  fs.writeFileSync(path.join(root, 'control', 'ledger.md'), ledgerSnap2);
+
   // ---------- 写入安全与收口位（2026-09-30 三维度审查发现项补测）----------
   // 替换串里的 `$&` 曾被当作特殊序列展开，把整行原文插进新值（写进卡面且看不出来）
   run(['card-set', '--root', root, '--id', '001-smoke', '--field', 'labels', '--value', 'needs-triage$&x'], tmp);
@@ -257,19 +351,25 @@ try {
   check('reason 带竖线时账本仍是 5 列', ledRow.split(/(?<!\\)\|/).length === 7, lastLine(r.out));
   r = run(['verify', '--root', root], tmp);
   check('.review 位 + 带竖线账本行：该行仍参与对账（无假绿）', r.code === 0 && /001-smoke/.test(fs.readFileSync(path.join(root, 'control', 'ledger.md'), 'utf8')), lastLine(r.out));
+  // RUL-05 后半：待终审位回流（返工）——审查打回时开发卡要从待终审位回到在办位
+  r = run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'claimed', '--actor', 'selftest', '--reason', '冒烟：终审打回返工'], tmp);
+  check('review 位回流 claimed（返工）走得通、重盖开始处理并清空结束处理',
+    r.code === 0 && fs.existsSync(cards('open', '001-smoke.claimed.md')) && !fs.existsSync(cards('open', '001-smoke.review.md'))
+    && /^- 结束处理: $/m.test(fs.readFileSync(cards('open', '001-smoke.claimed.md'), 'utf8')),
+    firstLine(r.out));
   // 收口与归档两位是真交付路径，必须走得通
   r = run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'done', '--actor', 'selftest', '--reason', '冒烟收口'], tmp);
-  check('.review → done 落裸名', r.code === 0 && fs.existsSync(cards('done', '001-smoke.md')) && !fs.existsSync(cards('open', '001-smoke.md')));
+  check('在办/待终审 → done 落裸名', r.code === 0 && fs.existsSync(cards('done', '001-smoke.md')) && !fs.existsSync(cards('open', '001-smoke.md')));
   // 已完成默认不显示：卡仍在 DOM 里（历史面可展开），但一条可见泳道都不能有它
   const htmlDone = fs.readFileSync(path.join(root, 'control', 'board.html'), 'utf8');
   check('收口卡进默认隐藏的「已完成」列，四条可见泳道里不再出现',
     /<div class="col hist" style="display:none"><h2>已完成 \(1\)<\/h2>[\s\S]*?001-smoke/.test(htmlDone)
-    && !['待领取', '处理中', '待审核', '阻塞'].some(n => /001-smoke/.test(segOf(htmlDone, n))),
+    && !LANE4.some(n => /001-smoke/.test(segOf(htmlDone, n))),
     segOf(htmlDone, '已完成').slice(0, 60));
   check('页头出现「显示已完成/已归档」开关，展开态存 localStorage（按 root 隔离，扛得住 5s 整页刷新）',
     /id="sh"/.test(htmlDone) && /localStorage\.getItem\(K\)/.test(htmlDone) && htmlDone.includes(`const K=${JSON.stringify('showHistory:' + root)}`));
-  check('页头计数按泳道拆开报（在办 = 待领取+处理中+待审核+阻塞）',
-    /在办 \d+（待领取 \d+ · 处理中 \d+ · 待审核 \d+ · 阻塞 \d+）/.test(htmlDone),
+  check('页头计数按泳道拆开报（在办 = 四泳道之和，列名同样取自 TOKEN_TEXT）',
+    new RegExp(`在办 \\d+（${LANE4.map(n => n + ' \\d+').join(' · ')}）`).test(htmlDone),
     (htmlDone.match(/在办 [^<]*/) || ['(无)'])[0]);
   // 收口即回收工作区（真实流程：merger 合入后 rm-wt）——否则归档卡会留一个无主 worktree，
   // 被 verify 记成一条 WARN 出入，把「归档位不逼标签」这条判据的读数搅浑。
@@ -294,6 +394,20 @@ try {
     r.code === 5 && r.out.split('\n').filter(l => /MISMATCH.*005-oldblock/.test(l)).length === 1 && !/同时存在于 005-oldblock/.test(r.out),
     r.out.split('\n').filter(l => /005-oldblock/.test(l)).join(' || '));
   fs.rmSync(cards('blocked'), { recursive: true, force: true });
+
+  // STD-07：三态板里受阻卡就停在待领位（blockedIds 是 inboxIds 的子集），现场提示的判定必须排在
+  // inbox 之前，否则「属 blocked 卡保留现场」这条分支永不可达，提示退化成误导性的「为领导者预开工作区」。
+  fs.writeFileSync(cards('open', '096-blockedwt.md'),
+    '# 096-blockedwt\n\n- 标题: 受阻卡的现场\n- 依赖: 无\n- labels: needs-info\n\n## 流转追加段\n\n（占位）\n');
+  fs.mkdirSync(path.join(root, 'wt', '096-blockedwt'));
+  r = run(['verify', '--root', root], tmp);
+  check('三态板受阻卡的 worktree 现场提示可达（不再落进「预开工作区」分支）',
+    r.code === 0 && /wt\/096-blockedwt 属 blocked 卡保留现场/.test(r.out) && !/wt\/096-blockedwt 为领导者预开/.test(r.out),
+    (r.out.split('\n').filter(l => /096-blockedwt/.test(l)).join(' || ') || '(无相关行)'));
+  fs.rmdirSync(path.join(root, 'wt', '096-blockedwt'));
+  fs.rmSync(cards('open', '096-blockedwt.md'));
+  r = run(['verify', '--root', root], tmp);
+  check('受阻现场夹具收回后回到绿（判据不粘连）', r.code === 0, lastLine(r.out));
 
   // 快照：工作区根 git init 后，变更类命令应自动留档
   git(root, 'init -q');
