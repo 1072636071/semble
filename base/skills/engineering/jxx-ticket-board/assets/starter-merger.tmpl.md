@@ -17,5 +17,5 @@ Read {{ROOT}}\control\PROTOCOL.md
 ## 本次任务
 
 1. 扫 `{{ROOT}}\control\cards\open\` 找**无后缀**的 `merge-*` 待领卡（`.claimed.md`/`.review.md` 的别碰）；没有就待命回报。
-2. 按协议 §1 领取（先 move 后填），执行 rebase + merge + push，回收 worktree。
+2. 按协议 §1 领取（先 move 后填；`card-move --to claimed` 带 `--actor <会话标识> --harness <你所在的 harness 名> --llm <你实际用的模型名>`，看板的「处理中」泳道据此显示处理者与时长），执行 rebase + merge + push，回收 worktree。
 3. 成功 → merge 卡移 `done\` 并回报合入 commit；受阻 → 按协议 §3 打回或退回。**每次移卡后刷看板（协议 §1.2）。**

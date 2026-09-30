@@ -142,23 +142,106 @@ try {
   r = run(['verify', '--root', root], tmp);
   check('doc_ref 成真 URL 后闭合', r.code === 0, lastLine(r.out));
 
-  // 看板三列 + 标签色标 + 执行态徽标（验收 #3）——判据只认卡片级 markup，不认列标题/footer 里的同一批中文
-  // （否则徽标与 chip 的代码删掉照样绿，属自证型断言）。
+  // 看板四泳道（待领取/处理中/待审核/阻塞）+ 历史列默认隐藏 + 处理计时读数。
+  // 判据只认列容器与卡片级 markup，不认列标题/footer 里的同一批中文
+  // （否则徽标与 chip 的代码删掉照样绿，属自证型断言）。segOf 按列切段，用来验「一卡只落一列」。
+  const segOf = (h, name) => {
+    const i = h.indexOf(`<h2>${name} (`);
+    if (i < 0) return '';
+    const j = h.indexOf('<h2>', i + 1);
+    return j < 0 ? h.slice(i) : h.slice(i, j);
+  };
   run(['html', '--root', root], tmp);
   const html = fs.readFileSync(path.join(root, 'control', 'board.html'), 'utf8');
-  check('board.html 渲染三列 open/done/archived',
-    /<h2>在办 open（[^）]+） \(\d+\)<\/h2>/.test(html) && /<h2>已收口 done \(0\)<\/h2>/.test(html) && /<h2>已归档 archived（[^）]*） \(0\)<\/h2>/.test(html),
+  check('board.html 渲染四泳道（待领取/处理中/待审核/阻塞）',
+    ['待领取', '处理中', '待审核', '阻塞'].every(n => new RegExp(`<h2>${n} \\(\\d+\\)</h2>`).test(html)),
     (html.match(/<h2>[^<]*<\/h2>/g) || []).join(' | '));
+  check('已完成/已归档列默认不显示（hist 列带 display:none）',
+    /<div class="col hist" style="display:none"><h2>已完成 \(\d+\)<\/h2>/.test(html)
+    && /<div class="col hist" style="display:none"><h2>已归档 \(\d+\)<\/h2>/.test(html));
+  check('泳道空了也占位（四列结构稳定，不随卡片增减变形）', /<div class="none">（空）<\/div>/.test(segOf(html, '处理中')));
+  check('needs-info 的待领卡归「阻塞」列，且不在「待领取」列重复出现（一卡一列）',
+    !/001-smoke/.test(segOf(html, '待领取')) && /001-smoke/.test(segOf(html, '阻塞')));
   check('board.html 带 triage 标签色标（卡片级 chip）', /<span class="lb"[^>]*>needs-info<\/span>/.test(html));
-  check('board.html 带执行态徽标（待领）', /<span class="tk"[^>]*>待领<\/span>/.test(html));
+  check('board.html 带执行态徽标（待领取）', /<span class="tk"[^>]*>待领取<\/span>/.test(html));
   check('board.html 的 doc_ref 渲染为外链', /https:\/\/example\.invalid\/ticket\/1/.test(html));
-  // 徽标必须由文件名后缀驱动：领到在办位再渲染，它得跟着从「待领」变「在办」
-  run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'claimed', '--actor', 'selftest', '--reason', '冒烟：验证徽标随后缀'], tmp);
+  // 徽标必须由文件名后缀驱动：领到在办位再渲染，它得跟着从「待领取」变「处理中」
+  const rClaim = run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'claimed', '--actor', 'selftest', '--reason', '冒烟：验证徽标随后缀'], tmp);
+  const claimedBody = () => fs.readFileSync(cards('open', '001-smoke.claimed.md'), 'utf8');
+  check('领取未带 --harness/--llm 时明着提示补（不静默留空）', /未带 --harness/.test(rClaim.out) && /未带 .*--llm/.test(rClaim.out), firstLine(rClaim.out));
+  check('领取自动盖 开始处理 + Harness/LLM 占位 + 清空 结束处理',
+    /^- 开始处理: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/m.test(claimedBody())
+    && /^- Harness: （未标注）$/m.test(claimedBody()) && /^- LLM: （未标注）$/m.test(claimedBody()) && /^- 结束处理: $/m.test(claimedBody()),
+    (claimedBody().match(/^- (Harness|LLM|开始处理|结束处理):.*$/gm) || ['(全无)']).join(' / '));
+  // 插错位置的字段等于没写：看板与 card-read 都只认卡头行
+  check('计时字段插进卡头字段块（不落进小节）',
+    claimedBody().indexOf('- 开始处理:') < claimedBody().indexOf('## 领取记录'));
+  run(['card-set', '--root', root, '--id', '001-smoke', '--field', 'Harness', '--value', 'Qoder'], tmp);
+  run(['card-set', '--root', root, '--id', '001-smoke', '--field', 'LLM', '--value', 'Claude Sonnet 4.5'], tmp);
   run(['html', '--root', root], tmp);
   const html2 = fs.readFileSync(path.join(root, 'control', 'board.html'), 'utf8');
-  check('徽标随执行态切换（在办替代待领）',
-    /<span class="tk"[^>]*>在办<\/span>/.test(html2) && !/<span class="tk"[^>]*>待领<\/span>/.test(html2));
-  run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'blocked', '--actor', 'selftest', '--reason', '冒烟：回到待领位'], tmp);
+  check('徽标随执行态切换（处理中替代待领取）',
+    /<span class="tk"[^>]*>处理中<\/span>/.test(html2) && !/<span class="tk"[^>]*>待领取<\/span>/.test(html2));
+  const procSeg = segOf(html2, '处理中');
+  check('处理中列显示 🛠 Harness · LLM · ▶ 开始 · 已办时长',
+    /🛠 Qoder · Claude Sonnet 4\.5/.test(procSeg) && /▶ \d{2}-\d{2} \d{2}:\d{2}/.test(procSeg) && /已办 <b>/.test(procSeg),
+    (procSeg.match(/<div class="proc">[\s\S]*?<\/div>/) || ['(无 proc 行)'])[0].slice(0, 200));
+  const rLeave = run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'blocked', '--actor', 'selftest', '--reason', '冒烟：回到待领位'], tmp);
+  check('离开 claimed 自动盖 结束处理 并报本轮处理时长',
+    /本轮处理时长/.test(rLeave.out)
+    && /^- 结束处理: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/m.test(fs.readFileSync(cards('open', '001-smoke.md'), 'utf8')),
+    firstLine(rLeave.out));
+  // 老板（v0.11.0 之前投的卡）没有计时字段：看板与 card-read 必须能从流转段回推出开始时间，否则升级当天全板空白
+  fs.writeFileSync(cards('open', '006-legacy.claimed.md'),
+    '# 006-legacy\n\n- 标题: 老板在办卡（无计时字段）\n- labels: ready-for-agent\n\n## 领取记录\n\n（略）\n\n## 流转追加段\n\n- 2026-09-28 09:00 | inbox->claimed | old-runner | 老板留下的在办卡\n');
+  run(['html', '--root', root], tmp);
+  const html3 = fs.readFileSync(path.join(root, 'control', 'board.html'), 'utf8');
+  check('无计时字段的卡回退流转段推得开始时间（并标注是推的）',
+    /\[由流转段推得\]/.test(run(['card-read', '--root', root, '--id', '006-legacy'], tmp).out)
+    && /▶ 09-28 09:00/.test(segOf(html3, '处理中')));
+  check('harness/llm 缺失时看板红字提示，而不是静默空白', /class="warn"[^>]*>🛠 harness\/模型未标注/.test(segOf(html3, '处理中')));
+  check('回退读数不臆造结束时间', !/⏹/.test(segOf(html3, '处理中')));
+  // 卡面没有这四行时必须**插进去**：旧板上大量在飞卡是 v0.11.0 之前投的，缺行就 die 等于逼 leader 手改卡面
+  run(['card-set', '--root', root, '--id', '006-legacy', '--field', 'Harness', '--value', 'Codex'], tmp);
+  check('缺行时 card-set 把字段插进卡头字段块（不 die、不落进小节）',
+    /^- Harness: Codex$/m.test(fs.readFileSync(cards('open', '006-legacy.claimed.md'), 'utf8'))
+    && fs.readFileSync(cards('open', '006-legacy.claimed.md'), 'utf8').indexOf('- Harness:') < fs.readFileSync(cards('open', '006-legacy.claimed.md'), 'utf8').indexOf('## 领取记录'));
+  // 卡头字段替换必须只认卡头字段块：小节正文里手写一个同名字段，card-set 不得把它误当卡头行改掉
+  const secInject = fs.readFileSync(cards('open', '006-legacy.claimed.md'), 'utf8')
+    .replace('## 领取记录', '## 领取记录\n\n- Harness: 正文里手写的旧值\n');
+  fs.writeFileSync(cards('open', '006-legacy.claimed.md'), secInject);
+  run(['card-set', '--root', root, '--id', '006-legacy', '--field', 'Harness', '--value', 'Cursor'], tmp);
+  const afterSet = fs.readFileSync(cards('open', '006-legacy.claimed.md'), 'utf8');
+  check('card-set 只改卡头字段块，不碰小节正文里的同名字段行',
+    (afterSet.match(/^- Harness: .*$/gm) || []).join(' | ') === '- Harness: Cursor | - Harness: 正文里手写的旧值');
+  // 坏时间戳：绝不能拿原始字符串截 11 个字冒充一个干净时间（XSS 面 + 假读数面）
+  // 001-smoke 此时在待领位（blocked 回退），先领回 claimed 位再测处理中列的告警渲染
+  run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'claimed', '--actor', 'selftest', '--harness', 'selftest-h', '--llm', 'test-model', '--reason', '冒烟：坏时间戳测试'], tmp);
+  run(['card-set', '--root', root, '--id', '001-smoke', '--field', '开始处理', '--value', '" onload="alert(9)'], tmp);
+  run(['html', '--root', root], tmp);
+  const htmlBad = fs.readFileSync(path.join(root, 'control', 'board.html'), 'utf8');
+  check('坏开始时间戳显示红字告警，不截断冒充、不静默吞掉',
+    /class="warn"[^>]*>▶ 开始时间无法解析/.test(segOf(htmlBad, '处理中')) && !/onload="alert\(9\)/.test(segOf(htmlBad, '处理中')),
+    (segOf(htmlBad, '处理中').match(/<div class="proc">[\s\S]*?<\/div>/) || ['(无)'])[0].slice(0, 200));
+  run(['card-set', '--root', root, '--id', '001-smoke', '--field', '开始处理', '--value', '2026-09-30T10:00:00+08:00'], tmp);
+  run(['card-set', '--root', root, '--id', '001-smoke', '--field', '结束处理', '--value', 'not-a-date'], tmp);
+  run(['html', '--root', root], tmp);
+  const htmlBad2 = fs.readFileSync(path.join(root, 'control', 'board.html'), 'utf8');
+  check('坏结束时间戳同样红字告警', /class="warn"[^>]*>⏹ 结束时间无法解析/.test(segOf(htmlBad2, '处理中')));
+  run(['card-set', '--root', root, '--id', '001-smoke', '--field', '结束处理', '--value', '2026-09-30T11:00:00+08:00'], tmp);
+  // 坏时间戳测完，把卡退回待领位（后续写入安全段按 open/001-smoke.md 路径读卡）
+  run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'blocked', '--actor', 'selftest', '--reason', '冒烟：坏时间戳测完回待领位'], tmp);
+
+  const ledgerBefore = fs.readFileSync(path.join(root, 'control', 'ledger.md'), 'utf8');
+  const rLeg = run(['card-move', '--root', root, '--id', '006-legacy', '--to', 'review', '--actor', 'selftest', '--reason', '冒烟：老板卡补盖章'], tmp);
+  check('老板卡离开 claimed 时也自动插 结束处理，并按流转段算出用时',
+    /本轮处理时长/.test(rLeg.out)
+    && /^- 结束处理: \d{4}-\d{2}-\d{2}T/m.test(fs.readFileSync(cards('open', '006-legacy.review.md'), 'utf8')),
+    firstLine(rLeg.out));
+  // 夹具卡用完即删，账本也得跟着收回：留着「最后记录它在 review，卡却不存在」的行，
+  // 后面每一条 verify 断言都会被这条假红灯污染（真实卡绝不能这么删——那是 §7 红线管辖的现场）
+  fs.rmSync(cards('open', '006-legacy.review.md'));
+  fs.writeFileSync(path.join(root, 'control', 'ledger.md'), ledgerBefore);
 
   // ---------- 写入安全与收口位（2026-09-30 三维度审查发现项补测）----------
   // 替换串里的 `$&` 曾被当作特殊序列展开，把整行原文插进新值（写进卡面且看不出来）
@@ -177,6 +260,17 @@ try {
   // 收口与归档两位是真交付路径，必须走得通
   r = run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'done', '--actor', 'selftest', '--reason', '冒烟收口'], tmp);
   check('.review → done 落裸名', r.code === 0 && fs.existsSync(cards('done', '001-smoke.md')) && !fs.existsSync(cards('open', '001-smoke.md')));
+  // 已完成默认不显示：卡仍在 DOM 里（历史面可展开），但一条可见泳道都不能有它
+  const htmlDone = fs.readFileSync(path.join(root, 'control', 'board.html'), 'utf8');
+  check('收口卡进默认隐藏的「已完成」列，四条可见泳道里不再出现',
+    /<div class="col hist" style="display:none"><h2>已完成 \(1\)<\/h2>[\s\S]*?001-smoke/.test(htmlDone)
+    && !['待领取', '处理中', '待审核', '阻塞'].some(n => /001-smoke/.test(segOf(htmlDone, n))),
+    segOf(htmlDone, '已完成').slice(0, 60));
+  check('页头出现「显示已完成/已归档」开关，展开态存 localStorage（按 root 隔离，扛得住 5s 整页刷新）',
+    /id="sh"/.test(htmlDone) && /localStorage\.getItem\(K\)/.test(htmlDone) && htmlDone.includes(`const K=${JSON.stringify('showHistory:' + root)}`));
+  check('页头计数按泳道拆开报（在办 = 待领取+处理中+待审核+阻塞）',
+    /在办 \d+（待领取 \d+ · 处理中 \d+ · 待审核 \d+ · 阻塞 \d+）/.test(htmlDone),
+    (htmlDone.match(/在办 [^<]*/) || ['(无)'])[0]);
   // 收口即回收工作区（真实流程：merger 合入后 rm-wt）——否则归档卡会留一个无主 worktree，
   // 被 verify 记成一条 WARN 出入，把「归档位不逼标签」这条判据的读数搅浑。
   r = run(['rm-wt', '--root', root, '--ticket', '001-smoke', '--force'], tmp);
@@ -220,6 +314,43 @@ try {
   r = run(['board', '--root', root, '--all'], tmp);
   check('board --all 展开归档明细', /已归档 archived \(1\)/.test(r.out) && /001-smoke\.md/.test(r.out));
 
+  // ---------- prd.html（第三页）：按收口态分两栏 + 整轨提示词按钮 ----------
+  // 这一页此前**零覆盖**，而「📋 PRD 级整轨提示词」按钮其实是个死按钮（PRD_PROMPTS 定义了却没有监听器消费）。
+  // 夹具直接造在临时权威仓的 .scratch/ 下（scanPrds 的数据源），断言只认 markup 与脚本里的真实消费点，不认文案。
+  const sc = path.join(repo, '.scratch');
+  const put = (p, s) => { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, s); };
+  put(path.join(sc, '90-demo', 'PRD.md'), '# 90 演示 PRD\n\n**Status:** in-progress\n');
+  put(path.join(sc, '90-demo', 'issues', '01-alpha.md'), '# 1 · alpha\n\n**Status:** done\n\n- [x] 验收一\n');
+  put(path.join(sc, '90-demo', 'issues', '02-beta.md'), '# 2 · beta\n\n**Status:** ready-for-agent\n\n**Blocked by:** 无\n\n- [ ] 验收一\n');
+  put(path.join(sc, '91-shipped', 'PRD.md'), '# 91 已交付 PRD\n\n**Status:** done\n');
+  put(path.join(sc, '91-shipped', 'issues', '01-gamma.md'), '# 1 · gamma\n\n**Status:** done\n\n- [x] 验收一\n');
+  run(['html', '--root', root], tmp);
+  const prdHtml = fs.readFileSync(path.join(root, 'control', 'prd.html'), 'utf8');
+  const prdSect = name => {
+    const i = prdHtml.indexOf(`<h2 class="sh2">${name}`);
+    if (i < 0) return '';
+    const j = prdHtml.indexOf('</section>', i); // 必须按 section 收尾切：切到文件尾会把页脚脚本里的 PRD_PROMPTS 也圈进来（假红灯）
+    return prdHtml.slice(i, j < 0 ? prdHtml.length : j);
+  };
+  check('prd.html 分两栏（未完成 PRD / 已完成 PRD）且各带计数',
+    /<h2 class="sh2">未完成 PRD \(1\)/.test(prdHtml) && /<h2 class="sh2">已完成 PRD \(1\)/.test(prdHtml),
+    (prdHtml.match(/<h2 class="sh2">[^<]*/g) || []).join(' | '));
+  check('收口判据成立：全部工单 done 的 PRD 只在「已完成」栏，尚有开放工单的只在「未完成」栏',
+    /91-shipped/.test(prdSect('已完成 PRD')) && !/91-shipped/.test(prdSect('未完成 PRD'))
+    && /90-demo/.test(prdSect('未完成 PRD')) && !/90-demo/.test(prdSect('已完成 PRD')));
+  check('已完成栏默认 display:none + 页头开关与工单看板共用同一 localStorage 键（按 root 隔离）',
+    /<section class="sect hist" style="display:none"><h2 class="sh2">已完成 PRD/.test(prdHtml)
+    && /id="sh"/.test(prdHtml) && /localStorage\.getItem\(K\)/.test(prdHtml) && prdHtml.includes(`const K=${JSON.stringify('showHistory:' + root)}`));
+  check('「PRD 级整轨提示词」按钮真被监听器消费（死按钮回归）',
+    /querySelectorAll\('\.cp-prd'\)\.forEach/.test(prdHtml) && /PRD_PROMPTS\[b\.dataset\.prd\]/.test(prdHtml)
+    && /90-demo/.test((prdHtml.match(/const PRD_PROMPTS=(\{[\s\S]*?\});/) || [])[1] || ''),
+    (prdHtml.match(/PRD_PROMPTS=\{(.{0,60})/) || ['(无 PRD_PROMPTS)'])[1]);
+  check('PRD 级整轨提示词自带环境自报要求（H1 修复）',
+    /--harness/.test((prdHtml.match(/const PRD_PROMPTS=(\{[\s\S]*?\});/) || [])[1] || '')
+    && /--llm/.test((prdHtml.match(/const PRD_PROMPTS=(\{[\s\S]*?\});/) || [])[1] || ''));
+  fs.rmSync(path.join(sc, '90-demo'), { recursive: true, force: true });
+  fs.rmSync(path.join(sc, '91-shipped'), { recursive: true, force: true });
+
   // ---------- migrate：另起一块旧五泳道板，验证迁三态的完整性与幂等 ----------
   const old = path.join(tmp, 'old');
   const oldCards = (...p) => path.join(old, 'control', 'cards', ...p);
@@ -240,6 +371,27 @@ try {
   oldCard('done', '011-olddone');
   oldCard('inbox', '012-oldnew');
   oldCard('claimed', '014-oldclaimed', '- labels: ready-for-agent\n');
+
+  // 旧五泳道板（未迁三态）也必须出同一套四泳道：泳道取自 token，与物理布局无关——
+  // 否则升级当天旧板用户的看板会先塌成一列再谈迁板。
+  run(['html', '--root', old], tmp);
+  const htmlOld = fs.readFileSync(path.join(old, 'control', 'board.html'), 'utf8');
+  check('旧五泳道板同样渲染四泳道并按目录归位',
+    /012-oldnew/.test(segOf(htmlOld, '待领取')) && /014-oldclaimed/.test(segOf(htmlOld, '处理中'))
+    && /010-oldreview/.test(segOf(htmlOld, '待审核')) && /009-old/.test(segOf(htmlOld, '阻塞')),
+    (htmlOld.match(/<h2>[^<]*<\/h2>/g) || []).join(' | '));
+  // 旧板不按 needs-info 标签改道（位置真源 = 目录，标签改道只在三态板生效）：014 带 ready-for-agent 不算数，
+  // 造一张带 needs-info 的 inbox 卡，它必须留在「待领取」列，而不是被摘进「阻塞」列
+  fs.writeFileSync(oldCards('inbox', '015-oldneedsinfo.md'),
+    '# 015-oldneedsinfo\n\n- 标题: 旧板带 needs-info 的待领卡\n- labels: needs-info\n\n## 流转追加段\n\n（占位）\n');
+  run(['html', '--root', old], tmp);
+  const htmlOld2 = fs.readFileSync(path.join(old, 'control', 'board.html'), 'utf8');
+  check('旧板 needs-info 卡留在待领取列（不按标签改道阻塞列）',
+    /015-oldneedsinfo/.test(segOf(htmlOld2, '待领取')) && !/015-oldneedsinfo/.test(segOf(htmlOld2, '阻塞')));
+  check('旧板的 done 泳道同样默认隐藏（历史列 + 开关）',
+    /<div class="col hist" style="display:none"><h2>已完成 \(1\)<\/h2>[\s\S]*?011-olddone/.test(htmlOld)
+    && !/011-olddone/.test(segOf(htmlOld, '待领取') + segOf(htmlOld, '阻塞')),
+    segOf(htmlOld, '已完成').slice(0, 60));
 
   r = run(['migrate', '--root', old, '--dry-run'], tmp);
   check('migrate --dry-run 不动文件', r.code === 0 && fs.existsSync(oldCards('blocked', '009-old.md')) && !fs.existsSync(oldCards('open')));
@@ -263,7 +415,7 @@ try {
   check('migrate 不删旧目录（红线 §7.2）', fs.existsSync(oldCards('blocked')) && fs.readdirSync(oldCards('blocked')).length === 0);
   check('migrate 记一笔账本', /migrate 五泳道->三态/.test(fs.readFileSync(path.join(old, 'control', 'ledger.md'), 'utf8')));
   check('账本行分清改名与原位（done 同道名不动）',
-    fs.readFileSync(path.join(old, 'control', 'ledger.md'), 'utf8').includes('改名 4 张 / 原位未动 1 张'));
+    fs.readFileSync(path.join(old, 'control', 'ledger.md'), 'utf8').includes('改名 5 张 / 原位未动 1 张'));
   r = run(['migrate', '--root', old, '--actor', 'selftest'], tmp);
   check('migrate 幂等（重跑不重复搬）', r.code === 0 && fs.existsSync(oldCards('open', '009-old.md')) && !/009-old/.test(r.out));
   check('无东西可改时不往账本追加空转行',

@@ -27,8 +27,9 @@ const LANES = ['inbox', 'claimed', 'review', 'done', 'archived', 'blocked', HELD
 const UNRESOLVED_TOKENS = ['inbox', 'claimed', 'review', 'blocked'];
 // 旧五泳道的目录名（migrate 的输入面 + 三态板的「残卡红灯」面），两处必须同源，否则迁板判据与迁移逻辑漂移
 const LEGACY_LANES = ['inbox', 'claimed', 'review', 'done', 'blocked'];
-// token → 人话（看板徽标与协议表同源；三处各写一遍是 v0.10.0 审查发现项）
-const TOKEN_TEXT = { inbox: '待领', claimed: '在办', review: '待终审', done: '已收口', archived: '已归档', blocked: '受阻', held: '暂缓' };
+// token → 人话：**唯一词汇源**。看板列标题、卡上执行态徽标、终端 `board` 的泳道名全部由它派生——
+// 之前「开发中/待终审」「在办」「待领取/处理中/待审核」三套词各写一遍，用户看到的泳道名和徽标名对不上（审查发现项）。
+const TOKEN_TEXT = { inbox: '待领取', claimed: '处理中', review: '待审核', done: '已完成', archived: '已归档', blocked: '阻塞', held: '暂缓' };
 
 const arg = (argv, name) => {
   const eq = argv.find(a => a === `--${name}=` || a.startsWith(`--${name}=`));
@@ -157,7 +158,11 @@ function cardFields(body) {
   return { title: f('标题'), level: f('难度'), model: f('模型档位'), by: f('领取者'),
     prd: /\.md$/i.test(prdRaw) ? prdRaw : '', branch: f('分支'), wt: f('worktree'), deps: f('依赖'),
     // labels = triage 维度（与目录/文件名执行态正交）；doc_ref = 服务器工单 URL（薄卡指针，手填 `<部署域>/tickets/<id>`）
-    labels: f('labels'), docRef: f('doc_ref') };
+    labels: f('labels'), docRef: f('doc_ref'),
+    // 处理计时三字段 = 统计面（谁在哪个 harness 上、用哪个模型办的、什么时候开始/结束），由 card-move 自动盖章。
+    // 它们**不参与状态判定**：执行态的唯一真源仍是文件名后缀（ADR-004 的原子 rename 防抢），
+    // 字段缺失或写歪只会让看板少显示一行，绝不会把卡的位置判错——这是与 ADR-008 被否方案①的分界。
+    harness: f('Harness'), llm: f('LLM'), startAt: f('开始处理'), endAt: f('结束处理') };
 }
 // labels 行宽松解析：逗号/顿号/空格分隔均可，无脑去空与去重；只认五标签，其余值原样保留供 verify 报警
 function parseLabels(line) {
@@ -173,16 +178,88 @@ function addLabel(body, label) {
       ? body
       : body.replace(/^- labels:[^\r\n]*/m, () => `${line.trimEnd()} ${label}`);
   }
-  const ins = re => body.replace(re, m => `- labels: ${label}\n${m}`);
+  const ins = re => body.replace(re, m => `- labels: ${label}${eolOf(body)}${m}`);
   if (/^- 依赖:/m.test(body)) return ins(/^- 依赖:[^\r\n]*/m);
   if (/^- 目标:/m.test(body)) return ins(/^- 目标:[^\r\n]*/m);
-  return body.replace(/^# [^\r\n]*\r?\n/, m => `${m}\n- labels: ${label}\n`);
+  return body.replace(/^# [^\r\n]*\r?\n/, m => `${m}${eolOf(body)}- labels: ${label}${eolOf(body)}`);
+}
+// ---------- 卡头字段 upsert（card-move 自动盖处理时间戳用）----------
+// 只在卡头字段块（第一个 `## ` 小节之前）里定位，且锚点取「已知字段名」的最后一行：
+// 流转段的 `- 2026-09-30 10:21 | inbox->claimed | …` 同样形如 `- x:`（时间在冒号前），泛匹配会把它当字段块尾巴插进去。
+const HEADER_KEYS = ['标题', '难度', '模型档位', '领取者', 'Harness', 'LLM', '开始处理', '结束处理', '依赖', '目标', '完成度',
+  'labels', 'doc_ref', 'PRD', '分支', 'worktree'];
+function setField(body, key, value) {
+  // 值里的换行会注入出第二条卡头行——账本侧有 cell() 做同样的净化，卡面没理由不做
+  const v = String(value ?? '').replace(/[\r\n]+/g, ' ');
+  // 替换与插入**都限定在卡头字段块内**：原先替换路径扫全文，于是「卡头缺这一行 + 小节里有人手写了同名 `- Harness:`」
+  // 会让字段被写进小节、卡头永远补不上（审查 High：本文件自己写下的「泛匹配」教训又踩了一遍）。
+  const cut = body.search(/^## /m);
+  const head = cut < 0 ? body : body.slice(0, cut);
+  const rest = cut < 0 ? '' : body.slice(cut);
+  const re = new RegExp(`^- ${key}:[^\\r\\n]*(\\r?\\n)`, 'm');
+  if (re.test(head)) return head.replace(re, (_, eol) => `- ${key}: ${v}${eol}`) + rest;
+  const KEYS = HEADER_KEYS.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const anchor = new RegExp(`^- (?:${KEYS}):[^\\r\\n]*(\\r?\\n)`, 'gm');
+  let end = -1, eol = '\n', m;
+  while ((m = anchor.exec(head))) { end = m.index + m[0].length; eol = m[1]; }
+  if (end < 0) { const h1 = /^#[^\r\n]*(\r?\n)/.exec(head); end = h1 ? h1[0].length : 0; if (h1) eol = h1[1]; }
+  return head.slice(0, end) + `- ${key}: ${v}` + eol + head.slice(end) + rest;
+}
+// 取 body 的主导换行符，供所有「往既有文件里插一行」的写回共用（写死 `\n` 会让 CRLF 卡变成混合换行）
+const eolOf = s => ((s.match(/\r\n/g) || []).length >= ((s.match(/[^\r]\n/g) || []).length) ? '\r\n' : '\n');
+// 流转追加段的移卡行：`- 2026-09-30 10:21 | inbox->claimed | 角色 | 原因 [| 🛠harness/模型]`
+// v0.11.0 之前的卡没有 开始处理/结束处理 字段，看板靠这里回推出时间，旧版卡升级当天就有读数。
+// 分隔符一律用 [ \t] 不用 \s——\s 会吞换行，把下一行的内容配成本行的读数（本文件 152-154 记着的同型坑）。
+function flowTimes(body) {
+  let inAt = '', outAt = '';
+  const re = /^- (\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?(?:[+-]\d{2}:?\d{2})?)?)[ \t]*\|[ \t]*(\w+)->(\w+)[ \t]*\|/gm;
+  for (const m of String(body).replace(/\r/g, '').matchAll(re)) {
+    if (m[3] === 'claimed') inAt = m[1];
+    else if (m[2] === 'claimed') outAt = m[1];
+  }
+  return { inAt, outAt };
+}
+const stampMs = s => {
+  if (!s) return null;
+  const t = Date.parse(String(s).trim().replace(/^(\d{4}-\d{2}-\d{2})[ ]/, '$1T'));
+  return Number.isFinite(t) ? t : null;
+};
+function durFmt(ms) {
+  if (!(ms >= 0)) return '';
+  const m = Math.round(ms / 6e4);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h}h${String(m % 60).padStart(2, '0')}m`;
+  return `${Math.floor(h / 24)}d${h % 24}h`;
+}
+// 一张卡的处理计时读数：字段优先，缺则回退流转段。
+// 只认「能解析的时间」：解析不了的（手填的散文、被截断的串）标 badStart/badEnd 交给显示层报无效，
+// 绝不能拿原始字符串截 11 个字冒充一个干净时间（审查发现项：`- 开始处理: " onload="alert(9)` 曾显示成 `▶  onload="ale`）。
+const UNSET = '（未标注）';
+function procOf(fields, body) {
+  const ft = flowTimes(body);
+  const rawStart = fields.startAt || ft.inAt;
+  const rawEnd = fields.endAt || ft.outAt;
+  const s = stampMs(rawStart), e = stampMs(rawEnd);
+  let end = e === null ? '' : rawEnd;
+  // 结束早于开始（重领未清、时钟回拨）或压根没有开始 ⇒ 不显示结束，宁可少一行也不臆造「用时 0m」
+  if (end && (s === null || e <= s)) end = '';
+  // 卡面写「（未标注）」是给读卡的 agent 看的占位；看板要的是红字告警，不能把它当成一个 harness/模型名
+  return {
+    harness: fields.harness === UNSET ? '' : fields.harness,
+    llm: fields.llm === UNSET ? '' : fields.llm,
+    start: s === null ? '' : rawStart, end,
+    badStart: s === null && rawStart ? rawStart : '',
+    badEnd: e === null && rawEnd ? rawEnd : '',
+  };
 }
 function scanBoard(root) {
   return LANES.map(s => ({ state: s, cards: listCards(root, s).map(c => {
     const body = fs.readFileSync(cardFile(root, s, c), 'utf8');
     const { id } = parseCardName(c);
-    return { id, token: s, merge: /^merge-/.test(id), wtExists: fs.existsSync(path.join(root, 'wt', id)), ...cardFields(body) };
+    const f = cardFields(body);
+    return { id, token: s, merge: /^merge-/.test(id), wtExists: fs.existsSync(path.join(root, 'wt', id)),
+      ...f, ...procOf(f, body) };
   }) }));
 }
 // 依赖闸门口径：只认依赖行里写全卡 id 的依赖（如 69-03-gateway-refresh-and-proxy-leg）；
@@ -224,33 +301,93 @@ function cmdBoard(argv) {
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const fileHref = p => /^[A-Za-z]:[\\/]/.test(p) ? 'file:///' + p.replace(/\\/g, '/') : '';
 const LV_COLOR = { L1: '#6b7280', L2: '#2563eb', L3: '#d97706', L4: '#dc2626' };
-const STATE_LABEL = { inbox: '待领取 inbox', claimed: '开发中 claimed', review: '待终审 review', done: '已完成 done', archived: '已归档 archived', blocked: '受阻 blocked（三态后由 needs-info 标签表达）', held: '暂缓·等依赖（不可领）' };
+// 终端 `board` 的泳道标题 = TOKEN_TEXT 派生（词汇单源，见 TOKEN_TEXT 上方注释）
+const STATE_NOTE = { blocked: '（三态板由 needs-info 标签表达）', held: '（worker 不可领）' };
+const STATE_LABEL = Object.fromEntries(LANES.map(t => [t, `${TOKEN_TEXT[t]} ${t}${STATE_NOTE[t] || ''}`]));
 // triage 五标签色标（验收 #3）：与难度徽标 LV_COLOR 分属两个维度，渲染在同一张卡上互不覆盖。
 const LABEL_COLOR = { 'ready-for-agent': '#34d399', 'ready-for-human': '#f59e0b', 'needs-info': '#fb7185', 'needs-triage': '#a78bfa', 'wontfix': '#6b7280' };
 const TOKEN_COLOR = { inbox: '#34d399', claimed: '#60a5fa', review: '#d97706', done: '#6b7280', archived: '#6b7280', blocked: '#fb7185', held: '#f59e0b' };
-// 未收口列的成员位取自顶部 UNRESOLVED_TOKENS（与 verify 的标签判据、残卡红灯同源，不再各写一遍）
+
+const shortStamp = s => String(s).replace(/^\d{4}-/, '').replace('T', ' ').slice(0, 11);
+// 「显示已完成」是**用户级视图偏好**，不是页面级：工单看板与 PRD 看板共用同一段脚本骨架与同一个键，
+// 任一页展开后另一页也跟着展开（各存各的会让「默认隐藏」在两页之间自相矛盾）。
+// 键必须按 root 分名：file:// 下浏览器把所有本地页当同一 origin，不分名会让本机所有工作区的看板互相串改。
+// 落盘 localStorage 是硬要求：两页每 5s / 10s 靠 meta refresh 整页重载，不落盘的话刚点开就被刷新收回去。
+const histKeyOf = root => 'showHistory:' + root;
+const histScript = (root, sel, histCols = 0, baseCols = 0) => `
+const K=${JSON.stringify(histKeyOf(root))};
+const sh=document.getElementById('sh');
+if(sh){const cols=document.querySelector('.cols');
+const apply=()=>{const on=sh.checked;document.querySelectorAll('${sel}').forEach(el=>{el.style.display=on?'':'none'});
+if(cols)cols.style.setProperty('--nc',String(Math.max(${baseCols}+(on?${histCols}:0),3)))};
+try{sh.checked=localStorage.getItem(K)==='1'}catch(e){}
+sh.addEventListener('change',()=>{apply();try{localStorage.setItem(K,sh.checked?'1':'0')}catch(e){}});apply();}`;
+// 三页的「复制提示词」按钮骨架同源（此前是逐字抄的三份，其中 prd.html 那份还漏了监听器、点了没反应）。
+// file:// 下 navigator.clipboard 常不可用，textarea + execCommand 的兜底不能省。
+const copyScript = (store, sel, dataKey, idle, ok) => `
+document.querySelectorAll('${sel}').forEach(b=>b.addEventListener('click',async()=>{
+const t=${store}[b.dataset.${dataKey}]||'';
+try{await navigator.clipboard.writeText(t)}catch(e){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove()}
+b.textContent='${ok}';b.classList.add('done');
+setTimeout(()=>{b.textContent='${idle}';b.classList.remove('done')},2500);
+}));`;
 
 function renderHtml(root, meta, cols, starters) {
   const byToken = Object.fromEntries(cols.map(c => [c.state, c]));
   const cardsOf = t => (byToken[t]?.cards || []).map(c => ({ ...c, token: t }));
-  // 三列 = 三态目录（open / done / archived），held 是领导者暂缓道、仅在非空时附在末尾。
-  const groups = [
-    { key: OPEN, label: `在办 open（${threeState(root) ? '待领·在办·待终审合一，执行态看文件名后缀' : '未收口·旧板 blocked 也归此列'}）`, cards: UNRESOLVED_TOKENS.flatMap(cardsOf) },
-    { key: 'done', label: '已收口 done', cards: cardsOf('done') },
-    { key: 'archived', label: '已归档 archived（废弃/让位）', cards: cardsOf('archived') },
-    { key: HELD, label: '暂缓·等依赖（worker 不可领）', cards: cardsOf(HELD) },
-  ];
-  const shown = groups.filter(g => g.key !== HELD || g.cards.length);
-  const total = groups[0].cards.length;
-  const doneCount = groups[1].cards.length, archivedCount = groups[2].cards.length;
+  const three = threeState(root);
+  // 泳道 = **未收口 token 全集**（UNRESOLVED_TOKENS，与 verify 第 5 路、migrate 残卡红灯同源），列名 = TOKEN_TEXT 单源。
+  // 三态板取文件名后缀、旧五泳道板取目录名，两种布局出同一套列；空列也渲染，列结构不随卡片增减抖动。
+  // 三态板没有 blocked/ 目录，受阻 = 待领位 + needs-info（ADR-008），于是把带该标签的卡从待领取列**摘进**阻塞列，一卡只落一列。
+  // **旧板不按标签改道**：那里的位置真源就是目录，陈旧 needs-info 会把能干活的卡藏进阻塞列（审查发现项）。
+  const blockedByLabel = three ? cardsOf('inbox').filter(c => parseLabels(c.labels).includes('needs-info')) : [];
+  const blockedIds = new Set(blockedByLabel.map(c => c.id));
+  const lanes = [];
+  for (const t of UNRESOLVED_TOKENS) {
+    let cards = cardsOf(t);
+    if (t === 'inbox') cards = cards.filter(c => !blockedIds.has(c.id));
+    if (t === 'blocked') cards = [...cards, ...blockedByLabel];
+    lanes.push({ token: t, label: TOKEN_TEXT[t], cards });
+  }
+  // 已完成 / 已归档是历史面，只增不减（2026-09-30 曾积累到 254 张）⇒ 默认不显示，页头开关展开。
+  // 展开时也只渲染末尾 HIST_RENDER 张并在列内明写还剩多少：整页 markup 每 5s 重解析一次，全量铺开会卡顿；
+  // 计数仍报真实总数，不静默当没这些卡。
+  const hist = ['done', 'archived'].map(t => ({ token: t, label: TOKEN_TEXT[t], cards: cardsOf(t) }));
+  const heldCards = cardsOf(HELD);
+  const shown = heldCards.length ? [...lanes, { token: HELD, label: '暂缓·等依赖', cards: heldCards }] : lanes;
+  const active = shown.reduce((n, g) => n + g.cards.length, 0);
+  const histTotal = hist.reduce((n, g) => n + g.cards.length, 0);
   const prompts = {};
+  const procLine = c => {
+    const live = c.token === 'claimed';
+    const who = [c.harness, c.llm].filter(Boolean).join(' · ');
+    if (!live && !who && !c.start && !c.end && !c.badStart && !c.badEnd) return '';
+    const seg = [];
+    if (who) seg.push(`🛠 ${esc(who)}`);
+    // 只在「处理中」这一条泳道告警：别的泳道缺标注是常态（旧卡、领导者手移的卡），满屏红字等于没有红字
+    else if (live) seg.push('<span class="warn" title="领卡时用 card-move --to claimed --harness 名 --llm 模型 自报">🛠 harness/模型未标注</span>');
+    if (c.badStart) seg.push(`<span class="warn" title="${esc(c.badStart)}">▶ 开始时间无法解析</span>`);
+    else if (c.start) {
+      const s = stampMs(c.start);
+      seg.push(`▶ ${esc(shortStamp(c.start))}${live ? ` <span class="tip" title="${esc(c.start)}">已办 <b>${durFmt(Date.now() - s)}</b></span>` : ''}`);
+    }
+    if (c.badEnd) seg.push(`<span class="warn" title="${esc(c.badEnd)}">⏹ 结束时间无法解析</span>`);
+    else if (c.end) {
+      const s = stampMs(c.start), e = stampMs(c.end);
+      seg.push(`⏹ <span class="tip" title="${esc(c.end)}">${esc(shortStamp(c.end))}</span>${e > s ? ` · 用时 ${durFmt(e - s)}` : ''}`);
+    }
+    return `<div class="proc">${seg.join('　')}</div>`;
+  };
   const cardsHtml = c => {
     const prd = c.prd && fileHref(c.prd) ? `<a href="${esc(fileHref(c.prd))}" target="_blank" rel="noopener" title="${esc(c.prd)}">PRD</a>` : '';
     const docref = c.docRef && /^https?:\/\//i.test(c.docRef) ? `<a href="${esc(c.docRef)}" target="_blank" rel="noopener" title="${esc(c.docRef)}">服务器工单 ↗</a>` : '';
     const wtLine = c.wt ? `<div class="wt">📁 ${esc(c.wt)} ${c.wtExists ? '<span class="ok">已预开</span>' : '<span class="no">未创建</span>'}</div>` : '';
     const starter = starters[c.merge ? 'merger' : 'dev'] || '';
     prompts[c.id] = starter + `\n\n---\n本次指定：优先领取卡片 \`${c.id}\`（难度 ${c.level || '?'}）。` +
-      (c.wtExists ? `工作区已预开：${c.wt}，领卡 move 成功后直接进入装依赖开工。` : `领卡后按协议 §1 用 add-wt 开辟工作区。`);
+      (c.wtExists ? `工作区已预开：${c.wt}，领卡 move 成功后直接进入装依赖开工。` : `领卡后按协议 §1 用 add-wt 开辟工作区。`) +
+      // 任务提示词自带环境自报要求：看板的「处理中」泳道与卡内流转段全靠这两项，靠协议条文提醒不够（worker 会先粘这段提示词）
+      `\n\n**每一步都要自报处理环境**（协议 §4）：领卡跑 \`board.mjs card-move --id ${c.id} --to claimed --actor <你的会话标识> --harness <你所在的 harness 名，如 Qoder / Claude Code / CodeBuddy> --llm <你实际调用的模型名，如 claude-sonnet-4.5>\`；` +
+      '交付 / 受阻 / 返工同命令换 `--to` 再报一次。你没自报，看板上这条卡就是红字「harness/模型未标注」，用户无法知道是谁、用什么模型在做。';
     const pend = (c.token === 'inbox' || c.token === HELD) ? pendingDeps(root, c.deps, c.id) : [];
     const depNote = pend.length ? `<div class="dep">⛓ 等依赖未归档: ${esc(pend.join('、'))}</div>` : '';
     const btn = c.token === HELD
@@ -261,10 +398,22 @@ function renderHtml(root, meta, cols, starters) {
 <span class="lv" style="background:${LV_COLOR[c.level] || '#6b7280'}">${esc(c.level || '?')}</span><span class="tk" style="border-color:${TOKEN_COLOR[c.token] || '#6b7280'}">${esc(TOKEN_TEXT[c.token] || c.token)}</span>${chips}
 <b>${esc(c.id)}</b>${c.merge ? '<span class="tagm">合并</span>' : ''}
 <div class="t">${esc(c.title || '')}</div>
-${wtLine}${depNote}
+${procLine(c)}${wtLine}${depNote}
 <div class="m">${c.by ? `👤 ${esc(c.by)}　` : ''}${c.deps && c.deps !== '无' ? `⛓ ${esc(c.deps)}　` : ''}${prd}${docref ? `　${docref}` : ''}${c.branch ? `　⎇ ${esc(c.branch)}` : ''}</div>
 ${btn}
 </div>`;
+  };
+  // 历史列展开时单次渲染上限：页每 5s 整页重载，254 张全量铺开会把展开这一下变成卡顿。
+  // 计数仍报真实总数、列内明写「还有 M 张未渲染」，不静默当这些卡不存在。
+  const HIST_RENDER = 60;
+  const colHtml = (g, isHist) => {
+    const cards = isHist ? g.cards.slice(-HIST_RENDER) : g.cards;
+    let inner = cards.map(cardsHtml).join('');
+    if (!inner) inner = '<div class="none">（空）</div>';
+    const rest = g.cards.length - cards.length;
+    if (rest > 0) inner += `<div class="none">仅渲染最近 ${cards.length} / ${g.cards.length} 张，另 ${rest} 张见 board --all 或 control/cards/${g.token}/</div>`;
+    const hide = isHist ? ' style="display:none"' : '';
+    return `<div class="col${isHist ? ' hist' : ''}"${hide}><h2>${esc(g.label)} (${g.cards.length})</h2>${inner}</div>`;
   };
   return `<!doctype html><html lang="zh"><head><meta charset="utf-8">
 <meta http-equiv="refresh" content="5"><title>工单公告板 · ${esc(path.basename(root))}</title>
@@ -275,11 +424,14 @@ header h1{font-size:18px;margin:0}header .info{color:#9ca3af;font-size:12px}
 .cols{display:grid;grid-template-columns:repeat(var(--nc,4),1fr);gap:10px;align-items:start}
 .col{background:#161a22;border-radius:10px;padding:10px;min-height:120px}
 .col h2{font-size:13px;margin:0 0 8px;color:#9ca3af;text-transform:uppercase}
+.none{color:#4b5563;font-size:12px;text-align:center;padding:16px 0}
 .card{background:#1e2430;border:1px solid #2b3342;border-radius:8px;padding:8px 10px;margin-bottom:8px}
 .card.merge{border-color:#7c3aed55}
 .lv{color:#fff;border-radius:4px;font-size:11px;padding:1px 6px;margin-right:6px}
 .tagm{color:#a78bfa;font-size:11px;margin-left:6px}
 .t{margin:2px 0;color:#d1d5db}.m{color:#8b94a3;font-size:12px;word-break:break-all}
+.proc{color:#9fb0c8;font-size:12px;margin:2px 0;font-variant-numeric:tabular-nums}
+.proc b{color:#e5e7eb}.warn{color:#fb7185}.tip{cursor:help}
 .wt{color:#8b94a3;font-size:11px;word-break:break-all;margin:2px 0}
 .ok{color:#34d399;font-size:11px}.no{color:#6b7280;font-size:11px}
 .dep{color:#f59e0b;font-size:12px;margin:2px 0}
@@ -291,18 +443,14 @@ header h1{font-size:18px;margin:0}header .info{color:#9ca3af;font-size:12px}
 a{color:#60a5fa;text-decoration:none}
 .nav{margin-left:4px;font-size:13px;color:#60a5fa;text-decoration:none;border:1px solid #2b3342;padding:4px 10px;border-radius:8px;background:#161a22}
 .nav:hover{background:#1e2430}
+.tg{font-size:12px;color:#9ca3af;display:inline-flex;align-items:center;gap:5px;cursor:pointer;user-select:none}
+.tg input{accent-color:#3b82f6;cursor:pointer}
 footer{margin-top:10px;color:#6b7280;font-size:12px}
 </style></head><body>
-<header><h1>工单公告板</h1><a class="nav" href="prd.html" target="_blank" rel="noopener">PRD 看板 →</a><a class="nav" href="human.html" target="_blank" rel="noopener">人工待办面板 →</a><span class="info">${esc(root)} · 权威仓 ${esc(meta.repoPath || '')} · 基准 ${esc(meta.baseBranch)} · 三态 ${total} 在办 / ${doneCount} 收口 / ${archivedCount} 归档${shown.some(g => g.key === HELD && g.cards.length) ? ` / ${groups.find(g => g.key === HELD).cards.length} 暂缓` : ''} · 生成于 ${localIso()} · 每 5s 自动刷新</span></header>
-<div class="cols" style="--nc:${Math.max(shown.length, 3)}">${shown.map(g => `<div class="col"><h2>${esc(g.label)} (${g.cards.length})</h2>${g.cards.map(cardsHtml).join('')}</div>`).join('')}</div>
-<footer>协议真源 control/PROTOCOL.md · 领导者账本 control/ledger.md · 列=生命周期三态（open/done/archived），卡上「待领/在办/待终审」徽标=执行态（文件名后缀 .claimed/.review），色标=triage 五标签（labels 行）· 复制按钮=对应角色 starter 提示词+指定卡号，贴给新拉起会话即可开工 · 工单级执行=/jxx-implement 领卡推进；整份 PRD 一次交付请用 PRD 看板的整轨提示词（/jxx-implement-spec）</footer>
-<script>const PROMPTS=${JSON.stringify(prompts).replace(/</g, '\\u003c')};
-document.querySelectorAll('.cp').forEach(b=>b.addEventListener('click',async()=>{
-const t=PROMPTS[b.dataset.id]||'';
-try{await navigator.clipboard.writeText(t)}catch(e){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove()}
-b.textContent='✔ 已复制，去粘贴给新会话';b.classList.add('done');
-setTimeout(()=>{b.textContent='📋 复制启动提示词';b.classList.remove('done')},2500);
-}));</script>
+<header><h1>工单公告板</h1><a class="nav" href="prd.html" target="_blank" rel="noopener">PRD 看板 →</a><a class="nav" href="human.html" target="_blank" rel="noopener">人工待办面板 →</a>${histTotal ? `<label class="tg"><input type="checkbox" id="sh">显示${hist.map(g => `${g.label} (${g.cards.length})`).join('与')}</label>` : ''}<span class="info">${esc(root)} · 权威仓 ${esc(meta.repoPath || '')} · 基准 ${esc(meta.baseBranch)} · 在办 ${active}（${lanes.map(g => `${g.label} ${g.cards.length}`).join(' · ')}）${heldCards.length ? ` · 暂缓 ${heldCards.length}` : ''} · 历史 ${histTotal} 张默认隐藏 · 生成于 ${localIso()} · 每 5s 自动刷新</span></header>
+<div class="cols" style="--nc:${Math.max(shown.length, 3)}">${shown.map(g => colHtml(g, false)).join('')}${hist.map(g => colHtml(g, true)).join('')}</div>
+<footer>协议真源 control/PROTOCOL.md · 领导者账本 control/ledger.md · 四泳道 = 执行态 token（${lanes.map(g => g.label).join(' / ')}；三态板取文件名后缀、旧板取目录名，needs-info 改道阻塞列只在三态板生效），「已完成 / 已归档」属历史面默认折叠 · 卡上计时读数＝🛠 处理者 Harness · 实际模型 ▶ 开始处理（在办时附已办时长）· ⏹ 结束处理（附本轮用时），由 card-move 进出 claimed 位自动盖章、卡面缺行时回退卡内流转段 · 色标 = triage 五标签（labels 行），徽标 = 执行态 token · 复制按钮 = 对应角色 starter 提示词 + 指定卡号 + 环境自报要求，贴给新拉起会话即可开工 · 工单级执行 = /jxx-implement 领卡推进；整份 PRD 一次交付请用 PRD 看板的整轨提示词（/jxx-implement-spec）</footer>
+<script>const PROMPTS=${JSON.stringify(prompts).replace(/</g, '\\u003c')};${copyScript('PROMPTS', '.cp', 'id', '📋 复制启动提示词', '✔ 已复制，去粘贴给新会话')}${histScript(root, '.col.hist', hist.length, shown.length)}</script>
 </body></html>`;
 }
 
@@ -389,8 +537,7 @@ ${action}
     + `<div class="info">需要你的决策 / 验收 / 操作 · ${todos.length} 项 · 权威仓 ${esc(meta.repoPath || '')} · 生成于 ${localIso()} · 每 10s 刷新</div></header>`
     + `${body}`
     + `<footer>数据源＝权威仓 .scratch 下 **Status:** ready-for-human 的工单 · 标题/「打开完整工单」在新标签页打开 · 「复制决策提示词」把决策单贴给新会话即可推进（提示词默认不显示在界面上）</footer>`
-    + `<script>const PROMPTS=${JSON.stringify(prompts).replace(/</g, '\\u003c')};
-document.querySelectorAll('.cp').forEach(b=>b.addEventListener('click',async()=>{const t=PROMPTS[b.dataset.id]||'';try{await navigator.clipboard.writeText(t)}catch(e){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove()}b.textContent='✔ 已复制，去贴给新会话拍板';b.classList.add('done');setTimeout(()=>{b.textContent='📋 复制决策提示词';b.classList.remove('done')},2500);}));</script>`
+    + `<script>const PROMPTS=${JSON.stringify(prompts).replace(/</g, '\\u003c')};${copyScript('PROMPTS', '.cp', 'id', '📋 复制决策提示词', '✔ 已复制，去贴给新会话拍板')}</script>`
     + `</body></html>`;
 }
 
@@ -460,7 +607,7 @@ function renderPrdHtml(root, meta, cols, todos) {
     const stateTag = card ? ` <span class="ctag ${card.state}">${esc(card.state)}${card.by ? ' · ' + esc(card.by) : ''}</span>` : '';
     return `<li><a href="${esc(it.href || '')}" target="_blank" rel="noopener">${esc(it.name)}</a> ${esc(it.title)}${chk}${dep}${stateTag}</li>`;
   };
-  const blocks = prds.map(p => {
+  const rendered = prds.map(p => {
     const groups = Object.fromEntries(ISSUE_GROUP.map(([k]) => [k, []]));
     for (const it of p.issues) {
       const st = (it.status || 'unknown').toLowerCase();
@@ -481,10 +628,20 @@ function renderPrdHtml(root, meta, cols, todos) {
     const groupHtml = ISSUE_GROUP.filter(([k]) => groups[k].length).map(([k, label]) =>
       `<div class="grp"><div class="glbl">${label} (${groups[k].length})</div><ul>${groups[k].map(issueLi).join('')}</ul></div>`).join('');
     const prdSt = PRD_STATUS_LABEL[(p.status || '').toLowerCase()] || (p.status || '未标注');
-    prdPrompts[p.code] = '【PRD 级整轨执行 · ' + p.code + ' ' + p.title + '】\n工作区（权威仓）：' + meta.repoPath + '\nPRD：' + p.file + '\n工单任务图：.scratch/' + p.code + '/issues/*.md（各工单 **Status:** 与 **Blocked by:** 已声明阻塞关系）\n\n请用 /jxx-implement-spec 技能整轨推进本 PRD：\n1) 读 PRD 与全部工单，构建任务图，识别就绪前沿（Blocked by 全部 done 的工单）；\n2) 单分支交付：从 ' + (meta.baseBranch || 'main') + ' 建分支 ticket/' + p.code + '-spec，先开 draft PR；\n3) 后台子 agent 并发实现前沿工单，每收口一张即更新该工单 **Status:** 与验收勾选框，前沿推进继续派发；\n4) 全部工单 done 后跑 /jxx-code-review 审整支分支，修复后转 ready；\n5) 完成判据：本 PRD 全部工单 Status=done 且验收全勾。\n注意：若工单看板已有本 PRD 的在办卡（open/ 里的 .claimed/.review 位），先与用户确认走整轨还是分轨，勿双轨并作。';
-    return `<div class="prd"><div class="phead"><b class="pcode">${esc(p.code)}</b><a class="ptitle" href="${esc(p.href || '')}" target="_blank" rel="noopener">${esc(p.title)}</a><span class="pst">${esc(prdSt)}</span><span class="pprog">${doneN}/${total} 工单收口 · ${pct}%</span><button class="cp-prd" data-prd="${esc(p.code)}">📋 PRD 级整轨提示词</button></div>${groupHtml}</div>`;
-  }).join('');
+    prdPrompts[p.code] = '【PRD 级整轨执行 · ' + p.code + ' ' + p.title + '】\n工作区（权威仓）：' + meta.repoPath + '\nPRD：' + p.file + '\n工单任务图：.scratch/' + p.code + '/issues/*.md（各工单 **Status:** 与 **Blocked by:** 已声明阻塞关系）\n\n请用 /jxx-implement-spec 技能整轨推进本 PRD：\n1) 读 PRD 与全部工单，构建任务图，识别就绪前沿（Blocked by 全部 done 的工单）；\n2) 单分支交付：从 ' + (meta.baseBranch || 'main') + ' 建分支 ticket/' + p.code + '-spec，先开 draft PR；\n3) 后台子 agent 并发实现前沿工单，每收口一张即更新该工单 **Status:** 与验收勾选框，前沿推进继续派发；\n4) 全部工单 done 后跑 /jxx-code-review 审整支分支，修复后转 ready；\n5) 完成判据：本 PRD 全部工单 Status=done 且验收全勾。\n注意：若工单看板已有本 PRD 的在办卡（open/ 里的 .claimed/.review 位），先与用户确认走整轨还是分轨，勿双轨并作。\n\n**每一步都要自报处理环境**（协议 §4）：每个子 agent 领卡时跑 `board.mjs card-move --id <卡id> --to claimed --actor <会话标识> --harness <harness 名> --llm <模型名>`；交付 / 受阻 / 返工同命令换 `--to` 再报一次。你没自报，看板上这条卡就是红字「harness/模型未标注」，用户无法知道是谁、用什么模型在做。';
+    // 一份 PRD 算「已完成」的两条判据（任一成立）：全部工单收口（done/wontfix），或 PRD 自身 Status 已收口。
+    // 零工单不算完成——那是还没拆，属未做的事而不是做完的事。
+    const closed = (total > 0 && doneN === total) || /^done$|^wontfix$/i.test(p.status);
+    return { closed, html: `<div class="prd${closed ? ' closed' : ''}"><div class="phead"><b class="pcode">${esc(p.code)}</b><a class="ptitle" href="${esc(p.href || '')}" target="_blank" rel="noopener">${esc(p.title)}</a><span class="pst">${esc(prdSt)}</span><span class="pprog">${doneN}/${total} 工单收口 · ${pct}%</span><button class="cp-prd" data-prd="${esc(p.code)}">📋 PRD 级整轨提示词</button></div>${groupHtml}</div>` };
+  });
+  const openPrds = rendered.filter(r => !r.closed), donePrds = rendered.filter(r => r.closed);
+  const listHtml = arr => `<div class="list">${arr.map(r => r.html).join('')}</div>`;
+  const sectHtml = (title, arr, isHist) => `<section class="sect${isHist ? ' hist' : ''}"${isHist ? ' style="display:none"' : ''}><h2 class="sh2">${esc(title)} (${arr.length})${isHist ? '<span class="n"> · 判据：全部工单收口（done/wontfix）或 PRD 自身 Status 已收口</span>' : ''}</h2>${arr.length ? listHtml(arr) : '<div class="empty">（无）</div>'}</section>`;
   const totalFrontier = prds.reduce((n, p) => n + p.issues.filter(it => /^ready-for-agent$/i.test(it.status) ).length, 0);
+  // 一份 PRD 都没有时整页只剩空态；已完成栏为空就不渲染（不给页头留一个点开无内容的开关）
+  let bodyHtml = sectHtml('未完成 PRD', openPrds, false);
+  if (!prds.length) bodyHtml = '<div class="empty">权威仓 .scratch/ 下还没有 &lt;NN-slug&gt;/PRD.md + issues/ 结构——先用 jxx-to-spec 出 PRD、jxx-to-tickets 拆工单，再刷新本页。</div>';
+  else if (donePrds.length) bodyHtml += sectHtml('已完成 PRD', donePrds, true);
   return `<!doctype html><html lang="zh"><head><meta charset="utf-8">
 <meta http-equiv="refresh" content="10"><title>PRD 看板 · ${esc(path.basename(root))}</title>
 <style>
@@ -506,13 +663,26 @@ header{max-width:920px;margin:0 auto 18px}h1{font-size:20px;margin:0;display:inl
 .cp-prd{margin-top:8px;background:#2b3342;color:#cbd5e1;border:1px solid #3b4356;border-radius:6px;font-size:12px;padding:3px 10px;cursor:pointer}
 .cp-prd:hover{background:#3b4356}.cp-prd.done{background:#064e3b;border-color:#34d399;color:#6ee7b7}
 .empty{max-width:920px;margin:0 auto;background:#161a22;border:1px solid #232b38;border-radius:12px;padding:40px;text-align:center;color:#9ca3af}
+.sect{max-width:920px;margin:0 auto}
+.sh2{font-size:13px;color:#9ca3af;margin:20px auto 8px;letter-spacing:.04em;text-transform:uppercase}
+.sh2 .n{color:#6b7280;font-weight:400;letter-spacing:0;text-transform:none;font-size:12px}
+.sect .list{margin:0}
+.prd.closed{opacity:.9}.prd.closed .pcode{background:#166534}
+.tg{margin-left:12px;font-size:12px;color:#9ca3af;display:inline-flex;align-items:center;gap:5px;cursor:pointer;user-select:none}
+.tg input{accent-color:#3b82f6;cursor:pointer}
 footer{max-width:920px;margin:18px auto 0;color:#6b7280;font-size:12px}
 </style></head><body>
-<header><h1>PRD 看板</h1><a class="nav" href="board.html" target="_blank" rel="noopener">工单看板 →</a><a class="nav" href="human.html" target="_blank" rel="noopener">人工待办 →</a>
-<div class="info">执行分流：整份 PRD 一次交付 → 复制下方「PRD 级整轨提示词」给新会话跑 /jxx-implement-spec · 单工单推进 → 工单看板领卡跑 /jxx-implement · ${prds.length} 份 PRD · 前沿可领 ${totalFrontier} 张工单 · 权威仓 ${esc(meta.repoPath || '')} · 生成于 ${localIso()} · 每 10s 刷新</div></header>
-${prds.length ? `<div class="list">${blocks}</div>` : `<div class="empty">权威仓 .scratch/ 下还没有 &lt;NN-slug&gt;/PRD.md + issues/ 结构——先用 jxx-to-spec 出 PRD、jxx-to-tickets 拆工单，再刷新本页。</div>`}
-<footer>数据源＝权威仓 .scratch/&lt;NN-slug&gt;/PRD.md + issues/*.md 的 **Status:** 行 · 有卡的工单按卡泳道显示真实协调状态（优先于文档 Status）· PRD 级整轨提示词＝/jxx-implement-spec（单分支整份交付）· 工单级请去工单看板领卡（/jxx-implement）</footer>
-<script>const PRD_PROMPTS=${JSON.stringify(prdPrompts).replace(/</g, '\\u003c')};</script>
+<header><h1>PRD 看板</h1><a class="nav" href="board.html" target="_blank" rel="noopener">工单看板 →</a><a class="nav" href="human.html" target="_blank" rel="noopener">人工待办 →</a>${donePrds.length ? `<label class="tg"><input type="checkbox" id="sh">显示已完成 PRD (${donePrds.length})</label>` : ''}
+<div class="info">执行分流：整份 PRD 一次交付 → 点「PRD 级整轨提示词」复制给新会话跑 /jxx-implement-spec · 单工单推进 → 工单看板领卡跑 /jxx-implement · ${prds.length} 份 PRD（未完成 ${openPrds.length} · 已完成 ${donePrds.length}）· 前沿可领 ${totalFrontier} 张工单 · 权威仓 ${esc(meta.repoPath || '')} · 生成于 ${localIso()} · 每 10s 刷新</div></header>
+${bodyHtml}
+<footer>数据源＝权威仓 .scratch/&lt;NN-slug&gt;/PRD.md + issues/*.md 的 **Status:** 行 · 本页按 PRD 收口态分两栏：未完成（还有工单没收口）/ 已完成（全部工单 done·wontfix，或 PRD 自身 Status 已收口）——已完成默认隐藏，页头开关展开，与工单看板共用同一个视图偏好 · 有卡的工单按卡泳道显示真实协调状态（优先于文档 Status）· PRD 级整轨提示词＝/jxx-implement-spec（单分支整份交付）· 工单级请去工单看板领卡（/jxx-implement）</footer>
+<script>const PRD_PROMPTS=${JSON.stringify(prdPrompts).replace(/</g, '\\u003c')};
+document.querySelectorAll('.cp-prd').forEach(b=>b.addEventListener('click',async()=>{
+const t=PRD_PROMPTS[b.dataset.prd]||'';
+try{await navigator.clipboard.writeText(t)}catch(e){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove()}
+b.textContent='✔ 已复制，去贴给新会话跑整轨';b.classList.add('done');
+setTimeout(()=>{b.textContent='📋 PRD 级整轨提示词';b.classList.remove('done')},2500);
+}));${histScript(root, '.sect.hist')}</script>
 </body></html>`;
 }
 
@@ -1010,6 +1180,14 @@ function cmdCardRead(argv) {
   console.log(`- PRD: ${f.prd || '(未填)'}`);
   console.log(`- 分支: ${f.branch}`);
   console.log(`- worktree: ${f.wt}${fs.existsSync(f.wt) ? ' [已预开]' : ' [未创建]'}`);
+  // 处理计时读数（统计面，不参与判位）：字段缺省时回退卡内流转段，并标出是推出来的
+  const proc = procOf(f, body);
+  const mark = (v, k) => v ? `${v}${f[k] ? '' : ' [由流转段推得]'}` : '(未记录)';
+  console.log(`- Harness: ${proc.harness || '(未标注)'}`);
+  console.log(`- LLM: ${proc.llm || '(未标注)'}`);
+  console.log(`- 开始处理: ${mark(proc.start, 'startAt')}`);
+  console.log(`- 结束处理: ${mark(proc.end, 'endAt')}`);
+  if (loc.state === 'claimed' && stampMs(proc.start) !== null) console.log(`- 已办时长: ${durFmt(Date.now() - stampMs(proc.start))}`);
   // 卡内剩余段原样输出（领取/交付/待验/流转）
   const sections = body.split(/^## /m).slice(1);
   for (const s of sections) console.log(`\n## ${s.trim()}`);
@@ -1022,18 +1200,20 @@ function cmdCardSet(argv) {
   const value = arg(argv, 'value') || die('缺少 --value <值>');
   const loc = cardPath(root, id);
   if (!loc) die(`卡 ${id} 不存在`);
-  const allowed = ['标题', '难度', '模型档位', '依赖', '目标', '领取者', 'PRD', 'labels', 'doc_ref'];
+  const allowed = ['标题', '难度', '模型档位', '依赖', '目标', '领取者', 'PRD', 'labels', 'doc_ref',
+    'Harness', 'LLM', '开始处理', '结束处理'];
   if (!allowed.includes(field)) die(`--field 只允許: ${allowed.join('/')}`);
   const body = fs.readFileSync(loc.path, 'utf8');
-  const re = new RegExp(`^- ${field}: [^\\r\\n]*`, 'm');
-  if (!re.test(body)) die(`卡内没有 "- ${field}:" 行，请先用 card read 确认字段名`);
+  // 统一走 setField（有则替换、无则插进卡头字段块）：旧卡常缺 处理计时 三行，
+  // 早先的「卡内没有该行」直接 die，等于让 leader 手工去卡面补一行才能记账。
+  if (!new RegExp(`^- ${field}:`, 'm').test(body)) console.log(`card set: 卡 ${id} 原无 "- ${field}:" 行，已插入卡头字段块。`);
   if (field === 'labels') {
     const bad = parseLabels(value).filter(l => !TRIAGE_LABELS.includes(l));
     if (bad.length) console.log(`WARN card set: labels 里的 "${bad.join('", "')}" 不在 triage 五标签（${TRIAGE_LABELS.join(' / ')}），照写但 verify 会报发现项`);
   }
   // 替换串必须走函数形式：字符串替换里 value 的 `$&`/`$1`/`$'` 会被当作特殊序列展开，
-  // 实测 `--value "a$&b"` 会把整行原文插进新值、污染卡面（写进去还看不出来）。
-  fs.writeFileSync(loc.path, body.replace(re, () => `- ${field}: ${value}`));
+  // 实测 `--value "a$&b"` 会把整行原文插进新值、污染卡面（写进去还看不出来）。setField 两条路径都受此保护。
+  fs.writeFileSync(loc.path, setField(body, field, value));
   autoHtml(root);
   console.log(`card set: ${id} 的「${field}」已更新。`);
 }
@@ -1063,17 +1243,49 @@ function cmdCardMove(argv) {
   }
   // 卡内流转追加段自动补一行
   const body0 = fs.readFileSync(dest, 'utf8');
-  const body = to === 'blocked' && threeState(root) ? addLabel(body0, 'needs-info') : body0;
-  const line = `- ${localIso().replace('T', ' ').slice(0, 16)} | ${loc.state}->${to} | ${arg(argv, 'actor') || 'agent'} | ${arg(argv, 'reason') || '(card move)'}`;
+  // 处理计时盖章：进 claimed 位 = 本轮开始（顺带记 harness），离开 claimed 位 = 本轮结束。
+  // 只盖章、不参与判位：位置的唯一真源仍是上面那次 rename，字段写歪或被抹掉都不会把卡的状态判错
+  // （这正是 ADR-008 被否方案①「用卡内字段承载执行态」与本处的分界）。
+  let body = to === 'blocked' && threeState(root) ? addLabel(body0, 'needs-info') : body0;
+  const claimedIn = to === 'claimed' && loc.state !== 'claimed';
+  const claimedOut = loc.state === 'claimed' && to !== 'claimed';
+  const now = localIso();
+  let spent = '';
+  if (claimedIn) {
+    const h = arg(argv, 'harness');
+    const m = arg(argv, 'llm');
+    // 重领不抹旧值：harness/llm 只在没有新值时保留卡上原值，保证统计口径是「最近一次处理环境」
+    body = setField(body, 'Harness', h || cardFields(body).harness || UNSET);
+    body = setField(body, 'LLM', m || cardFields(body).llm || UNSET);
+    body = setField(body, '开始处理', now);
+    body = setField(body, '结束处理', '');
+    if (!h || !m) {
+      const missing = [!h ? 'Harness' : '', !m ? 'LLM' : ''].filter(Boolean);
+      const kept = missing.filter(k => cardFields(body)[k === 'Harness' ? 'harness' : 'llm']);
+      const fresh = missing.filter(k => !kept.includes(k));
+      const parts = [];
+      if (kept.length) parts.push(`${kept.join(' 和 ')} 保留卡上原值`);
+      if (fresh.length) parts.push(`${fresh.join(' 和 ')} 落成「（未标注）」`);
+      console.log(`card move: 未带 ${missing.map(k => `--${k === 'Harness' ? 'harness' : 'llm'}`).join(' 和 ')}，${parts.join('，')}（看板红字提示）——补：card-set --id ${id} --field ${missing[0]} --value <名>`);
+    }
+  } else if (claimedOut) {
+    body = setField(body, '结束处理', now);
+    // 用时按读数算（字段缺省时回退流转段），老板卡也能报出它这一轮干了多久
+    const p = procOf(cardFields(body), body);
+    const s = stampMs(p.start), e = stampMs(p.end);
+    const ms = s === null ? -1 : (e !== null ? e - s : Date.now() - s);
+    if (ms >= 0) spent = ` · 本轮处理时长 ${durFmt(ms)}`;
+  }
+  const line = `- ${now.replace('T', ' ').slice(0, 16)} | ${loc.state}->${to} | ${arg(argv, 'actor') || 'agent'} | ${arg(argv, 'reason') || '(card move)'}`;
   const newBody = body.replace(/(## 流转追加段[\s\S]*?)(\n## |\n?$)/, (m, sec, tail) => `${sec.trimEnd()}\n\n${line}\n${tail}`);
   fs.writeFileSync(dest, newBody);
   // 自动记账（move 文法，verify 可回放）
-  const ledgerLine = `| ${localIso()} | ${cell(arg(argv, 'actor') || 'agent')} | ${cell(`move ${id}.md ${loc.state}->${to}`)} | ${cell(id)} | ${cell(arg(argv, 'reason') || 'card move')} |\n`;
+  const ledgerLine = `| ${now} | ${cell(arg(argv, 'actor') || 'agent')} | ${cell(`move ${id}.md ${loc.state}->${to}`)} | ${cell(id)} | ${cell(arg(argv, 'reason') || 'card move')} |\n`;
   const ledgerFile = path.join(root, 'control', 'ledger.md');
   if (fs.existsSync(ledgerFile) && !fs.readFileSync(ledgerFile, 'utf8').includes(ledgerLine))
     fs.appendFileSync(ledgerFile, ledgerLine);
   autoHtml(root);
-  console.log(`card move: ${id} ${loc.state}->${to} ⇒ ${path.relative(root, dest).replace(/\\/g, '/')}（已记账 + 刷看板）`);
+  console.log(`card move: ${id} ${loc.state}->${to} ⇒ ${path.relative(root, dest).replace(/\\/g, '/')}（已记账 + 刷看板${spent}）`);
 }
 function cmdCardRm(argv) {
   const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));

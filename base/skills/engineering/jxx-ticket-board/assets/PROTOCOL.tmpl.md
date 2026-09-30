@@ -12,8 +12,8 @@
 └── control\         公告板（工作区根 git 自保，见 §7）
     ├── PROTOCOL.md  本文件
     ├── ledger.md    领导者账本（只追加，一行一动作）
-    ├── board.html   用户进度看板（三列 = 三态；谁移卡谁刷）
-    ├── prd.html / human.html
+    ├── board.html   用户进度看板（四泳道 = 执行态：待领取 · 处理中 · 待审核 · 阻塞；已完成/已归档默认隐藏，页头开关展开；谁移卡谁刷）
+    ├── prd.html / human.html   PRD 看板（未完成/已完成两栏，已完成默认折叠）· 人工待办面板
     ├── CARD-TEMPLATE.md
     ├── starter\     角色启动提示词（dev / merger / reviewer / auto）
     ├── cards\open\        未收口（待领 · 在办 · 待终审）
@@ -50,9 +50,9 @@
    mv "<root>\control\cards\open\<卡id>.md" "<root>\control\cards\open\<卡id>.claimed.md"
    ```
    改名成功 → 卡归你；报"文件不存在"或目标已存在 → 已被他人抢走，换下一张。**绝不允许先在卡里写字再改名。**
-   更稳的姿势是让脚本代劳（它同时记账 + 刷看板）：
+   更稳的姿势是让脚本代劳（它同时记账 + 刷看板 + 盖处理开始时间戳；`--harness`/`--llm` 自报你所在的 harness 与 LLM 模型，见 §4）：
    ```bash
-   node {{SKILL_DIR}}/scripts/board.mjs card-move --root "{{ROOT}}" --id <卡id> --to claimed --actor <你的会话标识>
+   node {{SKILL_DIR}}/scripts/board.mjs card-move --root "{{ROOT}}" --id <卡id> --to claimed --actor <你的会话标识> --harness <harness 名> --llm <模型名>
    ```
    **每次移卡之后（领取/交付/blocked/返工皆同）必须刷看板**，用户的浏览器靠这一步保持追踪：
    ```bash
@@ -93,6 +93,10 @@
   token 与物理路径的对应见 §0 三条轴表；**迁三态不改历史账本行**——`verify` 按 token 回放，`->blocked` 在三态板判「卡在 open 待领位 + labels 带 needs-info」为闭合（历史账本是审计面，改一条就等于造假）。
 - 迁板动作：`migrate 五泳道->三态（N 张卡…）`，由 `board.mjs migrate` 自动记一行。
 - 卡内记录行统一以 `- ` 开头，字段名前缀固定：`- 标题:`、`- 难度:`、`- 模型档位:`、`- 领取者:`、`- PRD:`、`- 分支:`、`- worktree:`、`- 依赖:`、`- labels:`、`- doc_ref:`（PRD/分支/worktree 即工单定位三件套，agent 据此找文件；labels 为 triage 五标签、doc_ref 为服务器工单 URL）。
+- **处理计时四行**（看板「处理中」泳道的读数，`card-move` 自动盖章，一般不用手填）：`- Harness:` 处理者所处的 harness 名 · `- LLM:` 实际使用的 LLM 模型名 · `- 开始处理:` 进 claimed 位的时刻 · `- 结束处理:` 离开 claimed 位的时刻。
+  领卡时**自报** harness 与 LLM：`card-move --to claimed --actor <会话标识> --harness <harness 名> --llm <模型名>`（例：Qoder / Claude Code / CodeBuddy / Cursor；模型名例：Claude Sonnet 4.5 / GPT-5 / DeepSeek-V3.2）；漏了就先在卡上留 `（未标注）`、看板红字提示，随时 `card-set --field Harness --value <名>` / `card-set --field LLM --value <名>` 补。
+  **这四行是统计面，不是租约**：卡的位置唯一由目录 + 文件名后缀决定（§0 三条轴），字段写歪、留空、被人抹掉都不会改变卡的状态，`verify` 也不按它们判任何东西。
+  旧卡（v0.11.0 之前投的）没有这四行也能出读数：看板回退取「流转追加段」里最后一条 `->claimed` / `claimed->` 行的时间，并在 `card-read` 里标 `[由流转段推得]`。
 - `- labels:` **未收口三位（待领/在办/待终审）必填**——空标签等于 triage 维度失联，`verify` 第 5 路对账直接报 MISMATCH。取值只能是五标签之一或其一子集；`wontfix` 的卡不该留在未收口位（应 `archived\`）。
 
 ## 5. 自动编排模式（auto）

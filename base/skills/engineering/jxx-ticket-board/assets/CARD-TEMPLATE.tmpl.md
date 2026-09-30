@@ -3,6 +3,10 @@
 - 标题: {{TITLE}}
 - 难度: {{LEVEL}}
 - 模型档位: {{MODEL}}
+- Harness:
+- LLM:
+- 开始处理:
+- 结束处理:
 - 依赖: {{DEPS}}
 - labels: {{LABELS}}
 - doc_ref: {{DOC_REF}}
@@ -15,6 +19,8 @@
      受阻不再靠 blocked/ 目录表达：`card-move --to blocked` 会把卡留在 open/ 并自动打上 needs-info。
      doc_ref 是服务器工单 URL（手填：`<部署域>/tickets/<工单id>`，路由规则见 PRD 75「前端」段 `/tickets/:id`）；
      本地工单文件路径写 PRD 行，两者别混。留空 = 尚未上行服务器。
+     处理计时四行（Harness / LLM / 开始处理 / 结束处理）是**统计面**：`card-move` 进 claimed 位自动盖开始、离开时盖结束，
+     harness 名与 LLM 模型名由领卡会话用 `--harness <名> --llm <名>` 自报；这四行**不参与判位**（位置的唯一真源是文件名后缀），留空不影响流转。
      确定性路径（card read 实时推导，不占卡面）：分支 ticket/{{ID}} · worktree {{ROOT}}/wt/{{ID}}/ · 推进 /jxx-implement（PROTOCOL §2） -->
 
 ## 领取记录
