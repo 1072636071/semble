@@ -64,7 +64,7 @@
 
 - 领 `merge-<卡id>` 卡（协议同上，先 move 后填）。同一时刻**只处理一张**合并卡，多张按卡内顺序。
 - **第一步是定点复核（干净视角，碰 git 之前）**：读对应开发卡（`review\<卡id>.md`）的「终审待验清单」与「交付记录」，对照工单 PRD 验收标准，用只读 git（`git show <分支>:<路径>`、`git diff origin/main...<分支>`、`git grep`）+ 可派只读子代理，逐项实证 worker 自报是否属实：修复真在？越界夹带？报告实体？清单每项给 闭合✓/未闭合✗+证据。
-- **复核过 → 才执行合并**：`git -C "{{REPO_PATH}}" fetch` → 把 `ticket/<卡id>` rebase 到最新 `{{BASE_BRANCH}}` → 合入并 push → 回收 worktree/分支。
+- **复核过 → 才执行合并**：`git -C "{{REPO_PATH}}" fetch` → 把 `ticket/<卡id>` rebase 到最新 `{{BASE_BRANCH}}` → 合入并 push → 回收 worktree/分支（**回收只用 `board.mjs rm-wt --root <root> --ticket <单卡id>`，一次一卡；禁止批量/递归删除——见 §7**）。
 - **复核不过 → 打回**：merge 卡写明发现项后 `mv → blocked\`（或按卡指示回 `review\`），开发卡退回 `claimed\` 附发现项；**禁止带伤合并**。
 - 例外：merge 卡若标注「领导者口径裁决未决」（L4 卡或跨单口径冲突），合并专员只做复核不做裁决，复核结论回报后待领导者拍板才可合。
 - **冲突红线**：rebase 冲突超出机械可解（需发明新行为才能解）时，不得自行发明——把卡退回 `review\` 并在流转段写明冲突面，交回开发组按 `jxx-resolving-merge-conflicts` 处理。解决即改 diff，diff 变了必须复审。
@@ -132,5 +132,17 @@
 
 ## 6. 断线 / 交接
 
-- 你的全部状态都在：卡内流转段 + 分支历史 + worktree。会话死了，新会话领同一张卡（用户指示下手动改「领取者」）即可续接。
+- 你的全部状态都在：卡内流转段 + 分支历史 + worktree + 看板 git 历史（见 §7）。会话死了，新会话领同一张卡（用户指示下手动改「领取者」）即可续接。
 - 拿不准现状就少做一步、多问用户一句；协议没覆盖的情况，**停下来问**，不要发明规矩。
+
+## 7. 破坏性操作红线与看板自保（2026-09-30 事故后新增）
+
+**事故**：2026-09-30 07:22，一次被授权的「批量回收 worktree」失控，把整个 `control\`（账本 + 254 张卡 + 三页看板）与多数 worktree 目录一并删掉；当时 `control\` 无版本控制 ⇒ 历史**不可还原**，只能按内存重建 16 张卡，其余约 242 张只剩索引。过程记录见 `control/RECOVERY-*.md`。 **事故取证入口**：harness 会话转录在 `~/.dsh/sessions/<cwd-slug>/<session-id>/session.v4.jsonl.zstd`，是**多帧 zstd**——按 4 字节魔数 `28 B5 2F FD` 切帧逐帧解压，即可回放某个子代理当时真正敲的命令（本轮即以此定位到「绕过 rm-wt、用 `cmd /c rmdir /s /q` 三次重跑」的事实）。
+
+四条红线：
+
+1. **回收只走授权通道**：`node <skill>\scripts\board.mjs rm-wt --root <root> --ticket <单卡id>`，**一次一卡**。该命令只接受单段目录名、只删 `<root>/wt/<单卡id>`，越界即拒。禁止 `rm -rf` / `Remove-Item -Recurse` / 通配符 / 循环批量删除。
+2. **`control\` 只读不删**：任何删除、清空、递归覆盖 `control\` 的命令一律禁止；改模板走 `board.mjs render --write`（旧版自动备份到 `control/.render-backup/`）。
+3. **禁止把批量破坏性操作交给子代理**：领导者不得授权「把剩下的孤儿一起清了」这类批量动作；子代理只领**单张卡**的明确 id。批量清单留在 `control/human.html`，由人逐条确认后单张执行。
+4. **禁止后台/长超时运行破坏性命令**：工具在超时后会把命令**提升为后台任务继续跑**（本仓 harness 的 pwsh 行为），于是「以为它超时了」时删除仍在进行、且无人再看输出。回收一律用 `board.mjs rm-wt`（有界、秒级），不要给它 `timeoutMs` 长值、不要 `run_in_background`；任何删除动作之后**必须先重新查实况**再下结论。
+5. **破坏前先留档**：`control\` 由工作区根 git 仓库自保——变更类命令（`ledger` / `card-move` / `card-set` / `new-card` / `card-rm` / `init`）每次自动留一版快照；大动作前后可显式跑 `board.mjs snapshot --root <root>`。`git -C <root> log --oneline` 即看板历史，`git -C <root> show <sha>:control/cards/...` 即任意时点的卡。**新工作区建仓口径**：`git init <root>` + `.gitignore` 写 `wt/`（worktree 属产品仓，不纳入）。

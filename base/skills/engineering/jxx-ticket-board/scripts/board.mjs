@@ -101,11 +101,15 @@ function cmdInit(argv) {
 }
 
 // ---------- card fields ----------
+// 字段值一律剥掉两侧的引号/反引号：2026-09-30 复盘——正文里写「- PRD: 反引号路径反引号」会被当卡头字段，
+// verify 于是报「PRD 指针不存在」的假 MISMATCH。另：PRD 只认以 .md 结尾的值，模板占位串与散文提及一律不作数。
 function cardFields(body) {
   const b = body.replace(/\r/g, '');
-  const f = k => (b.match(new RegExp('^- ' + k + ':\\s*(.+)\\s*$', 'm')) || [])[1] || '';
+  const clean = v => v.replace(/^[\s`"']+/, '').replace(/[\s`"']+$/, '').trim();
+  const f = k => clean((b.match(new RegExp('^- ' + k + ':\\s*(.+)\\s*$', 'm')) || [])[1] || '');
+  const prdRaw = f('PRD');
   return { title: f('标题'), level: f('难度'), model: f('模型档位'), by: f('领取者'),
-    prd: f('PRD'), branch: f('分支'), wt: f('worktree'), deps: f('依赖') };
+    prd: /\.md$/i.test(prdRaw) ? prdRaw : '', branch: f('分支'), wt: f('worktree'), deps: f('依赖') };
 }
 function scanBoard(root) {
   return LANES.map(s => ({ state: s, cards: listCards(root, s).map(c => {
@@ -130,9 +134,16 @@ function pendingDeps(root, depsLine, selfId) {
 function cmdBoard(argv) {
   const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));
   needWs(root);
+  const showAll = flag(argv, 'all');
   for (const col of scanBoard(root)) {
     if (col.state === 'held' && !col.cards.length) continue;
     console.log(`\n== ${col.state === 'held' ? 'held（暂缓·等依赖，worker 不可领）' : col.state} (${col.cards.length}) ==`);
+    // done 泳道只报计数：历史无限增长（2026-09-30 时 254 张，全量打印一次约 12k token）。
+    // 逐卡明细用 --all，或直接看 control/board.html。
+    if (col.state === 'done' && !showAll) {
+      if (col.cards.length) console.log(`  （${col.cards.length} 张已归档，明细见 control/board.html 或加 --all）`);
+      continue;
+    }
     for (const c of col.cards) {
       const pend = (col.state === 'inbox' || col.state === HELD) ? pendingDeps(root, c.deps, c.id) : [];
       console.log(`  [${c.level || '?'}] ${c.id}.md${c.title ? ` — ${c.title}` : ''}${c.by ? `  [${c.by}]` : ''}${pend.length ? `  ⛓ 等依赖: ${pend.join(', ')}` : ''}`);
@@ -611,6 +622,9 @@ function cmdVerify(argv) {
     const devId = c.replace(/\.md$/, '');
     const { branch } = cardFields(cbody);
     for (const b of [...new Set([`ticket/${devId}`, (branch || '').trim()].filter(Boolean))]) {
+      // 2026-09-30 工具欠账修复：三点 diff 的 merge-base 随合入后移，会把「已合入但分支未删」的
+      // 分支再计一遍 ⇒ 必然误报撞号。零领先（已全部合入）直接跳过。
+      try { if (git(meta.repoPath, `rev-list --count origin/main..${b}`) === '0') continue; } catch { continue; }
       let d = ''; try { d = git(meta.repoPath, `diff origin/main...${b} -- .scratch/BACKLOG.md`); } catch { continue; }
       for (const n of new Set([...d.matchAll(/^\+#{2,3} (\d+)\./gm)].map(m => m[1]))) {
         if (!bAdd.has(n)) bAdd.set(n, []);
@@ -857,6 +871,8 @@ function cmdAddWt(argv) {
   const id = arg(argv, 'ticket') || die('缺少 --ticket <NNN-slug>');
   const base = arg(argv, 'base') || 'origin/main';
   const repoDir = meta.repoPath, wtPath = path.join(root, 'wt', id), branch = `ticket/${id}`;
+  // 目录被外部删除会留下 stale worktree 注册，导致下面的 -b 回退分支失败；先 prune。
+  try { git(repoDir, 'worktree prune'); } catch { /* ignore */ }
   try { git(repoDir, `rev-parse --verify ${branch}`); git(repoDir, `worktree add "${wtPath}" ${branch}`); }
   catch { git(repoDir, `worktree add "${wtPath}" -b ${branch} ${base}`); }
   autoHtml(root);
@@ -866,9 +882,18 @@ function cmdRmWt(argv) {
   const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));
   const id = arg(argv, 'ticket') || die('缺少 --ticket <NNN-slug>');
   const repoDir = needWs(root).repoPath;
-  git(repoDir, `worktree remove "${path.join(root, 'wt', id)}"${flag(argv, 'force') ? ' --force' : ''}`);
+  // 破坏性操作边界（2026-09-30 事故：批量回收失控删掉整个 control/）：本命令只允许删
+  // <root>/wt/<单段目录名>，拒绝路径分隔符/通配符/遍历片段，且目标必须真实存在。
+  if (!id || /[\\/*?|"<>]/.test(id) || id === '.' || id === '..') die(`--ticket "${id}" 非法：只接受单段目录名（禁路径分隔符与通配符）`);
+  const wtBase = path.resolve(root, 'wt');
+  const target = path.resolve(wtBase, id);
+  if (path.dirname(target) !== wtBase) die(`拒绝回收：解析出的路径越出 wt/（${target}）`);
+  if (!fs.existsSync(target)) die(`拒绝回收：目录不存在 ${target}`);
+  git(repoDir, `worktree remove "${target}"${flag(argv, 'force') ? ' --force' : ''}`);
   if (flag(argv, 'delete-branch')) git(repoDir, `branch -D ticket/${id}`);
+  try { git(repoDir, 'worktree prune'); } catch { /* 无注册可清 */ }
   autoHtml(root);
+  snapshot(root, `rm-wt ${id}`);
   console.log(`rm-wt: wt/${id} 已回收${flag(argv, 'delete-branch') ? '，分支已删' : ''}。`);
 }
 
@@ -978,10 +1003,75 @@ function cmdAuto(argv) {
   autoHtml(root);
 }
 
+// ---------- render（模板漂移修复：init 只补缺，不会更新已存在的文件）----------
+function cmdRender(argv) {
+  const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));
+  const meta = needWs(root);
+  const write = flag(argv, 'write');
+  const render = (file) => fs.readFileSync(path.join(SKILL_DIR, 'assets', file), 'utf8')
+    .replaceAll('{{ROOT}}', root).replaceAll('{{REPO_URL}}', meta.repoUrl || '')
+    .replaceAll('{{REPO_PATH}}', meta.repoPath).replaceAll('{{BASE_BRANCH}}', meta.baseBranch || 'origin/main')
+    .replaceAll('{{SKILL_DIR}}', SKILL_DIR.replace(/\\/g, '\\\\'));
+  const targets = [
+    ['PROTOCOL.tmpl.md', path.join(root, 'control', 'PROTOCOL.md')],
+    ['CARD-TEMPLATE.tmpl.md', path.join(root, 'control', 'CARD-TEMPLATE.md')],
+    ['starter-dev.tmpl.md', path.join(root, 'control', 'starter', 'dev.md')],
+    ['starter-merger.tmpl.md', path.join(root, 'control', 'starter', 'merger.md')],
+    ['starter-reviewer.tmpl.md', path.join(root, 'control', 'starter', 'reviewer.md')],
+    ['starter-auto.tmpl.md', path.join(root, 'control', 'starter', 'auto.md')],
+  ];
+  for (const [asset, dest] of targets) {
+    const content = render(asset);
+    const old = fs.existsSync(dest) ? fs.readFileSync(dest, 'utf8') : null;
+    const rel = path.relative(root, dest);
+    if (old === content) { console.log(`  [same] ${rel}`); continue; }
+    if (!write) { console.log(`  [drift] ${rel}（加 --write 覆盖；旧版会备份到 control/.render-backup/）`); continue; }
+    if (old !== null) {
+      const bakDir = path.join(root, 'control', '.render-backup');
+      fs.mkdirSync(bakDir, { recursive: true });
+      fs.copyFileSync(dest, path.join(bakDir, path.basename(dest) + '.bak'));
+    }
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, content);
+    console.log(`  [${old === null ? 'created' : 'updated'}] ${rel}`);
+  }
+}
+
+// ---------- 看板快照（事故防线）----------
+// 2026-09-30：control/ 是 git 外协调面，被一条越界删除命令整目录抹掉后无法还原。
+// 现改为：工作区根做本地 git 仓库（wt/ 忽略），变更类命令每次自动留一版快照。
+function snapshot(root, reason) {
+  try {
+    if (git(root, 'rev-parse --is-inside-work-tree') !== 'true') return false;
+    const gi = path.join(root, '.gitignore');
+    if (!fs.existsSync(gi)) fs.writeFileSync(gi, 'wt/\n');
+    const paths = ['control', '.gitignore', 'AGENTS.md', 'CODEBUDDY.md'].filter(f => fs.existsSync(path.join(root, f)));
+    if (!paths.length) return false;
+    git(root, `add -A -- ${paths.map(f => `"${f}"`).join(' ')}`);
+    if (!git(root, 'status --porcelain').trim()) return false;
+    const msg = String(reason || 'manual').replace(/"/g, '');
+    git(root, `-c user.name=board-snapshot -c user.email=board@local commit -q -m "board snapshot: ${msg} @ ${localIso()}"`);
+    return true;
+  } catch { return false; }
+}
+function cmdSnapshot(argv) {
+  const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));
+  needWs(root);
+  const ok = snapshot(root, 'manual');
+  console.log(ok
+    ? `snapshot: 已留一版看板快照（git -C "${root}" log --oneline -1）`
+    : `snapshot: 无变更，或 ${root} 尚未 git init（先 git init 并忽略 wt/，之后每次变更自动快照）`);
+}
+
 // ---------- command table ----------
 const cmd = process.argv[2];
 const argv = process.argv.slice(3);
-const table = { init: cmdInit, board: cmdBoard, html: cmdHtml, ledger: cmdLedger, verify: cmdVerify, 'new-card': cmdNewCard, 'add-wt': cmdAddWt, 'rm-wt': cmdRmWt, 'card-read': cmdCardRead, 'card-set': cmdCardSet, 'card-move': cmdCardMove, 'card-rm': cmdCardRm, auto: cmdAuto };
+const table = { init: cmdInit, board: cmdBoard, html: cmdHtml, ledger: cmdLedger, verify: cmdVerify, 'new-card': cmdNewCard, 'add-wt': cmdAddWt, 'rm-wt': cmdRmWt, 'card-read': cmdCardRead, 'card-set': cmdCardSet, 'card-move': cmdCardMove, 'card-rm': cmdCardRm, snapshot: cmdSnapshot, render: cmdRender, auto: cmdAuto };
 if (!cmd || !table[cmd]) die(`未知子命令 "${cmd || '(空)'}"。可用：${Object.keys(table).join(' / ')}`);
 try { table[cmd](argv); }
 catch (e) { die(`${cmd} 失败：${e.stderr?.toString().trim().split('\n')[0] || e.message}`); }
+// 变更类命令后自动留一版看板快照（工作区根 git init 过才生效，未 init 时静默跳过）
+if (['init', 'new-card', 'card-move', 'card-rm', 'card-set', 'ledger'].includes(cmd)) {
+  const snapRoot = arg(argv, 'root');
+  if (snapRoot) snapshot(path.resolve(snapRoot), cmd);
+}
