@@ -17,7 +17,7 @@ Read {{ROOT}}\control\PROTOCOL.md
 
 ## 本次任务
 
-1. 读卡 `{{ROOT}}\control\cards\review\{{CARD_ID}}.md` + 卡内 PRD 指针指向的工单文件。
+1. 读卡 `{{ROOT}}\control\cards\open\{{CARD_ID}}.review.md`（三态板：待终审 = 文件名后缀，不在 review\ 目录）+ 卡内 PRD 指针指向的工单文件。
 2. `git -C {{REPO_PATH}} diff {{BASE_BRANCH}}...ticket/{{CARD_ID}}` 看全部变更。
 3. 按你的维度审查：
    - **标准（std）**：命名、格式、import 形态、文件位置、错误处理模式是否遵循仓库编码标准

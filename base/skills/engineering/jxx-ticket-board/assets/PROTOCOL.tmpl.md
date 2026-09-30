@@ -9,18 +9,31 @@
 {{REPO_PATH}}\       权威主工作区（外部路径；领导者管辖，worker 不在此干活）
 {{ROOT}}\
 ├── wt\<卡id>\       工单工作区，一人一目录，分支 ticket\<卡id>
-└── control\         公告板（git 外，协调专用）
+└── control\         公告板（工作区根 git 自保，见 §7）
     ├── PROTOCOL.md  本文件
-    ├── ledger.md    领导者账本（只有领导者可写）
-    ├── board.html   用户进度看板（领导者保鲜职责）
+    ├── ledger.md    领导者账本（只追加，一行一动作）
+    ├── board.html   用户进度看板（三列 = 三态；谁移卡谁刷）
+    ├── prd.html / human.html
     ├── CARD-TEMPLATE.md
     ├── starter\     角色启动提示词（dev / merger / reviewer / auto）
-    ├── cards\{inbox,claimed,review,done,blocked}\   目录即状态
-    └── held\        领导者暂缓道（依赖未就绪的卡停这里，worker 不可见、不可移入移出）
+    ├── cards\open\        未收口（待领 · 在办 · 待终审）
+    ├── cards\done\        已收口（合入并归档）
+    ├── cards\archived\    已归档（wontfix / 让位 / 不再执行）
+    └── held\              领导者暂缓道（依赖未就绪的卡停这里，worker 不可见、不可移入移出）
 ```
 
 - **工单卡**：一个 md 文件 = 一张卡 = 一个 `.scratch\` 工单 = 一个分支，严格 1:1（薄卡：卡只放指针与协调记录，**成果正文一律进 git 分支**）。
-- **状态即位置**：卡躺在哪个目录，就处于什么状态。流转 = 移动文件。
+- **三条正交轴（D9，别再往目录里塞第二件事）**：
+
+  | 轴 | 载体 | 取值 |
+  |---|---|---|
+  | 生命周期 | 目录 | `open/` 未收口 · `done/` 已收口 · `archived/` 废弃让位 |
+  | 执行态 | 文件名后缀 | `<卡id>.md` 待领 · `<卡id>.claimed.md` 在办 · `<卡id>.review.md` 待终审 |
+  | triage 下一步 | 卡面 `- labels:` 行 | `ready-for-agent` / `ready-for-human` / `needs-info` / `needs-triage` / `wontfix` |
+
+- **受阻不是目录**：三态后没有 `blocked\`。受阻 = 卡留在 `open\` 待领位 **+** `labels:` 带 `needs-info`（`board.mjs card-move --to blocked` 自动这么落）。需要人拍板的 = `labels: ready-for-human`。
+- **状态即位置，但「谁领的」仍靠原子改名**：领取/交付/返工都是**改名**（rename），文件系统排他性兜底防抢——执行态放文件名而不是放标签，正是为了保住这条（详见 `references/ADR-004`、`ADR-008`）。流转 = 移动/改名文件。
+- 旧五泳道板迁三态走 `board.mjs migrate --root <root> [--dry-run]`（只改名 + 补 labels + 记一笔账，**不删旧目录**，可回退）。
 
 ## 1. 领取规矩（防抢，不可协商）
 
@@ -31,12 +44,16 @@
    | L2 | 有界实现：规格清晰、跨 2-4 文件、无设计决策 | 中档 |
    | L3 | 需判断：跨模块、要选实现方案、要动测试架构 | 强模型 |
    | L4 | 设计级：改公共接口/数据模型/协议本身 | 最强模型 + 双重审查（组内审 + 独立干净会话复审） |
-1. 看活只找 `cards\inbox\` 中的卡；**开发卡** id 形如 `NNN-slug`，**合并卡** 形如 `merge-NNN-slug`（只有合并专员领后者）。依赖未就绪的卡由领导者投卡时自动收进 `control\held\`（等依赖卡归档 done 后释放回 inbox），worker 对 held 既不看也不动。
-2. 领取 = 先移动文件，后填卡：
+1. 看活只找 `cards\open\` 里**没有后缀**的卡（`<卡id>.md` = 待领；`.claimed.md` / `.review.md` 别碰）；**开发卡** id 形如 `NNN-slug`，**合并卡** 形如 `merge-NNN-slug`（只有合并专员领后者）。依赖未就绪的卡由领导者投卡时自动收进 `control\held\`（等依赖卡归档 done 后释放回 open），worker 对 held 既不看也不动。
+2. 领取 = 先改名，后填卡（**改名是原子的，抢卡只有一个能成功**）：
    ```bash
-   mv "<root>\control\cards\inbox\<卡id>.md" "<root>\control\cards\claimed\<卡id>.md"
+   mv "<root>\control\cards\open\<卡id>.md" "<root>\control\cards\open\<卡id>.claimed.md"
    ```
-   移动成功 → 卡归你；报"文件不存在" → 已被他人抢走，换下一张。**绝不允许先在卡里写字再移动。**
+   改名成功 → 卡归你；报"文件不存在"或目标已存在 → 已被他人抢走，换下一张。**绝不允许先在卡里写字再改名。**
+   更稳的姿势是让脚本代劳（它同时记账 + 刷看板）：
+   ```bash
+   node {{SKILL_DIR}}/scripts/board.mjs card-move --root "{{ROOT}}" --id <卡id> --to claimed --actor <你的会话标识>
+   ```
    **每次移卡之后（领取/交付/blocked/返工皆同）必须刷看板**，用户的浏览器靠这一步保持追踪：
    ```bash
    node {{SKILL_DIR}}/scripts/board.mjs html --root "{{ROOT}}"
@@ -52,28 +69,31 @@
 
 - **推进方式（强制）**：领到开发卡后全程用 `/jxx-implement` 技能推进（harness 未装该技能 → 卡记 blocked 回报用户，不得裸写绕过）。其三段完成硬出口——①工单 `Status:` 置 `pending-review` ②`/jxx-code-review` 审全部变更、有发现项即修复重审、通过前不得提交 ③审查通过后工单置 `done` 并 commit 到分支——**全部做完才是本卡可交付的前置条件**。
 - 交付 = 移动卡：jxx-implement 三段出口完成后，在卡「交付记录」追加提交范围 + 审查报告指针，并把**需要终审实证的事项逐条写进「终审待验清单」**（验收关键项+自报结论+越界/豁免声明——合并专员将逐项实证，写虚的会被打回），然后
-  `mv claimed\<卡id>.md review\<卡id>.md`，**刷看板（§1.2 的 html 命令）**，并回报用户"已交付待终审"。
+  `mv open\<卡id>.claimed.md open\<卡id>.review.md`（或 `card-move --to review`），**刷看板（§1.2 的 html 命令）**，并回报用户"已交付待终审"。
 - 组内其余流程自定（jxx 系列技能照常），但成果必须满足：
   1. 一切成果（代码、工单文档增量、**审查报告**）都在 `ticket/<卡id>` 分支上；审查报告放分支内 `.scratch/<工单>/reviews/`，审查报告即 /jxx-code-review 产物（干净视角执行，针对 `git diff {{BASE_BRANCH}}...ticket/<卡id>`）。
   2. 分支已 commit 整齐（无未提交残留），已 `git push origin ticket/<卡id>`（remote 是成果备份面）。
-- 返工：被移回 `claimed\`（终审意见写在卡的「流转追加段」）→ 继续在原 worktree/分支干活，改完再交。
-- 干不下去：卡「流转追加段」写原因，`mv claimed review/blocked 视情况 → blocked\<卡id>.md`，**刷看板**，回报用户。
-- 禁止：动权威工作区（`{{REPO_PATH}}`）主干、提交到 `{{BASE_BRANCH}}`、移动他人 claimed 的卡、把成果正文只写在卡里。
+- 返工：卡被改回 `open\<卡id>.claimed.md`（终审意见写在卡的「流转追加段」）→ 继续在原 worktree/分支干活，改完再交。
+- 干不下去：卡「流转追加段」写原因，然后 `card-move --to blocked`——三态下这一步**不新建目录**：卡回到 `open\<卡id>.md` 待领位并被自动打上 `needs-info` 标签，**刷看板**，回报用户。等人拍板用 `card-set --field labels --value ready-for-human`。
+- 禁止：动权威工作区（`{{REPO_PATH}}`）主干、提交到 `{{BASE_BRANCH}}`、移动他人 `.claimed` 的卡、把成果正文只写在卡里。
 
 ## 3. 合并专员规则（先审后合）
 
 - 领 `merge-<卡id>` 卡（协议同上，先 move 后填）。同一时刻**只处理一张**合并卡，多张按卡内顺序。
-- **第一步是定点复核（干净视角，碰 git 之前）**：读对应开发卡（`review\<卡id>.md`）的「终审待验清单」与「交付记录」，对照工单 PRD 验收标准，用只读 git（`git show <分支>:<路径>`、`git diff origin/main...<分支>`、`git grep`）+ 可派只读子代理，逐项实证 worker 自报是否属实：修复真在？越界夹带？报告实体？清单每项给 闭合✓/未闭合✗+证据。
+- **第一步是定点复核（干净视角，碰 git 之前）**：读对应开发卡（`open\<卡id>.review.md`）的「终审待验清单」与「交付记录」，对照工单 PRD 验收标准，用只读 git（`git show <分支>:<路径>`、`git diff origin/main...<分支>`、`git grep`）+ 可派只读子代理，逐项实证 worker 自报是否属实：修复真在？越界夹带？报告实体？清单每项给 闭合✓/未闭合✗+证据。
 - **复核过 → 才执行合并**：`git -C "{{REPO_PATH}}" fetch` → 把 `ticket/<卡id>` rebase 到最新 `{{BASE_BRANCH}}` → 合入并 push → 回收 worktree/分支（**回收只用 `board.mjs rm-wt --root <root> --ticket <单卡id>`，一次一卡；禁止批量/递归删除——见 §7**）。
-- **复核不过 → 打回**：merge 卡写明发现项后 `mv → blocked\`（或按卡指示回 `review\`），开发卡退回 `claimed\` 附发现项；**禁止带伤合并**。
+- **复核不过 → 打回**：merge 卡写明发现项后 `card-move --to blocked`（或按卡指示把开发卡改名回 `open\<卡id>.claimed.md` 附发现项）；**禁止带伤合并**。
 - 例外：merge 卡若标注「领导者口径裁决未决」（L4 卡或跨单口径冲突），合并专员只做复核不做裁决，复核结论回报后待领导者拍板才可合。
-- **冲突红线**：rebase 冲突超出机械可解（需发明新行为才能解）时，不得自行发明——把卡退回 `review\` 并在流转段写明冲突面，交回开发组按 `jxx-resolving-merge-conflicts` 处理。解决即改 diff，diff 变了必须复审。
+- **冲突红线**：rebase 冲突超出机械可解（需发明新行为才能解）时，不得自行发明——把开发卡改名回 `open\<卡id>.review.md` 并在流转段写明冲突面，交回开发组按 `jxx-resolving-merge-conflicts` 处理。解决即改 diff，diff 变了必须复审。
 - 合并成功：merge 卡追加结果（合入 commit、复核结论行、时间），`mv → done\`，**刷看板**；对应开发卡由领导者移 `done\`。
 
 ## 4. 卡内文法（verify 对账依赖，勿改）
 
-- 领导者记账的移卡动作：`move <卡id>.md <from>-><to>`（写在 `control\ledger.md`）。
-- 卡内记录行统一以 `- ` 开头，字段名前缀固定：`- 标题:`、`- 难度:`、`- 模型档位:`、`- 领取者:`、`- PRD:`、`- 分支:`、`- worktree:`、`- 依赖:`（PRD/分支/worktree 即工单定位三件套，agent 据此找文件）。
+- 记账的移卡动作：`move <卡id>.md <from>-><to>`（写在 `control\ledger.md`）。`<from>/<to>` 是**工作流位 token**：`inbox`（待领）· `claimed`（在办）· `review`（待终审）· `done` · `archived` · `blocked` · `held`。
+  token 与物理路径的对应见 §0 三条轴表；**迁三态不改历史账本行**——`verify` 按 token 回放，`->blocked` 在三态板判「卡在 open 待领位 + labels 带 needs-info」为闭合（历史账本是审计面，改一条就等于造假）。
+- 迁板动作：`migrate 五泳道->三态（N 张卡…）`，由 `board.mjs migrate` 自动记一行。
+- 卡内记录行统一以 `- ` 开头，字段名前缀固定：`- 标题:`、`- 难度:`、`- 模型档位:`、`- 领取者:`、`- PRD:`、`- 分支:`、`- worktree:`、`- 依赖:`、`- labels:`、`- doc_ref:`（PRD/分支/worktree 即工单定位三件套，agent 据此找文件；labels 为 triage 五标签、doc_ref 为服务器工单 URL）。
+- `- labels:` **未收口三位（待领/在办/待终审）必填**——空标签等于 triage 维度失联，`verify` 第 5 路对账直接报 MISMATCH。取值只能是五标签之一或其一子集；`wontfix` 的卡不该留在未收口位（应 `archived\`）。
 
 ## 5. 自动编排模式（auto）
 
@@ -91,15 +111,15 @@
 ### 5.2 编排者规则
 
 1. **投卡**：读用户指定的工单文件列表，逐张 `new-card` 投卡（含 `--ticket-file` 状态闸门）。
-2. **spawn worker**：对每张无阻塞的 inbox 卡，spawn 一个独立子 agent（`subagent` 或 `spawn_teammate`，agent 自行选择——只要能独立上下文、尽可能并行）。worker 提示词 = `control/starter/starter-dev.md` 全文 + 指定卡 id。
-3. **监控**：worker 回报后，检查卡位置——
-   - 卡在 `review/` → 触发审查（§5.3）
-   - 卡在 `blocked/` → 读卡内原因，**先重试一次**（重新 spawn worker 或提示用户）；重试仍 blocked → 保留 blocked，**继续推进其他不阻塞的卡**
-   - 卡在 `claimed/` 超时（默认 30 分钟无动静）→ 视为僵死，重新 spawn worker 接力
-4. **spawn 审查者**：卡在 `review/` 时，spawn 3 个独立审查者（§5.3），并行审查。
+2. **spawn worker**：对每张无阻塞的待领卡（`open/<卡id>.md` 无后缀），spawn 一个独立子 agent（`subagent` 或 `spawn_teammate`，agent 自行选择——只要能独立上下文、尽可能并行）。worker 提示词 = `control/starter/starter-dev.md` 全文 + 指定卡 id。
+3. **监控**：worker 回报后，检查卡位（看文件名后缀，不看目录）——
+   - `open/<卡id>.review.md` → 触发审查（§5.3）
+   - `open/<卡id>.md` 且 labels 带 `needs-info` → 读卡内原因，**先重试一次**（重新 spawn worker 或提示用户）；重试仍受阻 → 保留 needs-info，**继续推进其他不阻塞的卡**
+   - `open/<卡id>.claimed.md` 超时（默认 30 分钟无动静）→ 视为僵死，重新 spawn worker 接力
+4. **spawn 审查者**：卡在 `.review` 位时，spawn 3 个独立审查者（§5.3），并行审查。
 5. **审查结果处理**：
    - 3 个审查者全部通过 → spawn 合并专员（§5.4）
-   - 任一审查者有发现项 → 把发现项汇总写回卡的「流转追加段」，卡移回 `claimed/` 返工，重新 spawn worker
+   - 任一审查者有发现项 → 把发现项汇总写回卡的「流转追加段」，卡改名回 `open/<卡id>.claimed.md` 返工，重新 spawn worker
 6. **spawn 合并专员**：合并专员领 merge 卡，执行合并 + 冲突解决。
 7. **合入完成**：merge 卡移 `done/`，开发卡移 `done/`，记账，刷看板。
 
@@ -120,14 +140,14 @@
 ### 5.4 合并专员规则（auto 模式）
 
 - auto 模式下合并专员由编排者 spawn，职责与 §3 一致——先审后合、冲突红线、禁止带伤合并。
-- 合并专员处理合并冲突时：机械冲突（重命名、import 路径、格式）可自行解决；**需发明新行为的冲突** → 卡移 `blocked/`，等人工处理。
+- 合并专员处理合并冲突时：机械冲突（重命名、import 路径、格式）可自行解决；**需发明新行为的冲突** → `card-move --to blocked`（= 卡回 open 待领位 + needs-info 标签），等人工处理。
 - 合并成功 → merge 卡 + 开发卡移 `done/`，记账，刷看板。
 
 ### 5.5 失败处理
 
-- **worker 失败**：先重试一次（重新 spawn）；仍失败 → 卡 `blocked/`，编排者继续推进其他卡。
-- **审查失败**：发现项汇总 → 卡 `claimed/` 返工 → 重新 spawn worker → 重新审查。
-- **合并冲突**：机械冲突 merger 自解；非机械冲突 → 卡 `blocked/` 等人工。
+- **worker 失败**：先重试一次（重新 spawn）；仍失败 → `card-move --to blocked`（needs-info 标签），编排者继续推进其他卡。
+- **审查失败**：发现项汇总 → 卡改名回 `open/<卡id>.claimed.md` 返工 → 重新 spawn worker → 重新审查。
+- **合并冲突**：机械冲突 merger 自解；非机械冲突 → `--to blocked` 等人工。
 - **编排者自身失败**：`verify` 重建状态，从断点续接。
 
 ## 6. 断线 / 交接

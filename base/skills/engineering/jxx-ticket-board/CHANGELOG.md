@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.10.0 — 2026-09-30
+
+**三态目录 + 标签正交（D9 落地，工单 75-c01 / ADR-008）**——公告板与服务器工单系统改用同一套心智：目录只表达生命周期，执行态与 triage 各归各的载体。**防抢地基不动**：领取仍是一次原子 rename（ADR-004 的核心不变量），执行态落在**文件名后缀**而不是卡内字段——后者正是 ADR-004 明确否掉的「平铺 + frontmatter 租约」方案。
+
+- **三条正交轴**：目录 `open/`（未收口）· `done/`（已收口）· `archived/`（wontfix/让位）；文件名后缀 `<id>.md` 待领 · `.claimed.md` 在办 · `.review.md` 待终审；卡面 `- labels:` 行 = triage 五标签（`ready-for-agent` / `ready-for-human` / `needs-info` / `needs-triage` / `wontfix`，不增不减）。`held/`（领导者暂缓道）原样保留。
+- **`blocked` 不再是目录**：`card-move --to blocked` 把卡落回 `open/` 待领位并自动补 `needs-info` 标签；账本与卡内流转行仍记 `->blocked`，`verify` 的闭合判据自动变成「待领位 + 带 needs-info」。等人拍板用 `card-set --field labels --value ready-for-human`。
+- **历史账本零改写**：`move <卡id>.md <from>-><to>` 里的 from/to 继续是工作流位 token（`inbox/claimed/review/done/blocked/archived/held`），五泳道时代留下的历史行仍逐条可回放——历史账本是审计面，改一条就等于造假。
+- **新增 `migrate` 子命令**：旧五泳道板迁三态，只做「建目录 → 逐张改名 → 补 labels → 记一行账 → 留快照」；`--dry-run` 先出清单，幂等可重跑，**旧目录留空不删**（红线 §7.2），回退 = 把卡 mv 回去。
+- **两条新红灯**（改名方案唯一的两个新腐坏面，都机检）：① 同一 id 同时占两位（`x.md` 与 `x.claimed.md`）⇒ MISMATCH；② 三态板在旧泳道目录里扫到 `.md` ⇒ MISMATCH，并直接给出可照做的改名目标（否则照旧协议 `mv` 进去的卡会「写成功却永远看不见」）。
+- **`verify` 升为五路对账**：账本 × 卡位 × worktree × 工单状态 × **标签**（新增第 5 路：未收口三位缺 `labels` 行、标签越界、`wontfix` 滞留未收口位、`doc_ref` 写成本地路径都判 MISMATCH）。
+- **薄卡增 `- doc_ref:`**（服务器工单 URL，经 `jxx-ticket-router` 生成），与本地 `PRD:` 路径分列；`new-card` 增 `--labels` / `--doc-ref`，投卡时 labels 缺省取自工单 `**Status:**` 行。`card-set` 白名单加 `labels` / `doc_ref`；`card-read` 输出这两个派生行。
+- **`board.html` 改渲染三列**（在办 open / 已收口 done / 已归档 archived）+ 每卡**执行态徽标**（待领·在办·待终审）+ **triage 标签色标**（五色）+ `doc_ref` 外链；`prd.html` 的「在办」分组按 open 三位判定。
+- **同型坑修复**：`cardFields` 取值正则原为 `^- k:\s*(.+)\s*$`，其中 `\s*` 会吞换行——空的 `- doc_ref:` 会把**下一行**的 `- PRD: …` 抄成自己的值（实测立刻假报「doc_ref 不是 URL」）。字符类一律改 `[^\r\n]`；这是 0.9.3「正文里的 `- PRD:` 被当卡头字段」的同型坑，selftest 加了跨行泄漏回归断言。
+- **协议与模板同步**：`PROTOCOL.tmpl.md` §0（三轴表）/ §1.1-1.2（找无后缀待领卡、领取=改名）/ §2（交付=改名 `.review.md`、受阻=`--to blocked`）/ §3（复核对象 `open/<id>.review.md`、打回改名回 `.claimed.md`）/ §4（token 与物理落点对应表 + labels 必填）/ §5（auto 监控看后缀）；`CARD-TEMPLATE.tmpl.md` 增 `labels:` / `doc_ref:` 行与三轴说明；四份 starter 同步改口径（含本技能**没有** `card-block` 子命令这一错位描述的订正）。
+- **`references/ADR-008-three-state-lanes-and-orthogonal-labels.md`** 记录决策与被否方案，并修订 ADR-004 决策 1/3（其「原子 move 防抢」不变量原样保留）。
+- **`selftest.mjs` 14 → 52 项断言**：三态落点、改名防抢（含抢占反例与「被拒方不动原卡」）、一位双占红灯、历史 `->blocked` 行双向闭合、旧泳道残卡红灯、labels/doc_ref 四类反例、三列渲染、migrate 六项（dry-run / 四种泳道映射 / 不删旧目录 / 记账 / 幂等）。
+
+
 ## 0.9.3 — 2026-09-30
 
 **事故驱动的一轮硬化**：2026-09-30 07:22，一次被授权的「批量回收 worktree」失控，把整个 `control/`（账本 + 254 张卡 + 三页看板）与多数 worktree 目录删掉；`control/` 当时无版本控制 ⇒ 不可还原。以下四类改动针对该事故链上的每一环。

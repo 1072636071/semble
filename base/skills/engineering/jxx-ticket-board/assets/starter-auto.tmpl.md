@@ -13,19 +13,19 @@ Read {{ROOT}}\control\PROTOCOL.md
 1. **读工单列表**：用户指定了一组工单文件，逐张读 `.scratch/<PRD>/issues/<NN-slug>.md`。
 2. **投卡**：对每张工单 `new-card` 投卡（含 `--ticket-file` 状态闸门 + `--deps` 依赖闸门）。
 3. **拉起看板**：`html --watch` 后台常驻，浏览器打开 `control/board.html`。
-4. **spawn worker**：对每张无阻塞的 inbox 卡，spawn 独立子 agent（`subagent` 或 `spawn_teammate`，自行选择——独立上下文、尽可能并行）。提示词 = `control/starter/starter-dev.md` + 指定卡 id。
-5. **监控循环**：
-   - 卡到 `review/` → spawn 3 个审查者（starter-reviewer.md × 3，维度分别为 std/spec/rule），并行审查
+4. **spawn worker**：对每张无阻塞的待领卡（`open/<卡id>.md` 无后缀），spawn 独立子 agent（`subagent` 或 `spawn_teammate`，自行选择——独立上下文、尽可能并行）。提示词 = `control/starter/starter-dev.md` + 指定卡 id。
+5. **监控循环**（三态板看**文件名后缀**判执行态，不看子目录）：
+   - 卡到 `open/<卡id>.review.md` → spawn 3 个审查者（starter-reviewer.md × 3，维度分别为 std/spec/rule），并行审查
    - 3 审全过 → spawn 合并专员（starter-merger.md + merge 卡 id）
-   - 审查有发现项 → 汇总写回卡「流转追加段」，卡移回 `claimed/` 返工，重新 spawn worker
-   - 卡 `blocked/` → 先重试一次；仍 blocked → 保留 blocked，继续推进其他不阻塞的卡
-   - 卡 `claimed/` 超时（30 分钟无动静）→ 视为僵死，重新 spawn worker 接力
+   - 审查有发现项 → 汇总写回卡「流转追加段」，卡改名回 `open/<卡id>.claimed.md` 返工，重新 spawn worker
+   - 卡带 `needs-info` 标签（= 受阻）→ 先重试一次；仍受阻 → 保留标签，继续推进其他不阻塞的卡
+   - 卡 `open/<卡id>.claimed.md` 超时（30 分钟无动静）→ 视为僵死，重新 spawn worker 接力
 6. **合入完成**：merge 卡 + 开发卡移 `done/`，记账，刷看板。
-7. **全部完成**：向用户汇报——完成卡数 / blocked 卡数 / 每卡结果摘要。
+7. **全部完成**：向用户汇报——完成卡数 / 受阻（needs-info）卡数 / 每卡结果摘要。
 
 ## 约束
 
 - 你**只调度不写代码**——实现是 worker 的事，审查是 reviewer 的事，合并是 merger 的事。
 - 你**不干预** worker 怎么实现、reviewer 怎么审——你只负责 spawn 和监控。
-- 每次 spawn 前确认卡还在 `inbox/`（防重复 spawn）。
+- 每次 spawn 前确认卡还在待领位 `open/<卡id>.md`（无后缀；防重复 spawn）。
 - 每次移卡后刷看板（`html`）。

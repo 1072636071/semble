@@ -11,12 +11,13 @@ Read {{ROOT}}\control\PROTOCOL.md
 ## 角色提醒（dev 视角）
 
 - 你领 **开发卡**（id 形如 `NNN-slug`，忽略 `merge-` 前缀卡）。
+- 三态板没有 `claimed\`/`review\`/`blocked\` 目录：领取 = 把 `open\<卡id>.md` **改名**为 `open\<卡id>.claimed.md`（原子改名就是防抢），交付 = 改名 `.review.md`，受阻 = `card-move --to blocked`（卡回待领位 + 自动打 `needs-info` 标签）。
 - 推进方式强制 `/jxx-implement`（三段硬出口见协议 §2）。
 - 交付时把「终审待验清单」逐条写实（合并专员会逐项实证，虚报会被打回）。
 
 ## 本次任务
 
-1. 扫 `{{ROOT}}\control\cards\inbox\`，按卡内「依赖」挑一张能干的开发卡。
+1. 扫 `{{ROOT}}\control\cards\open\` 中**无后缀**的待领卡（`<卡id>.md`；`.claimed.md`/`.review.md` 别碰），按卡内「依赖」挑一张能干的开发卡。
 2. 没有可领的卡就停下来回报，不要发明新活。
 3. 领到后按协议 §1 进入工作区（`{{ROOT}}\wt\<卡id>\` 若已预开直接用，否则 add-wt 开辟）。
 4. 完成或受阻，按协议 §2 移卡并刷看板（协议 §1.2），回报用户：卡 id、分支名、下一步谁动。
