@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.11.2 — 2026-09-30
+
+**独立复审 22 项发现的修复轮**——复审实体：权威仓 `.scratch/75-jxx-ticket-system/reviews/75-c01-code-review.md`（L4 独立干净会话，结论钉 SHA `f5d6c9c6`）。本版把该报告 §1–§3 的**全部 19 条可修发现项逐条修掉**，并为 STD-01 / RUL-04 / RUL-05 新增可复跑回归用例；`selftest.mjs` **97 → 115 项断言，0 失败**。另 3 条**流程项**（SPEC-01 / SPEC-02 / RUL-01）由该复审报告实体 + 本次修复轮闭合，无代码改动。
+
+> 与任务书「17 项修复 + 3 项流程项」的编号出入：报告 §1–§3 的可修项实为 **19 条**（std 8 + spec 6 + rule 5，即 22 项发现减去 3 条流程项；RUL-00 是正向复核不计入）。本节按**实测编号**逐条列出。
+
+### 标准维度（std 8 条）
+
+- **STD-01（Medium）· 卡面缺 `## 流转追加段` 时 `card-move` 静默丢弃卡内流转行**：抽 `appendFlowLine()`，**缺段则先补段再追加**（换行风格沿 `eolOf`）；原实现直接 `body.replace(/## 流转追加段…/)`，缺段时原样返回，而命令照旧打印「已记账 + 刷看板」，流转行无声消失。回归用例：造一张缺该段的卡跑 `card-move`，断言卡内流转行 + 账本行两处都在、新段落在卡尾不挤掉原有小节（同一断言在旧 `board.mjs` 上为 ✗）。
+- **STD-02 · `renderPrdHtml` 第 4 形参 `todos` 全函数未引用**：删形参与两处实参（`cmdHtml` / `autoHtml`）——`prd.html` 每次保鲜不再多扫一遍整棵 `.scratch`。
+- **STD-03 · `prd.html` 的复制按钮仍内联手写同一段逻辑**：改调与另两页同源的 `copyScript('PRD_PROMPTS', '.cp-prd', 'prd', …)`，「三页的复制骨架同源」自此名副其实。
+- **STD-04 · 文件头命令清单与真实命令表脱节**：头注释不再抄一份命令清单，改为指向文件末尾的 `table`（唯一权威清单，现 16 个子命令），并写明「抄一份必然漂移」。
+- **STD-05 · 兄弟文件 URL→路径形态不一致**：`selftest.mjs` 改用 `fileURLToPath`——手搓的 `URL.pathname` 保留百分号编码，技能目录含空格 / 非 ASCII 时 `path.join` 会拿到 `%20` 路径而失败。
+- **STD-06 · `eolOf` 对零换行输入返回 CRLF**：无换行可继承时回退 LF（原实现两侧计数同为 0 时判成 CRLF，空串 / 单行卡插一行就把行尾风格翻转）。断言：零换行卡跑 `--to blocked` 后卡面以 LF 插行、全文无 `\r`。
+- **STD-07 · `verify` 的 blocked 现场提示在三态板不可达（死分支）**：三态板里 `blockedIds ⊆ inboxIds`，该分支原先排在 inbox 之后永不命中，提示退化成误导性的「为领导者预开工作区（卡待领取）」。现把 blocked 判定提到 inbox 之前；断言：待领位 + `needs-info` 的卡其 worktree 报「属 blocked 卡保留现场」。
+- **STD-08 · `new-card --labels` 对合法子集误报 WARN**：判据由「整串等于五标签之一」改为「逐 token 是否含非法标签」（与 `card-set` / `verify` 第 5 路对齐；PROTOCOL §4 明许「五标签之一或其子集」）。断言：`--labels 'ready-for-agent needs-info'` 无 WARN 且 verify 绿；含非法值仍 WARN（反例）。
+
+### spec 维度（SPEC-03 ~ SPEC-08，6 条）
+
+- **SPEC-03 · `SKILL.md` 自述两个不存在的看板能力**：删「PRD 看板列出尚无 `PRD.md` 的孤儿工单目录」「`human.html` 列出所有孤儿 worktree 与游离分支 + 清理提示词」两句，改写为**真实行为**——`scanPrds` 对无 `PRD.md` 的目录直接跳过；孤儿 worktree 只由 `verify` 报一条 `WARN worktree wt/<id> 无 claimed 卡引用`（`board.mjs` 里没有「游离分支」判据），清理一律走 `rm-wt` 一次一卡。
+- **SPEC-04 · `SKILL.md` 同段新旧泳道词自相矛盾**：后半句「执行态徽标（待领 / 在办 / 待终审）」统一为「（`待领取` / `处理中` / `待审核`，与列名同源，即 `TOKEN_TEXT` 单源）」。
+- **SPEC-05 · 断言数自报 96、实测 97**：统一为**实测值**——0.11.1 段改「92 → 97」（自报 96 系笔误），本版后为 115。
+- **SPEC-06 · CHANGELOG 对 localStorage 键自述前后矛盾**：0.11.0 那条订正为 `showHistory:<root>`，并注明 v0.11.1 起按 root 路径隔离。
+- **SPEC-07 · 「LLM 标注全链路」未覆盖 reviewer**：`starter-reviewer.tmpl.md` 与 `PROTOCOL.tmpl.md` §5.3 补同一套约定——审查者不领卡（不动执行态，无需 `card-move --to claimed`），结论写回卡内时在流转行尾部自报 `🛠 <harness 名>/<模型名>`，**且不得**用 `card-set --field Harness/LLM` 覆盖领卡者的读数。
+- **SPEC-08 · 升级冲击面未文档化**：`SKILL.md`「看板 / 账本 / 重连自检」补「升级冲击面（必读）」——未迁板的旧板 + 卡面无 `labels` 行 ⇒ 迁板后 `verify` 立即 exit 5 报「缺 labels 行」，这是**有意的催化剂**不是回归；附可照做的五步升级顺序（snapshot → dry-run → migrate → 逐张补标签 → verify 回绿）。
+
+### 规则维度（RUL-02 ~ RUL-06，5 条）
+
+- **RUL-02 · ADR-008 修订注「三行」与同版四处「四行」互斥**：改为 `- Harness:` / `- LLM:` / `- 开始处理:` / `- 结束处理:` **四行**属统计面，注标题补成「v0.11.0 / v0.11.1」。
+- **RUL-03 · PROTOCOL（唯一真源）教的 starter 路径 `init` 从不产出**：§5.2 的 `control/starter/starter-dev.md` 改为 `control/starter/dev.md`，并写明实际产出文件名（`dev` / `merger` / `reviewer` / `auto.md`，无 `starter-` 前缀）；`SKILL.md` 同型引用（「starter-dev + 卡 id」）一并订正。
+- **RUL-04 · 命令拼串注入面**：`git()` 由 `execSync('git ' + cmd)` 的 shell 拼串改为 **`execFileSync('git', [...argv])`**（全部 25 处调用点改写）；另加三道白名单闸门——`add-wt --ticket` 补与 `new-card` 同款的卡 id 正则、`rm-wt --ticket` 白名单收窄为 `^[A-Za-z0-9._-]+$`、卡面 `- 分支:` 行经 `safeRef()` 校验（不合规即判为不可信引用跳过，不再递进 git 参数位）。断言：`add-wt --ticket 'zz&echo PWNED>pwned.txt'` 被拒且无落点；卡面 `- 分支: ticket/x&echo PWNED>pwned.txt` 跑 `verify` 不再让诱饵文件落盘（两条在旧 `board.mjs` 上皆 ✗）。
+- **RUL-05 · `selftest` 未钉住「重领不抹旧值」**：新增 3 条——重领未带 `--harness/--llm` 时保留卡上原值（并回显「保留卡上原值」）、重领带新值时覆盖旧值、`.review.md` 回流（返工）路径走得通且重盖开始处理并清空结束处理。
+- **RUL-06 · 断言标题与「不认文案」原则的回退风险**：四泳道列名断言不再写死中文，改为从 `board.mjs` 的 `TOKEN_TEXT`（唯一词汇源）现取词；页头分道计数断言同样改派生，另加一条「`TOKEN_TEXT` 单源可解析」的前提断言（解析失败时不至于静默绿）。
+
+### 流程项闭合（3 条，无代码改动）
+
+- **SPEC-01（High）·「OCR 三维度 17 项发现全部修复或登记」无清单、无报告实体**：**已闭合**——复审报告实体已落仓 `.scratch/75-jxx-ticket-system/reviews/75-c01-code-review.md`；本版即对其中 19 条可修项的逐条处置与证据。
+- **SPEC-02（High）· v0.11.1 改了 v0.10.0 已审查过的代码且无第三方复审**：**已闭合**——该报告即首次第三方复核（结论：功能性通过；两处文档 / 一致性缺口即本版 STD-03、RUL-02）。
+- **RUL-01（High）· L4「双重审查」（组内审 + 独立干净会话复审）未走**：**已闭合**——独立干净会话复审实体 + 本修复轮构成补做；制度化待办（L4 卡把「独立复审报告实体坐标」列为硬验收项）已进 75-c01b 终审清单。
+
+### 验证读数
+
+- `node scripts/selftest.mjs` → **115/115 通过**，exit 0（`f5d6c9c6` 基线 97/97）。
+- **反证（可复跑）**：把本版 `selftest.mjs` 对上 `59d3a0a6` 的旧 `board.mjs` 跑 → **108/115**，7 条新断言全部变 ✗（STD-01 ×2、STD-06、STD-07、STD-08、RUL-04 ×2），证明这些断言真的在判新行为，不是恒真。
+- 技能仓既有测试 `node --test base/scripts/test/*.test.mjs` → **171/172 通过**；唯一失败项 `默认 vendors.json 声明 8 家、4 家有派生规则`（`base/scripts/test/ship.test.mjs:242`）只读**未改动**的 `base/scripts/vendors.json`，与本技能零交集 ⇒ **既有红，非本版引入**（本版 diff 只动 `jxx-ticket-board/` 下 7 个文件）。
 ## 0.11.1 — 2026-09-30
 
 **LLM 标注全链路 + 审查发现项修复**——用户要求任务提示词里每一步的 agent harness 和实际使用的 LLM 模型都要标注。
@@ -17,7 +62,7 @@
   - 坏时间戳（无法解析）显示红字告警，绝不截断冒充干净时间（XSS 面）。
   - `prd.html` 的 `histScript` 调用漏传 `root` 参数，导致 localStorage 键名错误。
   - `starter-auto.tmpl.md` 路径修正（`starter-dev.md` → `dev.md`），消除手动改名绕开盖章的教导。
-- **`selftest.mjs` 92 → 96 项断言**：LLM 字段盖章与显示、坏时间戳红字告警（含 XSS 注入值）、卡头字段替换边界（小节正文同名字段不被误改）、旧板 needs-info 不改道、localStorage 键按 root 隔离。
+- **`selftest.mjs` 92 → 97 项断言**（载荷自报 96 是笔误，实测 97——行首 `check(` 计数与实跑输出一致；订正见 0.11.2 的 SPEC-05）：LLM 字段盖章与显示、坏时间戳红字告警（含 XSS 注入值）、卡头字段替换边界（小节正文同名字段不被误改）、旧板 needs-info 不改道、localStorage 键按 root 隔离。
 
 ## 0.11.0 — 2026-09-30
 
@@ -25,7 +70,7 @@
 
 - **`board.html` 四泳道**：`待领取` / `处理中` / `待审核` / `阻塞` 四列按**执行态 token** 分列——三态板取文件名后缀 + `needs-info` 标签，未迁的旧五泳道板取目录名，同一份渲染器两种布局出同一套列。这是**显示层**改动，0.10.0 的三条正交轴与「领取 = 原子改名」不变量一字未动（ADR-008 已加显示层修订注）。`held` 仍是附在末尾的独立「暂缓」列（非空才出）；空泳道也渲染占位，列结构不随卡片增减抖动。阻塞列 = 旧板 `blocked/` ∪ 三态板「待领位 + needs-info」，后者从待领取列**摘走**而不是同时出现在两列（一卡一列，否则「复制启动提示词」按钮也就有两个）。
 - **已完成/已归档默认不显示**：两列带 `class="col hist" style="display:none"`，页头给一个「显示已完成 (N) 与已归档 (M)」开关。**展开态必须落 localStorage**——页面每 5s `meta refresh` 整页重载，不落盘的话用户刚点开就被刷新收回去（selftest 断言 markup 与 localStorage 两件事，交互本身另在真实浏览器里点过：展开 → 刷新 → 仍展开）。历史卡 0 张时不出开关。页头计数改成按泳道拆分：`在办 9（待领 2 · 处理中 1 · 待审 3 · 阻塞 0 · 暂缓 3）· 历史 13 张默认隐藏`。
-- **`prd.html` 同样按收口态分两栏**：`未完成 PRD (N)` 默认可见 / `已完成 PRD (M)` 默认 `display:none` + 页头开关。收口判据取「该 PRD 全部工单 done·wontfix **或** PRD 自身 `**Status:**` 已收口」，**零工单不算完成**（还没拆 ≠ 做完）。实测权威仓 61 份 PRD 中 45 份已收口，默认视图从整页历史缩到 16 块。两页的开关**共用同一个 localStorage 键 `showHistory`**（原来 board.html 用 `board.showHistory`，各自为政会出现「这页展开了、那页还藏着」这种自相矛盾的默认态），并把两页那段展开/收起脚本抽成 `histScript()` 一份实现（列宽 `--nc` 联动按参数传入，没有 `.cols` 的页面自动跳过）。
+- **`prd.html` 同样按收口态分两栏**：`未完成 PRD (N)` 默认可见 / `已完成 PRD (M)` 默认 `display:none` + 页头开关。收口判据取「该 PRD 全部工单 done·wontfix **或** PRD 自身 `**Status:**` 已收口」，**零工单不算完成**（还没拆 ≠ 做完）。实测权威仓 61 份 PRD 中 45 份已收口，默认视图从整页历史缩到 16 块。两页的开关**共用同一个视图偏好键 `showHistory:<root>`**（v0.11.0 最初实现是裸 `showHistory`；v0.11.1 起按 root 路径隔离——`file://` 下浏览器把所有本地页当同一 origin，不分名会让本机所有工作区的看板互相串改。原来 board.html 用 `board.showHistory`，各自为政会出现「这页展开了、那页还藏着」这种自相矛盾的默认态），并把两页那段展开/收起脚本抽成 `histScript()` 一份实现（列宽 `--nc` 联动按参数传入，没有 `.cols` 的页面自动跳过）。
 - **修掉一个 v0.8.0 就存在的死按钮**：`prd.html` 每份 PRD 的「📋 PRD 级整轨提示词」一直**没有任何点击处理器**——`PRD_PROMPTS` 被序列化进页面却没人消费，用户点了没反应（该页在 selftest 里此前零覆盖，所以烂了三个版本没人发现）。现接上与 human.html 同款的复制处理器 + 成功回显，并加回归断言「按钮真被监听器消费」。真实浏览器实测：点击后文案变「✔ 已复制，去贴给新会话跑整轨」。
 - **处理计时三字段**（卡面新增 `- Harness:` / `- 开始处理:` / `- 结束处理:`）：`card-move` 进 `claimed` 位自动盖开始、离位自动盖结束并在命令回显里报「本轮处理时长 X」；harness 名由领卡会话 `--harness <名>` 自报（协议 §1.2 的领卡命令、dev/merger starter、PROTOCOL §4 文法都同步了）。漏报时卡面落 `（未标注）` 占位，看板把这一行显示成红字 `harness 未标注`（占位串不能被当成一个 harness 名渲染），随时 `card-set --field Harness --value <名>` 补。
   - **这三行是统计面，不是租约**：判位唯一仍由目录 + 文件名后缀决定，`verify` 一个字都不按它们判——这正是 ADR-008 被否方案①（执行态进卡内字段）与本处的分界，PROTOCOL §4 与卡模板注释里都写死了这句话，免得后来人以为防抢改回了读改写。

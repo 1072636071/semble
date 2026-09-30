@@ -3,7 +3,7 @@ name: jxx-ticket-board
 description: 工单公告板工作区——把任意 git 仓库开辟为多 worktree 并行工单协作场。加载本会话即领导者（只分解投卡、记账汇总，不干预开发组），worker 由用户拉起自发领卡，卡片目录即状态机、文件原子 move 防抢，领导者每个行为即时落盘账本，断线可重连自检。支持 auto 模式——指定一组工单后自动 spawn worker/审查者/合并专员完成全流程。当用户想搭建工单公告板/开多个工单工作区/以领导者身份派发任务/自动完成一组工单/恢复领导者会话/看板对账时使用。触发词：公告板, 领卡, 投卡, 工单看板, worktree工作区, 领导者, auto, 自动编排, reconnect。
 disable-model-invocation: false
 metadata:
-  version: 0.11.1
+  version: 0.11.2
 argument-hint: init --repo <git-url> | board | verify | ledger --action <文本> | auto --tickets <工单文件列表>
 ---
 
@@ -110,7 +110,7 @@ node <skill>/scripts/board.mjs auto --root <root> --tickets <工单文件1> <工
 auto 模式执行流程（详见协议 §5）：
 1. 读每张工单文件，验证 `Status: ready-for-agent`
 2. `new-card` 投卡（含 `--ticket-file` 状态闸门 + `--deps` 依赖闸门）
-3. 对无阻塞的待领卡（`open/<id>.md` 无后缀）spawn worker（starter-dev + 卡 id）
+3. 对无阻塞的待领卡（`open/<id>.md` 无后缀）spawn worker（`control/starter/dev.md` 全文 + 卡 id——`init` 渲染出的文件名没有 `starter-` 前缀）
 4. worker 交付（卡改名 `open/<id>.review.md`）→ spawn 3 审查者（starter-reviewer × 3，维度 std/spec/rule）
 5. 3 审全过 → spawn 合并专员（starter-merger + merge 卡 id）
 6. 审查有发现项 → 卡改名回 `open/<id>.claimed.md` 返工 → 重新 spawn worker → 重新审查
@@ -142,6 +142,8 @@ node <skill>/scripts/board.mjs render   --root <root> [--write]  # 把 assets �
 node <skill>/scripts/board.mjs migrate  --root <root> [--dry-run] [--actor x]  # 旧五泳道板迁三态：只改名 + 补 labels + 记一行账 + 留快照；旧目录留空不删（可回退），重跑幂等
 ```
 
+**升级冲击面（v0.10.0+ 三态 + 标签正交，必读）**：没跑过 `migrate` 的旧五泳道板上，任何**卡面无 `- labels:` 行**的卡都会命中 `verify` 第 5 路 ⇒ 迁板后立刻 `MISMATCH 卡 <id>（在 … 位）缺 labels 行` / `verify: 发现 N 处出入` / **exit 5**。这是**有意的催化剂**（逼补 triage 维度），不是回归——别把它当故障去关闸门。升级顺序：① `board.mjs snapshot --root <root>` 留底；② `migrate --root <root> --dry-run` 看清单（会点名缺标签的卡并明说「不代拟」）；③ 真迁 `migrate --root <root>`；④ 对点名卡逐张 `card-set --field labels --value <五标签之一>`；⑤ `verify --root <root>` 回到绿。迁板只改名、不删旧目录（红线 §7.2），回退 = 把卡 `mv` 回去。
+
 卡操作（瘦卡 v2：卡内只留真增量字段，分支/worktree/PRD 等确定性路径由脚本实时推导）：
 
 ```bash
@@ -151,14 +153,14 @@ node <skill>/scripts/board.mjs card-move --root <root> --id <卡id> --to <inbox|
 node <skill>/scripts/board.mjs card-rm   --root <root> --id <卡id> --force  # 删卡（慎用，优先 card-move 到 done/）
 ```
 
-`html` 产物是单文件深色看板：**四泳道 = 执行态**（`待领取` / `处理中` / `待审核` / `阻塞`；三态板由文件名后缀与 `needs-info` 标签推出，未迁的旧五泳道板由目录名推出，同一份渲染器两种布局都出这四列），空泳道也占位（列结构不随卡片增减抖动）；另附独立「暂缓·等依赖」列渲染 `control/held/`（无领取按钮、仅领导者有此语义，非空时出现）。**「已完成 / 已归档」属历史面，默认不渲染出来**（`display:none` + 页头「显示已完成/已归档」开关，展开态写 localStorage——页每 5s 整页刷新，不持久化就永远点不开），页头计数报「在办 N（待领 a · 处理中 b · 待审 c · 阻塞 d）· 历史 M 张默认隐藏」。每卡带**执行态徽标**（待领 / 在办 / 待终审）与 **triage 标签色标**（五标签各有色：`ready-for-agent` 绿 · `ready-for-human` 橙 · `needs-info` 粉 · `needs-triage` 紫 · `wontfix` 灰）、L1-L4 难度色标、合并卡紫标、领取者、依赖、分支名、**worktree 路径与预开状态**、PRD 可点击 file:// 链接、`doc_ref` 服务器工单外链，以及每卡**「复制启动提示词」按钮**（starter 全文 + 指定卡号 + 工作区状态，用户点一下贴给新会话即可开工）。
+`html` 产物是单文件深色看板：**四泳道 = 执行态**（`待领取` / `处理中` / `待审核` / `阻塞`；三态板由文件名后缀与 `needs-info` 标签推出，未迁的旧五泳道板由目录名推出，同一份渲染器两种布局都出这四列），空泳道也占位（列结构不随卡片增减抖动）；另附独立「暂缓·等依赖」列渲染 `control/held/`（无领取按钮、仅领导者有此语义，非空时出现）。**「已完成 / 已归档」属历史面，默认不渲染出来**（`display:none` + 页头「显示已完成/已归档」开关，展开态写 localStorage——页每 5s 整页刷新，不持久化就永远点不开），页头计数报「在办 N（待领 a · 处理中 b · 待审 c · 阻塞 d）· 历史 M 张默认隐藏」。每卡带**执行态徽标**（`待领取` / `处理中` / `待审核`，与列名同源，即 `TOKEN_TEXT` 单源）与 **triage 标签色标**（五标签各有色：`ready-for-agent` 绿 · `ready-for-human` 橙 · `needs-info` 粉 · `needs-triage` 紫 · `wontfix` 灰）、L1-L4 难度色标、合并卡紫标、领取者、依赖、分支名、**worktree 路径与预开状态**、PRD 可点击 file:// 链接、`doc_ref` 服务器工单外链，以及每卡**「复制启动提示词」按钮**（starter 全文 + 指定卡号 + 工作区状态，用户点一下贴给新会话即可开工）。
 **「处理中」卡多一行处理计时读数**：`🛠 <Harness> · <LLM>`（未自报时红字 `harness/模型未标注`）· `▶ 开始处理`（在办时附「已办 X」）· `⏹ 结束处理 · 用时 X`，由 `card-move` 进/出 `claimed` 位自动盖章（`--harness`/`--llm` 由 worker 自报），卡面缺行时回退取「流转追加段」最后一条 claimed 相关行的时间——所以 v0.11.0 之前投的老板卡当天就有读数。这四行是统计面，不参与判位（协议 §4）。投卡后跑一次（或常驻 `--watch`）即有全局进度。页头导航链去 **PRD 看板**与人工待办。
 
 `control/prd.html` 是同一次 `html` 生成的 **PRD 看板**（v0.8.0，PRD 视角），v0.11.0 起**按 PRD 收口态分两栏**：`未完成 PRD (N)` 默认可见、`已完成 PRD (M)` 默认 `display:none`（页头「显示已完成 PRD (M)」开关，与工单看板**共用同一个 localStorage 视图偏好键 `showHistory:<root>`**——按 root 路径隔离，两块板互不干扰；页每 5s/10s 整页刷新，不持久化就永远点不开）。收口判据：该 PRD 全部工单 `done`/`wontfix`，**或** PRD 自身 `**Status:**` 已 done/wontfix；零工单的 PRD 算未完成（还没拆 ≠ 做完）。实测收益：权威仓 61 份 PRD 里 45 份已收口，默认视图从整页历史缩到 16 张卡。
 
-每份 PRD 一块——PRD 自身 Status、工单收口进度（done+wontfix / 总数）、工单按组呈现：▶️ 前沿可领（ready-for-agent 且尚无卡）/ 🔄 在办（有卡：open 三位（待领·在办·待终审）或 held，**卡位优先于工单文档 Status**，组内带卡状态标签）/ ⛔ 等人工 / 📋 待评审 / ✅ 已完成 / 🚫 已放弃。每份 PRD 一个**「📋 PRD 级整轨提示词」按钮**（v0.11.0 修好：该按钮自 v0.8.0 起是**死按钮**——`PRD_PROMPTS` 定义了却没有监听器消费，点了没任何反应；现已接上与其他两页同款的复制处理器并加回归断言）：一键复制 `/jxx-implement-spec` 整轨执行提示词（读 PRD 与全部工单建任务图 → 单分支 `ticket/<PRD号>-spec` 开 draft PR → 后台子 agent 按"就绪前沿"并发实现 → 全部收口后 `/jxx-code-review` 审整支分支），贴给新会话即跑。PRD 看板同时列出 `.scratch/` 下**尚无 PRD.md 的孤儿工单目录**（⚠️ 提示先补 PRD 或确认独立单）。
+每份 PRD 一块——PRD 自身 Status、工单收口进度（done+wontfix / 总数）、工单按组呈现：▶️ 前沿可领（ready-for-agent 且尚无卡）/ 🔄 在办（有卡：open 三位（待领·在办·待终审）或 held，**卡位优先于工单文档 Status**，组内带卡状态标签）/ ⛔ 等人工 / 📋 待评审 / ✅ 已完成 / 🚫 已放弃。每份 PRD 一个**「📋 PRD 级整轨提示词」按钮**（v0.11.0 修好：该按钮自 v0.8.0 起是**死按钮**——`PRD_PROMPTS` 定义了却没有监听器消费，点了没任何反应；现已接上与其他两页同款的复制处理器并加回归断言）：一键复制 `/jxx-implement-spec` 整轨执行提示词（读 PRD 与全部工单建任务图 → 单分支 `ticket/<PRD号>-spec` 开 draft PR → 后台子 agent 按"就绪前沿"并发实现 → 全部收口后 `/jxx-code-review` 审整支分支），贴给新会话即跑。数据源＝`.scratch/<NN-slug>/PRD.md` + `issues/*.md` 的 `**Status:**` 行；**没有** `PRD.md` 的目录不参与渲染（`scanPrds` 直接跳过，本页不列孤儿目录）。
 
-`control/human.html`（v0.6.2，人工待办面板）：汇总所有卡片中「等待方」含 human 的卡——每张卡一段「决策提示词」，用户复制贴给新会话即拉起决策 agent 处理该卡点。决策 agent 的产出是：把卡移出 blocked（`card-move`）、在卡内追加决策记录、刷看板。面板同时列出**所有孤儿 worktree**（wt/ 下无对应在办卡）与**游离分支**（`ticket/*` 有分支但无卡），各配「复制清理提示词」按钮。
+`control/human.html`（v0.6.2，人工待办面板）：扫权威仓 `.scratch/` 下 `**Status:** ready-for-human` 的工单，每张一块卡片（标题 / PRD·工单号 / 未勾验收项 / 「打开完整工单」外链），配一个**「📋 复制决策提示词」按钮**——复制的是决策单（工作区 + 工单 + 待拍板事项 + 取证要求），贴给新会话拉起决策 agent。**本页不扫 worktree 与分支**：孤儿 worktree 只由 `verify` 报一条 `WARN worktree wt/<id> 无 claimed 卡引用`（`board.mjs` 里没有「游离分支」判据），清理一律走 `rm-wt --ticket <单卡id>`，一次一卡（红线 §7）。
 
 ### 人工待卡（blocked 卡的等待方提示词）
 
@@ -202,7 +204,7 @@ node <skill>/scripts/board.mjs card-move --root <root> --id <卡id> --to blocked
 
 ## Resources
 
-- `scripts/selftest.mjs` — 冒烟自测（`node scripts/selftest.mjs`，96 项断言，零依赖；改 `board.mjs` 后必跑，含防抢、历史回放、migrate、四泳道渲染与历史列默认隐藏、处理计时盖章与流转段回退、坏时间戳红字告警、卡头字段替换边界、prd.html 两栏与整轨按钮，以及四类标签反例）。
+- `scripts/selftest.mjs` — 冒烟自测（`node scripts/selftest.mjs`，115 项断言，零依赖；改 `board.mjs` 后必跑，含防抢、历史回放、migrate、四泳道渲染与历史列默认隐藏、处理计时盖章与流转段回退、重领不抹旧值、卡面缺「流转追加段」补段、零换行卡回退 LF、受阻现场提示可达、坏时间戳红字告警、卡头字段替换边界、CLI/卡面文本的 shell 注入闸门、prd.html 两栏与整轨按钮，以及四类标签反例）。
 - `scripts/board.mjs` — init / board / html / ledger / verify / new-card / add-wt / rm-wt / card-read / card-set / card-move / card-rm / snapshot / render / migrate / auto 子命令。
 - `assets/` — PROTOCOL、卡模板、starter 提示词（dev / merger / reviewer / auto 四份，init 时渲染进 control/）。
 - `references/` — ADR-001~008：worktree 隔离、control 外置、领导者-领取制、目录状态机、合并即卡、薄卡粒度、协议单源、三态目录 + 标签正交。改协议前先读它们。

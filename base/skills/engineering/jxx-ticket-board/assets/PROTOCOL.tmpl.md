@@ -115,7 +115,7 @@
 ### 5.2 编排者规则
 
 1. **投卡**：读用户指定的工单文件列表，逐张 `new-card` 投卡（含 `--ticket-file` 状态闸门）。
-2. **spawn worker**：对每张无阻塞的待领卡（`open/<卡id>.md` 无后缀），spawn 一个独立子 agent（`subagent` 或 `spawn_teammate`，agent 自行选择——只要能独立上下文、尽可能并行）。worker 提示词 = `control/starter/starter-dev.md` 全文 + 指定卡 id。
+2. **spawn worker**：对每张无阻塞的待领卡（`open/<卡id>.md` 无后缀），spawn 一个独立子 agent（`subagent` 或 `spawn_teammate`，agent 自行选择——只要能独立上下文、尽可能并行）。worker 提示词 = `control/starter/dev.md` 全文 + 指定卡 id（`init` 实际产出的文件名就是 `dev.md` / `merger.md` / `reviewer.md` / `auto.md`，没有 `starter-` 前缀——写错即 ENOENT）。
 3. **监控**：worker 回报后，检查卡位（看文件名后缀，不看目录）——
    - `open/<卡id>.review.md` → 触发审查（§5.3）
    - `open/<卡id>.md` 且 labels 带 `needs-info` → 读卡内原因，**先重试一次**（重新 spawn worker 或提示用户）；重试仍受阻 → 保留 needs-info，**继续推进其他不阻塞的卡**
@@ -140,6 +140,7 @@
 - 每个审查者：读卡 + 读工单 PRD → `git diff {{BASE_BRANCH}}...ticket/<卡id>` 看全部变更 → 按各自维度审查 → 输出结构化报告（通过/不通过 + 发现项列表）。
 - 审查者**不修改代码**——只审不改，发现项写给编排者汇总。
 - 审查者用只读 git（`git show` / `git diff` / `git grep`），不 checkout 分支。
+- **处理环境同样自报**（§4 的四行是卡面统计面，由**领卡者**盖；审查者不占卡位，所以只用流转行尾部一处）：把结论写回卡内时带上 `- <时间> | reviewer-<维度> | 通过/不通过（发现项 N） | 🛠 <harness 名>/<模型名>`。**不要**用 `card-set --field Harness/LLM` 去改卡头四行——那是领卡者的读数，覆盖它等于抹掉「谁在办」。
 
 ### 5.4 合并专员规则（auto 模式）
 

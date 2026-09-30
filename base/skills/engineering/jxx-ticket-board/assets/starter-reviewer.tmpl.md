@@ -14,6 +14,7 @@ Read {{ROOT}}\control\PROTOCOL.md
 - 你**只审不改**——发现项写给编排者汇总，你不修改代码。
 - 你用只读 git（`git show` / `git diff` / `git grep`），不 checkout 分支。
 - 你的审查对象是 `ticket/{{CARD_ID}}` 分支的全部变更（`git diff {{BASE_BRANCH}}...ticket/{{CARD_ID}}`）。
+- **处理环境同样要标注**（与 dev / merger 同一套约定，协议 §4）：你不领卡（不改文件名后缀 = 不改执行态），所以不需要 `card-move --to claimed`；但结论写回卡内时要在流转行尾部自报 `🛠 <你所在的 harness 名>/<你实际调用的模型名>`（例 `🛠 Qoder/Claude Sonnet 4.5`）。**别**用 `card-set --field Harness` / `--field LLM` 去改卡头那两行——那是领卡者的读数，覆盖它等于抹掉「谁在办」。
 
 ## 本次任务
 
@@ -33,5 +34,5 @@ Read {{ROOT}}\control\PROTOCOL.md
      1. [严重度:高/中/低] 描述 + 文件:行号
      2. ...
    ```
-5. 把审查报告写入卡内「流转追加段」（追加一行：时间 | reviewer-{{REVIEW_DIMENSION}} | 通过/不通过 | 发现项数）。
+5. 把审查报告写入卡内「流转追加段」（追加一行：时间 | reviewer-{{REVIEW_DIMENSION}} | 通过/不通过 | 发现项数 | 🛠 <harness 名>/<模型名>）。
 6. 回报编排者：卡 id + 维度 + 结论 + 发现项数。
