@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// jxx-ticket-board 确定性脚本：init / board / html / ledger / verify / new-card / add-wt / rm-wt
-// 零依赖。协议真源是 control/PROTOCOL.md；账本文法 `move <卡id> <from>-><to>` 被 verify 回放使用。
+// jxx-ticket-board 确定性脚本（零依赖）。命令面 = 文件末尾的 `table`（唯一权威清单，别再在这里抄一份——
+// 抄出来的那份必然与 table 漂移，审查 STD-04 就是这么来的）；跑 `board.mjs <未知子命令>` 会列全部可用命令。
+// 协议真源是 control/PROTOCOL.md；账本文法 `move <卡id> <from>-><to>` 被 verify 回放使用。
 import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const SKILL_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -39,7 +40,22 @@ const arg = (argv, name) => {
 };
 const flag = (argv, name) => argv.includes(`--${name}`);
 const die = (msg, code = 1) => { console.error(`board: ${msg}`); process.exit(code); };
-const git = (cwd, cmd) => execSync(`git ${cmd}`, { cwd, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+// 进 git 参数位的「别人写的文本」（卡面 `- 分支:` 行、`- worktree:` 行、CLI --ticket）必须先过白名单：
+// 不合规一律判为「这条引用不可信」跳过，绝不原样递下去（审查 RUL-04）。branch/ref 允许的字符集按 git
+// check-ref-format 的实际取值收窄；`..` 与首尾 `/` 是 git 明确拒收的形态，顺手挡掉。
+const REF_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+const safeRef = v => {
+  const s = String(v ?? '').trim();
+  return s && REF_RE.test(s) && !s.includes('..') && !s.endsWith('/') && !s.endsWith('.') ? s : '';
+};
+// 卡 id / worktree 单段目录名：与 new-card 的 id 闸门同款（RUL-04 ②③）
+const CARD_ID_RE = /^(\d+-[a-z0-9-]+|merge-\d+[a-z0-9-]*)$/;
+const SEGMENT_RE = /^[A-Za-z0-9._-]+$/;
+// git 一律走 **argv 形态**（execFileSync，不过 shell）：早先是 `execSync('git ' + cmd)` 的拼串，
+// 卡面 `- 分支:` 行 / CLI `--ticket` 值都是**别人写的文本**，拼进 shell 字符串即命令注入面（审查 RUL-04）。
+// 现在拼串没法注入，但「参数位塞进 shell 元字符」的错误用法也一并由本函数兜住：
+// 下面的 REF_RE / safeRef 是第二道闸——进参数位的自由文本必须先过白名单。
+const git = (cwd, ...cmd) => execFileSync('git', cmd.flat().filter(x => x !== undefined && x !== null), { cwd, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
 function localIso() {
   const d = new Date(), p = n => String(n).padStart(2, '0');
@@ -102,14 +118,14 @@ function cmdInit(argv) {
     actions.push(['kept', `${repoDir} — 已有权威仓库，未动`]);
   } else if (repoDir === path.join(root, 'repo')) {
     fs.mkdirSync(repoDir, { recursive: true });
-    try { git(root, `clone "${repoUrl}" repo`); } catch (e) {
+    try { git(root, 'clone', repoUrl, 'repo'); } catch (e) {
       die(`clone 失败：${e.stderr?.toString().split('\n')[0] || e.message}（clone 半截目录已保留，修复后重跑会报 kept，可手动删除 repo/ 重试）`);
     }
     actions.push(['created', `repo/ — clone 自 ${repoUrl}`]);
   } else {
     die(`--repo-dir ${repoDir} 不是 git 仓库；指定权威工作区路径，或省略本参数让 init 自建 repo/`);
   }
-  try { git(repoDir, `rev-parse --verify ${base}`) || git(repoDir, `rev-parse ${base}`); }
+  try { git(repoDir, 'rev-parse', '--verify', base); }
   catch { die(`${repoDir} 上不存在基准分支 ${base}，用 --branch 指定正确分支`); }
 
   fs.mkdirSync(path.join(root, 'wt'), { recursive: true });
@@ -206,7 +222,13 @@ function setField(body, key, value) {
   return head.slice(0, end) + `- ${key}: ${v}` + eol + head.slice(end) + rest;
 }
 // 取 body 的主导换行符，供所有「往既有文件里插一行」的写回共用（写死 `\n` 会让 CRLF 卡变成混合换行）
-const eolOf = s => ((s.match(/\r\n/g) || []).length >= ((s.match(/[^\r]\n/g) || []).length) ? '\r\n' : '\n');
+// 零换行输入（空串 / 单行且无行尾）两侧计数同为 0，原实现 `0 >= 0` 会返回 CRLF——空文件插一行就变 CRLF（审查 STD-06）。
+// 无换行可继承时回退 LF：这是本脚本所有新写文件的默认风格。
+const eolOf = s => {
+  const t = String(s ?? '');
+  if (!t.includes('\n')) return '\n';
+  return (t.match(/\r\n/g) || []).length >= (t.match(/[^\r]\n/g) || []).length ? '\r\n' : '\n';
+};
 // 流转追加段的移卡行：`- 2026-09-30 10:21 | inbox->claimed | 角色 | 原因 [| 🛠harness/模型]`
 // v0.11.0 之前的卡没有 开始处理/结束处理 字段，看板靠这里回推出时间，旧版卡升级当天就有读数。
 // 分隔符一律用 [ \t] 不用 \s——\s 会吞换行，把下一行的内容配成本行的读数（本文件 152-154 记着的同型坑）。
@@ -218,6 +240,16 @@ function flowTimes(body) {
     else if (m[2] === 'claimed') outAt = m[1];
   }
   return { inAt, outAt };
+}
+// 往「流转追加段」追加一行。**小节不存在时先建段再追加**：原先直接 `body.replace(/## 流转追加段…/)`，
+// 缺段时 replace 原样返回，而命令照样打印「已记账 + 刷看板」——卡内流转行静默丢失（审查 STD-01，PROBE1 实证：
+// 改名成功、账本有行、卡内无行）。流转行是审计面，老板卡的计时回退读数也靠它，缺段只能补、不能吞。
+function appendFlowLine(body, line) {
+  if (/^## 流转追加段[ \t]*$/m.test(body)) {
+    return body.replace(/(## 流转追加段[\s\S]*?)(\n## |\n?$)/, (m, sec, tail) => `${sec.trimEnd()}\n\n${line}\n${tail}`);
+  }
+  const eol = eolOf(body);
+  return body.replace(/\s*$/, '') + `${eol}${eol}## 流转追加段${eol}${eol}${line}${eol}`;
 }
 const stampMs = s => {
   if (!s) return null;
@@ -579,7 +611,7 @@ function scanPrds(repoPath) {
   return out.sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
 }
 const PRD_STATUS_LABEL = { draft: '草稿', 'in-progress': '进行中', 'pending-review': '待评审', review: '待评审', done: '已完成', wontfix: '已放弃', 'ready-for-agent': '可执行', 'ready-for-human': '等人工' };
-function renderPrdHtml(root, meta, cols, todos) {
+function renderPrdHtml(root, meta, cols) {
   // 卡映射：cardId -> 卡对象（merge 卡不计入工单映射）
   const cardOf = new Map();
   for (const col of cols) for (const c of col.cards) cardOf.set(c.id, { state: col.state, ...c });
@@ -676,13 +708,7 @@ footer{max-width:920px;margin:18px auto 0;color:#6b7280;font-size:12px}
 <div class="info">执行分流：整份 PRD 一次交付 → 点「PRD 级整轨提示词」复制给新会话跑 /jxx-implement-spec · 单工单推进 → 工单看板领卡跑 /jxx-implement · ${prds.length} 份 PRD（未完成 ${openPrds.length} · 已完成 ${donePrds.length}）· 前沿可领 ${totalFrontier} 张工单 · 权威仓 ${esc(meta.repoPath || '')} · 生成于 ${localIso()} · 每 10s 刷新</div></header>
 ${bodyHtml}
 <footer>数据源＝权威仓 .scratch/&lt;NN-slug&gt;/PRD.md + issues/*.md 的 **Status:** 行 · 本页按 PRD 收口态分两栏：未完成（还有工单没收口）/ 已完成（全部工单 done·wontfix，或 PRD 自身 Status 已收口）——已完成默认隐藏，页头开关展开，与工单看板共用同一个视图偏好 · 有卡的工单按卡泳道显示真实协调状态（优先于文档 Status）· PRD 级整轨提示词＝/jxx-implement-spec（单分支整份交付）· 工单级请去工单看板领卡（/jxx-implement）</footer>
-<script>const PRD_PROMPTS=${JSON.stringify(prdPrompts).replace(/</g, '\\u003c')};
-document.querySelectorAll('.cp-prd').forEach(b=>b.addEventListener('click',async()=>{
-const t=PRD_PROMPTS[b.dataset.prd]||'';
-try{await navigator.clipboard.writeText(t)}catch(e){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove()}
-b.textContent='✔ 已复制，去贴给新会话跑整轨';b.classList.add('done');
-setTimeout(()=>{b.textContent='📋 PRD 级整轨提示词';b.classList.remove('done')},2500);
-}));${histScript(root, '.sect.hist')}</script>
+<script>const PRD_PROMPTS=${JSON.stringify(prdPrompts).replace(/</g, '\\u003c')};${copyScript('PRD_PROMPTS', '.cp-prd', 'prd', '📋 PRD 级整轨提示词', '✔ 已复制，去贴给新会话跑整轨')}${histScript(root, '.sect.hist')}</script>
 </body></html>`;
 }
 
@@ -695,7 +721,7 @@ function cmdHtml(argv) {
   const once = () => {
     fs.writeFileSync(out, renderHtml(root, meta, scanBoard(root), startersOf(root)));
     fs.writeFileSync(humanOut, renderHumanHtml(root, meta, scanHumanTodos(meta.repoPath)));
-    fs.writeFileSync(prdOut, renderPrdHtml(root, meta, scanBoard(root), scanHumanTodos(meta.repoPath)));
+    fs.writeFileSync(prdOut, renderPrdHtml(root, meta, scanBoard(root)));
   };
   once();
   console.log(`html: 看板 ${out} + 人工待办 ${humanOut} + PRD 看板 ${prdOut} 已生成（三页互链，链接默认新标签页打开）`);
@@ -716,7 +742,7 @@ function autoHtml(root) {
     const meta = needWs(root);
     fs.writeFileSync(path.join(root, 'control', 'board.html'), renderHtml(root, meta, scanBoard(root), startersOf(root)));
     fs.writeFileSync(path.join(root, 'control', 'human.html'), renderHumanHtml(root, meta, scanHumanTodos(meta.repoPath)));
-    fs.writeFileSync(path.join(root, 'control', 'prd.html'), renderPrdHtml(root, meta, scanBoard(root), scanHumanTodos(meta.repoPath)));
+    fs.writeFileSync(path.join(root, 'control', 'prd.html'), renderPrdHtml(root, meta, scanBoard(root)));
   } catch { /* 看板保鲜失败不影响命令结果 */ }
 }
 
@@ -746,7 +772,7 @@ function cmdVerify(argv) {
   const meta = needWs(root);
   // 权威仓引用新鲜度：--fetch 主动拉（本机 helper 被禁，带 store 兜底）；否则按 FETCH_HEAD 龄期报警
   if (flag(argv, 'fetch')) {
-    try { git(meta.repoPath, '-c credential.helper=store fetch origin --quiet'); console.log('INFO 已带凭据 fetch origin，引用新鲜'); }
+    try { git(meta.repoPath, '-c', 'credential.helper=store', 'fetch', 'origin', '--quiet'); console.log('INFO 已带凭据 fetch origin，引用新鲜'); }
     catch { console.log('WARN fetch 失败（认证？），以下检查基于可能过期的 origin/main 引用'); }
   } else {
     try { const ageH = (Date.now() - fs.statSync(path.join(meta.repoPath, '.git', 'FETCH_HEAD')).mtimeMs) / 3600e3;
@@ -829,13 +855,13 @@ function cmdVerify(argv) {
       if (st && /^(done|wontfix)$/i.test(st)) {
         // merge 卡的工单在开发交付那一刻就被置 done，属常态；它该不该归档只看「待合分支是否已进 main」
         if (/^merge-/.test(c)) {
-          const primary = [...new Set([`ticket/${cardIdOf(c).replace(/^merge-/, '')}`, (branch || '').trim()].filter(Boolean))];
+          const primary = [...new Set([`ticket/${cardIdOf(c).replace(/^merge-/, '')}`, branch].map(safeRef).filter(Boolean))];
           const mentioned = [...new Set([...cbody.matchAll(/ticket\/[A-Za-z0-9._-]+/g)].map(m => m[0]))];
           const probe = (list) => {
             let hit = null, ahead = -1;
             for (const b of list) {
               let n;
-              try { n = Number(git(meta.repoPath, `rev-list --count origin/main..${b}`)); } catch { continue; }
+              try { n = Number(git(meta.repoPath, 'rev-list', '--count', `origin/main..${b}`)); } catch { continue; }
               hit = b; ahead = n; if (n > 0) break;
             }
             return { hit, ahead };
@@ -860,13 +886,13 @@ function cmdVerify(argv) {
     const num = ((devId.match(/^\d+-(\d+)-/) || [])[1] || '').padStart(2, '0');
     let prdRel = '';
     if (prd && fs.existsSync(prd)) { const r = path.relative(meta.repoPath, path.resolve(prd)).replace(/\\/g, '/'); if (r && !r.startsWith('..')) prdRel = r; }
-    for (const b of [...new Set([`ticket/${devId}`, (branch || '').trim()].filter(Boolean))]) {
+    for (const b of [...new Set([`ticket/${devId}`, branch].map(safeRef).filter(Boolean))]) {
       let rels = [];
       if (prdRel) rels = [prdRel];
       else if (num) {
         const prdnum = (devId.match(/^(\d+)-/) || [])[1] || '';
         try {
-          const all = git(meta.repoPath, `ls-tree -r --name-only ${b} .scratch`).split('\n').filter(f => f.includes('/issues/' + num + '-') && f.endsWith('.md'));
+          const all = git(meta.repoPath, 'ls-tree', '-r', '--name-only', b, '.scratch').split('\n').filter(f => f.includes('/issues/' + num + '-') && f.endsWith('.md'));
           // 卡 id 的 PRD 号可定位目录时只认该目录，防跨 PRD 同号工单误抓（v0.7.3 事故：70-02 被误判抓中 PRD01 的 02-*.md）
           const pref = prdnum ? new RegExp('^\\.scratch\\/' + prdnum + '(-|\\/)') : null;
           rels = (pref ? all.filter(f => pref.test(f)) : all);
@@ -874,7 +900,7 @@ function cmdVerify(argv) {
       }
       if (!rels.length) continue;
       let txt = null;
-      for (const rel of rels) { try { const t = git(meta.repoPath, `show ${b}:${rel}`); if (/\*\*Status:\*\*\s*done/i.test(t)) { txt = t; break; } txt ??= t; } catch { } }
+      for (const rel of rels) { try { const t = git(meta.repoPath, 'show', `${b}:${rel}`); if (/\*\*Status:\*\*\s*done/i.test(t)) { txt = t; break; } txt ??= t; } catch { } }
       if (txt === null) continue;
       const st = (txt.match(/\*\*Status:\*\*\s*([A-Za-z-]+)/) || [])[1] || '';
       if (!/^done$/i.test(st)) break;
@@ -895,15 +921,15 @@ function cmdVerify(argv) {
     const tokens = new Set([...cbody.matchAll(/\b\d{2}-[a-z][a-z0-9-]+\b/g)].map(m => m[0]));
     if (!prdnum || !tokens.size) continue;
     const { branch } = cardFields(cbody);
-    for (const b of [...new Set([`ticket/${devId}`, (branch || '').trim()].filter(Boolean))]) {
+    for (const b of [...new Set([`ticket/${devId}`, branch].map(safeRef).filter(Boolean))]) {
       let tree = '', touched = '';
-      try { tree = git(meta.repoPath, `ls-tree -r --name-only ${b} .scratch`); } catch { continue; }
+      try { tree = git(meta.repoPath, 'ls-tree', '-r', '--name-only', b, '.scratch'); } catch { continue; }
       // v0.7.5：只审计本分支实际改动过的工单——依赖引用/正文提及他单号不算本单交付面（60-06 误归因教训）
-      try { touched = git(meta.repoPath, `diff --name-only origin/main...${b} .scratch`); } catch { touched = ''; }
+      try { touched = git(meta.repoPath, 'diff', '--name-only', `origin/main...${b}`, '.scratch'); } catch { touched = ''; }
       const pref = new RegExp('^\\.scratch\\/' + prdnum + '(-[^/]+)?\\/issues\\/');
       const tset = new Set(touched.split('\n'));
       for (const rel of tree.split('\n').filter(f => pref.test(f) && f.endsWith('.md') && tset.has(f) && [...tokens].some(t => f.endsWith('/issues/' + t + '.md')))) {
-        let txt; try { txt = git(meta.repoPath, `show ${b}:${rel}`); } catch { continue; }
+        let txt; try { txt = git(meta.repoPath, 'show', `${b}:${rel}`); } catch { continue; }
         if (!/\*\*Status:\*\*\s*done/i.test(txt)) continue;
         const total = (txt.match(/^ {0,3}[-*] \[[ xX]\]/gm) || []).length;
         const checked = (txt.match(/^ {0,3}[-*] \[[xX]\]/gm) || []).length;
@@ -915,18 +941,18 @@ function cmdVerify(argv) {
   // v0.7.6：BACKLOG 撞号闸门——在飞分支给 .scratch/BACKLOG.md 新增的 `### N.` 号，
   // 与 origin/main 现号或彼此互撞即红灯（#53、#75 两波并行登号事故的工具化）
   let mainBSet;
-  try { mainBSet = new Set([...git(meta.repoPath, 'show origin/main:.scratch/BACKLOG.md').matchAll(/^#{2,3} (\d+)\./gm)].map(m => m[1])); } catch { mainBSet = new Set(); }
+  try { mainBSet = new Set([...git(meta.repoPath, 'show', 'origin/main:.scratch/BACKLOG.md').matchAll(/^#{2,3} (\d+)\./gm)].map(m => m[1])); } catch { mainBSet = new Set(); }
   const bAdd = new Map();
   for (const s of ['claimed', 'review']) for (const c of listCards(root, s)) {
     if (/^merge-/.test(c)) continue;
     const cbody = fs.readFileSync(cardFile(root, s, c), 'utf8');
     const devId = cardIdOf(c);
     const { branch } = cardFields(cbody);
-    for (const b of [...new Set([`ticket/${devId}`, (branch || '').trim()].filter(Boolean))]) {
+    for (const b of [...new Set([`ticket/${devId}`, branch].map(safeRef).filter(Boolean))]) {
       // 2026-09-30 工具欠账修复：三点 diff 的 merge-base 随合入后移，会把「已合入但分支未删」的
       // 分支再计一遍 ⇒ 必然误报撞号。零领先（已全部合入）直接跳过。
-      try { if (git(meta.repoPath, `rev-list --count origin/main..${b}`) === '0') continue; } catch { continue; }
-      let d = ''; try { d = git(meta.repoPath, `diff origin/main...${b} -- .scratch/BACKLOG.md`); } catch { continue; }
+      try { if (git(meta.repoPath, 'rev-list', '--count', `origin/main..${b}`) === '0') continue; } catch { continue; }
+      let d = ''; try { d = git(meta.repoPath, 'diff', `origin/main...${b}`, '--', '.scratch/BACKLOG.md'); } catch { continue; }
       for (const n of new Set([...d.matchAll(/^\+#{2,3} (\d+)\./gm)].map(m => m[1]))) {
         if (!bAdd.has(n)) bAdd.set(n, []);
         bAdd.get(n).push(c);
@@ -950,9 +976,9 @@ function cmdVerify(argv) {
   // 在飞卡分支差异检测：review 有卡却零差异 = 假交付；claimed 零差异仅 INFO（刚开工正常）
   for (const s of ['claimed', 'review']) for (const c of listCards(root, s)) {
     const { branch } = cardFields(fs.readFileSync(cardFile(root, s, c), 'utf8'));
-    const b = (branch || '').trim(); if (!b) continue;
+    const b = safeRef(branch); if (!b) continue;
     try {
-      if (git(meta.repoPath, `rev-list --count origin/main..${b}`) === '0') {
+      if (git(meta.repoPath, 'rev-list', '--count', `origin/main..${b}`) === '0') {
         if (s === 'review') problems.push(`MISMATCH 假交付嫌疑 ${c}: 分支 ${b} 与 origin/main 零差异，何来交付`);
         else console.log(`INFO claimed 卡 ${c} 分支尚无提交（刚开工正常）`);
       }
@@ -961,7 +987,7 @@ function cmdVerify(argv) {
   // claimed 卡 ↔ worktree
   const repoDir = meta.repoPath;
   let wtList = '';
-  try { wtList = git(repoDir, 'worktree list'); } catch { /* 报告缺 worktree 时再提示 */ }
+  try { wtList = git(repoDir, 'worktree', 'list'); } catch { /* 报告缺 worktree 时再提示 */ }
   for (const c of listCards(root, 'claimed')) {
     const id = cardIdOf(c);
     if (/^merge-/.test(id)) continue; // 合并卡无自有 worktree，操作对象是开发卡的 wt
@@ -988,14 +1014,16 @@ function cmdVerify(argv) {
   if (fs.existsSync(wtRoot)) for (const d of fs.readdirSync(wtRoot)) {
     if (!fs.statSync(path.join(wtRoot, d)).isDirectory()) continue;
     if (claimedIds.has(d)) continue;
+    // blocked 判定必须排在 inbox 之前：三态板里 blockedIds ⊆ inboxIds（受阻卡就停在待领位），
+    // 排在后面这条分支永远不可达，提示会退化成误导性的「为领导者预开工作区（卡待领取）」（审查 STD-07）。
+    if (blockedIds.has(d)) { console.log(`INFO wt/${d} 属 blocked 卡保留现场（可续接）`); continue; }
     if (inboxIds.has(d)) { console.log(`INFO wt/${d} 为领导者预开工作区（卡待领取）`); continue; }
     if (reviewIds.has(d)) { console.log(`INFO wt/${d} 交付成果所在，留待合并专员合入后回收`); continue; }
-    if (blockedIds.has(d)) { console.log(`INFO wt/${d} 属 blocked 卡保留现场（可续接）`); continue; }
     if (declaredWt.has(d.toLowerCase())) { console.log(`INFO wt/${d} 由卡 ${declaredWt.get(d.toLowerCase())} 的 worktree 行声明（非规范名）`); continue; }
     if (!wtList.includes(path.join(wtRoot, d))) problems.push(`WARN worktree wt/${d} 无 claimed 卡引用`);
   }
   // repo 主工作区脏度（仅提示）
-  const dirty = git(repoDir, 'status --porcelain').split('\n').filter(Boolean).length;
+  const dirty = git(repoDir, 'status', '--porcelain').split('\n').filter(Boolean).length;
   if (dirty) console.log(`INFO repo/（${meta.baseBranch}）有 ${dirty} 个未提交变更——领导者的文档操作应已提交`);
 
   warns.forEach(w => console.log(w));
@@ -1103,8 +1131,12 @@ function cmdNewCard(argv) {
   const labelsArg = arg(argv, 'labels') || (TRIAGE_LABELS.includes(ticketStatus) ? ticketStatus : 'needs-triage');
   if (ticketStatus && !TRIAGE_LABELS.includes(ticketStatus))
     console.log(`new-card: 工单 Status「${ticketStatus}」属执行态而非 triage 标签，labels 落 needs-triage（由领导者定标签）`);
-  if (!TRIAGE_LABELS.includes(labelsArg))
-    console.log(`WARN new-card: --labels "${labelsArg}" 不在 triage 五标签（${TRIAGE_LABELS.join(' / ')}）内，卡面照写，verify 会报发现项`);
+  // 判据是「是否含非法标签」，不是「是否等于五标签之一」：PROTOCOL §4 明许「五标签之一**或其一子集**」，
+  // 整串等值会把合法子集（如 'ready-for-agent needs-info'）误报，且与 verify 第 5 路的逐 token 判法自相矛盾
+  // （PROBE4：WARN 与紧接着的 verify 绿同时出现）。与 cmdCardSet 的写法对齐（审查 STD-08）。
+  const badLabels = parseLabels(labelsArg).filter(l => !TRIAGE_LABELS.includes(l));
+  if (badLabels.length)
+    console.log(`WARN new-card: --labels 里的 "${badLabels.join('", "')}" 不在 triage 五标签（${TRIAGE_LABELS.join(' / ')}）内，卡面照写，verify 会报发现项`);
   const docRefArg = arg(argv, 'doc-ref') || '';
   let body = tpl.replaceAll('{{ID}}', id).replaceAll('{{PRD-ID}}', id.replace(/^merge-/, ''))
     .replaceAll('{{TITLE}}', arg(argv, 'title') || id)
@@ -1277,8 +1309,7 @@ function cmdCardMove(argv) {
     if (ms >= 0) spent = ` · 本轮处理时长 ${durFmt(ms)}`;
   }
   const line = `- ${now.replace('T', ' ').slice(0, 16)} | ${loc.state}->${to} | ${arg(argv, 'actor') || 'agent'} | ${arg(argv, 'reason') || '(card move)'}`;
-  const newBody = body.replace(/(## 流转追加段[\s\S]*?)(\n## |\n?$)/, (m, sec, tail) => `${sec.trimEnd()}\n\n${line}\n${tail}`);
-  fs.writeFileSync(dest, newBody);
+  fs.writeFileSync(dest, appendFlowLine(body, line));
   // 自动记账（move 文法，verify 可回放）
   const ledgerLine = `| ${now} | ${cell(arg(argv, 'actor') || 'agent')} | ${cell(`move ${id}.md ${loc.state}->${to}`)} | ${cell(id)} | ${cell(arg(argv, 'reason') || 'card move')} |\n`;
   const ledgerFile = path.join(root, 'control', 'ledger.md');
@@ -1304,12 +1335,15 @@ function cmdAddWt(argv) {
   const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));
   const meta = needWs(root);
   const id = arg(argv, 'ticket') || die('缺少 --ticket <NNN-slug>');
-  const base = arg(argv, 'base') || 'origin/main';
+  // 与 new-card 同款 id 闸门（RUL-04 ②）：--ticket 会被拼进分支名与 worktree 路径，未校验等于把
+  // 命令面开放给「卡 id 形态的任意文本」——`add-wt --ticket 'a&calc'` 在旧实现里就是一次真注入。
+  if (!CARD_ID_RE.test(id)) die(`--ticket "${id}" 不符规范（NNN-slug 或 merge-NNN-slug，kebab-case）`);
+  const base = safeRef(arg(argv, 'base')) || 'origin/main';
   const repoDir = meta.repoPath, wtPath = path.join(root, 'wt', id), branch = `ticket/${id}`;
   // 目录被外部删除会留下 stale worktree 注册，导致下面的 -b 回退分支失败；先 prune。
-  try { git(repoDir, 'worktree prune'); } catch { /* ignore */ }
-  try { git(repoDir, `rev-parse --verify ${branch}`); git(repoDir, `worktree add "${wtPath}" ${branch}`); }
-  catch { git(repoDir, `worktree add "${wtPath}" -b ${branch} ${base}`); }
+  try { git(repoDir, 'worktree', 'prune'); } catch { /* ignore */ }
+  try { git(repoDir, 'rev-parse', '--verify', branch); git(repoDir, 'worktree', 'add', wtPath, branch); }
+  catch { git(repoDir, 'worktree', 'add', wtPath, '-b', branch, base); }
   autoHtml(root);
   console.log(`add-wt: wt/${id}（分支 ${branch}，基 ${base}）就绪。进目录后记得装依赖。`);
 }
@@ -1319,14 +1353,14 @@ function cmdRmWt(argv) {
   const repoDir = needWs(root).repoPath;
   // 破坏性操作边界（2026-09-30 事故：批量回收失控删掉整个 control/）：本命令只允许删
   // <root>/wt/<单段目录名>，拒绝路径分隔符/通配符/遍历片段，且目标必须真实存在。
-  if (!id || /[\\/*?|"<>]/.test(id) || id === '.' || id === '..') die(`--ticket "${id}" 非法：只接受单段目录名（禁路径分隔符与通配符）`);
+  if (!SEGMENT_RE.test(id) || id === '.' || id === '..') die(`--ticket "${id}" 非法：只接受单段目录名（${SEGMENT_RE} ，禁路径分隔符/通配符/shell 元字符）`);
   const wtBase = path.resolve(root, 'wt');
   const target = path.resolve(wtBase, id);
   if (path.dirname(target) !== wtBase) die(`拒绝回收：解析出的路径越出 wt/（${target}）`);
   if (!fs.existsSync(target)) die(`拒绝回收：目录不存在 ${target}`);
-  git(repoDir, `worktree remove "${target}"${flag(argv, 'force') ? ' --force' : ''}`);
-  if (flag(argv, 'delete-branch')) git(repoDir, `branch -D ticket/${id}`);
-  try { git(repoDir, 'worktree prune'); } catch { /* 无注册可清 */ }
+  git(repoDir, 'worktree', 'remove', target, ...(flag(argv, 'force') ? ['--force'] : []));
+  if (flag(argv, 'delete-branch')) git(repoDir, 'branch', '-D', `ticket/${id}`);
+  try { git(repoDir, 'worktree', 'prune'); } catch { /* 无注册可清 */ }
   autoHtml(root);
   snapshot(root, `rm-wt ${id}`);
   console.log(`rm-wt: wt/${id} 已回收${flag(argv, 'delete-branch') ? '，分支已删' : ''}。`);
@@ -1477,15 +1511,15 @@ function cmdRender(argv) {
 // 现改为：工作区根做本地 git 仓库（wt/ 忽略），变更类命令每次自动留一版快照。
 function snapshot(root, reason) {
   try {
-    if (git(root, 'rev-parse --is-inside-work-tree') !== 'true') return false;
+    if (git(root, 'rev-parse', '--is-inside-work-tree') !== 'true') return false;
     const gi = path.join(root, '.gitignore');
     if (!fs.existsSync(gi)) fs.writeFileSync(gi, 'wt/\n');
     const paths = ['control', '.gitignore', 'AGENTS.md', 'CODEBUDDY.md'].filter(f => fs.existsSync(path.join(root, f)));
     if (!paths.length) return false;
-    git(root, `add -A -- ${paths.map(f => `"${f}"`).join(' ')}`);
-    if (!git(root, 'status --porcelain').trim()) return false;
-    const msg = String(reason || 'manual').replace(/"/g, '');
-    git(root, `-c user.name=board-snapshot -c user.email=board@local commit -q -m "board snapshot: ${msg} @ ${localIso()}"`);
+    git(root, 'add', '-A', '--', ...paths);
+    if (!git(root, 'status', '--porcelain').trim()) return false;
+    const msg = String(reason || 'manual').replace(/[\r\n]+/g, ' ');
+    git(root, '-c', 'user.name=board-snapshot', '-c', 'user.email=board@local', 'commit', '-q', '-m', `board snapshot: ${msg} @ ${localIso()}`);
     return true;
   } catch { return false; }
 }
