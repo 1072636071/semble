@@ -840,7 +840,7 @@ function cmdMigrate(argv) {
       seen.add(id);
       const body = fs.readFileSync(path.join(d, f), 'utf8');
       const newLane = LANE_MAP[s];
-      const labels = (cardFields(body).labels || '').trim() || DEFAULT_LABEL[s];
+      const labels = (cardFields(body).labels || '').trim() || (DEFAULT_LABEL[s] || '');
       const dir = newLane === 'done' ? cardsDir(root, 'done') : cardsDir(root, OPEN);
       moves.push({ from: path.join(d, f), to: path.join(dir, `${id}${EXEC_SUFFIX[newLane] ?? ''}.md`),
         id, oldLane: s, newLane, labels, body });
@@ -849,19 +849,21 @@ function cmdMigrate(argv) {
   const byLane = {};
   for (const m of moves) byLane[m.oldLane] = (byLane[m.oldLane] || 0) + 1;
   console.log(`migrate: ${moves.length} 张卡待迁 —— ${Object.entries(byLane).map(([k, v]) => `${k}:${v}`).join(' / ')}`);
-  if (dry) { for (const m of moves) console.log(`  [dry] ${m.oldLane}/${m.id}.md → ${path.relative(root, m.to).replace(/\\/g, '/')}  labels: ${m.labels}`); console.log('migrate --dry-run：未动任何文件。去掉 --dry-run 即执行。'); return; }
+  if (dry) { for (const m of moves) console.log(`  [dry] ${m.oldLane}/${m.id}.md → ${path.relative(root, m.to).replace(/\\/g, '/')}${m.labels ? `  labels: ${m.labels}` : '  （已收口位：不补标签）'}`); console.log('migrate --dry-run：未动任何文件。去掉 --dry-run 即执行。'); return; }
   for (const s of LANE_DIRS) fs.mkdirSync(cardsDir(root, s), { recursive: true });
-  let moved = 0;
+  let moved = 0, same = 0;
   for (const m of moves) {
+    if (m.from === m.to) { same++; console.log(`  [same] ${m.id} 落点与原位相同（done 道三态同名，无需动）`); continue; }
     if (fs.existsSync(m.to)) { console.log(`  [skip] ${m.id} 目标已存在 ${path.relative(root, m.to).replace(/\\/g, '/')}`); continue; }
-    // 先补 labels 行再 rename：迁完再改会二次动卡，白留一版快照，也多一个失败中途态
-    const body = /^- labels:/m.test(m.body) ? m.body : addLabel(m.body, m.labels);
+    // 先补 labels 行再 rename：迁完再改会二次动卡，白留一版快照，也多一个失败中途态。
+    // m.labels 为空 = 已收口位（done），triage 判据只管未收口三位，给归档卡硬塞标签是凭空造事实。
+    const body = m.labels && !/^- labels:/m.test(m.body) ? addLabel(m.body, m.labels) : m.body;
     if (body !== m.body) fs.writeFileSync(m.from, body);
     fs.renameSync(m.from, m.to);
     moved++;
-    console.log(`  [mv] ${m.oldLane}/${m.id}.md → ${path.relative(root, m.to).replace(/\\/g, '/')}${/^- labels:/m.test(m.body) ? '' : `  labels: ${m.labels}`}`);
+    console.log(`  [mv] ${m.oldLane}/${m.id}.md → ${path.relative(root, m.to).replace(/\\/g, '/')}${body !== m.body ? `  labels: ${m.labels}` : ''}`);
   }
-  const line = `| ${localIso()} | ${arg(argv, 'actor') || 'leader'} | migrate 五泳道->三态（${moved} 张卡：blocked 由 needs-info 标签表达，执行态落文件名后缀 .claimed/.review） | control/cards/ | D9 三态 + 标签正交（ADR-008 / 工单 75-c01）；旧泳道目录留空不删（红线 §7.2），回退 = 把卡 mv 回去 |\n`;
+  const line = `| ${localIso()} | ${arg(argv, 'actor') || 'leader'} | migrate 五泳道->三态（改名 ${moved} 张 / 原位未动 ${same} 张：blocked 由 needs-info 标签表达，执行态落文件名后缀 .claimed/.review） | control/cards/ | D9 三态 + 标签正交（ADR-008 / 工单 75-c01）；旧泳道目录留空不删（红线 §7.2），回退 = 把卡 mv 回去 |\n`;
   fs.appendFileSync(path.join(root, 'control', 'ledger.md'), line);
   autoHtml(root);
   snapshot(root, 'migrate');

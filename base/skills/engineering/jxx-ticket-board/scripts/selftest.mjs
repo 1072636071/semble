@@ -185,6 +185,8 @@ try {
   fs.copyFileSync(cards('open', '001-smoke.md'), oldCards('review', '010-oldreview.md'));
   fs.copyFileSync(cards('open', '001-smoke.md'), oldCards('done', '011-olddone.md'));
   fs.copyFileSync(cards('open', '001-smoke.md'), oldCards('inbox', '012-oldnew.md'));
+  // 无 labels 行的归档卡：migrate 不得给它硬塞标签（曾经写出过 "labels: undefined"）
+  fs.writeFileSync(oldCards('done', '013-nolabel.md'), '# 013-nolabel\n\n- 标题: 归档无标签\n- 依赖: 无\n\n## 流转追加段\n\n（占位）\n');
 
   r = run(['migrate', '--root', old, '--dry-run'], tmp);
   check('migrate --dry-run 不动文件', r.code === 0 && fs.existsSync(oldCards('blocked', '009-old.md')) && !fs.existsSync(oldCards('open')));
@@ -194,8 +196,12 @@ try {
   check('migrate 迁 review→open.review', fs.existsSync(oldCards('open', '010-oldreview.review.md')));
   check('migrate 迁 done→done（无后缀）', fs.existsSync(oldCards('done', '011-olddone.md')));
   check('migrate 迁 inbox→open 裸名', fs.existsSync(oldCards('open', '012-oldnew.md')));
+  check('归档卡不被硬塞标签（无 undefined 污染）',
+    fs.existsSync(oldCards('done', '013-nolabel.md')) && !/labels/.test(fs.readFileSync(oldCards('done', '013-nolabel.md'), 'utf8')));
   check('migrate 不删旧目录（红线 §7.2）', fs.existsSync(oldCards('blocked')) && fs.readdirSync(oldCards('blocked')).length === 0);
   check('migrate 记一笔账本', /migrate 五泳道->三态/.test(fs.readFileSync(path.join(old, 'control', 'ledger.md'), 'utf8')));
+  check('账本行分清改名与原位（done 同名不动）',
+    fs.readFileSync(path.join(old, 'control', 'ledger.md'), 'utf8').includes('改名 3 张 / 原位未动 2 张'));
   r = run(['migrate', '--root', old, '--actor', 'selftest'], tmp);
   check('migrate 幂等（重跑不重复搬）', r.code === 0 && fs.existsSync(oldCards('open', '009-old.md')) && !/009-old/.test(r.out));
 } finally {
