@@ -36,7 +36,6 @@ for (const probe of ['base/scripts', 'base/skills']) {
 /** 需要「公共三件套」（fs-utils / next-seq / render-template）的技能。 */
 const CORE_SHARED = [
   'engineering/impeccable',
-  'engineering/jxx-agent-generator',
   'engineering/jxx-grill-with-memorial',
   'engineering/jxx-improve-codebase-architecture',
   'engineering/jxx-research',
@@ -49,7 +48,6 @@ const CORE_SHARED = [
 /** 需要 HTML 报告渲染两件套（open-in-browser / report-html）的技能。 */
 const REPORT_SHARED = [
   'engineering/impeccable',
-  'engineering/jxx-agent-generator',
   'engineering/jxx-improve-codebase-architecture',
   'engineering/jxx-research',
 ];
@@ -77,7 +75,6 @@ const REGISTRY_SPEC = [
     src: 'base/scripts/report-flow.mjs',
     skills: [
       'engineering/impeccable',
-      'engineering/jxx-agent-generator',
       'engineering/jxx-improve-codebase-architecture',
       'engineering/jxx-research',
     ],

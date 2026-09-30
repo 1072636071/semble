@@ -1,9 +1,8 @@
 ---
 name: jxx-writing-for-agents
 description: 为 agent 编写文档的参考——AGENTS.md、README、skill、issue 描述。当用户要求编写、评审或改进 agent 要读取的文档时加载；当用户询问 harness 如何读取指令时也会触发。
-disable-model-invocation: false
 metadata:
-  version: 1.1.0
+  version: 1.2.0
 ---
 
 # 为 agent 写作
@@ -11,6 +10,12 @@ metadata:
 写给 agent 的文档不是写给人看的。它是加载进 context、塑造每次后续输出的文本。
 
 `SKILL.md` 是通用参考；技能专用机制（frontmatter、调用方式、router skill）见 [SKILL-MECHANICS.md](SKILL-MECHANICS.md)。
+
+## 怎么用
+
+1. **定位** — 先判断文档在信息层级的位置：总是加载还是条件加载（见下）。这决定你有多少 context 可花。
+2. **选机制** — 文档是 skill 时，读 [SKILL-MECHANICS.md](SKILL-MECHANICS.md) 决定调用方式。
+3. **写与删** — 按下文各节执行，交付前过「写作检查清单」。
 
 ## Context pointer
 
@@ -35,7 +40,7 @@ Cognitive load 在 system prompt 就已付了：harness 指令、常驻文件、
 你的文档被组装进 harness 的大结构，与周围一切竞争注意力：
 
 - **system prompt** — 总是加载。harness 的领地。
-- **常驻指令文件** — 总是加载。`CLAUDE.md`/`AGENTS.md`/`GEMINI.md`（文件名按目标 harness 查）。内容永远占 context load——保持一句陈述 + 指针。
+- **常驻指令文件** — 总是加载。`AGENTS.md`/`CODEBUDDY.md`/`CLAUDE.md`/`GEMINI.md`（文件名按目标 harness 查；同一仓库多文件并存时内容保持一致）。内容永远占 context load——保持一句陈述 + 指针。
 - **技能** — 条件加载。正文只在调用时加载，常驻成本只有 description 一行。
 - **用户消息** — 总是加载。当前任务，优先级最高。
 
@@ -56,18 +61,18 @@ Cognitive load 在 system prompt 就已付了：harness 指令、常驻文件、
 草稿读完，每句都要挣得自己的位置：
 
 - 指针比 inline 便宜——指向而非复制，除非内容参与讨论。
-- description 是说明器的指针——更窄、更便宜。
+- description 是正文的指针——更窄、更便宜。
 - 之后总能补内容，但无法收回模型已读过的文本。
 
 两个视角决定一句话去留：
 
-- **谁在读** — agent 读说明器（要细节），人读描述（要知道何时调用）。
+- **谁在读** — agent 读正文（要细节），人读 description（要知道何时调用）。
 - **它要存多久** — 持久的上下文值得占空间；临时的要么删，要么移到可消亡处。
 
 ## 写作检查清单
 
 - [ ] 每个 pointer 都有 leading word——独一无二，非通用词
-- [ ] description 写给**人**，正文写给 **agent**
+- [ ] description 回答「何时调用」——人据它选择，模型据它触发；正文写给 **agent**
 - [ ] 没有复制别处的段落——inline 或 pointer，没有第三选项
 - [ ] 常驻文件只有一句话 + 一个指针
 - [ ] 每句都挣得位置——无法辩护就删

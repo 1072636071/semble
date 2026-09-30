@@ -270,9 +270,6 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line);
           <text class="nm" x="685" y="50" text-anchor="middle">jxx-skill-init</text>
           <text class="sub" x="685" y="68" text-anchor="middle">新建技能骨架</text>
 
-          <rect x="830" y="24" width="190" height="60" rx="10" fill="var(--brand-soft)" stroke="var(--brand-line)"/>
-          <text class="nm" x="925" y="50" text-anchor="middle">jxx-agent-generator</text>
-          <text class="sub" x="925" y="68" text-anchor="middle">生成 Agent 文件</text>
         </g>
 
         <!-- 想法与访谈（sky） -->
@@ -421,7 +418,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line);
     <div class="graph-notes">
       <strong>未画入图中的真实引用边</strong>（低频或跨族，读到目录时留意）：
       <ul>
-        <li><code>jxx-skill-init</code> → <code>skill-creator</code>（evals → benchmark → viewer 迭代）；→ <code>jxx-agent-generator</code>（创建 Agent 而非 Skill）。</li>
+        <li><code>jxx-skill-init</code> → <code>skill-creator</code>（evals → benchmark → viewer 迭代）。</li>
         <li><code>jxx-retro</code> → <code>jxx-writing-for-agents</code>（回顾报告遵循其写作规范）。</li>
         <li><code>seo-audit-template</code> / <code>seo-blog-template</code> → <code>skill-reviewer</code> / <code>skill-tester</code>（生成子技能前的入库门禁）。</li>
         <li><code>jxx-ask-matt</code> 是全族路由器，另路由到 <code>jxx-handoff</code>、<code>jxx-teach</code>、<code>jxx-wait-what</code>、<code>jxx-to-questionnaire</code>、<code>jxx-wizard</code>、<code>jxx-caveman</code>、<code>jxx-git-auth</code>、<code>jxx-resolving-merge-conflicts</code> 等辅助技能。</li>
@@ -471,7 +468,6 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line);
           <tr><td class="sk">jxx-caveman</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-true">true</span></td><td class="desc">极简输出模式：删全部废话留技术内容，安全场景自动恢复正常表达。</td></tr>
           <tr><td class="sk">jxx-wizard</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">生成交互式 bash 向导，引导人完成手动多步流程并捕获值。</td></tr>
           <tr><td class="sk">jxx-skill-init</td><td><span class="badge user">👤 用户</span></td><td><span class="badge i-true">true</span></td><td class="desc">本仓库新建技能：ship init 模板 + 桶选择 + frontmatter 规范，一次过 check 门禁。</td></tr>
-          <tr><td class="sk">jxx-agent-generator</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">按「姜姓身份 + 统一 frontmatter + 既有风格」生成 CodeBuddy agent 文件。</td></tr>
           <tr><td class="sk">impeccable</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">前端界面设计/审查/打磨（工艺级视觉与 UX）；hook runner 待对齐四厂商。</td></tr>
         </tbody>
       </table>

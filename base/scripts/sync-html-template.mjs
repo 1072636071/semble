@@ -26,7 +26,6 @@ const SRC_DIR = path.join(REPO_ROOT, "base", "shared", "html-template");
 const TARGETS = [
   "base/skills/engineering/jxx-tool-intro",
   "base/skills/productivity/jxx-teach",
-  "base/skills/engineering/jxx-agent-generator",
   "base/skills/engineering/jxx-prototype",
   "base/skills/engineering/jxx-improve-codebase-architecture",
 ];

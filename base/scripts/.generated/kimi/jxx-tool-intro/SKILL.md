@@ -1,7 +1,6 @@
 ---
 name: jxx-tool-intro
 description: 记录并介绍开发工具（GitHub 项目）的中文工具档案，含安装与使用，生成精美 HTML 汇总页与详情页。触发：记录工具、介绍工具、把工具加进工具目录、给某个仓库写工具介绍。
-disable-model-invocation: true
 ---
 
 <!--en-->

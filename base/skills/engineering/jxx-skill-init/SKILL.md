@@ -116,4 +116,3 @@ node base/scripts/ship.mjs check
 
 - `jxx-skill-init`（本技能）：**从零创建**新技能的骨架与规范填充
 - `skill-creator`：技能的**测试、评估、迭代优化**（evals → benchmark → viewer）
-- `jxx-agent-generator`：创建 **Agent**（`AGENT.src.md`），不是 Skill
