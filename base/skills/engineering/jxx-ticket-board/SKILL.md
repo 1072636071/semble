@@ -75,8 +75,8 @@ argument-hint: init --repo <git-url> | board | verify | ledger --action <文本>
 3. **续接 = 先 verify 后行动**：重连第一步跑 `verify`，账本与卡位不一致时先逐条核实目录实况、修账，再干活。
 4. 不移动他人 `.claimed.md` 位的卡（孤儿回收本期协议外，verify 只报告不动手）。
 5. 一切成果以 git 分支承载；卡片只做协调指针，**卡里不写成果正文**（薄卡原则）。
-7. **破坏性操作红线（2026-09-30 事故新增，协议 §7）**：回收 worktree 只走 `board.mjs rm-wt --root <root> --ticket <单卡id>`，**一次一卡**；禁止 `rm -rf` / `Remove-Item -Recurse` / 通配符 / 批量循环；禁止对 `control/` 做任何删除；**不得把「把剩下的孤儿一起清了」这类批量破坏性操作交给子代理**。看板由工作区根 git 自保（变更类命令自动 `snapshot`），大动作前后手动 `snapshot`。
-6. **看板保鲜（全员责任）**：`control/board.html`（工单视角）与 `control/prd.html`（PRD 视角）是用户的进度视图——**谁移卡谁刷**：领导者与 worker/合并专员的每次卡片 move 后必须跑 `html`（协议 §1.2）；领导者的变更命令（init/new-card/ledger/add-wt/rm-wt/auto）已内置自动重刷（v0.5.1），空闲常驻可加 `--watch`。v0.6.2 起 `html` 同时生成 `control/human.html`（人工待办面板），v0.8.0 起再生成 `control/prd.html`（PRD 看板），三页互链、随变更命令一并保鲜。
+6. **破坏性操作红线（2026-09-30 事故新增，协议 §7）**：回收 worktree 只走 `board.mjs rm-wt --root <root> --ticket <单卡id>`，**一次一卡**；禁止 `rm -rf` / `Remove-Item -Recurse` / 通配符 / 批量循环；禁止对 `control/` 做任何删除；**不得把「把剩下的孤儿一起清了」这类批量破坏性操作交给子代理**。看板由工作区根 git 自保（变更类命令自动 `snapshot`），大动作前后手动 `snapshot`。
+7. **看板保鲜（全员责任）**：`control/board.html`（工单视角）与 `control/prd.html`（PRD 视角）是用户的进度视图——**谁移卡谁刷**：领导者与 worker/合并专员的每次卡片 move 后必须跑 `html`（协议 §1.2）；领导者的变更命令（init/new-card/ledger/add-wt/rm-wt/auto）已内置自动重刷（v0.5.1），空闲常驻可加 `--watch`。v0.6.2 起 `html` 同时生成 `control/human.html`（人工待办面板），v0.8.0 起再生成 `control/prd.html`（PRD 看板），三页互链、随变更命令一并保鲜。
 
 ## 执行分流（PRD 级 vs 工单级）
 
@@ -199,7 +199,7 @@ node <skill>/scripts/board.mjs card-move --root <root> --id <卡id> --to blocked
 
 ## Resources
 
-- `scripts/selftest.mjs` — 冒烟自测（`node scripts/selftest.mjs`，52 项断言，零依赖；改 `board.mjs` 后必跑，含防抢、历史回放、migrate 与四类标签反例）。
+- `scripts/selftest.mjs` — 冒烟自测（`node scripts/selftest.mjs`，70 项断言，零依赖；改 `board.mjs` 后必跑，含防抢、历史回放、migrate 与四类标签反例）。
 - `scripts/board.mjs` — init / board / html / ledger / verify / new-card / add-wt / rm-wt / card-read / card-set / card-move / card-rm / snapshot / render / migrate / auto 子命令。
 - `assets/` — PROTOCOL、卡模板、starter 提示词（dev / merger / reviewer / auto 四份，init 时渲染进 control/）。
 - `references/` — ADR-001~008：worktree 隔离、control 外置、领导者-领取制、目录状态机、合并即卡、薄卡粒度、协议单源、三态目录 + 标签正交。改协议前先读它们。

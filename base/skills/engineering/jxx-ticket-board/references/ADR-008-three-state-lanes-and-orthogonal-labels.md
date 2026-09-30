@@ -27,7 +27,7 @@ PRD 75 要把本地公告板与服务器工单系统统一成同一套心智（D
    `held/` 保持原样（领导者私有暂缓道，worker 不可见不可动，本单不动它以控 diff 面）。
 2. **流转 = 改名，仍在 `open/` 内**：领取/交付/返工/受阻都是**同盘原子 rename**（或 `card-move` 代劳），ADR-004 的防抢语义一字不损；`blocked` 不再是目录，`card-move --to blocked` 把卡落回待领位并自动补 `needs-info`。
 3. **账本 token 不随目录改名而变**：`move <卡id>.md <from>-><to>` 里的 `<from>/<to>` 继续是**工作流位 token**（`inbox/claimed/review/done/blocked/archived/held`）。于是五泳道时代留下的几百条历史行**无需改写就仍能逐条回放**——历史账本是审计面，改一条就等于造假（2026-09-30 事故的教训之一正是「重建件冒充原始记录」）。`verify` 对 `->blocked` 的闭合判据在迁板后自动变成「卡在 open 待领位 **且** labels 带 needs-info」。
-4. **薄卡增 `- doc_ref:`**：服务器工单 URL（经 `jxx-ticket-router` 生成），与本地 `PRD:` 行（权威仓文件路径）分列——本地路径冒充 URL 会被 `verify` 判 MISMATCH。
+4. **薄卡增 `- doc_ref:`**：服务器工单 URL（手填 `<部署域>/tickets/<工单id>`，路由规则见 PRD 75 前端段 `/tickets/:id`），与本地 `PRD:` 行（权威仓文件路径）分列——本地路径冒充 URL 会被 `verify` 判 MISMATCH。
 5. **迁板只改名、不删目录**：`migrate` 建 `open/done/archived` → 逐张 rename + 补 labels → 记一行账 → 留快照。旧泳道目录留空存在（红线 §7.2 禁删），因此额外加一条红灯：**三态板若在旧泳道目录里扫到 `.md`，verify 报 MISMATCH 并给出可直接照做的改名目标**——否则照旧协议 `mv` 进去的卡会「写成功却永远看不见」。
 6. **同一 id 占两位（如同时有 `x.md` 与 `x.claimed.md`）判 MISMATCH**，这是改名方案唯一的新腐坏面，必须机检。
 

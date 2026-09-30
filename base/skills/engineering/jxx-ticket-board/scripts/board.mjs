@@ -23,6 +23,12 @@ const EXEC_SUFFIX = { inbox: '', claimed: '.claimed', review: '.review' };
 // blocked 不再是目录（三态后由 labels 的 needs-info 表达）。token 表里留着它有两个用处：
 // 未迁移的旧板仍能扫到 blocked/ 里的卡，以及 `card-move --to blocked` 仍能被人敲（自动转 needs-info 标签）。
 const LANES = ['inbox', 'claimed', 'review', 'done', 'archived', 'blocked', HELD];
+// 未收口的 token 全集（三态板里 blocked 恒空，见 listCards）；看板 open 列与 verify 的标签/残卡判据共用这一份。
+const UNRESOLVED_TOKENS = ['inbox', 'claimed', 'review', 'blocked'];
+// 旧五泳道的目录名（migrate 的输入面 + 三态板的「残卡红灯」面），两处必须同源，否则迁板判据与迁移逻辑漂移
+const LEGACY_LANES = ['inbox', 'claimed', 'review', 'done', 'blocked'];
+// token → 人话（看板徽标与协议表同源；三处各写一遍是 v0.10.0 审查发现项）
+const TOKEN_TEXT = { inbox: '待领', claimed: '在办', review: '待终审', done: '已收口', archived: '已归档', blocked: '受阻', held: '暂缓' };
 
 const arg = (argv, name) => {
   const eq = argv.find(a => a === `--${name}=` || a.startsWith(`--${name}=`));
@@ -63,6 +69,9 @@ function cardLoc(root, token) {
 function cardName(root, id, token) { return `${id}${cardLoc(root, token).suffix}.md`; }
 function cardFile(root, token, name) { return path.join(cardLoc(root, token).dir, name); }
 function listCards(root, token) {
+  // 三态板里 blocked 不是位置：若仍去扫 cards/blocked/，同一张卡会「既被当活卡统计、又被残卡红灯判一次」。
+  // 迁板后该目录里的卡只由 verify 的残卡红灯报告（给出可照做的改名目标），不参与卡位统计。
+  if (token === 'blocked' && threeState(root)) return [];
   const { dir, suffix } = cardLoc(root, token);
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir)
@@ -147,7 +156,7 @@ function cardFields(body) {
   const prdRaw = f('PRD');
   return { title: f('标题'), level: f('难度'), model: f('模型档位'), by: f('领取者'),
     prd: /\.md$/i.test(prdRaw) ? prdRaw : '', branch: f('分支'), wt: f('worktree'), deps: f('依赖'),
-    // labels = triage 维度（与目录/文件名执行态正交）；doc_ref = 服务器工单 URL（薄卡指针，经 jxx-ticket-router）
+    // labels = triage 维度（与目录/文件名执行态正交）；doc_ref = 服务器工单 URL（薄卡指针，手填 `<部署域>/tickets/<id>`）
     labels: f('labels'), docRef: f('doc_ref') };
 }
 // labels 行宽松解析：逗号/顿号/空格分隔均可，无脑去空与去重；只认五标签，其余值原样保留供 verify 报警
@@ -159,9 +168,10 @@ function parseLabels(line) {
 function addLabel(body, label) {
   const line = (body.match(/^- labels:[^\r\n]*/m) || [])[0];
   if (line !== undefined) {
+    // 函数式替换：line 是卡面原文，字符串形式下其中的 `$&`/`$'` 会被展开成整段文本（同 cmdCardSet 的坑）
     return parseLabels(line.replace(/^- labels:\s*/, '')).includes(label)
       ? body
-      : body.replace(/^- labels:[^\r\n]*/m, `${line.trimEnd()} ${label}`);
+      : body.replace(/^- labels:[^\r\n]*/m, () => `${line.trimEnd()} ${label}`);
   }
   const ins = re => body.replace(re, m => `- labels: ${label}\n${m}`);
   if (/^- 依赖:/m.test(body)) return ins(/^- 依赖:[^\r\n]*/m);
@@ -172,7 +182,7 @@ function scanBoard(root) {
   return LANES.map(s => ({ state: s, cards: listCards(root, s).map(c => {
     const body = fs.readFileSync(cardFile(root, s, c), 'utf8');
     const { id } = parseCardName(c);
-    return { id, file: c, token: s, merge: /^merge-/.test(id), wtExists: fs.existsSync(path.join(root, 'wt', id)), ...cardFields(body) };
+    return { id, token: s, merge: /^merge-/.test(id), wtExists: fs.existsSync(path.join(root, 'wt', id)), ...cardFields(body) };
   }) }));
 }
 // 依赖闸门口径：只认依赖行里写全卡 id 的依赖（如 69-03-gateway-refresh-and-proxy-leg）；
@@ -218,15 +228,14 @@ const STATE_LABEL = { inbox: '待领取 inbox', claimed: '开发中 claimed', re
 // triage 五标签色标（验收 #3）：与难度徽标 LV_COLOR 分属两个维度，渲染在同一张卡上互不覆盖。
 const LABEL_COLOR = { 'ready-for-agent': '#34d399', 'ready-for-human': '#f59e0b', 'needs-info': '#fb7185', 'needs-triage': '#a78bfa', 'wontfix': '#6b7280' };
 const TOKEN_COLOR = { inbox: '#34d399', claimed: '#60a5fa', review: '#d97706', done: '#6b7280', archived: '#6b7280', blocked: '#fb7185', held: '#f59e0b' };
-// 未收口 = open 列的成员位；旧五泳道板里 blocked/ 的卡同样属未收口，不能因为换板就从看板上消失。
-const OPEN_TOKENS = ['inbox', 'claimed', 'review', 'blocked'];
+// 未收口列的成员位取自顶部 UNRESOLVED_TOKENS（与 verify 的标签判据、残卡红灯同源，不再各写一遍）
 
 function renderHtml(root, meta, cols, starters) {
   const byToken = Object.fromEntries(cols.map(c => [c.state, c]));
   const cardsOf = t => (byToken[t]?.cards || []).map(c => ({ ...c, token: t }));
   // 三列 = 三态目录（open / done / archived），held 是领导者暂缓道、仅在非空时附在末尾。
   const groups = [
-    { key: OPEN, label: `在办 open（${threeState(root) ? '待领·在办·待终审合一，执行态看文件名后缀' : '未收口·旧板 blocked 也归此列'}）`, cards: OPEN_TOKENS.flatMap(cardsOf) },
+    { key: OPEN, label: `在办 open（${threeState(root) ? '待领·在办·待终审合一，执行态看文件名后缀' : '未收口·旧板 blocked 也归此列'}）`, cards: UNRESOLVED_TOKENS.flatMap(cardsOf) },
     { key: 'done', label: '已收口 done', cards: cardsOf('done') },
     { key: 'archived', label: '已归档 archived（废弃/让位）', cards: cardsOf('archived') },
     { key: HELD, label: '暂缓·等依赖（worker 不可领）', cards: cardsOf(HELD) },
@@ -237,7 +246,7 @@ function renderHtml(root, meta, cols, starters) {
   const prompts = {};
   const cardsHtml = c => {
     const prd = c.prd && fileHref(c.prd) ? `<a href="${esc(fileHref(c.prd))}" target="_blank" rel="noopener" title="${esc(c.prd)}">PRD</a>` : '';
-    const docref = c.docRef && /^https?:\/\//.test(c.docRef) ? `<a href="${esc(c.docRef)}" target="_blank" rel="noopener" title="${esc(c.docRef)}">服务器工单 ↗</a>` : '';
+    const docref = c.docRef && /^https?:\/\//i.test(c.docRef) ? `<a href="${esc(c.docRef)}" target="_blank" rel="noopener" title="${esc(c.docRef)}">服务器工单 ↗</a>` : '';
     const wtLine = c.wt ? `<div class="wt">📁 ${esc(c.wt)} ${c.wtExists ? '<span class="ok">已预开</span>' : '<span class="no">未创建</span>'}</div>` : '';
     const starter = starters[c.merge ? 'merger' : 'dev'] || '';
     prompts[c.id] = starter + `\n\n---\n本次指定：优先领取卡片 \`${c.id}\`（难度 ${c.level || '?'}）。` +
@@ -249,7 +258,7 @@ function renderHtml(root, meta, cols, starters) {
       : '<button class="cp" data-id="' + esc(c.id) + '">📋 复制启动提示词</button>';
     const chips = parseLabels(c.labels).map(l => `<span class="lb" style="background:${(LABEL_COLOR[l] || '#6b7280') + '22'};border-color:${LABEL_COLOR[l] || '#6b7280'};color:${LABEL_COLOR[l] || '#cbd5e1'}">${esc(l)}</span>`).join('');
     return `<div class="card${c.merge ? ' merge' : ''}${c.token === HELD ? ' heldc' : ''}">
-<span class="lv" style="background:${LV_COLOR[c.level] || '#6b7280'}">${esc(c.level || '?')}</span><span class="tk" style="border-color:${TOKEN_COLOR[c.token]}">${esc(c.token === 'inbox' ? '待领' : c.token === 'claimed' ? '在办' : c.token === 'review' ? '待终审' : c.token)}</span>${chips}
+<span class="lv" style="background:${LV_COLOR[c.level] || '#6b7280'}">${esc(c.level || '?')}</span><span class="tk" style="border-color:${TOKEN_COLOR[c.token] || '#6b7280'}">${esc(TOKEN_TEXT[c.token] || c.token)}</span>${chips}
 <b>${esc(c.id)}</b>${c.merge ? '<span class="tagm">合并</span>' : ''}
 <div class="t">${esc(c.title || '')}</div>
 ${wtLine}${depNote}
@@ -542,6 +551,9 @@ function autoHtml(root) {
 }
 
 // ---------- ledger ----------
+const cell = v => String(v).replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ');
+// ↑ 账本是固定列表格，verify 按 `|` 切列取第 4 格回放 move 文法：actor/reason 里混进 `|` 或换行会让列错位，
+//   于是那一条历史行**静默不参与对账**（假绿）。三处写账本的地方共用本函数，别各写一遍。
 function cmdLedger(argv) {
   const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));
   needWs(root);
@@ -551,7 +563,6 @@ function cmdLedger(argv) {
   const actor = arg(argv, 'actor') || 'leader';
   const file = path.join(root, 'control', 'ledger.md');
   if (!fs.existsSync(file)) die('账本不存在，先跑 init');
-  const cell = v => String(v).replace(/\|/g, '\\|');
   const line = `| ${localIso()} | ${cell(actor)} | ${cell(action)} | ${cell(target)} | ${cell(reason)} |\n`;
   if (fs.readFileSync(file, 'utf8').includes(line)) { console.log('ledger: 相同行已存在，未重复追加'); return; }
   fs.appendFileSync(file, line);
@@ -577,13 +588,20 @@ function cmdVerify(argv) {
   if (!threeState(root)) warns.push('WARN 看板仍是五泳道布局（cards/{inbox,claimed,review,done,blocked}/）——跑 `board.mjs migrate --root <root>` 迁三态（先 --dry-run 看清单）');
   // 三态板 migrate 后旧泳道目录按红线 §7.2 留空不删；于是「有人照旧协议 mv 进 claimed/」会变成静默丢卡——
   // 目录还在、文件也写成功了，但 open/ 的扫描永远看不见它。这一条把它变成红灯，且给出可照做的修法。
-  if (threeState(root)) for (const s of ['inbox', 'claimed', 'review', 'blocked']) {
+  if (threeState(root)) for (const s of UNRESOLVED_TOKENS) {
     const d = cardsDir(root, s);
     if (!fs.existsSync(d)) continue;
     for (const f of fs.readdirSync(d).filter(x => x.endsWith('.md'))) {
       const to = s === 'inbox' || s === 'blocked' ? f : f.replace(/\.md$/, '') + EXEC_SUFFIX[s] + '.md';
       problems.push(`MISMATCH 卡 ${f} 落在旧泳道 ${s}/，三态板不扫该目录（等于丢卡）⇒ mv 到 control/cards/open/${to}${s === 'blocked' ? '，并给卡面 labels 补 needs-info' : ''}`);
     }
+  }
+  // 收口/归档两道只认裸名 `<id>.md`：带执行态后缀的卡落进去同样「写成功却看不见」，与上面那条是同一失效模式
+  if (threeState(root)) for (const s of ['done', 'archived']) {
+    const d = cardsDir(root, s);
+    if (!fs.existsSync(d)) continue;
+    for (const f of fs.readdirSync(d).filter(x => /\.(claimed|review)\.md$/.test(x)))
+      problems.push(`MISMATCH 卡 ${f} 带执行态后缀却在 ${s}/（收口位只认裸名，三态扫描看不见它）⇒ mv 为 control/cards/${s}/${f.replace(/\.(claimed|review)\.md$/, '.md')}`);
   }
   const where = {}; // cardId -> [states]
   for (const s of LANES) for (const c of listCards(root, s)) {
@@ -596,7 +614,9 @@ function cmdVerify(argv) {
   const lastMove = {};
   if (fs.existsSync(ledgerFile)) {
     for (const line of fs.readFileSync(ledgerFile, 'utf8').split('\n')) {
-      const cells = line.split('|').map(x => x.trim());
+      // 只在**未转义**的 `|` 上切列：cell() 把 actor/reason 里的竖线写成 `\|`，若这里仍按裸 `|` 切，
+      // 含竖线的那行会被切成 6+ 格、cells[3] 错位 ⇒ 该历史行静默不参与对账（假绿）。
+      const cells = line.split(/(?<!\\)\|/).map(x => x.trim());
       if (cells.length < 6) continue;
       const m = cells[3]?.match(/^move\s+(\S+?)\.md\s+(\w+)->(\w+)$/);
       if (m) lastMove[m[1]] = { from: m[2], to: m[3] };
@@ -618,7 +638,7 @@ function cmdVerify(argv) {
   }
   // 第五路对账（标签维度）：labels 是正交于「目录=生命周期 / 文件名后缀=执行态」的第三轴，缺了就等于把
   // triage 信息又塞回目录名，D9 的正交性当场失效。判据只打在未收口三位（done/archived 是历史面，不追溯）。
-  for (const s of ['inbox', 'claimed', 'review', 'blocked']) for (const c of listCards(root, s)) {
+  for (const s of UNRESOLVED_TOKENS) for (const c of listCards(root, s)) {
     const { id } = parseCardName(c);
     const f = cardFields(fs.readFileSync(cardFile(root, s, c), 'utf8'));
     const ls = parseLabels(f.labels);
@@ -627,7 +647,7 @@ function cmdVerify(argv) {
     if (bad.length) problems.push(`MISMATCH 卡 ${id} 的 labels 含非 triage 值 "${bad.join(', ')}"（五标签：${TRIAGE_LABELS.join(' / ')}）`);
     if (ls.includes('wontfix')) problems.push(`MISMATCH 卡 ${id} 标 wontfix 却仍在未收口位（${s}）⇒ 按 D9 应移 archived/`);
     if (f.docRef && !f.docRef.includes('{{') && !/^https?:\/\//i.test(f.docRef))
-      problems.push(`MISMATCH 卡 ${id} 的 doc_ref 不是 URL（"${f.docRef}"）——服务器工单链接经 jxx-ticket-router 生成；本地工单路径属 PRD 行，两者别混`);
+      problems.push(`MISMATCH 卡 ${id} 的 doc_ref 不是 URL（"${f.docRef}"）——服务器工单链接手填 \`<部署域>/tickets/<工单id>\`（PRD 75 前端路由 /tickets/:id）；本地工单路径属 PRD 行，两者别混`);
   }
   // PRD 指针有效性（防迁移/改名漂移）
   for (const s of LANES) for (const c of listCards(root, s)) {
@@ -817,21 +837,21 @@ function cmdVerify(argv) {
 
 // ---------- migrate（五泳道 → 三态 + 标签正交，D9 / 工单 75-c01）----------
 // 目录改名这种动作绝不能用「删旧目录 + 重写」实现：卡内协调记录是唯一现场，删了就等于第二次 2026-09-30 事故。
-// 因此本命令只做四件事：建三态目录 → 逐张 rename（同盘原子）→ 补 labels / 卡内流转行 → 一条账本行留痕。
-// 幂等：已迁过的卡（open/<id>{,.claimed,.review}.md 或 done/archived 里已有）直接跳过；重复跑只报「已在三态位」。
+// 因此本命令只做四件事：建三态目录 → 逐张 rename（同盘原子）→ 只补 blocked 的 needs-info → 一行账本（有改名才记）。
+// 幂等：迁过的卡目标已存在即 skip；没任何东西可改时不往账本追加空转行。
 function cmdMigrate(argv) {
   const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));
   needWs(root);
   const dry = flag(argv, 'dry-run');
-  const LEGACY = ['inbox', 'claimed', 'review', 'done', 'blocked'];
-  if (!LEGACY.some(s => fs.existsSync(path.join(root, 'control', 'cards', s))))
+  if (!LEGACY_LANES.some(s => fs.existsSync(path.join(root, 'control', 'cards', s))))
     { console.log('migrate: 没找到任何旧泳道目录，看板已是三态（或尚未 init）。'); return; }
-  // 旧泳道 → 新落点：blocked 不再是目录（语义交给 needs-info 标签），其余四位一一对应
+  // 旧泳道 → 新落点：blocked 不再是目录（语义交给 needs-info 标签），其余四位一一对应。
+  // 目标名在这里**显式按三态拼**（不走 cardName/cardLoc）：那两个函数按当前板面布局解析，
+  // 而迁板的职责恰恰是「板面还是旧的，却要算出新布局的落点」——用它们会先返回旧路径，等于不迁。
   const LANE_MAP = { inbox: 'inbox', claimed: 'claimed', review: 'review', done: 'done', blocked: 'inbox' };
-  const DEFAULT_LABEL = { inbox: 'needs-triage', claimed: 'ready-for-agent', review: 'ready-for-agent', blocked: 'needs-info' };
   const moves = [];
   const seen = new Set();
-  for (const s of LEGACY) {
+  for (const s of LEGACY_LANES) {
     const d = path.join(root, 'control', 'cards', s);
     if (!fs.existsSync(d)) continue;
     for (const f of fs.readdirSync(d).filter(x => x.endsWith('.md')).sort()) {
@@ -840,7 +860,10 @@ function cmdMigrate(argv) {
       seen.add(id);
       const body = fs.readFileSync(path.join(d, f), 'utf8');
       const newLane = LANE_MAP[s];
-      const labels = (cardFields(body).labels || '').trim() || (DEFAULT_LABEL[s] || '');
+      // 只有 blocked→needs-info 是有据的翻译（PRD 75:72 明文「blocked 由 needs-info 表达」）；
+      // 其余旧卡没有 labels 就是没有——凭空给在办卡塞 ready-for-agent 等于伪造 triage（审查发现项），
+      // 改成列清单交领导者补，verify 第 5 路的红灯会继续催。
+      const labels = (cardFields(body).labels || '').trim() || (s === 'blocked' ? 'needs-info' : '');
       const dir = newLane === 'done' ? cardsDir(root, 'done') : cardsDir(root, OPEN);
       moves.push({ from: path.join(d, f), to: path.join(dir, `${id}${EXEC_SUFFIX[newLane] ?? ''}.md`),
         id, oldLane: s, newLane, labels, body });
@@ -848,22 +871,24 @@ function cmdMigrate(argv) {
   }
   const byLane = {};
   for (const m of moves) byLane[m.oldLane] = (byLane[m.oldLane] || 0) + 1;
+  const noLabels = moves.filter(m => !m.labels && UNRESOLVED_TOKENS.includes(m.newLane)).map(m => m.id);
   console.log(`migrate: ${moves.length} 张卡待迁 —— ${Object.entries(byLane).map(([k, v]) => `${k}:${v}`).join(' / ')}`);
-  if (dry) { for (const m of moves) console.log(`  [dry] ${m.oldLane}/${m.id}.md → ${path.relative(root, m.to).replace(/\\/g, '/')}${m.labels ? `  labels: ${m.labels}` : '  （已收口位：不补标签）'}`); console.log('migrate --dry-run：未动任何文件。去掉 --dry-run 即执行。'); return; }
+  if (noLabels.length) console.log(`migrate: ${noLabels.length} 张未收口卡没有 labels（${noLabels.join(', ')}）——不代拟，迁完由领导者 card-set 补，未补前 verify 第 5 路报红灯`);
+  if (dry) { for (const m of moves) console.log(`  [dry] ${m.oldLane}/${m.id}.md → ${path.relative(root, m.to).replace(/\\/g, '/')}${m.labels ? `  labels: ${m.labels}` : '  （无标签，交领导者定）'}`); console.log('migrate --dry-run：未动任何文件。去掉 --dry-run 即执行。'); return; }
   for (const s of LANE_DIRS) fs.mkdirSync(cardsDir(root, s), { recursive: true });
   let moved = 0, same = 0;
   for (const m of moves) {
     if (m.from === m.to) { same++; console.log(`  [same] ${m.id} 落点与原位相同（done 道三态同名，无需动）`); continue; }
     if (fs.existsSync(m.to)) { console.log(`  [skip] ${m.id} 目标已存在 ${path.relative(root, m.to).replace(/\\/g, '/')}`); continue; }
-    // 先补 labels 行再 rename：迁完再改会二次动卡，白留一版快照，也多一个失败中途态。
-    // m.labels 为空 = 已收口位（done），triage 判据只管未收口三位，给归档卡硬塞标签是凭空造事实。
+    // 先补 labels 行再 rename：迁完再改会二次动卡，白留一版快照，也多一个失败中途态
     const body = m.labels && !/^- labels:/m.test(m.body) ? addLabel(m.body, m.labels) : m.body;
     if (body !== m.body) fs.writeFileSync(m.from, body);
     fs.renameSync(m.from, m.to);
     moved++;
     console.log(`  [mv] ${m.oldLane}/${m.id}.md → ${path.relative(root, m.to).replace(/\\/g, '/')}${body !== m.body ? `  labels: ${m.labels}` : ''}`);
   }
-  const line = `| ${localIso()} | ${arg(argv, 'actor') || 'leader'} | migrate 五泳道->三态（改名 ${moved} 张 / 原位未动 ${same} 张：blocked 由 needs-info 标签表达，执行态落文件名后缀 .claimed/.review） | control/cards/ | D9 三态 + 标签正交（ADR-008 / 工单 75-c01）；旧泳道目录留空不删（红线 §7.2），回退 = 把卡 mv 回去 |\n`;
+  if (!moved) { console.log(`migrate: 无需改名（原位 ${same} 张 / 目标已存在 ${moves.length - same} 张），账本不追加空转行。`); return; }
+  const line = `| ${localIso()} | ${cell(arg(argv, 'actor') || 'leader')} | ${cell(`migrate 五泳道->三态（改名 ${moved} 张 / 原位未动 ${same} 张：blocked 由 needs-info 标签表达，执行态落文件名后缀 .claimed/.review）`)} | ${cell('control/cards/')} | ${cell('D9 三态 + 标签正交（ADR-008 / 工单 75-c01）；旧泳道目录留空不删（红线 §7.2），回退 = 把卡 mv 回去')} |\n`;
   fs.appendFileSync(path.join(root, 'control', 'ledger.md'), line);
   autoHtml(root);
   snapshot(root, 'migrate');
@@ -901,10 +926,13 @@ function cmdNewCard(argv) {
   if (LANES.some(s => fs.existsSync(cardFile(root, s, cardName(root, id, s))))) die(`卡 ${id} 已存在`);
   const tpl = fs.readFileSync(path.join(root, 'control', 'CARD-TEMPLATE.md'), 'utf8');
   fs.mkdirSync(path.dirname(dest), { recursive: true });
-  // triage 标签默认取自工单 **Status:**（工单与卡同一套五标签词汇，见 docs/agents/triage-labels.md）；
-  // 无工单可取时落 needs-triage —— 领导者定级时一并改掉，不留空标签（空标签 = verify 红灯）。
-  const labelsArg = arg(argv, 'labels')
-    || (tf ? ((fs.readFileSync(tf, 'utf8').match(/\*\*Status:\*\*\s*([A-Za-z-]+)/) || [])[1] || 'needs-triage') : 'needs-triage');
+  // triage 标签：显式 --labels 优先；否则只有在工单 Status 行**本身就是五标签之一**时才继承
+  // （工单还有一层执行态 Status：pending-review/done… 那些不是 triage 值，抄过来等于自己造一个越界标签，
+  //  再被 verify 第 5 路判红——2026-09-30 审查发现项）。取不到合法值就落 needs-triage 交领导者定。
+  const ticketStatus = tf ? ((fs.readFileSync(tf, 'utf8').match(/\*\*Status:\*\*\s*([A-Za-z-]+)/) || [])[1] || '') : '';
+  const labelsArg = arg(argv, 'labels') || (TRIAGE_LABELS.includes(ticketStatus) ? ticketStatus : 'needs-triage');
+  if (ticketStatus && !TRIAGE_LABELS.includes(ticketStatus))
+    console.log(`new-card: 工单 Status「${ticketStatus}」属执行态而非 triage 标签，labels 落 needs-triage（由领导者定标签）`);
   if (!TRIAGE_LABELS.includes(labelsArg))
     console.log(`WARN new-card: --labels "${labelsArg}" 不在 triage 五标签（${TRIAGE_LABELS.join(' / ')}）内，卡面照写，verify 会报发现项`);
   const docRefArg = arg(argv, 'doc-ref') || '';
@@ -1003,7 +1031,9 @@ function cmdCardSet(argv) {
     const bad = parseLabels(value).filter(l => !TRIAGE_LABELS.includes(l));
     if (bad.length) console.log(`WARN card set: labels 里的 "${bad.join('", "')}" 不在 triage 五标签（${TRIAGE_LABELS.join(' / ')}），照写但 verify 会报发现项`);
   }
-  fs.writeFileSync(loc.path, body.replace(re, `- ${field}: ${value}`));
+  // 替换串必须走函数形式：字符串替换里 value 的 `$&`/`$1`/`$'` 会被当作特殊序列展开，
+  // 实测 `--value "a$&b"` 会把整行原文插进新值、污染卡面（写进去还看不出来）。
+  fs.writeFileSync(loc.path, body.replace(re, () => `- ${field}: ${value}`));
   autoHtml(root);
   console.log(`card set: ${id} 的「${field}」已更新。`);
 }
@@ -1038,8 +1068,7 @@ function cmdCardMove(argv) {
   const newBody = body.replace(/(## 流转追加段[\s\S]*?)(\n## |\n?$)/, (m, sec, tail) => `${sec.trimEnd()}\n\n${line}\n${tail}`);
   fs.writeFileSync(dest, newBody);
   // 自动记账（move 文法，verify 可回放）
-  const ledgerLine = `| ${localIso()} | ${arg(argv, 'actor') || 'agent'} | move ${id}.md ${loc.state}->${to} | ${id} | ${arg(argv, 'reason') || 'card move'} |
-`;
+  const ledgerLine = `| ${localIso()} | ${cell(arg(argv, 'actor') || 'agent')} | ${cell(`move ${id}.md ${loc.state}->${to}`)} | ${cell(id)} | ${cell(arg(argv, 'reason') || 'card move')} |\n`;
   const ledgerFile = path.join(root, 'control', 'ledger.md');
   if (fs.existsSync(ledgerFile) && !fs.readFileSync(ledgerFile, 'utf8').includes(ledgerLine))
     fs.appendFileSync(ledgerFile, ledgerLine);

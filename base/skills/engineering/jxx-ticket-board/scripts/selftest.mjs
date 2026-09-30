@@ -78,7 +78,8 @@ try {
 
   r = run(['verify', '--root', root], tmp);
   check('verify 五路对账一致', r.code === 0, lastLine(r.out));
-  check('verify 自报五路（账本×卡位×worktree×工单状态×标签）', /五路/.test(r.out), lastLine(r.out));
+  // 注：不再断言「日志里出现『五路』字样」——那是 grep 自家文案的自证型断言（徽标删掉照样绿），
+  // 第 5 路的有效性由下面的标签反例（越界/wontfix/缺行）与历史行双向闭合两条真判据兜。
 
   // 受阻：三态后没有 blocked/ 目录，语义 = 留在 open/ 待领位 + needs-info 标签
   r = run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'blocked', '--actor', 'selftest', '--reason', '冒烟受阻'], tmp);
@@ -141,14 +142,64 @@ try {
   r = run(['verify', '--root', root], tmp);
   check('doc_ref 成真 URL 后闭合', r.code === 0, lastLine(r.out));
 
-  // 看板三列 + 标签色标（验收 #3）
+  // 看板三列 + 标签色标 + 执行态徽标（验收 #3）——判据只认卡片级 markup，不认列标题/footer 里的同一批中文
+  // （否则徽标与 chip 的代码删掉照样绿，属自证型断言）。
   run(['html', '--root', root], tmp);
   const html = fs.readFileSync(path.join(root, 'control', 'board.html'), 'utf8');
   check('board.html 渲染三列 open/done/archived',
-    /在办 open/.test(html) && /已收口 done/.test(html) && /已归档 archived/.test(html));
-  check('board.html 带 triage 标签色标', /\.lb\{/.test(html) && /needs-info/.test(html));
-  check('board.html 带执行态徽标', /待领|在办|待终审/.test(html));
+    /<h2>在办 open（[^）]+） \(\d+\)<\/h2>/.test(html) && /<h2>已收口 done \(0\)<\/h2>/.test(html) && /<h2>已归档 archived（[^）]*） \(0\)<\/h2>/.test(html),
+    (html.match(/<h2>[^<]*<\/h2>/g) || []).join(' | '));
+  check('board.html 带 triage 标签色标（卡片级 chip）', /<span class="lb"[^>]*>needs-info<\/span>/.test(html));
+  check('board.html 带执行态徽标（待领）', /<span class="tk"[^>]*>待领<\/span>/.test(html));
   check('board.html 的 doc_ref 渲染为外链', /https:\/\/example\.invalid\/ticket\/1/.test(html));
+  // 徽标必须由文件名后缀驱动：领到在办位再渲染，它得跟着从「待领」变「在办」
+  run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'claimed', '--actor', 'selftest', '--reason', '冒烟：验证徽标随后缀'], tmp);
+  run(['html', '--root', root], tmp);
+  const html2 = fs.readFileSync(path.join(root, 'control', 'board.html'), 'utf8');
+  check('徽标随执行态切换（在办替代待领）',
+    /<span class="tk"[^>]*>在办<\/span>/.test(html2) && !/<span class="tk"[^>]*>待领<\/span>/.test(html2));
+  run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'blocked', '--actor', 'selftest', '--reason', '冒烟：回到待领位'], tmp);
+
+  // ---------- 写入安全与收口位（2026-09-30 三维度审查发现项补测）----------
+  // 替换串里的 `$&` 曾被当作特殊序列展开，把整行原文插进新值（写进卡面且看不出来）
+  run(['card-set', '--root', root, '--id', '001-smoke', '--field', 'labels', '--value', 'needs-triage$&x'], tmp);
+  check('card-set 值里的 $& 不展开（替换串污染回归）',
+    /^- labels: needs-triage\$\&x$/m.test(fs.readFileSync(cards('open', '001-smoke.md'), 'utf8')));
+  r = run(['verify', '--root', root], tmp);
+  check('越界标签值仍被第 5 路拦下', r.code === 5 && /非 triage 值/.test(r.out), lastLine(r.out));
+  run(['card-set', '--root', root, '--id', '001-smoke', '--field', 'labels', '--value', 'needs-info'], tmp);
+  // 账本列净化：actor/reason 带竖线与换行不得改变列数，也不得让该行退出对账
+  r = run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'review', '--actor', 'self|test', '--reason', '带|竖线'], tmp);
+  const ledRow = fs.readFileSync(path.join(root, 'control', 'ledger.md'), 'utf8').trim().split('\n').pop();
+  check('reason 带竖线时账本仍是 5 列', ledRow.split(/(?<!\\)\|/).length === 7, lastLine(r.out));
+  r = run(['verify', '--root', root], tmp);
+  check('.review 位 + 带竖线账本行：该行仍参与对账（无假绿）', r.code === 0 && /001-smoke/.test(fs.readFileSync(path.join(root, 'control', 'ledger.md'), 'utf8')), lastLine(r.out));
+  // 收口与归档两位是真交付路径，必须走得通
+  r = run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'done', '--actor', 'selftest', '--reason', '冒烟收口'], tmp);
+  check('.review → done 落裸名', r.code === 0 && fs.existsSync(cards('done', '001-smoke.md')) && !fs.existsSync(cards('open', '001-smoke.md')));
+  // 收口即回收工作区（真实流程：merger 合入后 rm-wt）——否则归档卡会留一个无主 worktree，
+  // 被 verify 记成一条 WARN 出入，把「归档位不逼标签」这条判据的读数搅浑。
+  r = run(['rm-wt', '--root', root, '--ticket', '001-smoke', '--force'], tmp);
+  check('rm-wt 正常回收', r.code === 0 && !fs.existsSync(path.join(root, 'wt', '001-smoke')));
+  r = run(['card-move', '--root', root, '--id', '001-smoke', '--to', 'archived', '--actor', 'selftest', '--reason', '冒烟归档'], tmp);
+  check('done → archived 走得通且 verify 不判红', r.code === 0 && fs.existsSync(cards('archived', '001-smoke.md')));
+  r = run(['verify', '--root', root], tmp);
+  check('归档位卡不逼标签（第 5 路只管未收口）', r.code === 0, lastLine(r.out));
+  // 带后缀的卡掉进 done/archived = 与「旧泳道残卡」同一失效模式，也必须红灯
+  fs.writeFileSync(cards('done', '004-suffixtrap.review.md'), '# 004-suffixtrap\n\n- 标题: 后缀陷阱\n- labels: ready-for-agent\n\n## 流转追加段\n\n（占位）\n');
+  r = run(['verify', '--root', root], tmp);
+  check('收口位里的带后缀卡被红灯揪出', r.code === 5 && /带执行态后缀却在 done/.test(r.out), lastLine(r.out));
+  fs.rmSync(cards('done', '004-suffixtrap.review.md'));
+  r = run(['verify', '--root', root], tmp);
+  check('清掉陷阱卡回到绿', r.code === 0, lastLine(r.out));
+  // blocked token 在三态板不参与卡位统计（否则同一张卡既算活卡又被残卡红灯判两次）
+  fs.mkdirSync(cards('blocked'), { recursive: true });
+  fs.copyFileSync(cards('archived', '001-smoke.md'), cards('blocked', '005-oldblock.md'));
+  r = run(['verify', '--root', root], tmp);
+  check('三态板里 blocked/ 只报一条残卡红灯（不双判）',
+    r.code === 5 && r.out.split('\n').filter(l => /MISMATCH.*005-oldblock/.test(l)).length === 1 && !/同时存在于 005-oldblock/.test(r.out),
+    r.out.split('\n').filter(l => /005-oldblock/.test(l)).join(' || '));
+  fs.rmSync(cards('blocked'), { recursive: true, force: true });
 
   // 快照：工作区根 git init 后，变更类命令应自动留档
   git(root, 'init -q');
@@ -156,18 +207,18 @@ try {
   r = run(['ledger', '--root', root, '--action', 'selftest 记账'], tmp);
   let commits = git(root, 'log --oneline').trim().split('\n').filter(Boolean).length;
   check('变更类命令自动快照', r.code === 0 && commits >= 1, `commits=${commits}`);
-  const snap = execFileSync('git', ['-C', root, 'show', 'HEAD:control/cards/open/001-smoke.md'], { encoding: 'utf8' });
-  check('快照可取回三态位上的卡', snap.includes('# 001-smoke'));
-
-  r = run(['rm-wt', '--root', root, '--ticket', '001-smoke', '--force'], tmp);
-  check('rm-wt 正常回收', r.code === 0 && !fs.existsSync(path.join(root, 'wt', '001-smoke')));
+  const snap = execFileSync('git', ['-C', root, 'show', 'HEAD:control/cards/archived/001-smoke.md'], { encoding: 'utf8' });
+  check('快照可取回三态位上的卡（归档位）', snap.includes('# 001-smoke'));
 
   // render：assets 与 live 副本应一致（漂移检测本身可跑）
   r = run(['render', '--root', root], tmp);
   check('render 漂移检测可跑', r.code === 0 && /\[same\]|\[drift\]/.test(r.out));
 
   r = run(['board', '--root', root], tmp);
-  check('board 默认只报收口/归档计数', r.code === 0 && /已完成 done \(0\)/.test(r.out) && !/已归档 archived \(0\)/.test(r.out), firstLine(r.out));
+  check('board 默认把收口/归档折叠成计数',
+    r.code === 0 && /已完成 done \(0\)/.test(r.out) && /已归档 archived \(1\)/.test(r.out) && !/001-smoke\.md/.test(r.out), firstLine(r.out));
+  r = run(['board', '--root', root, '--all'], tmp);
+  check('board --all 展开归档明细', /已归档 archived \(1\)/.test(r.out) && /001-smoke\.md/.test(r.out));
 
   // ---------- migrate：另起一块旧五泳道板，验证迁三态的完整性与幂等 ----------
   const old = path.join(tmp, 'old');
@@ -181,29 +232,42 @@ try {
   fs.copyFileSync(path.join(root, 'control', 'workspace.json'), path.join(old, 'control', 'workspace.json'));
   fs.copyFileSync(path.join(root, 'control', 'CARD-TEMPLATE.md'), path.join(old, 'control', 'CARD-TEMPLATE.md'));
   fs.copyFileSync(path.join(root, 'control', 'PROTOCOL.md'), path.join(old, 'control', 'PROTOCOL.md'));
-  fs.copyFileSync(cards('open', '001-smoke.md'), oldCards('blocked', '009-old.md'));
-  fs.copyFileSync(cards('open', '001-smoke.md'), oldCards('review', '010-oldreview.md'));
-  fs.copyFileSync(cards('open', '001-smoke.md'), oldCards('done', '011-olddone.md'));
-  fs.copyFileSync(cards('open', '001-smoke.md'), oldCards('inbox', '012-oldnew.md'));
-  // 无 labels 行的归档卡：migrate 不得给它硬塞标签（曾经写出过 "labels: undefined"）
-  fs.writeFileSync(oldCards('done', '013-nolabel.md'), '# 013-nolabel\n\n- 标题: 归档无标签\n- 依赖: 无\n\n## 流转追加段\n\n（占位）\n');
+  // 旧板夹具：全部**不带 labels**（除了 014 自带一个），用来验 migrate 只翻译 blocked、不代拟他标签
+  const oldCard = (lane, id, extra = '') => fs.writeFileSync(oldCards(lane, `${id}.md`),
+    `# ${id}\n\n- 标题: 旧板 ${id}\n- 依赖: 无\n${extra}\n## 流转追加段\n\n（占位）\n`);
+  oldCard('blocked', '009-old');
+  oldCard('review', '010-oldreview');
+  oldCard('done', '011-olddone');
+  oldCard('inbox', '012-oldnew');
+  oldCard('claimed', '014-oldclaimed', '- labels: ready-for-agent\n');
 
   r = run(['migrate', '--root', old, '--dry-run'], tmp);
   check('migrate --dry-run 不动文件', r.code === 0 && fs.existsSync(oldCards('blocked', '009-old.md')) && !fs.existsSync(oldCards('open')));
+  check('migrate 点名缺标签的卡且声明不代拟', /不代拟/.test(r.out) && /009-old|012-oldnew/.test(r.out), firstLine(r.out));
   r = run(['migrate', '--root', old, '--actor', 'selftest'], tmp);
-  check('migrate 迁 blocked→open+needs-info', fs.existsSync(oldCards('open', '009-old.md'))
+  check('migrate 迁 blocked→open+needs-info（唯一有据的翻译）', fs.existsSync(oldCards('open', '009-old.md'))
     && /- labels: needs-info/.test(fs.readFileSync(oldCards('open', '009-old.md'), 'utf8')));
   check('migrate 迁 review→open.review', fs.existsSync(oldCards('open', '010-oldreview.review.md')));
+  check('migrate 迁 claimed→open.claimed 且原标签不被覆写', fs.existsSync(oldCards('open', '014-oldclaimed.claimed.md'))
+    && /- labels: ready-for-agent/.test(fs.readFileSync(oldCards('open', '014-oldclaimed.claimed.md'), 'utf8')));
   check('migrate 迁 done→done（无后缀）', fs.existsSync(oldCards('done', '011-olddone.md')));
   check('migrate 迁 inbox→open 裸名', fs.existsSync(oldCards('open', '012-oldnew.md')));
+  check('未收口卡不被代拟标签（凭空造 triage 的回归）',
+    !/labels/.test(fs.readFileSync(oldCards('open', '012-oldnew.md'), 'utf8')));
   check('归档卡不被硬塞标签（无 undefined 污染）',
-    fs.existsSync(oldCards('done', '013-nolabel.md')) && !/labels/.test(fs.readFileSync(oldCards('done', '013-nolabel.md'), 'utf8')));
+    fs.existsSync(oldCards('done', '011-olddone.md')) && !/labels/.test(fs.readFileSync(oldCards('done', '011-olddone.md'), 'utf8')));
+  r = run(['verify', '--root', old], tmp);
+  check('代拟被拒后由第 5 路红灯催领导者补', r.code === 5 && /缺 labels 行/.test(r.out), lastLine(r.out));
+  for (const [lane, f] of [['open', '012-oldnew.md'], ['open', '010-oldreview.review.md']])
+    fs.writeFileSync(oldCards(lane, f), fs.readFileSync(oldCards(lane, f), 'utf8').replace(/^- 依赖:[^\r\n]*/m, '- 依赖: 无\n- labels: needs-triage'));
   check('migrate 不删旧目录（红线 §7.2）', fs.existsSync(oldCards('blocked')) && fs.readdirSync(oldCards('blocked')).length === 0);
   check('migrate 记一笔账本', /migrate 五泳道->三态/.test(fs.readFileSync(path.join(old, 'control', 'ledger.md'), 'utf8')));
-  check('账本行分清改名与原位（done 同名不动）',
-    fs.readFileSync(path.join(old, 'control', 'ledger.md'), 'utf8').includes('改名 3 张 / 原位未动 2 张'));
+  check('账本行分清改名与原位（done 同道名不动）',
+    fs.readFileSync(path.join(old, 'control', 'ledger.md'), 'utf8').includes('改名 4 张 / 原位未动 1 张'));
   r = run(['migrate', '--root', old, '--actor', 'selftest'], tmp);
   check('migrate 幂等（重跑不重复搬）', r.code === 0 && fs.existsSync(oldCards('open', '009-old.md')) && !/009-old/.test(r.out));
+  check('无东西可改时不往账本追加空转行',
+    fs.readFileSync(path.join(old, 'control', 'ledger.md'), 'utf8').split('migrate 五泳道->三态').length === 2);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }

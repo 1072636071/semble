@@ -12,8 +12,9 @@
 <!-- 三态 + 标签正交（D9 / ADR-008）：目录 = 生命周期（open/ 未收口 · done/ 已收口 · archived/ 废弃让位），
      文件名后缀 = 执行态（open/<id>.md 待领 · .claimed.md 在办 · .review.md 待终审），
      本行 labels = triage 下一步（五标签：ready-for-agent / ready-for-human / needs-info / needs-triage / wontfix）。
-     受阻不再靠 blocked/ 目录表达：`card move --to blocked` 会把卡留在 open/ 并自动打上 needs-info。
-     doc_ref 是服务器工单 URL（经 jxx-ticket-router 生成）；本地工单文件路径写 PRD 行，两者别混。留空 = 尚未上行服务器。
+     受阻不再靠 blocked/ 目录表达：`card-move --to blocked` 会把卡留在 open/ 并自动打上 needs-info。
+     doc_ref 是服务器工单 URL（手填：`<部署域>/tickets/<工单id>`，路由规则见 PRD 75「前端」段 `/tickets/:id`）；
+     本地工单文件路径写 PRD 行，两者别混。留空 = 尚未上行服务器。
      确定性路径（card read 实时推导，不占卡面）：分支 ticket/{{ID}} · worktree {{ROOT}}/wt/{{ID}}/ · 推进 /jxx-implement（PROTOCOL §2） -->
 
 ## 领取记录
