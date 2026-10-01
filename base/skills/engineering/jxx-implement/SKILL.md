@@ -1,9 +1,9 @@
 ---
 name: jxx-implement
-description: 基于 spec 或一组 ticket 实现（implement）用户描述的工作。
+description: 基于 spec 或一组 ticket 实现（implement）用户描述的工作。统一开发面：必须在项目内的工单 worktree（wt/<卡id>）里开发、走统一看板（jxx-ticket-board）的卡位流转，三段硬出口不变。
 disable-model-invocation: false
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 实现用户在 spec 或工单中描述的工作。
@@ -12,13 +12,26 @@ metadata:
 
 定期运行类型检查和单个测试文件，结束时运行完整测试套件。
 
+## 硬前置（统一布局 · v1.1.0，不可跳过）
+
+三技能统一改造（jxx-ticket-board / jxx-implement / jxx-implement-spec）：**一切开发都在项目里的工单 worktree 中进行，并由统一看板跟踪**。开工前按序落实：
+
+1. **看板存在**：项目根有 `control/workspace.json`；没有则先 `node <jxx-ticket-board>/scripts/board.mjs init --root <项目根>`（in-project 自动判定，wt/ 与 control/ 落在项目里，快照走 control/ 嵌套 git，不进产品仓历史）。
+2. **工单有卡**：`control/cards/` 里存在本工单对应的卡（卡 id = `NN-MM-slug`，与工单文件名一致）；没有则由领导者（或本会话代行）投卡：`board.mjs new-card --root <项目根> --id <卡id> --level <L1-L4> --model <档位> --ticket-file <工单文件绝对路径>`（投卡自动推导卡面「合入目标」：工单属 PRD → PRD 分支；散工单 → main）。
+3. **领卡**：`board.mjs card-move --root <项目根> --id <卡id> --to claimed --actor <会话标识> --harness <harness 名> --llm <模型名>`（原子改名防抢；抢不到就换卡或回报）。
+4. **worktree 内开发**：`wt/<卡id>/` 已存在则直接进入；否则 `board.mjs add-wt --root <项目根> --ticket <卡id>`——**基分支自动推导**：属 PRD 的工单从 PRD 分支拉（不存在则自动从 origin/main 建 PRD 分支），散工单从 origin/main 拉。**不得**在 main 或他人分支上直接开发。完整规则见 `control/PROTOCOL.md`（§1 领取、§2 开发组规则）。
+
 ## 完成步骤（不可跳过）
 
 以下三步是实现的硬出口——不执行视为未完成：
 
 - [ ] **标记待审查**：第一轮功能开发完成（代码写完、本地类型检查与单测通过）后，将工单 `Status:` 置为 `pending-review`（待审查），在提交前保存。
-- [ ] **代码审查**：调用 `/jxx-code-review` 审查所有变更。审查通过前不得提交；审查有发现项时按下方流程修复后重新审查。
-- [ ] **标记结束并提交**：代码审查通过（或无发现项、用户明确确认无视）后，将工单 `Status:` 置为 `done`（结束），再将工作 commit 到当前 branch。commit message 遵循 conventional commits 格式，body 说明变更原因。
+- [ ] **代码审查**：调用 `/jxx-code-review` 审查所有变更（diff 基准 = 卡的合入目标：PRD 工单对 PRD 分支，散工单对 main）。审查通过前不得提交；审查有发现项时按下方流程修复后重新审查。
+- [ ] **标记结束并提交**：代码审查通过（或无发现项、用户明确确认无视）后，将工单 `Status:` 置为 `done`（结束），再将工作 commit 到**工单分支** `ticket/<卡id>`（worktree 内）。commit message 遵循 conventional commits 格式，body 说明变更原因。
+
+### 交付（硬出口之后）
+
+- [ ] **交付移卡**：commit 整齐、`git push origin ticket/<卡id>` 后，在卡的「交付记录」追加提交范围 + 审查报告指针、「终审待验清单」逐条写实，然后 `board.mjs card-move --root <项目根> --id <卡id> --to review`（卡到待终审位），刷看板（`board.mjs html --root <项目根>`），回报「已交付待终审」。**合并不是本技能的事**——合并专员按卡的「合入目标」走统一合并流（PROTOCOL §3/§3.1）：属 PRD 的先合 PRD 分支（PRD 收口或用户要求时才合 main）；散工单确认没影响后直合 main。
 
 工单状态流转：`ready-for-agent` → `pending-review`（功能开发完）→ `done`（审查通过）。完整生命周期见 `docs/agents/issue-tracker.md` 的「工单状态与生命周期」节。
 

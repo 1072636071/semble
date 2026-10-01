@@ -71,6 +71,27 @@ function needWs(root) {
   return meta;
 }
 
+// ---------- in-project 模式与统一合并流（v0.12.0 · 三技能统一改造）----------
+// jxx-ticket-board / jxx-implement / jxx-implement-spec 统一布局：wt/ 与 control/ 直接落在项目仓库根，
+// 三技能共用同一个看板、同一套 worktree、同一条「开发 → 审查 → 合并」流水线。
+// workspace.json 的 mode 字段是第一判据；旧工作区没有该字段 ⇒ 按 repoPath === root 推导（外置恒不等）。
+function wsMode(root, meta) {
+  const m = meta || (fs.existsSync(path.join(root, 'control', 'workspace.json'))
+    ? JSON.parse(fs.readFileSync(path.join(root, 'control', 'workspace.json'), 'utf8')) : null);
+  if (m && m.mode) return m.mode;
+  if (m && m.repoPath && path.resolve(m.repoPath) === path.resolve(root)) return 'in-project';
+  return 'external';
+}
+// 合入目标推导（统一合并流）：工单文件位于 .scratch/<NN>-<slug>/issues/ 且该目录有 PRD.md
+// ⇒ 先合 PRD 分支 ticket/<NN>-<slug>（PRD 全部工单收口或用户要求时才由 PRD 分支合 main）；
+// 否则（无 PRD 的散工单）⇒ 审查通过、确认没影响后直接合 main。
+function mergeTargetOf(ticketFile) {
+  if (!ticketFile) return 'main';
+  const prdDir = path.dirname(path.dirname(path.resolve(ticketFile)));
+  if (!fs.existsSync(path.join(prdDir, 'PRD.md'))) return 'main';
+  return `ticket/${path.basename(prdDir)}`;
+}
+
 // ---------- 卡位解析（工作流位 token ↔ 物理落点）----------
 // 三态板：open/<id>.md ｜ open/<id>.claimed.md ｜ open/<id>.review.md ｜ done/<id>.md ｜ archived/<id>.md
 // 未跑 migrate 的旧五泳道板：token 即目录名、无后缀 —— 同一份脚本两种板都要能跑，否则升级瞬间全员工具失效。
@@ -108,13 +129,26 @@ const cardIdOf = name => parseCardName(name).id;
 // ---------- init ----------
 function cmdInit(argv) {
   const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));
-  const repoUrl = arg(argv, 'repo') || die('缺少 --repo <git-url>');
   const base = arg(argv, 'branch') || 'main';
-  const repoDir = path.resolve(arg(argv, 'repo-dir') || path.join(root, 'repo'));
+  const repoDirArg = arg(argv, 'repo-dir');
+  // in-project（统一布局）：--in-project 显式、--repo-dir 指向 root 自身、或 root 已是带 .scratch/ 的
+  // git 仓且未给 --repo-dir —— 三种都按「看板与 worktree 直接建在项目里」处理，项目自身即权威仓。
+  const inProject = flag(argv, 'in-project')
+    || (repoDirArg !== undefined && path.resolve(repoDirArg) === root)
+    || (repoDirArg === undefined && fs.existsSync(path.join(root, '.git')) && fs.existsSync(path.join(root, '.scratch')));
+  const repoDir = inProject ? root : path.resolve(repoDirArg || path.join(root, 'repo'));
+  let repoUrl = arg(argv, 'repo') || '';
+  if (inProject && !repoUrl) {
+    try { repoUrl = git(root, 'remote', 'get-url', 'origin'); } catch { repoUrl = ''; }
+  }
+  if (!inProject && !repoUrl) die('缺少 --repo <git-url>（in-project 模式可省，自动取 origin remote）');
   fs.mkdirSync(root, { recursive: true });
 
   const actions = [];
-  if (fs.existsSync(path.join(repoDir, '.git'))) {
+  if (inProject) {
+    if (!fs.existsSync(path.join(root, '.git'))) die(`--in-project 但 ${root} 不是 git 仓库`);
+    actions.push(['kept', `${root} — in-project 模式：项目自身即权威仓，wt/ 与 control/ 落在项目里`]);
+  } else if (fs.existsSync(path.join(repoDir, '.git'))) {
     actions.push(['kept', `${repoDir} — 已有权威仓库，未动`]);
   } else if (repoDir === path.join(root, 'repo')) {
     fs.mkdirSync(repoDir, { recursive: true });
@@ -127,6 +161,16 @@ function cmdInit(argv) {
   }
   try { git(repoDir, 'rev-parse', '--verify', base); }
   catch { die(`${repoDir} 上不存在基准分支 ${base}，用 --branch 指定正确分支`); }
+  if (inProject) {
+    // 产品仓 .gitignore 幂等补 wt/ 与 control/：worktree 与看板都不进产品仓历史
+    const gi = path.join(root, '.gitignore');
+    const cur = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8') : '';
+    const add = ['wt/', 'control/'].filter(l => !cur.split(/\r?\n/).some(x => x.trim() === l));
+    if (add.length) {
+      fs.writeFileSync(gi, (cur.trim() ? cur.replace(/\s*$/, '') + '\n' : '') + add.join('\n') + '\n');
+      actions.push(['updated', `.gitignore — 补 ${add.join('、')}（worktree 与看板不入产品仓）`]);
+    }
+  }
 
   fs.mkdirSync(path.join(root, 'wt'), { recursive: true });
   // 三态目录（D9）：open = 未收口 · done = 已收口 · archived = 废弃/让位；held 仍是领导者暂缓道（control/held/）
@@ -153,7 +197,7 @@ function cmdInit(argv) {
   put(path.join(root, 'control', 'ledger.md'),
     `# 领导者账本（只追加，一行一动作）\n\n| 时间 | 角色 | 动作 | 对象 | 理由 |\n|---|---|---|---|---|\n`);
   put(path.join(root, 'control', 'workspace.json'),
-    JSON.stringify({ root, repoUrl, repoPath: repoDir, baseBranch: base, createdAt: localIso() }, null, 2));
+    JSON.stringify({ root, repoUrl, repoPath: repoDir, baseBranch: base, mode: inProject ? 'in-project' : 'external', createdAt: localIso() }, null, 2));
 
   for (const [act, f] of actions) console.log(`  [${act}] ${f}`);
   autoHtml(root);
@@ -175,6 +219,8 @@ function cardFields(body) {
     prd: /\.md$/i.test(prdRaw) ? prdRaw : '', branch: f('分支'), wt: f('worktree'), deps: f('依赖'),
     // labels = triage 维度（与目录/文件名执行态正交）；doc_ref = 服务器工单 URL（薄卡指针，手填 `<部署域>/tickets/<id>`）
     labels: f('labels'), docRef: f('doc_ref'),
+    // 合入目标（统一合并流 v0.12.0）：ticket/<NN>-<slug>（属 PRD，先合 PRD 分支）或 main（散工单直合）
+    mergeTarget: f('合入目标'),
     // 处理计时三字段 = 统计面（谁在哪个 harness 上、用哪个模型办的、什么时候开始/结束），由 card-move 自动盖章。
     // 它们**不参与状态判定**：执行态的唯一真源仍是文件名后缀（ADR-004 的原子 rename 防抢），
     // 字段缺失或写歪只会让看板少显示一行，绝不会把卡的位置判错——这是与 ADR-008 被否方案①的分界。
@@ -974,12 +1020,17 @@ function cmdVerify(argv) {
       console.log(`INFO held 卡 ${c} 依赖已齐，可 mv 回 open/ 释放待领`);
   }
   // 在飞卡分支差异检测：review 有卡却零差异 = 假交付；claimed 零差异仅 INFO（刚开工正常）
+  // 基准 = 合入目标（v0.12.0）：PRD 工单的 diff 只应相对 PRD 分支评判——相对 origin/main 必然带着
+  // 整支 PRD 分支的差异，假交付闸门会永远失声；PRD 分支不存在时回退 origin/main。
   for (const s of ['claimed', 'review']) for (const c of listCards(root, s)) {
-    const { branch } = cardFields(fs.readFileSync(cardFile(root, s, c), 'utf8'));
-    const b = safeRef(branch); if (!b) continue;
+    const cf = cardFields(fs.readFileSync(cardFile(root, s, c), 'utf8'));
+    const b = safeRef(cf.branch); if (!b) continue;
+    const mt = cf.mergeTarget || mergeTargetOf(cf.prd);
+    let diffRef = 'origin/main';
+    if (mt !== 'main') { try { git(meta.repoPath, 'rev-parse', '--verify', mt); diffRef = mt; } catch { /* 回退 origin/main */ } }
     try {
-      if (git(meta.repoPath, 'rev-list', '--count', `origin/main..${b}`) === '0') {
-        if (s === 'review') problems.push(`MISMATCH 假交付嫌疑 ${c}: 分支 ${b} 与 origin/main 零差异，何来交付`);
+      if (git(meta.repoPath, 'rev-list', '--count', `${diffRef}..${b}`) === '0') {
+        if (s === 'review') problems.push(`MISMATCH 假交付嫌疑 ${c}: 分支 ${b} 与 ${diffRef}（合入目标）零差异，何来交付`);
         else console.log(`INFO claimed 卡 ${c} 分支尚无提交（刚开工正常）`);
       }
     } catch { /* 分支未建（worker 未 add-wt）跳过 */ }
@@ -1161,6 +1212,23 @@ function cmdNewCard(argv) {
     if (inherited) body = setPrd(body, inherited);
     else console.log(`WARN new-card: 未找到可继承 PRD 的开发卡 ${devId}.md，PRD 行仍是模板占位路径——请手工改成真实工单路径，否则 verify 会报 MISMATCH`);
   }
+  // 合入目标（统一合并流）：开发卡按工单文件推导（有 PRD.md → PRD 分支；散工单 → main）；
+  // merge 卡继承开发卡的合入目标；推导不出落 main。卡面写明，合并专员照此合（PROTOCOL §3）。
+  let mtLine = 'main';
+  if (tf) mtLine = mergeTargetOf(tf);
+  else if (/^merge-/.test(id)) {
+    const devId = id.replace(/^merge-/, '');
+    for (const s of LANES) {
+      const p = cardFile(root, s, cardName(root, devId, s));
+      if (!fs.existsSync(p)) continue;
+      const df = cardFields(fs.readFileSync(p, 'utf8'));
+      mtLine = df.mergeTarget || mergeTargetOf(df.prd);
+      break;
+    }
+  }
+  body = /^- 合入目标:[^\r\n]*$/m.test(body)
+    ? body.replace(/^- 合入目标:[^\r\n]*/m, `- 合入目标: ${mtLine}`)
+    : body.replace(/^- 目标:[^\r\n]*/m, `- 合入目标: ${mtLine}\n$&`);
   fs.writeFileSync(dest, body);
   autoHtml(root);
   if (parked)
@@ -1192,7 +1260,7 @@ function deriveFields(root, id, body) {
       if (d && fs.existsSync(d)) { prd = d; break; }
     }
   }
-  return { ...f, wt, branch, prd };
+  return { ...f, wt, branch, prd, mergeTarget: f.mergeTarget || mergeTargetOf(prd) };
 }
 function cmdCardRead(argv) {
   const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));
@@ -1212,6 +1280,7 @@ function cmdCardRead(argv) {
   console.log(`- PRD: ${f.prd || '(未填)'}`);
   console.log(`- 分支: ${f.branch}`);
   console.log(`- worktree: ${f.wt}${fs.existsSync(f.wt) ? ' [已预开]' : ' [未创建]'}`);
+  console.log(`- 合入目标: ${f.mergeTarget}${f.mergeTarget !== 'main' ? '（先合 PRD 分支；PRD 收口或用户要求时才合 main）' : '（散工单：审查通过、确认没影响后直合）'}`);
   // 处理计时读数（统计面，不参与判位）：字段缺省时回退卡内流转段，并标出是推出来的
   const proc = procOf(f, body);
   const mark = (v, k) => v ? `${v}${f[k] ? '' : ' [由流转段推得]'}` : '(未记录)';
@@ -1338,8 +1407,23 @@ function cmdAddWt(argv) {
   // 与 new-card 同款 id 闸门（RUL-04 ②）：--ticket 会被拼进分支名与 worktree 路径，未校验等于把
   // 命令面开放给「卡 id 形态的任意文本」——`add-wt --ticket 'a&calc'` 在旧实现里就是一次真注入。
   if (!CARD_ID_RE.test(id)) die(`--ticket "${id}" 不符规范（NNN-slug 或 merge-NNN-slug，kebab-case）`);
-  const base = safeRef(arg(argv, 'base')) || 'origin/main';
   const repoDir = meta.repoPath, wtPath = path.join(root, 'wt', id), branch = `ticket/${id}`;
+  let base = safeRef(arg(argv, 'base'));
+  if (!base) {
+    // 统一合并流（v0.12.0）：未显式给 --base 时按卡的合入目标推导——属 PRD 的工单从 PRD 分支拉
+    // （PRD 分支不存在则先从 origin/main 建，保证工单 diff 只含自己的活）；散工单从 origin/main。
+    let mt = 'main';
+    const cp = cardPath(root, id);
+    if (cp) {
+      const f = cardFields(fs.readFileSync(cp.path, 'utf8'));
+      mt = f.mergeTarget || mergeTargetOf(f.prd);
+    }
+    if (mt !== 'main') {
+      try { git(repoDir, 'rev-parse', '--verify', mt); }
+      catch { git(repoDir, 'branch', mt, 'origin/main'); console.log(`add-wt: PRD 分支 ${mt} 不存在，已从 origin/main 创建`); }
+      base = mt;
+    } else base = 'origin/main';
+  }
   // 目录被外部删除会留下 stale worktree 注册，导致下面的 -b 回退分支失败；先 prune。
   try { git(repoDir, 'worktree', 'prune'); } catch { /* ignore */ }
   try { git(repoDir, 'rev-parse', '--verify', branch); git(repoDir, 'worktree', 'add', wtPath, branch); }
@@ -1508,9 +1592,21 @@ function cmdRender(argv) {
 
 // ---------- 看板快照（事故防线）----------
 // 2026-09-30：control/ 是 git 外协调面，被一条越界删除命令整目录抹掉后无法还原。
-// 现改为：工作区根做本地 git 仓库（wt/ 忽略），变更类命令每次自动留一版快照。
+// 外置模式：工作区根做本地 git 仓库（wt/ 忽略），变更类命令每次自动留一版快照。
+// in-project 模式（v0.12.0）：root 就是产品仓——绝不能把 control/ commit 进产品仓（污染产品历史），
+// 看板自保改用 control/ 内的嵌套 git（产品仓 .gitignore 已忽略 control/，两个仓互不看见）。
 function snapshot(root, reason) {
   try {
+    if (wsMode(root) === 'in-project') {
+      const cdir = path.join(root, 'control');
+      if (!fs.existsSync(cdir)) return false;
+      if (!fs.existsSync(path.join(cdir, '.git'))) git(cdir, 'init', '-q');
+      git(cdir, 'add', '-A');
+      if (!git(cdir, 'status', '--porcelain').trim()) return false;
+      const msg0 = String(reason || 'manual').replace(/[\r\n]+/g, ' ');
+      git(cdir, '-c', 'user.name=board-snapshot', '-c', 'user.email=board@local', 'commit', '-q', '-m', `board snapshot: ${msg0} @ ${localIso()}`);
+      return true;
+    }
     if (git(root, 'rev-parse', '--is-inside-work-tree') !== 'true') return false;
     const gi = path.join(root, '.gitignore');
     if (!fs.existsSync(gi)) fs.writeFileSync(gi, 'wt/\n');
@@ -1527,9 +1623,10 @@ function cmdSnapshot(argv) {
   const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));
   needWs(root);
   const ok = snapshot(root, 'manual');
+  const hint = wsMode(root) === 'in-project' ? `${root}/control` : `${root}`;
   console.log(ok
-    ? `snapshot: 已留一版看板快照（git -C "${root}" log --oneline -1）`
-    : `snapshot: 无变更，或 ${root} 尚未 git init（先 git init 并忽略 wt/，之后每次变更自动快照）`);
+    ? `snapshot: 已留一版看板快照（git -C "${hint}" log --oneline -1）`
+    : `snapshot: 无变更（in-project 模式首跑 init 即建仓；外置模式先 git init 并忽略 wt/，之后每次变更自动快照）`);
 }
 
 // ---------- command table ----------

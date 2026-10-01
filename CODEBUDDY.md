@@ -4,6 +4,10 @@
 
 AGENTS.md 和 CODEBUDDY.md 内容必须保持一致。
 
+## 与 TencentDB-Agent-Memory 的关系（子项目 · 同时演进）
+
+**JwikisSkills 是 TencentDB-Agent-Memory（`E:\work\sp\TencentDB-Agent-Memory`）的子项目**：jxx 系列技能（`base/skills/engineering/jxx-*`，含统一工作流三技能 jxx-ticket-board / jxx-implement / jxx-implement-spec）**与 TencentDB-Agent-Memory 一起演进**——该项目（含 jxx-ticket 服务端 MyWeKnora fork 与线上 /tickets 看板）的工作流机制变更必须同步反映到本仓技能；本仓 jxx 技能的机制变更也必须同步该项目的服务端与契约文档（`docs/agents/issue-tracker.md` 等）。改 jxx 系列技能时自检：**对端项目是否需要同步改？**（2026-10-01 三技能统一改造：in-project 布局 + 统一看板 + 统一合并流，见 jxx-ticket-board `references/ADR-009-in-project-and-prd-branch.md`）
+
 ## Agent skills
 
 ### Issue tracker

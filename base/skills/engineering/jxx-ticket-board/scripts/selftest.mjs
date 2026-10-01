@@ -534,6 +534,60 @@ try {
   check('migrate 幂等（重跑不重复搬）', r.code === 0 && fs.existsSync(oldCards('open', '009-old.md')) && !/009-old/.test(r.out));
   check('无东西可改时不往账本追加空转行',
     fs.readFileSync(path.join(old, 'control', 'ledger.md'), 'utf8').split('migrate 五泳道->三态').length === 2);
+
+  // ---------- in-project 模式与统一合并流（v0.12.0 · 三技能统一改造）----------
+  // 统一后三技能（jxx-ticket-board / jxx-implement / jxx-implement-spec）共用同一布局：
+  // wt/ 与 control/ 直接落在项目仓库根；属 PRD 的工单先合 PRD 分支，散工单直合 main。
+  const proj = path.join(tmp, 'proj');
+  fs.mkdirSync(path.join(proj, '.scratch', '77-demo', 'issues'), { recursive: true });
+  fs.mkdirSync(path.join(proj, '.scratch', '99-loose', 'issues'), { recursive: true });
+  fs.writeFileSync(path.join(proj, '.scratch', '77-demo', 'PRD.md'), '# PRD 77 demo\n\n**Status:** in-progress\n');
+  fs.writeFileSync(path.join(proj, '.scratch', '77-demo', 'issues', '01-foo.md'), '# 77-01 foo\n\n**Status:** ready-for-agent\n');
+  fs.writeFileSync(path.join(proj, '.scratch', '99-loose', 'issues', '01-bar.md'), '# 99-01 bar\n\n**Status:** ready-for-agent\n');
+  git(proj, 'init -q -b main');
+  git(proj, '-c user.name=t -c user.email=t@t add -A');
+  git(proj, '-c user.name=t -c user.email=t@t commit -q -m init');
+  git(proj, `remote add origin ${proj.replace(/\\/g, '/')}`);
+  git(proj, 'fetch -q origin');
+  const projCards = (...p) => path.join(proj, 'control', 'cards', ...p);
+
+  r = run(['init', '--root', proj], tmp);
+  check('in-project：root 带 .git+.scratch 自动判定（--repo 可省）', r.code === 0 && /in-project/.test(r.out), firstLine(r.out));
+  check('in-project：workspace.json 记 mode', JSON.parse(fs.readFileSync(path.join(proj, 'control', 'workspace.json'), 'utf8')).mode === 'in-project');
+  const giProj = fs.readFileSync(path.join(proj, '.gitignore'), 'utf8');
+  check('in-project：.gitignore 幂等补 wt/ 与 control/', /^wt\/$/m.test(giProj) && /^control\/$/m.test(giProj));
+  check('in-project：control/ 内嵌套 git 自保（快照不进产品仓）', fs.existsSync(path.join(proj, 'control', '.git')));
+
+  r = run(['new-card', '--root', proj, '--id', '77-01-foo', '--level', 'L2', '--model', 'test',
+    '--ticket-file', path.join(proj, '.scratch', '77-demo', 'issues', '01-foo.md')], tmp);
+  check('统一合并流：属 PRD 的卡自动带合入目标 = PRD 分支', r.code === 0
+    && /^- 合入目标: ticket\/77-demo$/m.test(fs.readFileSync(projCards('open', '77-01-foo.md'), 'utf8')), firstLine(r.out));
+  r = run(['card-read', '--root', proj, '--id', '77-01-foo'], tmp);
+  check('card read 派生合入目标行', /合入目标: ticket\/77-demo/.test(r.out), firstLine(r.out));
+  r = run(['new-card', '--root', proj, '--id', '99-01-bar', '--level', 'L1', '--model', 'test',
+    '--ticket-file', path.join(proj, '.scratch', '99-loose', 'issues', '01-bar.md')], tmp);
+  check('统一合并流：散工单（无 PRD.md）合入目标 = main', r.code === 0
+    && /^- 合入目标: main$/m.test(fs.readFileSync(projCards('open', '99-01-bar.md'), 'utf8')), firstLine(r.out));
+  r = run(['new-card', '--root', proj, '--id', 'merge-77-01-foo', '--level', 'L1', '--model', 'test'], tmp);
+  check('merge 卡继承开发卡合入目标', r.code === 0
+    && /^- 合入目标: ticket\/77-demo$/m.test(fs.readFileSync(projCards('open', 'merge-77-01-foo.md'), 'utf8')), firstLine(r.out));
+
+  r = run(['add-wt', '--root', proj, '--ticket', '77-01-foo'], tmp);
+  check('add-wt 自动从 PRD 分支拉工单分支（PRD 分支自动建）', r.code === 0
+    && fs.existsSync(path.join(proj, 'wt', '77-01-foo'))
+    && git(proj, 'rev-list --count ticket/77-demo..ticket/77-01-foo').trim() === '0', firstLine(r.out));
+  r = run(['add-wt', '--root', proj, '--ticket', '99-01-bar'], tmp);
+  check('add-wt 散工单仍从 origin/main 拉', r.code === 0
+    && git(proj, 'rev-list --count origin/main..ticket/99-01-bar').trim() === '0', firstLine(r.out));
+
+  r = run(['snapshot', '--root', proj], tmp);
+  const controlLog = git(path.join(proj, 'control'), 'log --oneline');
+  const projStatus = git(proj, 'status --porcelain');
+  check('in-project 快照落在 control/ 嵌套 git', r.code === 0 && controlLog.split('\n').filter(Boolean).length >= 1, firstLine(r.out));
+  check('in-project 快照不污染产品仓（control/wt 均不入镜）',
+    !projStatus.split('\n').some(l => l.includes('control') || l.includes('wt/')), projStatus || '(clean)');
+  check('in-project：产品仓历史无 board 提交',
+    !git(proj, 'log --oneline').includes('board snapshot'));
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }

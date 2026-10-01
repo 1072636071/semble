@@ -11,6 +11,7 @@
 - labels: {{LABELS}}
 - doc_ref: {{DOC_REF}}
 - PRD: （投卡带 --ticket-file 自动填工单绝对路径）
+- 合入目标: （投卡自动推导：工单属 PRD → PRD 分支 ticket/<NN>-<slug>，先合 PRD 分支；散工单 → main，审查通过确认没影响后直合）
 - 目标: （一句话，领导者填写）
 
 <!-- 三态 + 标签正交（D9 / ADR-008）：目录 = 生命周期（open/ 未收口 · done/ 已收口 · archived/ 废弃让位），

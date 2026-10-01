@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.12.0 — 2026-10-01
+
+**三技能统一改造（jxx-ticket-board / jxx-implement / jxx-implement-spec）**：工作树与看板统一落到项目里（in-project），三技能共用同一个看板机制与同一条「开发 → 审查 → 合并」流水线；合并流统一为「工单属 PRD ⇒ 先合 PRD 分支（PRD 收口或用户要求时才合 main）；散工单 ⇒ 确认没影响后直合 main」。设计依据见 `references/ADR-009-in-project-and-prd-branch.md`。
+
+- **in-project 布局（新默认）**：`init` 在带 `.git` + `.scratch/` 的项目根自动判定（或 `--in-project` 显式），`--repo` 可省（自动取 origin remote）；产品仓 `.gitignore` 幂等补 `wt/`、`control/`；看板快照改走 `control/` 内**嵌套 git**——快照绝不进产品仓历史（旧外置布局行为不变，`workspace.json` 新增 `mode` 字段区分）。
+- **统一合并流**：投卡自动推导并写卡面 `- 合入目标:` 行（工单目录有 `PRD.md` ⇒ PRD 分支 `ticket/<NN>-<slug>`；散工单 ⇒ `main`），merge 卡自动继承；`add-wt` 不给 `--base` 时按合入目标自动从 PRD 分支拉工单分支（PRD 分支不存在则先从 `origin/main` 建）；`card-read` 派生合入目标行。
+- **PROTOCOL §3 改写 + 新增 §3.1「PRD 收口：PRD 分支 → main」**：触发二选一（PRD 全部工单收口 / 用户明确要求），PRD 收口卡 + 整支 PRD 分支 `/jxx-code-review` 后合 main；散工单合并前置「确认没影响」三件套写进 §3。
+- **verify 假交付闸门基准修正**：review 卡分支零差异判据从 `origin/main` 改为**合入目标**（PRD 工单相对 main 恒有差异，旧基准会让闸门在 PRD 流里永远失声；PRD 分支不存在回退 `origin/main`）。
+- **配套**：`CARD-TEMPLATE` 加 `- 合入目标:` 行；`starter-merger` 加合入目标提醒；`SKILL.md` 概述/命令面同步。旧版投的卡无该行时 `card-read`/`add-wt` 按 PRD 指针现场推导，**不逼迁**；既有外置工作区**无需迁移**。
+- **selftest 115 → 128 项断言，0 失败**（新增：in-project 自动判定 / workspace.json mode / .gitignore 补行 / 嵌套 git 快照不污染产品仓 / 合入目标推导·派生·merge 卡继承 / add-wt 基分支自动推导 / 散工单仍从 origin/main）。
+
 ## 0.11.2 — 2026-09-30
 
 **独立复审 22 项发现的修复轮**——复审实体：权威仓 `.scratch/75-jxx-ticket-system/reviews/75-c01-code-review.md`（L4 独立干净会话，结论钉 SHA `f5d6c9c6`）。本版把该报告 §1–§3 的**全部 19 条可修发现项逐条修掉**，并为 STD-01 / RUL-04 / RUL-05 新增可复跑回归用例；`selftest.mjs` **97 → 115 项断言，0 失败**。另 3 条**流程项**（SPEC-01 / SPEC-02 / RUL-01）由该复审报告实体 + 本次修复轮闭合，无代码改动。

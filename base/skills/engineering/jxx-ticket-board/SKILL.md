@@ -3,20 +3,20 @@ name: jxx-ticket-board
 description: 工单公告板工作区——把任意 git 仓库开辟为多 worktree 并行工单协作场。加载本会话即领导者（只分解投卡、记账汇总，不干预开发组），worker 由用户拉起自发领卡，卡片目录即状态机、文件原子 move 防抢，领导者每个行为即时落盘账本，断线可重连自检。支持 auto 模式——指定一组工单后自动 spawn worker/审查者/合并专员完成全流程。当用户想搭建工单公告板/开多个工单工作区/以领导者身份派发任务/自动完成一组工单/恢复领导者会话/看板对账时使用。触发词：公告板, 领卡, 投卡, 工单看板, worktree工作区, 领导者, auto, 自动编排, reconnect。
 disable-model-invocation: false
 metadata:
-  version: 0.11.2
-argument-hint: init --repo <git-url> | board | verify | ledger --action <文本> | auto --tickets <工单文件列表>
+  version: 0.12.0
+argument-hint: init [--in-project] [--repo <git-url>] | board | verify | ledger --action <文本> | auto --tickets <工单文件列表>
 ---
 
 # 工单公告板（领导者技能）
 
 ## 概述
 
-把一个 git 仓库升级为**多工单安全并行**的公告板工作区：
+把一个 git 仓库升级为**多工单安全并行**的公告板工作区。**v0.12.0 起默认 in-project 布局——工作树与看板都在项目里**（三技能统一改造：jxx-ticket-board / jxx-implement / jxx-implement-spec 共用同一个看板、同一套 worktree、同一条「开发 → 审查 → 合并」流水线）：
 
 ```
-<root>/
-├── wt/<NNN-slug>/   每工单一个 worktree，分支 ticket/<NNN-slug>
-└── control/         公告板（不入 git）
+<项目仓库>/           in-project（默认）：root 即项目自身（init 自动判定：root 带 .git + .scratch/）
+├── wt/<NNN-slug>/   每工单一个 worktree，分支 ticket/<NNN-slug>（产品仓 .gitignore 忽略 wt/）
+└── control/         公告板（产品仓 .gitignore 忽略；control/ 内嵌套 git 自保，快照绝不进产品仓历史）
     ├── PROTOCOL.md        协议唯一真源（worker 靠它入职）
     ├── ledger.md          领导者账本（只追加，一行一动作）
     ├── board.html         用户进度看板（四泳道 待领取/处理中/待审核/阻塞；工单视角；领导者保鲜职责）
@@ -29,9 +29,11 @@ argument-hint: init --repo <git-url> | board | verify | ledger --action <文本>
     │   ├── done/          已收口（合入并归档）
     │   └── archived/      已归档（wontfix / 让位 / 不再执行）
     └── held/              领导者暂缓道：依赖未就绪的卡停这里，worker 不可见
-
-<权威主工作区>/        既有的主 clone（可在 root 之外，如用户日常开发目录）
 ```
+
+外置布局（旧形态，仍支持）：root 是独立工作区，权威仓在 root/repo（init 自动 clone）或 `--repo-dir` 指定的外部路径；看板由工作区根 git 自保。
+
+**统一合并流（v0.12.0）**：每张开发卡带「合入目标」——工单属 PRD ⇒ 审查通过后先合 **PRD 分支** `ticket/<NN>-<slug>`（PRD 全部工单收口、或用户明确要求时，才由 PRD 收口卡把 PRD 分支合入 main）；散工单（无 PRD）⇒ 审查通过、确认没影响后直接合 main。详见 PROTOCOL §3 / §3.1 与 `references/ADR-009-in-project-and-prd-branch.md`。
 
 设计依据见 `references/`（ADR-001~008）。**三条正交轴**（D9，ADR-008）：目录 = 生命周期三态，文件名后缀 = 执行态（领取仍是原子 rename，防抢不靠纪律），卡面 `- labels:` = triage 五标签（受阻 = `needs-info`，不再有 `blocked/` 目录）。旧五泳道板迁三态：`board.mjs migrate --root <root> [--dry-run]`。
 
@@ -94,10 +96,12 @@ argument-hint: init --repo <git-url> | board | verify | ledger --action <文本>
 ### 初始化工作区
 
 ```bash
-node <skill>/scripts/board.mjs init --root <工作区绝对路径> --repo <git-url> [--branch main] [--repo-dir <既有权威工作区绝对路径>]
+node <skill>/scripts/board.mjs init --root <工作区绝对路径> [--in-project] [--repo <git-url>] [--branch main] [--repo-dir <既有权威工作区绝对路径>]
 ```
 
-给了 `--repo-dir` 就用既有 clone 当权威仓库（worker 的 worktree 从它挂出，`wt/` 仍在 root 下）；省略则默认在 root/repo 新 clone。建 wt/ 与 control/ 全套、渲染 PROTOCOL.md 与启动提示词、建账本。幂等：已存在的文件保留并报 `kept`。
+**in-project（默认，推荐）**：root 就是项目仓库（带 `.git` + `.scratch/`）时自动判定，`--repo` 可省（自动取 origin remote）；项目自身即权威仓，wt/ 与 control/ 落在项目根，init 幂等补 `.gitignore`（`wt/`、`control/`），control/ 内建嵌套 git 做看板快照自保。`--in-project` 可显式强制。
+
+**外置**：给了 `--repo-dir` 就用既有 clone 当权威仓库（worker 的 worktree 从它挂出，`wt/` 仍在 root 下）；省略则默认在 root/repo 新 clone（此时 `--repo` 必填）。建 wt/ 与 control/ 全套、渲染 PROTOCOL.md 与启动提示词、建账本。幂等：已存在的文件保留并报 `kept`。
 
 ### 自动编排（auto 模式，v0.9.0）
 
@@ -126,7 +130,7 @@ node <skill>/scripts/board.mjs new-card --root <root> --id 033-foo --level L2 --
 
 **依赖闸门（v0.7.1）**：`--deps` 里写全卡 id（如 `69-03-gateway-refresh-and-proxy-leg`）且该卡尚未归档 `done/` ⇒ `new-card` 自动把卡收进 `control/held/`（worker 不可见的暂缓道），不进 inbox 待领列；`verify` 双向兜底——inbox 卡有未就绪依赖 → MISMATCH（应收 held），held 卡依赖已齐 → INFO（提示 `mv` 回 inbox 释放，移卡照旧记 `move <卡id>.md held->inbox` 账）。简写（"01"）、裸编号、以「无」开头的软引用散文不触发；merge 卡与 `--keep-inbox` 豁免。看板把 held 渲染为独立「暂缓·等依赖」列并隐藏领取按钮。
 
-一卡 = 一工单 = 一分支，大工单不拆卡；工单正文写仓库 `.scratch/`，卡只放指针+目标+依赖+**难度**+**定位三件套**（带 `--ticket-file` 时 `PRD:` 行自动写成该工单文件的绝对路径，`分支:`/`worktree:` 两行由卡 id 推确定性路径，任何 agent 拿到卡即可找到工单文件）。开发卡默认 **`/jxx-implement` 推进**（三段硬出口写进 PROTOCOL §2，卡面 `推进:` 行自带）。`--level`（L1 机械改 / L2 有界实现 / L3 需判断 / L4 设计级）与 `--model` 是给用户选模型用的，不影响 worker 行为。`--title` 省略时从工单 H1 提取。
+一卡 = 一工单 = 一分支，大工单不拆卡；工单正文写仓库 `.scratch/`，卡只放指针+目标+依赖+**难度**+**定位三件套**（带 `--ticket-file` 时 `PRD:` 行自动写成该工单文件的绝对路径，`分支:`/`worktree:` 两行由卡 id 推确定性路径，任何 agent 拿到卡即可找到工单文件）。**合入目标自动推导（v0.12.0）**：卡面 `- 合入目标:` 行——工单文件所在目录有 `PRD.md` ⇒ `ticket/<NN>-<slug>`（先合 PRD 分支），否则 ⇒ `main`（散工单直合）；merge 卡自动继承开发卡的合入目标。开发卡默认 **`/jxx-implement` 推进**（三段硬出口写进 PROTOCOL §2，卡面 `推进:` 行自带）。`--level`（L1 机械改 / L2 有界实现 / L3 需判断 / L4 设计级）与 `--model` 是给用户选模型用的，不影响 worker 行为。`--title` 省略时从工单 H1 提取。
 
 合并卡由领导者手工投（`--id merge-033-foo --level L1 --keep-inbox`），卡内写明：待合分支、合并顺序、复核要点；`--deps` 可串多张（`--deps 031-x,032-y`）强制按序合并。**交付载荷是纯文档的卡**（双仓单的本仓侧、纯回写单）：投 merge 卡前领导者必须通读分支版工单验收段全文——勾选框与 Status 一致、同文件数字前后一致、无乱码病句；假勾选闸门（verify ④）只兜形态，内容级矛盾靠这一读（70-04 打回复盘：终审当时只 grep 了 Status 行，未数勾选、未读正文）。
 
@@ -204,7 +208,7 @@ node <skill>/scripts/board.mjs card-move --root <root> --id <卡id> --to blocked
 
 ## Resources
 
-- `scripts/selftest.mjs` — 冒烟自测（`node scripts/selftest.mjs`，115 项断言，零依赖；改 `board.mjs` 后必跑，含防抢、历史回放、migrate、四泳道渲染与历史列默认隐藏、处理计时盖章与流转段回退、重领不抹旧值、卡面缺「流转追加段」补段、零换行卡回退 LF、受阻现场提示可达、坏时间戳红字告警、卡头字段替换边界、CLI/卡面文本的 shell 注入闸门、prd.html 两栏与整轨按钮，以及四类标签反例）。
+- `scripts/selftest.mjs` — 冒烟自测（`node scripts/selftest.mjs`，128 项断言，零依赖；改 `board.mjs` 后必跑，含防抢、历史回放、migrate、四泳道渲染与历史列默认隐藏、处理计时盖章与流转段回退、重领不抹旧值、卡面缺「流转追加段」补段、零换行卡回退 LF、受阻现场提示可达、坏时间戳红字告警、卡头字段替换边界、CLI/卡面文本的 shell 注入闸门、prd.html 两栏与整轨按钮、四类标签反例，以及 v0.12.0 的 in-project 初始化/嵌套 git 快照不污染产品仓、合入目标推导与继承、add-wt 基分支自动推导）。
 - `scripts/board.mjs` — init / board / html / ledger / verify / new-card / add-wt / rm-wt / card-read / card-set / card-move / card-rm / snapshot / render / migrate / auto 子命令。
 - `assets/` — PROTOCOL、卡模板、starter 提示词（dev / merger / reviewer / auto 四份，init 时渲染进 control/）。
-- `references/` — ADR-001~008：worktree 隔离、control 外置、领导者-领取制、目录状态机、合并即卡、薄卡粒度、协议单源、三态目录 + 标签正交。改协议前先读它们。
+- `references/` — ADR-001~009：worktree 隔离、control 外置、领导者-领取制、目录状态机、合并即卡、薄卡粒度、协议单源、三态目录 + 标签正交、in-project 布局与 PRD 分支合并流。改协议前先读它们。

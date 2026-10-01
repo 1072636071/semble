@@ -1,37 +1,40 @@
 ---
 name: jxx-implement-spec
-description: "按 spec 与其关联 ticket（任务图）实现整个 spec：单分支交付一支 PR，用后台子 agent 并发实现 ticket。触发词：实现 spec、implement the spec、按工单实现。"
+description: "按 spec/PRD 与其关联 ticket（任务图）整轨实现：建 PRD 分支、统一看板投卡、按 auto 模式编排 worker/审查者/合并专员完成开发-审查-合并；全部工单合入 PRD 分支后，PRD 完成或用户要求时才把 PRD 分支合入 main。触发词：实现 spec、implement the spec、按工单实现、PRD 整轨。"
 disable-model-invocation: false
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
-你拿到了一份 spec。这份 spec 应当已关联若干 ticket，描述如何实现它。
+你拿到了一份 spec/PRD（`.scratch/<NN>-<slug>/PRD.md` + `issues/*.md`）。目标：把这份 PRD 的**全部工单**经统一流水线（开发 → 审查 → 合并）交付到 **PRD 分支** `ticket/<NN>-<slug>`，并在收口条件满足时把 PRD 分支合入 main。
 
-目标是：在**单条分支**上产出一支实现整个 spec 的 PR。
+**统一改造（v1.1.0）**：本技能不再是独立的单分支+PR 流，而是 **jxx-ticket-board 看板 auto 模式在单会话内的整轨特化**——与 `/jxx-implement`（工单级开发面）共用同一个看板、同一套 worktree、同一条合并流（`jxx-ticket-board` 技能 `references/ADR-009-in-project-and-prd-branch.md`）。ticket 不是步骤列表，而是一张带阻塞关系的**任务图**；任何时刻都存在一个「就绪前沿」（Blocked by 全部 done 的工单集合）。
 
-ticket 不是步骤列表，而是一张带阻塞关系的**任务图**（task graph）。这意味着任何时刻都存在一个"就绪前沿"（frontier）——当前可被认领的 ticket 集合。
-
-与子 agent 的通信应当稀疏。主要通过**上下文指针**（context pointers）交流：指向 spec、ticket、研究笔记、既往 commit。不要复述指针已能获取的信息。
-
-**实现者子 agent**（implementer subagent）应尽可能在后台运行，以获得**最大并发**。
+与子 agent 的通信应当稀疏，主要通过**上下文指针**交流（卡 id、PRD/工单文件路径、既往 commit），不要复述指针已能获取的信息。**实现者子 agent 尽可能在后台运行**，以获得最大并发。
 
 ## 步骤
 
-1. 阅读 spec 和 ticket。读到足以理解任务图的程度。
+0. **看板就位（in-project 统一布局）**：项目根无 `control/workspace.json` 则先
+   `node <jxx-ticket-board>/scripts/board.mjs init --root <项目根>`（自动判定 in-project：wt/ 与 control/ 落在项目里，快照走 control/ 嵌套 git，不进产品仓历史）。有则跳过。
 
-2. （可选）用**探索子 agent**（exploration subagent）做 ticket 要求的探索——相关代码文件或外部文档。确保探索子 agent 能保存文件：把 markdown 笔记存在仓库外的目录里，供后续所有子 agent 共享。这样**实现者子 agent**就能专注实现，而不必分心探索。
+1. **建 PRD 分支**：`git -C <项目根> branch ticket/<NN>-<slug> origin/main`（已存在则跳过）。读 PRD 与全部工单，理解任务图与就绪前沿。
 
-3. 创建分支和一支草稿 PR（draft PR）。PR 应标记为"closing"该 spec issue 及各 ticket。
+2. **整批投卡**：对每张 `**Status:** ready-for-agent` 的工单投卡——
+   `board.mjs new-card --root <项目根> --id <NN>-<MM>-<slug> --level <L1-L4> --model <档位> --ticket-file <工单绝对路径> [--deps <阻塞卡id>]`。
+   投卡自动完成三件事：状态闸门（非 ready-for-agent 拒投）、依赖闸门（Blocked by 未归档的卡自动进 held/ 暂缓道）、**合入目标推导**（卡面 `- 合入目标: ticket/<NN>-<slug>` = 本 PRD 分支）。
 
-4. 用**实现者子 agent**实现每个 ticket。每个实现者子 agent 在自己的 worktree、自己的分支上工作。
+3. **按 auto 模式编排**（编排者职责即 `control/PROTOCOL.md` §5；worker/审查者/合并专员的启动提示词在 `control/starter/`）：
+   - 对每张无阻塞的待领卡（`open/<卡id>.md` 无后缀）spawn **worker 子 agent**（`control/starter/dev.md` 全文 + 指定卡 id）。worker 全程走 `/jxx-implement`：领卡 → `add-wt`（自动从 PRD 分支拉工单分支）→ 开发 → 三段硬出口 → 交付移卡到 review 位。
+   - 卡到 `open/<卡id>.review.md` → spawn **3 个审查者**（`control/starter/reviewer.md`，std/spec/rule 三维度并行，`--base` = PRD 分支）。全过 → spawn **合并专员**（`control/starter/merger.md`）；任一审查者有发现项 → 汇总写回卡 → 卡回 claimed 位返工 → 重新 spawn worker。
+   - **合并专员按卡的「合入目标」把工单分支合入 PRD 分支**（rebase 基准与 diff 基准都是 PRD 分支——不是 main）→ 双卡移 done/。
+   - 前沿推进：依赖卡归档 done 后，held/ 里依赖已齐的卡释放回 open/（`card-move --to inbox`），立即 spawn 新 worker，保持最大并发。
+   - 失败处理（协议 §5.5）：worker 失败先重试一次；僵死卡（30 分钟无动静）重 spawn；合并冲突机械自解、非机械 blocked 等人工；编排者自身中断 → `board.mjs verify --root <项目根>` 重建状态续接。
 
-5. 一个**实现者子 agent**完成后，用**合并子 agent**（merger subagent）把其工作合并进 PR 分支。
+4. **PRD 收口（PRD 分支 → main，触发二选一）**：① 本 PRD 全部工单 `done`/`wontfix`；② 用户明确要求合并。**两者之外不得合 main**。收口执行（可自投 PRD 收口卡 `merge-<NN>-<slug>` 走合并专员，或本会话直接执行）：
+   - 对整支 PRD 分支跑 `/jxx-code-review`（`git diff origin/main...ticket/<NN>-<slug>`），发现项投普通开发卡返修后重审；
+   - 审查过 → `git -C <项目根> fetch` → rebase PRD 分支到最新 `origin/main` → 合入 main 并 push；
+   - 把 `PRD.md` 的 `**Status:**` 置 `done`（随合并提交或在 main 工作区另提）；
+   - 回收本 PRD 全部 worktree（`board.mjs rm-wt --ticket <单卡id>`，**一次一卡**，红线见 PROTOCOL §7）；
+   - 记账、刷看板（`board.mjs html --root <项目根>`），向用户汇报：合入 commit、各工单去向、遗留事项。
 
-6. 如果这一步改变了 ticket 的**就绪前沿**，立即启动更多**实现者子 agent**去处理新就绪的 ticket。以此保持最大并发。
-
-7. 全部 ticket 完成后，对 PR 分支运行 `/jxx-code-review`。用一个**实现者子 agent**一次性修复评审提出的全部问题。
-
-8. 把 PR 标记为 ready for review。
-
-9. 清理所有**实现者子 agent**的 worktree。
+5. **散工单不属于本技能**：无 PRD 的单张工单走 `/jxx-implement`（合入目标自动 = main，审查通过确认没影响后由合并专员直合 main）。

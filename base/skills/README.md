@@ -3,6 +3,8 @@
 翻译+轻度魔改版的 mattpocock-skills 技能集合，实际源目录为 `三方/codeBuddy/skills/`。技能按桶文件夹组织：
 
 > **文档语言规范：准确是第一位。** 允许中英文混杂——术语、概念名保留英文原文（如 `context pointer`、`leading word`、`feedback loop`），解释用中文，保证贴切、简短、准确。宁可留英文，不可错译。
+>
+> **演进关系**：jxx 系列技能（`engineering/jxx-*`，含统一工作流三技能 jxx-ticket-board / jxx-implement / jxx-implement-spec）与 **TencentDB-Agent-Memory（含 jxx-ticket 服务端 MyWeKnora fork 与线上 /tickets 看板）同时演进**——JwikisSkills 是该项目的子项目，机制变更须双向同步（详见仓库根 `AGENTS.md`「与 TencentDB-Agent-Memory 的关系」节）。
 
 | 桶              | 说明                 | 状态   |
 | --------------- | -------------------- | ------ |

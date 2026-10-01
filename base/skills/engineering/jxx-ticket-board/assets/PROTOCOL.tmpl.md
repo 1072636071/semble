@@ -5,11 +5,13 @@
 
 ## 0. 环境与术语
 
+布局两种形态（init 自动判定）：**in-project（默认，三技能统一布局）** = root 就是项目仓库自身，wt/ 与 control/ 直接落在项目里（产品仓 `.gitignore` 忽略这两者，看板快照走 control/ 内嵌套 git，绝不进产品仓历史）；**外置（旧形态）** = root 是独立工作区，权威仓在 root/repo 或 `--repo-dir` 指定的外部路径，看板由工作区根 git 自保。
+
 ```
-{{REPO_PATH}}\       权威主工作区（外部路径；领导者管辖，worker 不在此干活）
+{{REPO_PATH}}\       权威主工作区（in-project 模式 = {{ROOT}} 自身；外置模式 = 外部路径，worker 不在此干活）
 {{ROOT}}\
 ├── wt\<卡id>\       工单工作区，一人一目录，分支 ticket\<卡id>
-└── control\         公告板（工作区根 git 自保，见 §7）
+└── control\         公告板（in-project = control/ 内嵌套 git 自保；外置 = 工作区根 git 自保，见 §7）
     ├── PROTOCOL.md  本文件
     ├── ledger.md    领导者账本（只追加，一行一动作）
     ├── board.html   用户进度看板（四泳道 = 执行态：待领取 · 处理中 · 待审核 · 阻塞；已完成/已归档默认隐藏，页头开关展开；谁移卡谁刷）
@@ -63,6 +65,7 @@
    ```bash
    node {{SKILL_DIR}}/scripts/board.mjs add-wt --root "{{ROOT}}" --ticket <卡id>
    ```
+   **基分支自动推导（统一合并流）**：未显式给 `--base` 时，属 PRD 的工单自动从 **PRD 分支**（卡的「合入目标」，`ticket/<NN>-<slug>`；不存在则先从 origin/main 建）拉出——工单 diff 只含自己的活；散工单从 `origin/main` 拉。
    然后在 `wt\<卡id>\` 内安装依赖、按卡的 PRD 指针读工单正文开工。
 
 ## 2. 开发组规则
@@ -77,15 +80,25 @@
 - 干不下去：卡「流转追加段」写原因，然后 `card-move --to blocked`——三态下这一步**不新建目录**：卡回到 `open\<卡id>.md` 待领位并被自动打上 `needs-info` 标签，**刷看板**，回报用户。等人拍板用 `card-set --field labels --value ready-for-human`。
 - 禁止：动权威工作区（`{{REPO_PATH}}`）主干、提交到 `{{BASE_BRANCH}}`、移动他人 `.claimed` 的卡、把成果正文只写在卡里。
 
-## 3. 合并专员规则（先审后合）
+## 3. 合并专员规则（先审后合 · 统一合并流）
 
 - 领 `merge-<卡id>` 卡（协议同上，先 move 后填）。同一时刻**只处理一张**合并卡，多张按卡内顺序。
-- **第一步是定点复核（干净视角，碰 git 之前）**：读对应开发卡（`open\<卡id>.review.md`）的「终审待验清单」与「交付记录」，对照工单 PRD 验收标准，用只读 git（`git show <分支>:<路径>`、`git diff origin/main...<分支>`、`git grep`）+ 可派只读子代理，逐项实证 worker 自报是否属实：修复真在？越界夹带？报告实体？清单每项给 闭合✓/未闭合✗+证据。
-- **复核过 → 才执行合并**：`git -C "{{REPO_PATH}}" fetch` → 把 `ticket/<卡id>` rebase 到最新 `{{BASE_BRANCH}}` → 合入并 push → 回收 worktree/分支（**回收只用 `board.mjs rm-wt --root <root> --ticket <单卡id>`，一次一卡；禁止批量/递归删除——见 §7**）。
+- **合入目标（统一合并流，卡面「合入目标」行 / `card-read` 推导）**：
+  - **工单属 PRD**（合入目标 = `ticket/<NN>-<slug>`）：复核过 → 把 `ticket/<卡id>` **合入 PRD 分支**（不是 main）。PRD 全部工单收口、或用户明确要求合并时，才由领导者投 **PRD 收口卡**把 PRD 分支合入 main（见 §3.1）。
+  - **散工单（无 PRD）**（合入目标 = `main`）：复核过 → **确认没影响**（diff 面限于工单声明范围、本地门禁/测试绿、无越界夹带）→ 直接合入 main。
+- **第一步是定点复核（干净视角，碰 git 之前）**：读对应开发卡（`open\<卡id>.review.md`）的「终审待验清单」与「交付记录」，对照工单 PRD 验收标准，用只读 git（`git show <分支>:<路径>`、`git diff <合入目标>...<分支>`、`git grep`）+ 可派只读子代理，逐项实证 worker 自报是否属实：修复真在？越界夹带？报告实体？清单每项给 闭合✓/未闭合✗+证据。**diff 基准 = 合入目标**（PRD 工单相对 PRD 分支评判，相对 main 必然带着整支 PRD 的差异）。
+- **复核过 → 才执行合并**：`git -C "{{REPO_PATH}}" fetch` → 把 `ticket/<卡id>` rebase 到最新**合入目标** → 合入**合入目标**并 push → 回收 worktree/分支（**回收只用 `board.mjs rm-wt --root <root> --ticket <单卡id>`，一次一卡；禁止批量/递归删除——见 §7**）。合入 PRD 分支时工单 `Status: done` 照置（实现与审查已完成），但**不代表已上 main**。
 - **复核不过 → 打回**：merge 卡写明发现项后 `card-move --to blocked`（或按卡指示把开发卡改名回 `open\<卡id>.claimed.md` 附发现项）；**禁止带伤合并**。
 - 例外：merge 卡若标注「领导者口径裁决未决」（L4 卡或跨单口径冲突），合并专员只做复核不做裁决，复核结论回报后待领导者拍板才可合。
 - **冲突红线**：rebase 冲突超出机械可解（需发明新行为才能解）时，不得自行发明——把开发卡改名回 `open\<卡id>.review.md` 并在流转段写明冲突面，交回开发组按 `jxx-resolving-merge-conflicts` 处理。解决即改 diff，diff 变了必须复审。
-- 合并成功：merge 卡追加结果（合入 commit、复核结论行、时间），`mv → done\`，**刷看板**；对应开发卡由领导者移 `done\`。
+- 合并成功：merge 卡追加结果（合入 commit、合入目标、复核结论行、时间），`mv → done\`，**刷看板**；对应开发卡由领导者移 `done\`。
+
+### 3.1 PRD 收口：PRD 分支 → main
+
+- **触发二选一**：① 该 PRD 全部工单 `done`/`wontfix`（领导者裁决开发完成）；② 用户明确要求合并。两者之外**不得**把 PRD 分支合进 main。
+- **PRD 收口卡**：领导者投 `merge-<NN>-<prd-slug>`（`--level L1 --keep-inbox`，PRD.md 状态非 ready-for-agent 时投卡加 `--force`），卡内写明：待合分支 = PRD 分支 `ticket/<NN>-<prd-slug>`、合入目标 = `main`、整轨复核要点。
+- **合并专员执行**：对整支 PRD 分支跑 `/jxx-code-review`（`git diff origin/main...ticket/<NN>-<prd-slug>`）→ 审查过 → rebase 到最新 `origin/main` → 合入 main 并 push → 把 `PRD.md` 的 `**Status:**` 置 `done`（随合并提交或在 main 工作区另提）→ 回收该 PRD 全部残留 worktree（仍走 rm-wt，一次一卡）。
+- 审查有发现项 → 投普通开发卡返修（合入目标仍是 PRD 分支），修好重走收口。
 
 ## 4. 卡内文法（verify 对账依赖，勿改）
 
@@ -170,4 +183,4 @@
 2. **`control\` 只读不删**：任何删除、清空、递归覆盖 `control\` 的命令一律禁止；改模板走 `board.mjs render --write`（旧版自动备份到 `control/.render-backup/`）。
 3. **禁止把批量破坏性操作交给子代理**：领导者不得授权「把剩下的孤儿一起清了」这类批量动作；子代理只领**单张卡**的明确 id。批量清单留在 `control/human.html`，由人逐条确认后单张执行。
 4. **禁止后台/长超时运行破坏性命令**：工具在超时后会把命令**提升为后台任务继续跑**（本仓 harness 的 pwsh 行为），于是「以为它超时了」时删除仍在进行、且无人再看输出。回收一律用 `board.mjs rm-wt`（有界、秒级），不要给它 `timeoutMs` 长值、不要 `run_in_background`；任何删除动作之后**必须先重新查实况**再下结论。
-5. **破坏前先留档**：`control\` 由工作区根 git 仓库自保——变更类命令（`ledger` / `card-move` / `card-set` / `new-card` / `card-rm` / `init`）每次自动留一版快照；大动作前后可显式跑 `board.mjs snapshot --root <root>`。`git -C <root> log --oneline` 即看板历史，`git -C <root> show <sha>:control/cards/...` 即任意时点的卡。**新工作区建仓口径**：`git init <root>` + `.gitignore` 写 `wt/`（worktree 属产品仓，不纳入）。
+5. **破坏前先留档**：`control\` 由 git 自保——**in-project 模式**用 `control/` 内的**嵌套 git**（产品仓 `.gitignore` 已忽略 `control/`，快照绝不进产品仓历史；`git -C <root>/control log --oneline` 即看板历史）；**外置模式**用工作区根 git（`git -C <root> log --oneline`）。变更类命令（`ledger` / `card-move` / `card-set` / `new-card` / `card-rm` / `init`）每次自动留一版快照；大动作前后可显式跑 `board.mjs snapshot --root <root>`。**新外置工作区建仓口径**：`git init <root>` + `.gitignore` 写 `wt/`；in-project 由 init 自动补 `wt/`、`control/` 进产品仓 `.gitignore`。

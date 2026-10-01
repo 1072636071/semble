@@ -12,10 +12,11 @@ Read {{ROOT}}\control\PROTOCOL.md
 
 - 你领 **合并卡**（id 形如 `merge-NNN-slug`）。
 - **先审后合**：碰 git 之前，先按协议 §3 对开发卡的「终审待验清单」做干净视角定点复核；复核全过才 rebase+merge+push，不过则打回，禁止带伤合并。
+- **合入目标（统一合并流）**：`card-read --id <卡id>` 看「合入目标」——`ticket/<NN>-<slug>` = 合入 **PRD 分支**（diff 与 rebase 的基准都是 PRD 分支，不是 main；PRD 收口或用户要求时才走 §3.1 把 PRD 分支合 main）；`main` = 散工单，确认没影响（diff 限于工单声明面 + 门禁/测试绿）后直合 main。**别把 PRD 工单合进 main**。
 - 卡上标注「领导者口径裁决未决」的，只复核不裁决。
 
 ## 本次任务
 
 1. 扫 `{{ROOT}}\control\cards\open\` 找**无后缀**的 `merge-*` 待领卡（`.claimed.md`/`.review.md` 的别碰）；没有就待命回报。
-2. 按协议 §1 领取（先 move 后填；`card-move --to claimed` 带 `--actor <会话标识> --harness <你所在的 harness 名> --llm <你实际用的模型名>`，看板的「处理中」泳道据此显示处理者与时长），执行 rebase + merge + push，回收 worktree。
+2. 按协议 §1 领取（先 move 后填；`card-move --to claimed` 带 `--actor <会话标识> --harness <你所在的 harness 名> --llm <你实际用的模型名>`，看板的「处理中」泳道据此显示处理者与时长），按卡的「合入目标」执行 rebase + merge + push，回收 worktree。
 3. 成功 → merge 卡移 `done\` 并回报合入 commit；受阻 → 按协议 §3 打回或退回。**每次移卡后刷看板（协议 §1.2）。**
