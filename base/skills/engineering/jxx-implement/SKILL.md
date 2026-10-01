@@ -3,7 +3,7 @@ name: jxx-implement
 description: 基于 spec 或一组 ticket 实现（implement）用户描述的工作。统一开发面：必须在项目内的工单 worktree（wt/<卡id>）里开发、走统一看板（jxx-ticket-board）的卡位流转，三段硬出口不变。
 disable-model-invocation: false
 metadata:
-  version: 1.1.0
+  version: 1.2.0
 ---
 
 实现用户在 spec 或工单中描述的工作。
@@ -12,7 +12,7 @@ metadata:
 
 定期运行类型检查和单个测试文件，结束时运行完整测试套件。
 
-## 硬前置（统一布局 · v1.1.0，不可跳过）
+## 硬前置（统一布局 · v1.2.0，不可跳过）
 
 三技能统一改造（jxx-ticket-board / jxx-implement / jxx-implement-spec）：**一切开发都在项目里的工单 worktree 中进行，并由统一看板跟踪**。开工前按序落实：
 
@@ -20,6 +20,19 @@ metadata:
 2. **工单有卡**：`control/cards/` 里存在本工单对应的卡（卡 id = `NN-MM-slug`，与工单文件名一致）；没有则由领导者（或本会话代行）投卡：`board.mjs new-card --root <项目根> --id <卡id> --level <L1-L4> --model <档位> --ticket-file <工单文件绝对路径>`（投卡自动推导卡面「合入目标」：工单属 PRD → PRD 分支；散工单 → main）。
 3. **领卡**：`board.mjs card-move --root <项目根> --id <卡id> --to claimed --actor <会话标识> --harness <harness 名> --llm <模型名>`（原子改名防抢；抢不到就换卡或回报）。
 4. **worktree 内开发**：`wt/<卡id>/` 已存在则直接进入；否则 `board.mjs add-wt --root <项目根> --ticket <卡id>`——**基分支自动推导**：属 PRD 的工单从 PRD 分支拉（不存在则自动从 origin/main 建 PRD 分支），散工单从 origin/main 拉。**不得**在 main 或他人分支上直接开发。完整规则见 `control/PROTOCOL.md`（§1 领取、§2 开发组规则）。
+
+## 工单真源与工作区 bootstrap（服务器优先 · v1.2.0 默认）
+
+**默认操作服务器上的工单**：服务器（jxx-ticket REST / 线上 /tickets 看板）是工单真源，本地 `.scratch/` md 是创作面与离线投影。**线上工作目录 = 该项目 repo_key 在服务器 `jxx_tickets` 中出现**（repo_key 归一化见 `tools/repo-key.mjs` / 服务端 `internal/repokey`）。开工前先确保线上有本项目工作区：
+
+```bash
+node tools/jxx-bootstrap.mjs --root <项目根>        # 缺则创建（种子工单 + 投影基准），已有则幂等退出
+```
+
+- 项目已接入 ⇒ `already-bootstrapped`，继续正常流程；
+- **新项目（线上无该 repo_key 工单）⇒ 自动先创建**：种子工单（`【bootstrap】<项目名> 工作区开通`）+ 本地投影基准，然后才进行后续操作；
+- 之后的状态流转（pending-review / done / labels）在改本地 md 的同时用 `jxx_ticket_call update` 双写服务器（`jxx-ticket-router` 技能）；服务不可达时照常直写本地 md（离线降级），回连后 `jxx_ticket_sync` 收口。
+- 本仓无 `tools/jxx-bootstrap.mjs` 的项目（未接此套工具）：以「`jxx_ticket_call list` 按 repo_key 查询 + 无则 `create` 种子工单」同语义手动执行（口径见 `references/ADR-010-server-first-tickets.md`）。
 
 ## 完成步骤（不可跳过）
 

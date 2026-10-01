@@ -3,7 +3,7 @@ name: jxx-implement-spec
 description: "按 spec/PRD 与其关联 ticket（任务图）整轨实现：建 PRD 分支、统一看板投卡、按 auto 模式编排 worker/审查者/合并专员完成开发-审查-合并；全部工单合入 PRD 分支后，PRD 完成或用户要求时才把 PRD 分支合入 main。触发词：实现 spec、implement the spec、按工单实现、PRD 整轨。"
 disable-model-invocation: false
 metadata:
-  version: 1.1.0
+  version: 1.2.0
 ---
 
 你拿到了一份 spec/PRD（`.scratch/<NN>-<slug>/PRD.md` + `issues/*.md`）。目标：把这份 PRD 的**全部工单**经统一流水线（开发 → 审查 → 合并）交付到 **PRD 分支** `ticket/<NN>-<slug>`，并在收口条件满足时把 PRD 分支合入 main。
@@ -16,6 +16,8 @@ metadata:
 
 0. **看板就位（in-project 统一布局）**：项目根无 `control/workspace.json` 则先
    `node <jxx-ticket-board>/scripts/board.mjs init --root <项目根>`（自动判定 in-project：wt/ 与 control/ 落在项目里，快照走 control/ 嵌套 git，不进产品仓历史）。有则跳过。
+
+0b. **服务器工作区 bootstrap（服务器优先 · v1.2.0 默认）**：`node tools/jxx-bootstrap.mjs --root <项目根>`——线上无该 repo_key 工单时**自动先创建**（种子工单 + 本地投影基准）再继续；已有则幂等退出。PRD 本体也经 `jxx_ticket_call create` 上行（labels 带 `prd:<NN>-<slug>`），之后各工单状态流转双写服务器。口径见 jxx-implement v1.2.0 同名节与 `references/ADR-010-server-first-tickets.md`（jxx-ticket-board 技能内）。
 
 1. **建 PRD 分支**：`git -C <项目根> branch ticket/<NN>-<slug> origin/main`（已存在则跳过）。读 PRD 与全部工单，理解任务图与就绪前沿。
 

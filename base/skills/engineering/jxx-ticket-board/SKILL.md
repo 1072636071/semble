@@ -1,9 +1,9 @@
 ---
 name: jxx-ticket-board
-description: 工单公告板工作区——把任意 git 仓库开辟为多 worktree 并行工单协作场。加载本会话即领导者（只分解投卡、记账汇总，不干预开发组），worker 由用户拉起自发领卡，卡片目录即状态机、文件原子 move 防抢，领导者每个行为即时落盘账本，断线可重连自检。支持 auto 模式——指定一组工单后自动 spawn worker/审查者/合并专员完成全流程。当用户想搭建工单公告板/开多个工单工作区/以领导者身份派发任务/自动完成一组工单/恢复领导者会话/看板对账时使用。触发词：公告板, 领卡, 投卡, 工单看板, worktree工作区, 领导者, auto, 自动编排, reconnect。
+description: 工单公告板工作区——把任意 git 仓库开辟为多 worktree 并行工单协作场。加载本会话即领导者（只分解投卡、记账汇总，不干预开发组），worker 由用户拉起自发领卡，卡片目录即状态机、文件原子 move 防抢，领导者每个行为即时落盘账本，断线可重连自检。支持 auto 模式——指定一组工单后自动 spawn worker/审查者/合并专员完成全流程。当用户想搭建工单公告板/开多个工单工作区/以领导者身份派发任务/自动完成一组工单/恢复领导者会话/看板对账时使用。触发词：公告板, 领卡, 投卡, 工单看板, worktree工作区, 领导者, auto, 自动编排, reconnect, 服务器工单, bootstrap。
 disable-model-invocation: false
 metadata:
-  version: 0.12.0
+  version: 0.13.0
 argument-hint: init [--in-project] [--repo <git-url>] | board | verify | ledger --action <文本> | auto --tickets <工单文件列表>
 ---
 
@@ -35,7 +35,9 @@ argument-hint: init [--in-project] [--repo <git-url>] | board | verify | ledger 
 
 **统一合并流（v0.12.0）**：每张开发卡带「合入目标」——工单属 PRD ⇒ 审查通过后先合 **PRD 分支** `ticket/<NN>-<slug>`（PRD 全部工单收口、或用户明确要求时，才由 PRD 收口卡把 PRD 分支合入 main）；散工单（无 PRD）⇒ 审查通过、确认没影响后直接合 main。详见 PROTOCOL §3 / §3.1 与 `references/ADR-009-in-project-and-prd-branch.md`。
 
-设计依据见 `references/`（ADR-001~008）。**三条正交轴**（D9，ADR-008）：目录 = 生命周期三态，文件名后缀 = 执行态（领取仍是原子 rename，防抢不靠纪律），卡面 `- labels:` = triage 五标签（受阻 = `needs-info`，不再有 `blocked/` 目录）。旧五泳道板迁三态：`board.mjs migrate --root <root> [--dry-run]`。
+**服务器优先 + bootstrap（v0.13.0，默认）**：服务器（jxx-ticket REST = 线上 `/tickets` 看板）是工单真源，本地 md 是创作面与离线投影。**线上工作目录 = 该项目 repo_key 在服务器 `jxx_tickets` 中出现**；开工前先 `node tools/jxx-bootstrap.mjs --root <项目根>`——线上无该 repo_key 工单时**自动先创建**（种子工单 + 投影基准）再操作，已有则幂等退出；离线降级照常直写本地 md。详见 `references/ADR-010-server-first-tickets.md` 与 PROTOCOL §0。
+
+设计依据见 `references/`（ADR-001~010）。**三条正交轴**（D9，ADR-008）：目录 = 生命周期三态，文件名后缀 = 执行态（领取仍是原子 rename，防抢不靠纪律），卡面 `- labels:` = triage 五标签（受阻 = `needs-info`，不再有 `blocked/` 目录）。旧五泳道板迁三态：`board.mjs migrate --root <root> [--dry-run]`。
 
 ## 两种模式
 
@@ -211,4 +213,4 @@ node <skill>/scripts/board.mjs card-move --root <root> --id <卡id> --to blocked
 - `scripts/selftest.mjs` — 冒烟自测（`node scripts/selftest.mjs`，128 项断言，零依赖；改 `board.mjs` 后必跑，含防抢、历史回放、migrate、四泳道渲染与历史列默认隐藏、处理计时盖章与流转段回退、重领不抹旧值、卡面缺「流转追加段」补段、零换行卡回退 LF、受阻现场提示可达、坏时间戳红字告警、卡头字段替换边界、CLI/卡面文本的 shell 注入闸门、prd.html 两栏与整轨按钮、四类标签反例，以及 v0.12.0 的 in-project 初始化/嵌套 git 快照不污染产品仓、合入目标推导与继承、add-wt 基分支自动推导）。
 - `scripts/board.mjs` — init / board / html / ledger / verify / new-card / add-wt / rm-wt / card-read / card-set / card-move / card-rm / snapshot / render / migrate / auto 子命令。
 - `assets/` — PROTOCOL、卡模板、starter 提示词（dev / merger / reviewer / auto 四份，init 时渲染进 control/）。
-- `references/` — ADR-001~009：worktree 隔离、control 外置、领导者-领取制、目录状态机、合并即卡、薄卡粒度、协议单源、三态目录 + 标签正交、in-project 布局与 PRD 分支合并流。改协议前先读它们。
+- `references/` — ADR-001~010：worktree 隔离、control 外置、领导者-领取制、目录状态机、合并即卡、薄卡粒度、协议单源、三态目录 + 标签正交、in-project 布局与 PRD 分支合并流、服务器优先工单真源与工作区 bootstrap。改协议前先读它们。

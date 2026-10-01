@@ -18,7 +18,7 @@
      文件名后缀 = 执行态（open/<id>.md 待领 · .claimed.md 在办 · .review.md 待终审），
      本行 labels = triage 下一步（五标签：ready-for-agent / ready-for-human / needs-info / needs-triage / wontfix）。
      受阻不再靠 blocked/ 目录表达：`card-move --to blocked` 会把卡留在 open/ 并自动打上 needs-info。
-     doc_ref 是服务器工单 URL（手填：`<部署域>/tickets/<工单id>`，路由规则见 PRD 75「前端」段 `/tickets/:id`）；
+     doc_ref 是服务器工单 URL（`<部署域>/tickets/<工单id>`；服务器优先口径下优先经 jxx_ticket_push/pull 投影自动带出，手填仅作兼容）；
      本地工单文件路径写 PRD 行，两者别混。留空 = 尚未上行服务器。
      处理计时四行（Harness / LLM / 开始处理 / 结束处理）是**统计面**：`card-move` 进 claimed 位自动盖开始、离开时盖结束，
      harness 名与 LLM 模型名由领卡会话用 `--harness <名> --llm <名>` 自报；这四行**不参与判位**（位置的唯一真源是文件名后缀），留空不影响流转。
