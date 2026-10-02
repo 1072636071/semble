@@ -12,6 +12,7 @@
 
 import { normalizeConfig } from './config.mjs'
 import { Orchestrator, STAGES } from './orchestrator.mjs'
+import { randomUUID as cryptoUUID } from 'node:crypto'
 
 export const name = 'jxx-driver'
 export const inject = ['subagents', 'systemPrompt', 'agents', 'tools']
@@ -21,7 +22,7 @@ const FLOW_TOOL = 'jxx_flow'
 const FLOW_DESCRIPTION = [
   'jxx 流程编排：驱动「想法 → 决策 → ADR → PRD → 工单 → 实现审查 → 运维」的自动推进。',
   'action=start <idea>：从想法开始（先决策后产出）；',
-  'action=auto <prdPrefix>：对既有 PRD 直进编排（投卡→开发→三维审查→合并）；',
+  'action=auto <PRD编号|标题关键词>：对既有 PRD 直进编排（投卡→开发→三维审查→合并）；参数是意图而非编号时会返回候选清单，由你裁决后带编号重调；',
   'action=advance：当前阶段产物已落盘后推进到下一阶段（gate 不过会告诉你缺什么）；',
   'action=status：查看当前阶段 / 卡位 / 受阻项；',
   'action=stop：停止编排并中止在飞子会话。',
@@ -40,7 +41,7 @@ export function apply(ctx, rawConfig) {
       properties: {
         action: { type: 'string', enum: ['start', 'auto', 'advance', 'status', 'stop'] },
         idea: { type: 'string', description: 'start 时的想法陈述' },
-        prd: { type: 'string', description: 'auto 时的 PRD 编号前缀（如 94）' },
+        prd: { type: 'string', description: 'auto 时的目标：PRD 编号（如 94）或标题/slug 关键词；匹配到多份会返回候选清单' },
       },
       required: ['action'],
     },
@@ -108,9 +109,31 @@ async function dispatch(orch, args, agent) {
       return { ok: true, stage: 'decide', hint: '先和用户把决策聊透；产出 ADR 后调用 jxx_flow(action=advance)' }
     }
     case 'auto': {
-      if (!args.prd || !args.prd.trim()) throw new Error('auto 需要 prd（PRD 编号前缀，如 94）')
-      const run = await orch.auto(agent, args.prd.trim())
-      return { ok: true, stage: 'implement', runId: run.id, hint: '编排器已接管' }
+      const prdArg = (args.prd ?? '').trim()
+      try {
+        const run = await orch.auto(agent, prdArg)
+        return { ok: true, stage: 'implement', runId: run.id, featureDir: run.featureDir, hint: '编排器已接管' }
+      } catch (e) {
+        if (e.code === 'CANDIDATES') {
+          // 参数是自然语言意图（如"完成这些优化"）时：机械层无法裁决，
+          // 把候选清单结构化返回 + steer 给模型，由 agent 语义裁决后带编号重调（ADR-0110 D3）。
+          if (prdArg !== '' && agent && typeof agent.steer === 'function') {
+            agent.steer({
+              id: cryptoUUID(),
+              role: 'user',
+              content: [{ type: 'text', text: `[jxx-driver] /jxx auto 的参数「${prdArg}」匹配不到唯一 PRD。请从这些候选中选出用户意图对应的一份（必要时向用户确认），然后调用 jxx_flow(action="auto", prd="<编号>")：\n${e.message.split('：').slice(1).join('：')}` }],
+              source: { kind: 'user' },
+            })
+          }
+          return {
+            ok: false, needsChoice: true, rawInput: e.rawInput ?? prdArg,
+            prds: (e.prds || []).map((p) => ({ num: p.num, title: p.title, ready: p.ready, total: p.total })),
+            message: e.message,
+            hint: '从 prds 里选出用户意图对应的一份，调用 jxx_flow(action="auto", prd="<编号>")；拿不准就问用户',
+          }
+        }
+        throw e
+      }
     }
     case 'advance':
       return orch.advance(agent)

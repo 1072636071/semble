@@ -20,6 +20,8 @@ function mkRepo() {
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init'], { cwd: root })
   const dir = join(root, '.scratch', '99-test-prd', 'issues')
   mkdirSync(dir, { recursive: true })
+  writeFileSync(join(root, '.scratch', '99-test-prd', 'PRD.md'),
+    '# PRD 99 · 测试 PRD\n\n**Status:** ready-for-agent\n\n## 问题陈述\n\n## 用户故事\n\n## 解决方案\n\n## 实现决策\n\n## 测试决策\n')
   writeFileSync(join(dir, '01-first.md'), '# 第一张\n\n**Status:** ready-for-agent\n\n**Blocked by:** 无——可立即开始\n\n## 评论\n')
   writeFileSync(join(dir, '02-second.md'), '# 第二张\n\n**Status:** ready-for-agent\n\n**Blocked by:** 01\n\n## 评论\n')
   return { root, featureDir: join(root, '.scratch', '99-test-prd') }
@@ -117,6 +119,8 @@ test('E2E：审查 FAIL → 返工一次 → 全过 → done', async (t) => {
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init'], { cwd: root })
   const dir = join(root, '.scratch', '98-one', 'issues')
   mkdirSync(dir, { recursive: true })
+  writeFileSync(join(root, '.scratch', '98-one', 'PRD.md'),
+    '# PRD 98 · 单卡\n\n**Status:** ready-for-agent\n\n## 问题陈述\n\n## 用户故事\n\n## 解决方案\n\n## 实现决策\n\n## 测试决策\n')
   writeFileSync(join(dir, '01-solo.md'), '# 单卡\n\n**Status:** ready-for-agent\n\n**Blocked by:** 无\n\n## 评论\n')
 
   // spec 维度第一次 FAIL、之后 PASS：用计数器模拟
@@ -149,6 +153,8 @@ test('E2E：worker 持续失败 → 重试一次 → blocked 转人工', async (
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init'], { cwd: root })
   const dir = join(root, '.scratch', '97-fail', 'issues')
   mkdirSync(dir, { recursive: true })
+  writeFileSync(join(root, '.scratch', '97-fail', 'PRD.md'),
+    '# PRD 97 · 失败测试\n\n**Status:** ready-for-agent\n\n## 问题陈述\n\n## 用户故事\n\n## 解决方案\n\n## 实现决策\n\n## 测试决策\n')
   writeFileSync(join(dir, '01-bad.md'), '# 失败卡\n\n**Status:** ready-for-agent\n\n**Blocked by:** 无\n\n## 评论\n')
   const { ctx, agent } = mkCtx(root, { workerError: true })
   const orch = new Orchestrator(ctx, CONFIG(), ctx.logger)

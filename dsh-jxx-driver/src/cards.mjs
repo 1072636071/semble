@@ -80,3 +80,38 @@ export function ticketNum(base) {
   const m = base.match(/^(\d+)-/)
   return m ? String(parseInt(m[1], 10)) : undefined
 }
+
+/** 列出 .scratch/ 下全部 PRD：编号、slug、标题、就绪工单数（auto 参数解析的数据面）。 */
+export function listPrds(root) {
+  const scratch = join(root, '.scratch')
+  if (!existsSync(scratch)) return []
+  const out = []
+  for (const name of readdirSync(scratch)) {
+    const m = name.match(/^(\d+)-(.+)$/)
+    if (!m) continue
+    const dir = join(scratch, name)
+    const prdFile = join(dir, 'PRD.md')
+    if (!existsSync(prdFile)) continue
+    let title = name
+    try {
+      title = (readFileSync(prdFile, 'utf8').match(/^#\s+(.+)$/m) || [])[1]?.trim() || name
+    } catch { /* 读不了就用目录名 */ }
+    let tickets = []
+    try { tickets = listTickets(dir) } catch { /* issues/ 缺失按 0 处理 */ }
+    out.push({
+      num: String(parseInt(m[1], 10)),
+      slug: m[2],
+      dir,
+      title,
+      ready: tickets.filter((t) => t.status === 'ready-for-agent').length,
+      total: tickets.length,
+    })
+  }
+  return out
+}
+
+/** 候选清单的人读渲染（错误消息与 steer 共用）。 */
+export function prdListText(prds) {
+  if (!prds || prds.length === 0) return '\n  （.scratch/ 下没有 PRD）'
+  return '\n' + prds.map((p) => `  - ${p.num} · ${p.title}（就绪工单 ${p.ready}/${p.total}）`).join('\n')
+}
