@@ -1,6 +1,6 @@
 # ADR-009：in-project 布局与 PRD 分支合并流（三技能统一改造）
 
-- 状态：已接受（2026-10-01 · 用户指令：「统一 jxx-ticket-board / jxx-implement / jxx-implement-spec——三个技能都在项目里生成工作树、使用统一的看板机制、统一的自动开发/审查/合并；PRD 先合并到 PRD 分支，等 PRD 开发完成或用户要求合并，才合到主分支；没有 PRD 的散工单，处理完成确认没影响后合并主分支」）
+- 状态：**决策 2（合并流）已被 ADR-011 修订**——默认回合 main，PRD 分支降为受阻暂存道；决策 1（in-project 布局）与决策 3（三技能同流水线）继续有效（2026-10-01 · 用户指令：「统一 jxx-ticket-board / jxx-implement / jxx-implement-spec——三个技能都在项目里生成工作树、使用统一的看板机制、统一的自动开发/审查/合并；PRD 先合并到 PRD 分支，等 PRD 开发完成或用户要求合并，才合到主分支；没有 PRD 的散工单，处理完成确认没影响后合并主分支」）
 - 关联：ADR-001（worktree 隔离，本单改其落点默认值）、ADR-002（control 外置，本单提供 in-project 例外）、ADR-005（合并即卡，本单给合并卡加「合入目标」维度）、ADR-007（协议单源，§3/§3.1 即本决策的协议落点）
 - 说明：本 ADR 属 **jxx-ticket-board 技能系列**（`references/ADR-00N`），与权威仓 `docs/adr/` 的产品 ADR 编号无关，别混引。
 

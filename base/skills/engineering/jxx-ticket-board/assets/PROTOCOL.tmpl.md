@@ -66,7 +66,7 @@
    ```bash
    node {{SKILL_DIR}}/scripts/board.mjs add-wt --root "{{ROOT}}" --ticket <卡id>
    ```
-   **基分支自动推导（统一合并流）**：未显式给 `--base` 时，属 PRD 的工单自动从 **PRD 分支**（卡的「合入目标」，`ticket/<NN>-<slug>`；不存在则先从 origin/main 建）拉出——工单 diff 只含自己的活；散工单从 `origin/main` 拉。
+   **基分支（默认回合 main，v0.14.0）**：未显式给 `--base` 时一律从 `origin/main` 拉——所有工单（含 PRD 工单）diff 只含自己的活；PRD 分支不再预建，只在合并受阻时由合并专员惰性创建作暂存道（§3）。
    然后在 `wt\<卡id>\` 内安装依赖、按卡的 PRD 指针读工单正文开工。
 
 ## 2. 开发组规则
@@ -81,25 +81,29 @@
 - 干不下去：卡「流转追加段」写原因，然后 `card-move --to blocked`——三态下这一步**不新建目录**：卡回到 `open\<卡id>.md` 待领位并被自动打上 `needs-info` 标签，**刷看板**，回报用户。等人拍板用 `card-set --field labels --value ready-for-human`。
 - 禁止：动权威工作区（`{{REPO_PATH}}`）主干、提交到 `{{BASE_BRANCH}}`、移动他人 `.claimed` 的卡、把成果正文只写在卡里。
 
-## 3. 合并专员规则（先审后合 · 统一合并流）
+## 3. 合并专员规则（先审后合 · 默认回合 main）
 
 - 领 `merge-<卡id>` 卡（协议同上，先 move 后填）。同一时刻**只处理一张**合并卡，多张按卡内顺序。
-- **合入目标（统一合并流，卡面「合入目标」行 / `card-read` 推导）**：
-  - **工单属 PRD**（合入目标 = `ticket/<NN>-<slug>`）：复核过 → 把 `ticket/<卡id>` **合入 PRD 分支**（不是 main）。PRD 全部工单收口、或用户明确要求合并时，才由领导者投 **PRD 收口卡**把 PRD 分支合入 main（见 §3.1）。
-  - **散工单（无 PRD）**（合入目标 = `main`）：复核过 → **确认没影响**（diff 面限于工单声明范围、本地门禁/测试绿、无越界夹带）→ 直接合入 main。
-- **第一步是定点复核（干净视角，碰 git 之前）**：读对应开发卡（`open\<卡id>.review.md`）的「终审待验清单」与「交付记录」，对照工单 PRD 验收标准，用只读 git（`git show <分支>:<路径>`、`git diff <合入目标>...<分支>`、`git grep`）+ 可派只读子代理，逐项实证 worker 自报是否属实：修复真在？越界夹带？报告实体？清单每项给 闭合✓/未闭合✗+证据。**diff 基准 = 合入目标**（PRD 工单相对 PRD 分支评判，相对 main 必然带着整支 PRD 的差异）。
-- **复核过 → 才执行合并**：`git -C "{{REPO_PATH}}" fetch` → 把 `ticket/<卡id>` rebase 到最新**合入目标** → 合入**合入目标**并 push → 回收 worktree/分支（**回收只用 `board.mjs rm-wt --root <root> --ticket <单卡id>`，一次一卡；禁止批量/递归删除——见 §7**）。合入 PRD 分支时工单 `Status: done` 照置（实现与审查已完成），但**不代表已上 main**。
+- **合入目标：一律默认 `main`（v0.14.0 起，PRD 工单同此）**。工单完成审查后默认直接回合主分支。
+- **第一步是定点复核（干净视角，碰 git 之前）**：读对应开发卡（`open\<卡id>.review.md`）的「终审待验清单」与「交付记录」，对照工单 PRD 验收标准，用只读 git（`git show <分支>:<路径>`、`git diff origin/main...<分支>`、`git grep`）+ 可派只读子代理，逐项实证 worker 自报是否属实：修复真在？越界夹带？报告实体？清单每项给 闭合✓/未闭合✗+证据。**diff 基准 = `origin/main`**（所有工单分支都从 main 拉出）。
+- **复核过 → 才执行合并**：`git -C "{{REPO_PATH}}" fetch` → 把 `ticket/<卡id>` rebase 到最新 `origin/main` → **确认没影响**（diff 面限于工单声明范围、本地门禁/测试绿、无越界夹带）→ 合入 **main** 并 push → 回收 worktree/分支（**回收只用 `board.mjs rm-wt --root <root> --ticket <单卡id>`，一次一卡；禁止批量/递归删除——见 §7**）。
+- **不能回合 main ⇒ 降级 + 汇报（硬性，缺汇报 = 流程未完成）**。技术受阻时按下表降级，且**必须当场向用户显式汇报不能回合的原因**（冲突面 / 哪个门禁红 / 卡在哪张依赖），同时在 merge 卡「流转追加段」与领导者账本各留一行：
+  - **rebase 冲突超出机械可解**（需发明新行为才能解）：不得自行发明——把开发卡改名回 `open\<卡id>.review.md` 并在流转段写明冲突面，交回开发组按 `jxx-resolving-merge-conflicts` 处理（解决即改 diff，diff 变了必须复审）。
+  - **rebase 干净但门禁/测试红，或本分支携带未上 main 的兄弟工单提交**（diff 越出本工单声明面，典型 = 同 PRD 依赖序未到）：
+    - 工单**属 PRD** ⇒ **暂存降级**：把 `ticket/<卡id>` 合入 PRD 分支 `ticket/<NN>-<slug>`（**不存在则先从 `origin/main` 建**）暂存，等 §3.1 收口清入 main。工单 `Status: done` 照置（实现与审查已完成），但卡面与汇报必须注明「暂存于 PRD 分支，未上 main」。
+    - **散工单** ⇒ 无暂存道：`card-move --to blocked`（自动带 `needs-info`），等人工拍板。
 - **复核不过 → 打回**：merge 卡写明发现项后 `card-move --to blocked`（或按卡指示把开发卡改名回 `open\<卡id>.claimed.md` 附发现项）；**禁止带伤合并**。
 - 例外：merge 卡若标注「领导者口径裁决未决」（L4 卡或跨单口径冲突），合并专员只做复核不做裁决，复核结论回报后待领导者拍板才可合。
-- **冲突红线**：rebase 冲突超出机械可解（需发明新行为才能解）时，不得自行发明——把开发卡改名回 `open\<卡id>.review.md` 并在流转段写明冲突面，交回开发组按 `jxx-resolving-merge-conflicts` 处理。解决即改 diff，diff 变了必须复审。
-- 合并成功：merge 卡追加结果（合入 commit、合入目标、复核结论行、时间），`mv → done\`，**刷看板**；对应开发卡由领导者移 `done\`。
+- 合并成功：merge 卡追加结果（合入 commit、合入目标、复核结论行、时间；**未能上 main 的写清原因与去向**），`mv → done\`，**刷看板**；对应开发卡由领导者移 `done\`。
 
-### 3.1 PRD 收口：PRD 分支 → main
+### 3.1 PRD 收口：清暂存 + 状态收口
 
-- **触发二选一**：① 该 PRD 全部工单 `done`/`wontfix`（领导者裁决开发完成）；② 用户明确要求合并。两者之外**不得**把 PRD 分支合进 main。
-- **PRD 收口卡**：领导者投 `merge-<NN>-<prd-slug>`（`--level L1 --keep-inbox`，PRD.md 状态非 ready-for-agent 时投卡加 `--force`），卡内写明：待合分支 = PRD 分支 `ticket/<NN>-<prd-slug>`、合入目标 = `main`、整轨复核要点。
-- **合并专员执行**：对整支 PRD 分支跑 `/jxx-code-review`（`git diff origin/main...ticket/<NN>-<prd-slug>`）→ 审查过 → rebase 到最新 `origin/main` → 合入 main 并 push → 把 `PRD.md` 的 `**Status:**` 置 `done`（随合并提交或在 main 工作区另提）→ 回收该 PRD 全部残留 worktree（仍走 rm-wt，一次一卡）。
-- 审查有发现项 → 投普通开发卡返修（合入目标仍是 PRD 分支），修好重走收口。
+- **触发二选一**：① 该 PRD 全部工单 `done`/`wontfix`（无论已直合 main 还是暂存 PRD 分支）；② 用户明确要求合并。两者之外**不得**把 PRD 分支合进 main。
+- **收口 = 两件事**：a) 把 PRD 暂存分支（`ticket/<NN>-<slug>`，**存在才有**）上尚未上 main 的工单清入 main；b) 把 `PRD.md` 的 `**Status:**` 置 `done`。
+- **PRD 收口卡**：领导者投 `merge-<NN>-<prd-slug>`（`--level L1 --keep-inbox`，PRD.md 状态非 ready-for-agent 时投卡加 `--force`），卡内写明：待清分支 = PRD 分支 `ticket/<NN>-<prd-slug>`、合入目标 = `main`、哪些工单此前因受阻暂存。
+- **合并专员执行**：暂存分支存在 → 对整支 PRD 分支跑 `/jxx-code-review`（`git diff origin/main...ticket/<NN>-<prd-slug>`）→ 审查过 → rebase 到最新 `origin/main` → 合入 main 并 push；**无暂存（全部工单已直合 main）→ 跳过清入**。随后把 `PRD.md` 的 `**Status:**` 置 `done`（随合并提交或在 main 工作区另提）→ 回收该 PRD 全部残留 worktree（仍走 rm-wt，一次一卡）。
+- 审查有发现项 → 投普通开发卡返修（返修后按 §3 重新直合 main，或再次暂存），修好重走收口。
+- 暂存清不进 main（rebase 冲突 / 门禁红）时，同样按 §3 的汇报硬性要求向用户说明原因，卡留 `blocked` 等人工。
 
 ## 4. 卡内文法（verify 对账依赖，勿改）
 

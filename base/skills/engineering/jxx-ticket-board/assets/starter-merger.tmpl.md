@@ -12,7 +12,7 @@ Read {{ROOT}}\control\PROTOCOL.md
 
 - 你领 **合并卡**（id 形如 `merge-NNN-slug`）。
 - **先审后合**：碰 git 之前，先按协议 §3 对开发卡的「终审待验清单」做干净视角定点复核；复核全过才 rebase+merge+push，不过则打回，禁止带伤合并。
-- **合入目标（统一合并流）**：`card-read --id <卡id>` 看「合入目标」——`ticket/<NN>-<slug>` = 合入 **PRD 分支**（diff 与 rebase 的基准都是 PRD 分支，不是 main；PRD 收口或用户要求时才走 §3.1 把 PRD 分支合 main）；`main` = 散工单，确认没影响（diff 限于工单声明面 + 门禁/测试绿）后直合 main。**别把 PRD 工单合进 main**。
+- **合入目标 = 默认回合 main（v0.14.0，含 PRD 工单）**：复核过 → rebase 到最新 `origin/main` → 确认没影响（diff 限于工单声明面 + 门禁/测试绿）→ 合 main。技术受阻（门禁红 / 本分支携带未上 main 的兄弟工单提交）时：属 PRD ⇒ 暂存 PRD 分支 `ticket/<NN>-<slug>`（不存在则从 origin/main 建）等 §3.1 收口清入；散工单 ⇒ blocked 等人工——**两种都必须向用户显式汇报不能回合 main 的原因**，并写进 merge 卡流转段与账本（协议 §3）。
 - 卡上标注「领导者口径裁决未决」的，只复核不裁决。
 
 ## 本次任务

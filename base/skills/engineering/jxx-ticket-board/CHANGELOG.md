@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.14.0 — 默认回合 main（ADR-011 修订 ADR-009 合并流）
+
+**用户指令**：完成工单后默认回合主分支；不能回合时必须汇报不能回合的原因（会话内显式回报 + merge 卡流转段 + 账本）。
+
+- **合入目标一律 `main`**（含 PRD 工单）：`mergeTargetOf()` 不再按 PRD.md 推导 PRD 分支；卡面 `- 合入目标:` 行恒为 `main`（含 merge 卡）。
+- **PROTOCOL §3 改写**：复核过 → rebase 到最新 `origin/main` → 确认没影响 → 合 main；新增「不能回合 main ⇒ 降级 + 汇报（硬性）」——冲突不可解交回开发组；门禁红 / 携带未上 main 的兄弟工单提交时，属 PRD 的暂存 PRD 分支（惰性创建），散工单 blocked，两种都必须向用户显式汇报原因并留痕。
+- **PROTOCOL §3.1 改为「清暂存 + 状态收口」**：全部工单 done/wontfix 或用户要求时，把暂存分支上未上 main 的工单清入 main（无暂存跳过），PRD.md 置 done。
+- **`add-wt` 一律从 `origin/main` 拉**（PRD 工单同此）：PRD 分支不再预建，只在首次暂存降级时创建；`verify` 假交付闸门基准从「合入目标」改回 `origin/main`。
+- **配套**：CARD-TEMPLATE / starter-merger / SKILL.md 概述同步；新增 `references/ADR-011-main-first-merge.md`，ADR-009 标注修订状态；旧卡面残留的 PRD 分支值由 `card-read` 标为旧值，不逼迁。
+- **selftest 128 项断言全绿**（v0.12.0 合并流断言改写：属 PRD 的卡合入目标也是 main / merge 卡同值 / add-wt 一律从 origin/main 且 PRD 分支不预建）。
+
 ## 0.12.0 — 2026-10-01
 
 **三技能统一改造（jxx-ticket-board / jxx-implement / jxx-implement-spec）**：工作树与看板统一落到项目里（in-project），三技能共用同一个看板机制与同一条「开发 → 审查 → 合并」流水线；合并流统一为「工单属 PRD ⇒ 先合 PRD 分支（PRD 收口或用户要求时才合 main）；散工单 ⇒ 确认没影响后直合 main」。设计依据见 `references/ADR-009-in-project-and-prd-branch.md`。

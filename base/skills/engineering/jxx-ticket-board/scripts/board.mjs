@@ -82,14 +82,12 @@ function wsMode(root, meta) {
   if (m && m.repoPath && path.resolve(m.repoPath) === path.resolve(root)) return 'in-project';
   return 'external';
 }
-// 合入目标推导（统一合并流）：工单文件位于 .scratch/<NN>-<slug>/issues/ 且该目录有 PRD.md
-// ⇒ 先合 PRD 分支 ticket/<NN>-<slug>（PRD 全部工单收口或用户要求时才由 PRD 分支合 main）；
-// 否则（无 PRD 的散工单）⇒ 审查通过、确认没影响后直接合 main。
-function mergeTargetOf(ticketFile) {
-  if (!ticketFile) return 'main';
-  const prdDir = path.dirname(path.dirname(path.resolve(ticketFile)));
-  if (!fs.existsSync(path.join(prdDir, 'PRD.md'))) return 'main';
-  return `ticket/${path.basename(prdDir)}`;
+// 合入目标（v0.14.0 · 默认回合 main，ADR-011）：所有工单（含 PRD 工单）完成审查后一律默认直接
+// 合入 main；仅技术受阻（冲突不可解走返工 / 门禁红 / 携带未上 main 的兄弟工单提交）才降级——属 PRD 的
+// 暂存 PRD 分支 ticket/<NN>-<slug>（合并专员惰性创建），散工单 blocked 等人工；且必须向用户汇报不能
+// 回合 main 的原因（PROTOCOL §3）。暂存分支按 PRD 指针现场推导，不上卡面。
+function mergeTargetOf(_ticketFile) {
+  return 'main';
 }
 
 // ---------- 卡位解析（工作流位 token ↔ 物理落点）----------
@@ -219,7 +217,7 @@ function cardFields(body) {
     prd: /\.md$/i.test(prdRaw) ? prdRaw : '', branch: f('分支'), wt: f('worktree'), deps: f('依赖'),
     // labels = triage 维度（与目录/文件名执行态正交）；doc_ref = 服务器工单 URL（薄卡指针，手填 `<部署域>/tickets/<id>`）
     labels: f('labels'), docRef: f('doc_ref'),
-    // 合入目标（统一合并流 v0.12.0）：ticket/<NN>-<slug>（属 PRD，先合 PRD 分支）或 main（散工单直合）
+    // 合入目标（v0.14.0 起一律 main，默认回合主分支；受阻暂存是协议层降级，不改卡面值）
     mergeTarget: f('合入目标'),
     // 处理计时三字段 = 统计面（谁在哪个 harness 上、用哪个模型办的、什么时候开始/结束），由 card-move 自动盖章。
     // 它们**不参与状态判定**：执行态的唯一真源仍是文件名后缀（ADR-004 的原子 rename 防抢），
@@ -1020,17 +1018,15 @@ function cmdVerify(argv) {
       console.log(`INFO held 卡 ${c} 依赖已齐，可 mv 回 open/ 释放待领`);
   }
   // 在飞卡分支差异检测：review 有卡却零差异 = 假交付；claimed 零差异仅 INFO（刚开工正常）
-  // 基准 = 合入目标（v0.12.0）：PRD 工单的 diff 只应相对 PRD 分支评判——相对 origin/main 必然带着
-  // 整支 PRD 分支的差异，假交付闸门会永远失声；PRD 分支不存在时回退 origin/main。
+  // 基准 = origin/main（v0.14.0）：所有工单分支一律从 main 拉出、默认回合 main，
+  // 零差异判据相对 main 直接有效；旧卡面残留的 PRD 分支合入目标值不再作数。
   for (const s of ['claimed', 'review']) for (const c of listCards(root, s)) {
     const cf = cardFields(fs.readFileSync(cardFile(root, s, c), 'utf8'));
     const b = safeRef(cf.branch); if (!b) continue;
-    const mt = cf.mergeTarget || mergeTargetOf(cf.prd);
-    let diffRef = 'origin/main';
-    if (mt !== 'main') { try { git(meta.repoPath, 'rev-parse', '--verify', mt); diffRef = mt; } catch { /* 回退 origin/main */ } }
+    const diffRef = 'origin/main';
     try {
       if (git(meta.repoPath, 'rev-list', '--count', `${diffRef}..${b}`) === '0') {
-        if (s === 'review') problems.push(`MISMATCH 假交付嫌疑 ${c}: 分支 ${b} 与 ${diffRef}（合入目标）零差异，何来交付`);
+        if (s === 'review') problems.push(`MISMATCH 假交付嫌疑 ${c}: 分支 ${b} 与 ${diffRef} 零差异，何来交付`);
         else console.log(`INFO claimed 卡 ${c} 分支尚无提交（刚开工正常）`);
       }
     } catch { /* 分支未建（worker 未 add-wt）跳过 */ }
@@ -1212,20 +1208,9 @@ function cmdNewCard(argv) {
     if (inherited) body = setPrd(body, inherited);
     else console.log(`WARN new-card: 未找到可继承 PRD 的开发卡 ${devId}.md，PRD 行仍是模板占位路径——请手工改成真实工单路径，否则 verify 会报 MISMATCH`);
   }
-  // 合入目标（统一合并流）：开发卡按工单文件推导（有 PRD.md → PRD 分支；散工单 → main）；
-  // merge 卡继承开发卡的合入目标；推导不出落 main。卡面写明，合并专员照此合（PROTOCOL §3）。
-  let mtLine = 'main';
-  if (tf) mtLine = mergeTargetOf(tf);
-  else if (/^merge-/.test(id)) {
-    const devId = id.replace(/^merge-/, '');
-    for (const s of LANES) {
-      const p = cardFile(root, s, cardName(root, devId, s));
-      if (!fs.existsSync(p)) continue;
-      const df = cardFields(fs.readFileSync(p, 'utf8'));
-      mtLine = df.mergeTarget || mergeTargetOf(df.prd);
-      break;
-    }
-  }
+  // 合入目标（v0.14.0 · 默认回合 main）：所有卡一律 main；merge 卡同值。受阻暂存的 PRD 分支由
+  // 合并专员按 PRD 指针现场推导（PROTOCOL §3），不上卡面。
+  const mtLine = 'main';
   body = /^- 合入目标:[^\r\n]*$/m.test(body)
     ? body.replace(/^- 合入目标:[^\r\n]*/m, `- 合入目标: ${mtLine}`)
     : body.replace(/^- 目标:[^\r\n]*/m, `- 合入目标: ${mtLine}\n$&`);
@@ -1280,7 +1265,7 @@ function cmdCardRead(argv) {
   console.log(`- PRD: ${f.prd || '(未填)'}`);
   console.log(`- 分支: ${f.branch}`);
   console.log(`- worktree: ${f.wt}${fs.existsSync(f.wt) ? ' [已预开]' : ' [未创建]'}`);
-  console.log(`- 合入目标: ${f.mergeTarget}${f.mergeTarget !== 'main' ? '（先合 PRD 分支；PRD 收口或用户要求时才合 main）' : '（散工单：审查通过、确认没影响后直合）'}`);
+  console.log(`- 合入目标: ${f.mergeTarget}${f.mergeTarget === 'main' ? '（默认回合主分支：审查通过、确认没影响后直合；受阻暂存与汇报原因见 PROTOCOL §3）' : '（旧卡面值，v0.14.0 起默认回合 main，受阻才暂存 PRD 分支）'}`);
   // 处理计时读数（统计面，不参与判位）：字段缺省时回退卡内流转段，并标出是推出来的
   const proc = procOf(f, body);
   const mark = (v, k) => v ? `${v}${f[k] ? '' : ' [由流转段推得]'}` : '(未记录)';
@@ -1410,19 +1395,9 @@ function cmdAddWt(argv) {
   const repoDir = meta.repoPath, wtPath = path.join(root, 'wt', id), branch = `ticket/${id}`;
   let base = safeRef(arg(argv, 'base'));
   if (!base) {
-    // 统一合并流（v0.12.0）：未显式给 --base 时按卡的合入目标推导——属 PRD 的工单从 PRD 分支拉
-    // （PRD 分支不存在则先从 origin/main 建，保证工单 diff 只含自己的活）；散工单从 origin/main。
-    let mt = 'main';
-    const cp = cardPath(root, id);
-    if (cp) {
-      const f = cardFields(fs.readFileSync(cp.path, 'utf8'));
-      mt = f.mergeTarget || mergeTargetOf(f.prd);
-    }
-    if (mt !== 'main') {
-      try { git(repoDir, 'rev-parse', '--verify', mt); }
-      catch { git(repoDir, 'branch', mt, 'origin/main'); console.log(`add-wt: PRD 分支 ${mt} 不存在，已从 origin/main 创建`); }
-      base = mt;
-    } else base = 'origin/main';
+    // v0.14.0（默认回合 main）：未显式给 --base 时一律从 origin/main 拉——所有工单 diff 只含自己的活；
+    // PRD 分支不再预建，只在合并受阻时由合并专员惰性创建作暂存道（PROTOCOL §3）。
+    base = 'origin/main';
   }
   // 目录被外部删除会留下 stale worktree 注册，导致下面的 -b 回退分支失败；先 prune。
   try { git(repoDir, 'worktree', 'prune'); } catch { /* ignore */ }
