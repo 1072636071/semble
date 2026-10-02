@@ -12,6 +12,7 @@
 
 import { normalizeConfig } from './config.mjs'
 import { Orchestrator, STAGES } from './orchestrator.mjs'
+import { createQuickTicket } from './quick.mjs'
 import { randomUUID as cryptoUUID } from 'node:crypto'
 
 export const name = 'jxx-driver'
@@ -22,6 +23,7 @@ const FLOW_TOOL = 'jxx_flow'
 const FLOW_DESCRIPTION = [
   'jxx 流程编排：驱动「想法 → 决策 → ADR → PRD → 工单 → 实现审查 → 运维」的自动推进。',
   'action=start <idea>：从想法开始（先决策后产出）；',
+  'action=quick <问题描述>：小问题快车道——跳过 ADR/PRD，建一张散工单直接进看板流水线（开发→三维审查→合并）；用于会话中临时发现的问题或用户口头描述的小改动；',
   'action=auto <PRD编号|标题关键词>：对既有 PRD 直进编排（投卡→开发→三维审查→合并）；参数是意图而非编号时会返回候选清单，由你裁决后带编号重调；',
   'action=advance：当前阶段产物已落盘后推进到下一阶段（gate 不过会告诉你缺什么）；',
   'action=status：查看当前阶段 / 卡位 / 受阻项；',
@@ -39,9 +41,10 @@ export function apply(ctx, rawConfig) {
     parameters: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: ['start', 'auto', 'advance', 'status', 'stop'] },
-        idea: { type: 'string', description: 'start 时的想法陈述' },
+        action: { type: 'string', enum: ['start', 'quick', 'auto', 'advance', 'status', 'stop'] },
+        idea: { type: 'string', description: 'start/quick 时的想法或问题描述' },
         prd: { type: 'string', description: 'auto 时的目标：PRD 编号（如 94）或标题/slug 关键词；匹配到多份会返回候选清单' },
+        slug: { type: 'string', description: 'quick 可选：工单 slug（kebab-case）；缺省从 idea 推导' },
       },
       required: ['action'],
     },
@@ -61,8 +64,8 @@ export function apply(ctx, rawConfig) {
   if (commands && typeof commands.register === 'function') {
     commands.register({
       name: 'jxx',
-      description: 'jxx 流程编排（/jxx start <想法> · /jxx auto <PRD号> · /jxx status · /jxx stop）',
-      input: { hint: 'start <想法> | auto <PRD号> | status | stop' },
+      description: 'jxx 流程编排（/jxx start <想法> · /jxx quick <问题> · /jxx auto <PRD号> · /jxx status · /jxx stop）',
+      input: { hint: 'start <想法> | quick <问题> | auto <PRD号> | status | stop' },
       handler: async ({ agent, rawInput }) => {
         const { action, rest } = parseCommandInput(rawInput)
         try {
@@ -135,6 +138,15 @@ async function dispatch(orch, args, agent) {
         throw e
       }
     }
+    case 'quick': {
+      if (!args.idea || !args.idea.trim()) throw new Error('quick 需要 idea（问题描述）')
+      const { run, ticket } = await orch.quick(agent, args.idea.trim(), args.slug)
+      return {
+        ok: true, stage: 'implement', runId: run.id, quick: true,
+        featureDir: ticket.featureDir, ticketFile: ticket.ticketFile, cardId: ticket.cardId,
+        hint: '散工单已建并进入看板流水线（开发→三维审查→合并 main）；无需 ADR/PRD',
+      }
+    }
     case 'advance':
       return orch.advance(agent)
     case 'status':
@@ -142,7 +154,7 @@ async function dispatch(orch, args, agent) {
     case 'stop':
       return orch.stop(agent)
     default:
-      throw new Error(`未知 action：${args.action}（合法：start/auto/advance/status/stop）`)
+      throw new Error(`未知 action：${args.action}（合法：start/quick/auto/advance/status/stop）`)
   }
 }
 
@@ -151,6 +163,7 @@ function parseCommandInput(raw) {
   if (!text || text === 'status') return { action: 'status', rest: '' }
   if (text === 'stop') return { action: 'stop', rest: '' }
   if (text.startsWith('start')) return { action: 'start', rest: text.slice(5).trim() }
+  if (text.startsWith('quick')) return { action: 'quick', rest: text.slice(5).trim() }
   if (text.startsWith('auto')) return { action: 'auto', rest: text.slice(4).trim() }
   return { action: 'status', rest: '' }
 }
