@@ -231,14 +231,14 @@ function listPrdsSafe(orch, agent) {
 
 function parseCommandInput(raw) {
   const text = String(raw || '').trim()
-  if (!text || text === 'status') return { action: 'status', rest: '' }
   if (text === 'stop') return { action: 'stop', rest: '' }
+  if (text === 'status' || text === '') return { action: 'status', rest: '' } // 裸 /jxx 才是查状态
   if (text.startsWith('go')) return { action: 'go', rest: text.slice(2).trim() }
   // 旧别名仍可打：/jxx auto 94 等（都汇入 go）
   if (text.startsWith('start')) return { action: 'go', rest: text.slice(5).trim(), track: 'standard' }
   if (text.startsWith('quick')) return { action: 'go', rest: text.slice(5).trim(), track: 'quick' }
   if (text.startsWith('auto')) return { action: 'go', rest: text.slice(4).trim(), track: 'auto' }
-  return { action: 'go', rest: text } // 裸输入 = go（模型分流）
+  return { action: 'go', rest: text } // 裸输入（如「解决问题」）= go（模型分流）
 }
 
 function renderFlowValue(value) {
