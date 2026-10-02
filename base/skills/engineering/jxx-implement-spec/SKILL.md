@@ -1,12 +1,12 @@
 ---
 name: jxx-implement-spec
-description: "按 spec/PRD 与其关联 ticket（任务图）整轨实现：统一看板投卡、按 auto 模式编排 worker/审查者/合并专员完成开发-审查-合并；每张工单审查通过后默认直接合入 main（受阻暂存 PRD 分支），全部工单收口后清暂存并置 PRD done。触发词：实现 spec、implement the spec、按工单实现、PRD 整轨。"
+description: "按 spec/PRD 与其关联 ticket（任务图）整轨实现：统一看板投卡、按 auto 模式编排 worker/审查者/合并专员完成开发-审查-合并-回收；每张工单审查通过后默认直接合入 main（合入前 merge-check 预演冲突面并分诊，受阻暂存 PRD 分支），合入后回收工作空间，全部工单收口后清暂存并置 PRD done。触发词：实现 spec、implement the spec、按工单实现、PRD 整轨。"
 disable-model-invocation: false
 metadata:
-  version: 1.3.0
+  version: 1.4.0
 ---
 
-你拿到了一份 spec/PRD（`.scratch/<NN>-<slug>/PRD.md` + `issues/*.md`）。目标：把这份 PRD 的**全部工单**经统一流水线（开发 → 审查 → 合并）交付到 **main**——每张工单审查通过后默认直合 main（v0.14.0 起，ADR-011）；技术受阻的暂存 PRD 分支 `ticket/<NN>-<slug>`，收口时清入 main。
+你拿到了一份 spec/PRD（`.scratch/<NN>-<slug>/PRD.md` + `issues/*.md`）。目标：把这份 PRD 的**全部工单**经统一流水线（开发 → 审查 → 合并 → **回收**）交付到 **main**——每张工单审查通过后默认直合 main（v0.14.0 起，ADR-011）；技术受阻的暂存 PRD 分支 `ticket/<NN>-<slug>`，收口时清入 main。**收口是四段闭环**（v0.15.0，ADR-012）：复核 → 合入前 `merge-check` 预演冲突面 → 合入 main → `rm-wt` 回收工作空间（工作树 + 已合入分支）；第四段以前没有判据，实测积下大量孤儿分支与挂着的 worktree。
 
 **统一改造（v1.1.0）**：本技能不再是独立的单分支+PR 流，而是 **jxx-ticket-board 看板 auto 模式在单会话内的整轨特化**——与 `/jxx-implement`（工单级开发面）共用同一个看板、同一套 worktree、同一条合并流（`jxx-ticket-board` 技能 `references/ADR-009-in-project-and-prd-branch.md`，合并流默认回合 main 见其 `references/ADR-011-main-first-merge.md`）。ticket 不是步骤列表，而是一张带阻塞关系的**任务图**；任何时刻都存在一个「就绪前沿」（Blocked by 全部 done 的工单集合）。
 
@@ -28,15 +28,17 @@ metadata:
 3. **按 auto 模式编排**（编排者职责即 `control/PROTOCOL.md` §5；worker/审查者/合并专员的启动提示词在 `control/starter/`）：
    - 对每张无阻塞的待领卡（`open/<卡id>.md` 无后缀）spawn **worker 子 agent**（`control/starter/dev.md` 全文 + 指定卡 id）。worker 全程走 `/jxx-implement`：领卡 → `add-wt`（一律从 origin/main 拉工单分支）→ 开发 → 三段硬出口 → 交付移卡到 review 位。
    - 卡到 `open/<卡id>.review.md` → spawn **3 个审查者**（`control/starter/reviewer.md`，std/spec/rule 三维度并行，`--base` = origin/main）。全过 → spawn **合并专员**（`control/starter/merger.md`）；任一审查者有发现项 → 汇总写回卡 → 卡回 claimed 位返工 → 重新 spawn worker。
-   - **合并专员默认把工单分支回合 main**（rebase/diff 基准 = origin/main；受阻暂存 PRD 分支或 blocked，且必须向用户汇报不能回合的原因——PROTOCOL §3）→ 双卡移 done/。
+   - **合并专员默认把工单分支回合 main**（rebase/diff 基准 = origin/main；受阻暂存 PRD 分支或 blocked，且必须向用户汇报不能回合的原因——PROTOCOL §3）。合入是**四段闭环**：① 定点复核 ② **`board.mjs merge-check --root <项目根> --id <卡id>` 预演冲突面**（内存三方合并、不落现场）③ 合入 main ④ **`board.mjs rm-wt --root <项目根> --ticket <卡id>` 回收工作空间（工作树 + 已合入分支）** → 双卡移 done/。
+     - **冲突分诊**（merge-check 的输出直接决定去向）：`·机械候选`（内容类）逐 hunk 保留双方意图自解（`jxx-resolving-merge-conflicts`，绝不 `--abort`），**解完 diff 已变 ⇒ 必须重跑 `/jxx-code-review` 再合**；`✗非机械`（binary / modify-delete / rename）不许合并专员拍板 ⇒ 交回开发组。
+     - **别假设 merger 做全了第四段**：每卡收口后跑 `board.mjs verify --root <项目根>`，出现 `MISMATCH 未回收工作树/分支 <卡id>` 就按提示补 `rm-wt`（**一次一卡**，红线 §7）——这是本技能唯一该碰 worktree 的动作。
    - 前沿推进：依赖卡归档 done 后，held/ 里依赖已齐的卡释放回 open/（`card-move --to inbox`），立即 spawn 新 worker，保持最大并发。
-   - 失败处理（协议 §5.5）：worker 失败先重试一次；僵死卡（30 分钟无动静）重 spawn；合并冲突机械自解、非机械 blocked 等人工；编排者自身中断 → `board.mjs verify --root <项目根>` 重建状态续接。
+   - 失败处理（协议 §5.5）：worker 失败先重试一次；僵死卡（30 分钟无动静）重 spawn；合并冲突按 merge-check 分诊——机械候选自解（解后重审）、非机械 blocked 交回开发组；合入后未回收由本会话补 `rm-wt`；编排者自身中断 → `board.mjs verify --root <项目根>` 重建状态续接。
 
-4. **PRD 收口（触发二选一）**：① 本 PRD 全部工单 `done`/`wontfix`；② 用户明确要求。**两者之外不得把 PRD 分支合进 main**。收口 = 清暂存 + 状态收口（PROTOCOL §3.1；可自投 PRD 收口卡 `merge-<NN>-<slug>` 走合并专员，或本会话直接执行）：
-   - 暂存分支 `ticket/<NN>-<slug>` 存在 → 对整支 PRD 分支跑 `/jxx-code-review`（`git diff origin/main...ticket/<NN>-<slug>`），发现项投普通开发卡返修后重审；
+4. **PRD 收口（触发二选一）**：① 本 PRD 全部工单 `done`/`wontfix`；② 用户明确要求。**两者之外不得把 PRD 分支合进 main**。收口 = 清暂存 + 状态收口 + **回收现场**（PROTOCOL §3.1；可自投 PRD 收口卡 `merge-<NN>-<slug>` 走合并专员，或本会话直接执行）：
+   - 暂存分支 `ticket/<NN>-<slug>` 存在 → 先 `board.mjs merge-check --root <项目根> --id <NN>-<slug>` 看冲突面（整支分支更易与 main 分叉，预演比逐单更有必要），再对整支 PRD 分支跑 `/jxx-code-review`（`git diff origin/main...ticket/<NN>-<slug>`），发现项投普通开发卡返修后重审；冲突分诊同步骤 3；
    - 审查过 → `git -C <项目根> fetch` → rebase PRD 分支到最新 `origin/main` → 合入 main 并 push；无暂存（全部工单已直合 main）→ 跳过清入；
-   - 把 `PRD.md` 的 `**Status:**` 置 `done`（随合并提交或在 main 工作区另提）；暂存清不进 main 时按 §3 硬性要求向用户汇报原因；
-   - 回收本 PRD 全部 worktree（`board.mjs rm-wt --ticket <单卡id>`，**一次一卡**，红线见 PROTOCOL §7）；
-   - 记账、刷看板（`board.mjs html --root <项目根>`），向用户汇报：合入 commit、各工单去向、遗留事项。
+   - 把 `PRD.md` 的 `**Status:**` 置 `done`（随合并提交或在 main 工作区另提）；暂存清不进 main 时按 §3 硬性要求向用户汇报原因，**且不回收现场**（活还没上 main）；
+   - **回收本 PRD 全部残留现场**：逐张 `board.mjs rm-wt --ticket <单卡id>`（**一次一卡**，红线见 PROTOCOL §7），清掉各工单的 worktree 与已合入分支——这是收口的最后一步，不做等于没收口；收完 `verify` 应以「零条未回收」告终；
+   - 记账、刷看板（`board.mjs html --root <项目根>`），向用户汇报：合入 commit、各工单去向、**未能回合 main 的卡及原因**、遗留事项。
 
 5. **散工单不属于本技能**：无 PRD 的单张工单走 `/jxx-implement`（合入目标自动 = main，审查通过确认没影响后由合并专员直合 main）。

@@ -1,10 +1,10 @@
 ---
 name: jxx-ticket-board
-description: 工单公告板工作区——把任意 git 仓库开辟为多 worktree 并行工单协作场。加载本会话即领导者（只分解投卡、记账汇总，不干预开发组），worker 由用户拉起自发领卡，卡片目录即状态机、文件原子 move 防抢，领导者每个行为即时落盘账本，断线可重连自检。支持 auto 模式——指定一组工单后自动 spawn worker/审查者/合并专员完成全流程。当用户想搭建工单公告板/开多个工单工作区/以领导者身份派发任务/自动完成一组工单/恢复领导者会话/看板对账时使用。触发词：公告板, 领卡, 投卡, 工单看板, worktree工作区, 领导者, auto, 自动编排, reconnect, 服务器工单, bootstrap。
+description: 工单公告板工作区——把任意 git 仓库开辟为多 worktree 并行工单协作场。加载本会话即领导者（只分解投卡、记账汇总，不干预开发组），worker 由用户拉起自发领卡，卡片目录即状态机、文件原子 move 防抢，领导者每个行为即时落盘账本，断线可重连自检。支持 auto 模式——指定一组工单后自动 spawn worker/审查者/合并专员完成全流程。收口是**四段闭环**：复核 → 合入前预演冲突面（merge-check）→ 合入 main → 回收工作空间（rm-wt 连带已合入分支），verify 对账兜底漏回收；合并冲突分「机械候选」（逐 hunk 保留双方意图，解后必须重审）与「非机械」（binary/modify-delete/rename，交回开发组）。当用户想搭建工单公告板/开多个工单工作区/以领导者身份派发任务/自动完成一组工单/合并工单分支并回收工作空间/解决合并冲突/恢复领导者会话/看板对账时使用。触发词：公告板, 领卡, 投卡, 工单看板, worktree工作区, 领导者, auto, 自动编排, 合并, 回收工作空间, 清理worktree, 合并冲突, reconnect, 服务器工单, bootstrap。
 disable-model-invocation: false
 metadata:
-  version: 0.14.0
-argument-hint: init [--in-project] [--repo <git-url>] | board | verify | ledger --action <文本> | auto --tickets <工单文件列表>
+  version: 0.15.0
+argument-hint: init [--in-project] [--repo <git-url>] | board | verify | ledger --action <文本> | merge-check --id <卡id> | auto --tickets <工单文件列表>
 ---
 
 # 工单公告板（领导者技能）
@@ -33,7 +33,13 @@ argument-hint: init [--in-project] [--repo <git-url>] | board | verify | ledger 
 
 外置布局（旧形态，仍支持）：root 是独立工作区，权威仓在 root/repo（init 自动 clone）或 `--repo-dir` 指定的外部路径；看板由工作区根 git 自保。
 
-**默认回合 main（v0.14.0 修订，ADR-011）**：所有工单（含 PRD 工单）完成审查后**默认直接合入 main**——rebase 到最新 `origin/main`、确认没影响后合入。仅技术受阻才降级：rebase 冲突不可解交回开发组；门禁红 / 本分支携带未上 main 的兄弟工单提交时，属 PRD 的暂存进 PRD 分支 `ticket/<NN>-<slug>`（惰性创建，等 §3.1 收口清入 main），散工单 blocked 等人工。**每次未能回合 main 必须向用户显式汇报原因**，并落 merge 卡流转段与账本。工单分支一律从 `origin/main` 拉出（`add-wt` 默认基）。详见 PROTOCOL §3 / §3.1 与 `references/ADR-011-main-first-merge.md`。
+**默认回合 main（v0.14.0 修订，ADR-011）**：所有工单（含 PRD 工单）完成审查后**默认直接合入 main**——rebase 到最新 `origin/main`、确认没影响后合入。仅技术受阻才降级：冲突不可解交回开发组；门禁红 / 本分支携带未上 main 的兄弟工单提交时，属 PRD 的暂存进 PRD 分支 `ticket/<NN>-<slug>`（惰性创建，等 §3.1 收口清入 main），散工单 blocked 等人工。**每次未能回合 main 必须向用户显式汇报原因**，并落 merge 卡流转段与账本。工单分支一律从 `origin/main` 拉出（`add-wt` 默认基）。详见 PROTOCOL §3 / §3.1 与 `references/ADR-011-main-first-merge.md`。
+
+**收口 = 四段闭环（v0.15.0）**：合并不是「合完就完」——`复核 → 预演冲突面 → 合入 main → 回收工作空间`，四段缺一不算收口。v0.14.0 只把第四段写成散文，结果实测积下 **105 个 `ticket/*` 分支对 13 个 worktree、11 张 `done` 卡里 6 张仍挂 worktree**；v0.15.0 把第四段变成确定性判据与命令：
+
+- `board.mjs merge-check --id <卡id>` — 合入前**内存三方预演**（`git merge-tree --write-tree`，不动 index/HEAD/工作树），输出 `already-merged` / `merge-clean` / `conflict` / `merge-failed`，并把冲突逐文件分成 **`·机械候选`（content，可逐 hunk 保留双方意图）** 与 **`✗非机械`（binary / modify-delete / rename，收场必然要发明行为 ⇒ 交回开发组）**。机械冲突解决后 diff 已变 ⇒ **必须重跑审查**（ADR-005）。
+- `board.mjs rm-wt --ticket <单卡id>` — 回收**工作树 + 分支两件**。分支该不该删由合入实况裁定：`origin/main..ticket/<卡id>` 零领先才自动删；仍有领先默认保留并报明领先数（不静默丢活），`--delete-branch` 强删、`--keep-branch` 保留。一次一卡，红线 §7。
+- `board.mjs verify` 新增**回收对账**：已收口（done/archived）的卡若还挂着 `wt/<id>` 或零领先的 `ticket/<id>` 分支 ⇒ `MISMATCH` 点名并给出可照做的 `rm-wt` 命令；领先 main 的分支只报 `INFO`（那是暂存活，盲删等于丢活）。这条闸门是收口闭环的守门人——**看到 `MISMATCH 未回收…` 就是第四段没做完**，不是噪声。详见 PROTOCOL §3（含冲突分诊表）与 `references/ADR-012-close-the-loop.md`。
 
 **服务器优先 + bootstrap（v0.13.0，默认）**：服务器（jxx-ticket REST = 线上 `/tickets` 看板）是工单真源，本地 md 是创作面与离线投影。**线上工作目录 = 该项目 repo_key 在服务器 `jxx_tickets` 中出现**；开工前先 `node tools/jxx-bootstrap.mjs --root <项目根>`——线上无该 repo_key 工单时**自动先创建**（种子工单 + 投影基准）再操作，已有则幂等退出；离线降级照常直写本地 md。详见 `references/ADR-010-server-first-tickets.md` 与 PROTOCOL §0。
 
@@ -50,7 +56,7 @@ argument-hint: init [--in-project] [--repo <git-url>] | board | verify | ledger 
 用户指定一组工单文件，领导者自动完成全流程：
 
 ```
-投卡 → spawn worker → worker 交付 → spawn 3 审查者（std/spec/rule 三维度并行）→ 全过 → spawn 合并专员 → 合入 done
+投卡 → spawn worker → worker 交付 → spawn 3 审查者（std/spec/rule 三维度并行）→ 全过 → spawn 合并专员 → 四段收口（复核 → merge-check 预演 → 合入 main → rm-wt 回收）→ done
 ```
 
 **触发方式**：`board.mjs auto --tickets <工单文件1> <工单文件2> ...`
@@ -60,7 +66,7 @@ argument-hint: init [--in-project] [--repo <git-url>] | board | verify | ledger 
 2. spawn worker（`subagent` 或 `spawn_teammate`，自行选择——独立上下文、尽可能并行）
 3. 监控（看文件名后缀，不看子目录）：卡到 `open/<id>.review.md` → spawn 3 审查者；卡带 `needs-info` → 先重试一次再保留受阻；`open/<id>.claimed.md` 超时 30 分钟 → 僵死重 spawn
 4. 审查全过 → spawn 合并专员；有发现项 → 返工重新 spawn worker
-5. 合入完成 → 双卡移 `done/`，记账，刷看板
+5. 合并四段（复核 → `merge-check` 预演 → 合 main → `rm-wt` 回收）→ 核对回收 → 双卡移 `done/`，记账，刷看板
 
 **三维度审查**（协议 §5.3）：
 
@@ -70,7 +76,7 @@ argument-hint: init [--in-project] [--repo <git-url>] | board | verify | ledger 
 | reviewer-spec | spec | 工单验收标准逐条对码实证 |
 | reviewer-rule | 规则 | CODING_STANDARDS.md / biome / 项目约束 |
 
-**失败处理**（协议 §5.5）：worker 失败先重试一次；审查失败返工重审；合并冲突机械自解、非机械 blocked 等人工；编排者失败 `verify` 断点续接。
+**失败处理**（协议 §5.5）：worker 失败先重试一次；审查失败返工重审；合并冲突按 `merge-check` 分诊——机械候选自解（**解后重审**）、非机械 blocked 交回开发组；合入后未回收由编排者补 `rm-wt`；编排者失败 `verify` 断点续接。
 
 ## 角色铁律（加载本技能即领导者）
 
@@ -79,7 +85,7 @@ argument-hint: init [--in-project] [--repo <git-url>] | board | verify | ledger 
 3. **续接 = 先 verify 后行动**：重连第一步跑 `verify`，账本与卡位不一致时先逐条核实目录实况、修账，再干活。
 4. 不移动他人 `.claimed.md` 位的卡（孤儿回收本期协议外，verify 只报告不动手）。
 5. 一切成果以 git 分支承载；卡片只做协调指针，**卡里不写成果正文**（薄卡原则）。
-6. **破坏性操作红线（2026-09-30 事故新增，协议 §7）**：回收 worktree 只走 `board.mjs rm-wt --root <root> --ticket <单卡id>`，**一次一卡**；禁止 `rm -rf` / `Remove-Item -Recurse` / 通配符 / 批量循环；禁止对 `control/` 做任何删除；**不得把「把剩下的孤儿一起清了」这类批量破坏性操作交给子代理**。看板由工作区根 git 自保（变更类命令自动 `snapshot`），大动作前后手动 `snapshot`。
+6. **破坏性操作红线（2026-09-30 事故新增，协议 §7）**：回收工作空间只走 `board.mjs rm-wt --root <root> --ticket <单卡id>`，**一次一卡**——**工作树与分支两件同一红线**（分支回收也一次一卡，禁批量删分支）；禁止 `rm -rf` / `Remove-Item -Recurse` / 通配符 / 批量循环；禁止对 `control/` 做任何删除；**不得把「把剩下的孤儿一起清了」这类批量破坏性操作交给子代理**。看板由工作区根 git 自保（变更类命令自动 `snapshot`），大动作前后手动 `snapshot`。
 7. **看板保鲜（全员责任）**：`control/board.html`（工单视角）与 `control/prd.html`（PRD 视角）是用户的进度视图——**谁移卡谁刷**：领导者与 worker/合并专员的每次卡片 move 后必须跑 `html`（协议 §1.2）；领导者的变更命令（init/new-card/ledger/add-wt/rm-wt/auto）已内置自动重刷（v0.5.1），空闲常驻可加 `--watch`。v0.6.2 起 `html` 同时生成 `control/human.html`（人工待办面板），v0.8.0 起再生成 `control/prd.html`（PRD 看板），三页互链、随变更命令一并保鲜。v0.11.0 起工单看板按**四泳道**渲染（待领取/处理中/待审核/阻塞），已完成与已归档默认隐藏（页头开关展开）。
 
 ## 执行分流（PRD 级 vs 工单级）
@@ -120,7 +126,8 @@ auto 模式执行流程（详见协议 §5）：
 4. worker 交付（卡改名 `open/<id>.review.md`）→ spawn 3 审查者（starter-reviewer × 3，维度 std/spec/rule）
 5. 3 审全过 → spawn 合并专员（starter-merger + merge 卡 id）
 6. 审查有发现项 → 卡改名回 `open/<id>.claimed.md` 返工 → 重新 spawn worker → 重新审查
-7. 合并完成 → 双卡 done/ → 记账 → 刷看板
+7. 合并完成（**四段全做完**，含 `rm-wt` 回收）→ 双卡 done/ → 记账 → 刷看板
+8. **回收核对**：每卡收口后 `verify` 一次；`MISMATCH 未回收工作树/分支` ⇒ 编排者补 `rm-wt --ticket <单卡id>`（一次一卡）。别假设 merger 做全了。
 
 ### 投卡（分解任务）
 
@@ -143,6 +150,8 @@ node <skill>/scripts/board.mjs board   --root <root> [--all]   # 终端概览（
 node <skill>/scripts/board.mjs html    --root <root> [--watch]  # 生成 control/board.html（工单四泳道）+ control/prd.html（PRD，未完成/已完成两栏）+ control/human.html（人工待办）三页互链；--watch 常驻每 3s 重刷（board 5s / prd 10s / human 10s 自刷新）
 node <skill>/scripts/board.mjs verify  --root <root> [--fetch]  # 五路对账：账本 × 卡位 × worktree × 工单状态 × 标签（+ 引用新鲜度 / 失鲜卡 / 假交付 / 假勾选 / 撞号检测），退出码 5=有出入
 node <skill>/scripts/board.mjs ledger  --root <root> --action "<动作>" [--target <对象>] [--reason <理由>]
+node <skill>/scripts/board.mjs merge-check --root <root> --id <卡id> [--base origin/main] [--branch ticket/<卡id>]   # 合入前内存预演：VERDICT already-merged/merge-clean/conflict/merge-failed + 逐文件冲突分诊（机械候选 / 非机械）；不落现场
+node <skill>/scripts/board.mjs rm-wt --root <root> --ticket <单卡id> [--force] [--keep-branch|--delete-branch]   # 回收工作树 + 分支（零领先才算已合入 ⇒ 自动删分支；否则保留并报领先数）
 node <skill>/scripts/board.mjs snapshot --root <root>   # 看板快照：把 control/ 提交进工作区根 git（变更类命令已自动调用；未 git init 则静默跳过）
 node <skill>/scripts/board.mjs render   --root <root> [--write]  # 把 assets 重新渲染进 control/：修「init 只补缺、模板漂移永不纠正」的坑；旧版备份到 control/.render-backup/
 node <skill>/scripts/board.mjs migrate  --root <root> [--dry-run] [--actor x]  # 旧五泳道板迁三态：只改名 + 补 labels + 记一行账 + 留快照；旧目录留空不删（可回退），重跑幂等
@@ -183,7 +192,7 @@ node <skill>/scripts/board.mjs card-move --root <root> --id <卡id> --to blocked
 0. 上岗即拉起看板服务面：`html --watch` 后台常驻（或每次动作后补跑 `html`），浏览器打开 `control/board.html` 给用户。
 1. 读用户诉求 / 仓库 `.scratch/` PRD → 用 `new-card` 分解投卡进 `open/`（待领位 = 无后缀），逐张定级（每投一张记一笔账，含定级理由；`--labels` 缺省取自工单 `**Status:**`）。**不轻信 Status 行**：对"是否真开放/真完成"有疑点时，派只读子代理逐条对码实证（读验收标准→查实物→能跑则跑测试），实证结论记入卡与账本，再决定投/撤。
 2. 卡进入 `.review.md` 位时按 v0.6.0 分级：**L1-L3 直接投 merge 卡**（技术定点复核由合并专员按协议 §3 先审后合执行，打回机制兜底）；**L4 卡与跨单口径问题**（范围/判据二选一这类判断）领导者先亲自裁决或派子代理实证，裁决点写进 merge 卡「领导者口径裁决」段。合并顺序与理由记入账本。**交付载荷是纯文档的卡（双仓单的本仓侧、纯回写单）**：投 merge 卡前必须通读分支版工单验收段全文——勾选框与 Status 一致、同文件数字前后一致、无乱码病句；假勾选闸门（verify ④）只兜形态，内容级矛盾靠这一读（70-04 打回复盘：终审当时只 grep 了 Status 行，未数勾选、未读正文）。
-3. 合并卡回报 done 后，把对应开发卡 move 到 `done/`，记一笔账。
+3. 合并卡回报 done 后，把对应开发卡 move 到 `done/`，记一笔账。**并核对第四段（回收）真做了**：跑 `verify`，`MISMATCH 未回收工作树/分支 <卡id>` 即 merger 漏了回收 ⇒ 领导者按提示补 `rm-wt --ticket <单卡id>`（一次一卡，红线 §7）。收口是四段闭环，不是「merge 卡 done 就算完」。
 3b. **合并卡被合并专员打回时（§3 复核不过）**：领导者复核其发现项后裁决——**确认打回**则 `card-move --to blocked` 收 merge 卡（三态板 = 待领位 + needs-info），卡内写明「返工重交付后放回待领位复审、diff 变了必须复审」，开发卡改名回 `open/<卡id>.claimed.md` 等返工（合并专员已退回）；**不确认**则在卡内写明理由并把卡放回待领位 `open/<卡id>.md`（此时须显式覆盖 §3 的复核结论，别让合并专员再打回一次）。两种情况都记一笔账，理由里写清「哪几条发现项成立、哪几条降级为建议」。
 4. 随时可 `board` 汇总向用户汇报；被中断后 `verify` 重建认知。
 
@@ -195,8 +204,9 @@ node <skill>/scripts/board.mjs card-move --root <root> --id <卡id> --to blocked
 3. worker 交付 → spawn 3 审查者（starter-reviewer × 3：std/spec/rule）。
 4. 3 审全过 → spawn 合并专员（starter-merger + merge 卡 id）。
 5. 审查有发现项 → 汇总写回卡 → 卡 claimed/ 返工 → 重新 spawn worker。
-6. 合并完成 → 双卡 done/ → 记账 → 刷看板 → 汇报用户。
-7. 全程失败处理：worker 失败先重试；blocked 卡保留并继续推进其他卡；僵死卡（30 分钟无动静）重 spawn。
+6. 合并完成（**四段全做完**，含 `rm-wt` 回收）→ 双卡 done/ → 记账 → 刷看板。
+7. **回收核对**：每卡收口后 `verify` 一次；`MISMATCH 未回收工作树/分支` ⇒ 编排者补 `rm-wt --ticket <单卡id>`（一次一卡）。别假设 merger 做全了。
+8. 全程失败处理：worker 失败先重试；blocked 卡保留并继续推进其他卡；僵死卡（30 分钟无动静）重 spawn。
 
 ## 账本格式（协议级，勿改）
 
@@ -210,7 +220,7 @@ node <skill>/scripts/board.mjs card-move --root <root> --id <卡id> --to blocked
 
 ## Resources
 
-- `scripts/selftest.mjs` — 冒烟自测（`node scripts/selftest.mjs`，128 项断言，零依赖；改 `board.mjs` 后必跑，含防抢、历史回放、migrate、四泳道渲染与历史列默认隐藏、处理计时盖章与流转段回退、重领不抹旧值、卡面缺「流转追加段」补段、零换行卡回退 LF、受阻现场提示可达、坏时间戳红字告警、卡头字段替换边界、CLI/卡面文本的 shell 注入闸门、prd.html 两栏与整轨按钮、四类标签反例，以及 v0.12.0 的 in-project 初始化/嵌套 git 快照不污染产品仓、v0.14.0 的默认回合 main（合入目标恒 main、add-wt 一律从 origin/main、PRD 分支不再预建））。
-- `scripts/board.mjs` — init / board / html / ledger / verify / new-card / add-wt / rm-wt / card-read / card-set / card-move / card-rm / snapshot / render / migrate / auto 子命令。
+- `scripts/selftest.mjs` — 冒烟自测（`node scripts/selftest.mjs`，152 项断言，零依赖；改 `board.mjs` 后必跑，含防抢、历史回放、migrate、四泳道渲染与历史列默认隐藏、处理计时盖章与流转段回退、重领不抹旧值、卡面缺「流转追加段」补段、零换行卡回退 LF、受阻现场提示可达、坏时间戳红字告警、卡头字段替换边界、CLI/卡面文本的 shell 注入闸门、prd.html 两栏与整轨按钮、四类标签反例，v0.12.0 的 in-project 初始化/嵌套 git 快照不污染产品仓，v0.14.0 的默认回合 main（合入目标恒 main、add-wt 一律从 origin/main、PRD 分支不再预建），以及 v0.15.0 的收口闭环——回收对账反例（未回收工作树 / 已合入分支 / **卡面带 `- 分支:` 时规范名候选不被绕开**）、领先基准不误判为孤儿、`rm-wt` 分支回收三态（零领先自动删 / 领先保留报数 / `--keep-branch`）、**非 main 基准（master）下闸门仍生效**、`merge-check` 四 VERDICT 与机械·非机械分诊（**modify/delete、rename/rename、带空格二进制**三条解析回归 + **无法判定时 fail-closed 不默认机械候选**）、合并卡 id 自动落开发卡分支、不可信 `--branch` 被拒且不回落、解析不了的 `--base` 被拒、预演不落现场）。
+- `scripts/board.mjs` — init / board / html / ledger / verify / new-card / add-wt / rm-wt / merge-check / card-read / card-set / card-move / card-rm / snapshot / render / migrate / auto 子命令。
 - `assets/` — PROTOCOL、卡模板、starter 提示词（dev / merger / reviewer / auto 四份，init 时渲染进 control/）。
-- `references/` — ADR-001~010：worktree 隔离、control 外置、领导者-领取制、目录状态机、合并即卡、薄卡粒度、协议单源、三态目录 + 标签正交、in-project 布局与 PRD 分支合并流、服务器优先工单真源与工作区 bootstrap。改协议前先读它们。
+- `references/` — ADR-001~012：worktree 隔离、control 外置、领导者-领取制、目录状态机、合并即卡、薄卡粒度、协议单源、三态目录 + 标签正交、in-project 布局与 PRD 分支合并流、服务器优先工单真源与工作区 bootstrap、完成工单默认回合 main、收口四段闭环（合并预演 / 冲突分诊 / 回收）。改协议前先读它们。

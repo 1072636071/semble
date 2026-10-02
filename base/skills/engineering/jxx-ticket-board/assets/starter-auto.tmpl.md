@@ -21,7 +21,8 @@ Read {{ROOT}}\control\PROTOCOL.md
    - 卡带 `needs-info` 标签（= 受阻）→ 先重试一次；仍受阻 → 保留标签，继续推进其他不阻塞的卡
    - 卡 `open/<卡id>.claimed.md` 超时（30 分钟无动静）→ 视为僵死，重新 spawn worker 接力
 6. **合入完成**：merge 卡 + 开发卡移 `done/`，记账，刷看板。
-7. **全部完成**：向用户汇报——完成卡数 / 受阻（needs-info）卡数 / 每卡结果摘要。
+6b. **回收核对（别信 merger 做全了）**：每张卡收口后跑 `board.mjs verify --root <root>`——出现 `MISMATCH 未回收工作树 wt/<卡id>` / `MISMATCH 未回收分支 ticket/<卡id>` 就是**收口第四段没做完**，由你按提示补 `board.mjs rm-wt --root <root> --ticket <单卡id>`（**一次一卡，禁批量**，红线见协议 §7），再继续。这是 auto 模式下你唯一该碰 worktree 的动作。
+7. **全部完成**：向用户汇报——完成卡数 / 受阻（needs-info）卡数 / 每卡结果摘要 / **未能回合 main 的卡及其原因与去向**（协议 §3 硬性要求，漏了等于流程未完成）。
 
 ## 约束
 

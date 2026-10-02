@@ -38,7 +38,13 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'board-selftest-'));
 const root = path.join(tmp, 'board');
 const repo = path.join(tmp, 'repo');
 const cards = (...p) => path.join(root, 'control', 'cards', ...p);
-const git = (cwd, cmd) => execFileSync('git', cmd.split(' '), { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+// git 一律 argv 形态 + `GIT_EDITOR=true`：夹具里少写 `-m` 会让 git 打开编辑器并**永久挂住**整条自测
+// （实测踩过：`git commit -q -m init` 被误传成多个参数时，commit 无 -m ⇒ 等编辑器输入 ⇒ 挂死）。
+// 禁掉交互式提问并设编辑为 true，让这类夹具错误变成「立刻失败」而不是「挂住不走」。
+const git = (cwd, cmd) => execFileSync('git', cmd.split(' '), {
+  cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  env: { ...process.env, GIT_EDITOR: 'true', GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: 'echo' },
+});
 
 console.log(`selftest 工作目录：${tmp}`);
 try {
@@ -534,6 +540,258 @@ try {
   check('migrate 幂等（重跑不重复搬）', r.code === 0 && fs.existsSync(oldCards('open', '009-old.md')) && !/009-old/.test(r.out));
   check('无东西可改时不往账本追加空转行',
     fs.readFileSync(path.join(old, 'control', 'ledger.md'), 'utf8').split('migrate 五泳道->三态').length === 2);
+
+  // ---------- 回收对账与合入预演（v0.15.0：收口闭环的第三、四段）----------
+  // 动机（2026-10 实测）：某项目 105 个 ticket/* 分支对 13 个 worktree、11 张 done 卡里 6 张仍挂 worktree。
+  // 缺的不是纪律，是判据——收口位（done/archived）此前一条闸门都没有，于是「合入后不回收」无人报。
+  // 下面每条闸门都配反例：只断言绿灯等于没断言。
+  const reclaimWt = path.join(root, 'wt', '001-smoke');
+  fs.mkdirSync(reclaimWt, { recursive: true });
+  // 反例①：已收口卡留着 worktree ⇒ 必须红灯点名。这里刻意造的是**裸目录**（未经 git worktree add 注册），
+  // 因为那正是真实现场最常见的形态；提示必须给出对这种形态**真能跑**的修法（rm-wt 走 `git worktree remove`，
+  // 对裸目录天然无能为力——印一条照抄就报错的"修法"等于把操作者引到沟里）。
+  r = run(['verify', '--root', root], tmp);
+  check('已收口卡的工作树未回收被揪出（反例：此前恒绿）',
+    r.code === 5 && /未回收工作树 wt\/001-smoke/.test(r.out) && /不是已注册的 worktree/.test(r.out),
+    (r.out.split('\n').filter(l => /001-smoke/.test(l)).join(' || ') || '(无相关行)'));
+  fs.rmdirSync(reclaimWt);
+  r = run(['verify', '--root', root], tmp);
+  check('工作树回收后该条闭合（判据不粘连）', r.code === 0, lastLine(r.out));
+
+  // 反例②：已收口卡的分支零领先基准（= 已合入却没收）⇒ 必须红灯
+  // 夹具：临时仓造一个已合入 main 的 ticket/001-smoke 分支
+  git(repo, 'branch ticket/001-smoke origin/main');
+  r = run(['verify', '--root', root], tmp);
+  check('已合入 main 的分支未回收被揪出（反例：105 个孤儿分支的成因）',
+    r.code === 5 && /未回收分支 ticket\/001-smoke/.test(r.out),
+    (r.out.split('\n').filter(l => /ticket\/001-smoke/.test(l)).join(' || ') || '(无相关行)'));
+  // 反例②b（H3 回归）：卡面带 `- 分支:` 声明时，**规范名候选不能被整体绕开**。
+  // 旧实现一旦读到卡面分支就只判那一支，于是规范名的零领先孤儿静默通过——正是本闸门要治的形态又漏一遍。
+  fs.writeFileSync(cards('done', '601-orphan.md'),
+    '# 601-orphan\n\n- 标题: 卡面声明别名分支时的绕开回归\n- 依赖: 无\n- labels: ready-for-agent\n- 分支: ticket/601-demo\n\n## 流转追加段\n\n（占位）\n');
+  git(repo, 'branch ticket/601-orphan origin/main');   // 规范名（零领先，真孤儿）
+  git(repo, 'branch ticket/601-demo origin/main');     // 卡面声明的别名（同样零领先）
+  r = run(['verify', '--root', root], tmp);
+  check('卡面带 - 分支: 声明时规范名候选仍被检查（H3：绕开回归）',
+    /未回收分支 ticket\/601-orphan/.test(r.out) && /未回收分支 ticket\/601-demo/.test(r.out),
+    (r.out.split('\n').filter(l => /601-/.test(l)).join(' || ') || '(无相关行)'));
+  fs.rmSync(cards('done', '601-orphan.md'));
+  git(repo, 'branch -D ticket/601-orphan');
+  git(repo, 'branch -D ticket/601-demo');
+  // 正例：有未合入提交的分支不得被误判成「该删的孤儿」——那是暂存 PRD 分支的活，盲删等于丢活
+  git(repo, 'checkout -q -b ticket/098-pending origin/main');
+  fs.writeFileSync(path.join(repo, 'pending.txt'), 'unmerged\n');
+  git(repo, '-c user.name=t -c user.email=t@t add -A');
+  git(repo, '-c user.name=t -c user.email=t@t commit -q -m pending');
+  git(repo, 'checkout -q main');
+  fs.writeFileSync(cards('done', '098-pending.md'),
+    '# 098-pending\n\n- 标题: 未合入分支不误判\n- 依赖: 无\n- labels: ready-for-agent\n- 分支: ticket/098-pending\n\n## 流转追加段\n\n（占位）\n');
+  r = run(['verify', '--root', root], tmp);
+  check('领先 main 的分支只报 INFO 不报 MISMATCH（暂存活不得误判为孤儿）',
+    /INFO 分支 ticket\/098-pending/.test(r.out) && !/未回收分支 ticket\/098-pending/.test(r.out),
+    (r.out.split('\n').filter(l => /098-pending/.test(l)).join(' || ') || '(无相关行)'));
+  // 反例③：rm-wt 的回收语义要含分支——零领先才自动删；领先时默认留下并说明原因。
+  // 夹具必须是**真 worktree**（`git worktree add` 注册过的目录）：裸 mkdir 出来的目录会被
+  // `git worktree remove` 以 "is not a working tree" 拒掉——那样测的是夹具，不是命令。
+  git(repo, `worktree add ${path.join(root, 'wt', '001-smoke').replace(/\\/g, '/')} ticket/001-smoke`);
+  git(repo, `worktree add ${path.join(root, 'wt', '098-pending').replace(/\\/g, '/')} ticket/098-pending`);
+  r = run(['rm-wt', '--root', root, '--ticket', '098-pending'], tmp);
+  check('rm-wt 对未合入分支默认保留并报明领先数（不静默丢活）',
+    r.code === 0 && /领先 origin\/main 1 个提交 ⇒ 保留/.test(r.out)
+    && git(repo, 'rev-parse --verify ticket/098-pending').trim().length > 0,
+    firstLine(r.out));
+  r = run(['rm-wt', '--root', root, '--ticket', '001-smoke'], tmp);
+  check('rm-wt 对已合入分支自动删除（回收 = 工作树 + 分支两件）',
+    r.code === 0 && /已合入 origin\/main 并删除/.test(r.out)
+    && (() => { try { git(repo, 'rev-parse --verify ticket/001-smoke'); return false; } catch { return true; } })(),
+    firstLine(r.out));
+  // 重开同一个 worktree 前先确认目录真没了（rm-wt 若回归成"没删目录"，失败会以 `git()` 抛异常的形式
+  // 出现在这里，而病因在 10 行之前——那是最难查的一类测试故障）。失败信息明确指向病因。
+  const pendingWt = path.join(root, 'wt', '098-pending');
+  check('rm-wt 真删掉了工作目录（后续重开的隐含前提，显式化以免回归时报错点错位）', !fs.existsSync(pendingWt));
+  git(repo, `worktree add ${pendingWt.replace(/\\/g, '/')} ticket/098-pending`);
+  r = run(['rm-wt', '--root', root, '--ticket', '098-pending', '--keep-branch'], tmp);
+  check('rm-wt --keep-branch 显式保留分支（要留着复查时用）', r.code === 0 && /按要求保留/.test(r.out), firstLine(r.out));
+  fs.rmSync(cards('done', '098-pending.md'));
+  git(repo, 'worktree prune');
+
+  // 反例（M2）：**非 main 基准**的仓库上，回收闸门与预演不得静默失效。
+  // 旧实现把 `origin/main` 硬编码在三处（verify 回收对账 / rm-wt 分支回收 / merge-check 默认基准），
+  // 于是 `init --branch master` 的仓上零领先孤儿只报「领先 origin/main ? 个提交」而 verify 判绿——
+  // 闸门等于不存在。判据：master 基准下零领先的孤儿分支必须被点名为「未回收」。
+  {
+    const repoM = path.join(tmp, 'master-repo');
+    const rootM = path.join(tmp, 'master-board');
+    fs.mkdirSync(repoM, { recursive: true });
+    fs.writeFileSync(path.join(repoM, 'a.txt'), 'a\n');
+    git(repoM, 'init -q -b master');
+    git(repoM, '-c user.name=t -c user.email=t@t add -A');
+    git(repoM, '-c user.name=t -c user.email=t@t commit -q -m init');
+    git(repoM, `remote add origin ${repoM.replace(/\\/g, '/')}`);
+    git(repoM, 'fetch -q origin');
+    run(['init', '--root', rootM, '--repo', 'https://example.invalid/x.git', '--repo-dir', repoM, '--branch', 'master'], tmp);
+    run(['new-card', '--root', rootM, '--id', '401-m', '--level', 'L1', '--model', 'test', '--force'], tmp);
+    run(['card-move', '--root', rootM, '--id', '401-m', '--to', 'claimed', '--actor', 'selftest'], tmp);
+    run(['card-move', '--root', rootM, '--id', '401-m', '--to', 'done', '--actor', 'selftest'], tmp);
+    git(repoM, 'branch ticket/401-m origin/master');   // 相对 master 零领先 = 已合入却没收
+    r = run(['verify', '--root', rootM], tmp);
+    check('非 main 基准（master）下回收闸门仍然生效（M2：origin/main 硬编码回归）',
+      r.code === 5 && /未回收分支 ticket\/401-m/.test(r.out) && /origin\/master/.test(r.out),
+      (r.out.split('\n').filter(l => /401-m|verify:/.test(l)).join(' || ') || lastLine(r.out)));
+    // 预演的默认基准也要跟着 baseBranch 走（否则非 main 仓上命令直接不可用）
+    r = run(['merge-check', '--root', rootM, '--id', '401-m'], tmp);
+    check('merge-check 默认基准取 workspace.json 的 baseBranch（M2）',
+      r.code === 0 && /merge-check: ticket\/401-m → origin\/master/.test(r.out) && /already-merged/.test(r.out),
+      firstLine(r.out));
+  }
+
+  // ---------- merge-check：合入前预演（干净视角，不落现场）----------
+  // 动机：ADR-005 记的「解决冲突产生新 diff ⇒ 原审查失效」。预演让冲突面在**碰工作树之前**就已知，
+  // 从而分出「机械可解（逐 hunk）」与「非机械（binary / modify-delete / rename，要发明行为）」
+  // 两条路：后者按 PROTOCOL §3 交回开发组，禁合并专员自行拍板。
+  // 夹具：在临时仓造 main 与 ticket/099-cf 各改同一行 ⇒ 必然内容冲突
+  git(repo, 'checkout -q -b ticket/099-cf origin/main');
+  fs.writeFileSync(path.join(repo, 'README.md'), '# smoke\nfeat line\n');
+  git(repo, '-c user.name=t -c user.email=t@t add -A');
+  git(repo, '-c user.name=t -c user.email=t@t commit -q -m feat');
+  git(repo, 'checkout -q main');
+  fs.writeFileSync(path.join(repo, 'README.md'), '# smoke\nmain line\n');
+  git(repo, '-c user.name=t -c user.email=t@t add -A');
+  git(repo, '-c user.name=t -c user.email=t@t commit -q -m mainline');
+  fs.writeFileSync(cards('open', '099-cf.md'),
+    '# 099-cf\n\n- 标题: 合入预演夹具\n- 依赖: 无\n- labels: ready-for-agent\n\n## 流转追加段\n\n（占位）\n');
+  const headBefore = git(repo, 'rev-parse HEAD').trim();
+  const statusBefore = git(repo, 'status --porcelain');
+  r = run(['merge-check', '--root', root, '--id', '099-cf'], tmp);
+  check('merge-check 预演出内容冲突并列名冲突文件（机械候选）',
+    r.code === 0 && /VERDICT conflict/.test(r.out) && /机械候选 README\.md/.test(r.out),
+    (r.out.split('\n').filter(l => /VERDICT|README/.test(l)).join(' || ') || firstLine(r.out)));
+  check('merge-check 不落现场（预演后 HEAD 与工作树状态一字未变）',
+    git(repo, 'rev-parse HEAD').trim() === headBefore && git(repo, 'status --porcelain') === statusBefore);
+  check('merge-check 报出 merge-base（rebase 后此值变 ⇒ 变了就要重审）', /INFO merge-base [0-9a-f]{12}/.test(r.out));
+  // 反例：非机械冲突必须与机械冲突分开报——binary 类没有可逐 hunk 保留的双方意图。
+  // 注意二进制的报法：git 对它同样报 `CONFLICT (content)`，真正的信号是另一行
+  // `warning: Cannot merge binary files: <file>`（实测确认）——只读括号里的类型会把二进制
+  // 误判成「机械候选」，而那正是最该拦住的一类。夹具必须让**两边都改**这个二进制才能触发。
+  fs.writeFileSync(path.join(repo, 'blob.bin'), Buffer.from([0, 1, 2, 3, 0, 0, 255]));
+  git(repo, '-c user.name=t -c user.email=t@t add -A');
+  git(repo, '-c user.name=t -c user.email=t@t commit -q -m addbin-main');
+  git(repo, 'checkout -q ticket/099-cf');
+  fs.writeFileSync(path.join(repo, 'blob.bin'), Buffer.from([9, 8, 7, 6, 0, 0, 254]));
+  git(repo, '-c user.name=t -c user.email=t@t add -A');
+  git(repo, '-c user.name=t -c user.email=t@t commit -q -m addbin-feat');
+  git(repo, 'checkout -q main');
+  fs.writeFileSync(path.join(repo, 'blob.bin'), Buffer.from([5, 5, 5, 5, 0, 0, 253]));
+  git(repo, '-c user.name=t -c user.email=t@t add -A');
+  git(repo, '-c user.name=t -c user.email=t@t commit -q -m addbin-main2');
+  r = run(['merge-check', '--root', root, '--id', '099-cf'], tmp);
+  check('merge-check 把非机械冲突单独标出并指向交回开发组',
+    /非机械\(binary\) blob\.bin/.test(r.out) && /交回开发组/.test(r.out),
+    (r.out.split('\n').filter(l => /非机械|交回开发组/.test(l)).join(' || ') || firstLine(r.out)));
+  // 反例（H2）：**带空格**的二进制文件名。旧实现的 `(\S+)` 遇空格即停，把 `my blob.bin` 截成 `my`，
+  // 于是该文件进不了 binaryFiles、类型又是 content 被过滤掉 ⇒ 干净的「机械候选」。这是与 H1
+  // 相互独立的一条绕过路径，必须单独钉住。
+  const binSpace = 'my blob.bin';
+  fs.writeFileSync(path.join(repo, binSpace), Buffer.from([0, 1, 2, 3, 0, 0, 255]));
+  git(repo, '-c user.name=t -c user.email=t@t add -A');
+  git(repo, '-c user.name=t -c user.email=t@t commit -q -m addbinspace-main');
+  git(repo, 'checkout -q ticket/099-cf');
+  fs.writeFileSync(path.join(repo, binSpace), Buffer.from([9, 8, 7, 6, 0, 0, 254]));
+  git(repo, '-c user.name=t -c user.email=t@t add -A');
+  git(repo, '-c user.name=t -c user.email=t@t commit -q -m addbinspace-feat');
+  git(repo, 'checkout -q main');
+  fs.writeFileSync(path.join(repo, binSpace), Buffer.from([5, 5, 5, 5, 0, 0, 253]));
+  git(repo, '-c user.name=t -c user.email=t@t add -A');
+  git(repo, '-c user.name=t -c user.email=t@t commit -q -m addbinspace-main2');
+  r = run(['merge-check', '--root', root, '--id', '099-cf'], tmp);
+  check('merge-check 认出带空格的二进制文件名（H2：`\\S+` 截断回归）',
+    /非机械\(binary\) my blob\.bin/.test(r.out),
+    (r.out.split('\n').filter(l => /blob\.bin/.test(l)).join(' || ') || firstLine(r.out)));
+
+  // 反例（H1）：**modify/delete** 与 **rename** 类冲突的文件名解析。
+  // 这两类的 git 消息形如 `<file> deleted in <ref> and modified in <ref>` / `<file> renamed to <x> in <ref> ...`，
+  // 文件名后面紧跟的 `in` 出现在**句中**——任何「找第一个 in/文件名」的正则都会把捕获起点甩到句子中段，
+  // 于是 types 的键匹配不上真文件名、类型退化成 unknown，接着被当作「机械候选」放行。
+  // 失效方向是**报绿**，且正好命中 ADR-012 决策 3 明令要交回开发组的两类。这里两类各钉一条。
+  {
+    const repo2 = path.join(tmp, 'md-repo');
+    const root2 = path.join(tmp, 'md-board');
+    fs.mkdirSync(path.join(repo2, '.scratch', '55-x', 'issues'), { recursive: true });
+    fs.writeFileSync(path.join(repo2, '.scratch', '55-x', 'PRD.md'), '# PRD 55\n\n**Status:** ready-for-agent\n');
+    fs.writeFileSync(path.join(repo2, '.scratch', '55-x', 'issues', '01-md.md'), '# 55-01 md\n\n**Status:** ready-for-agent\n');
+    fs.writeFileSync(path.join(repo2, 'k.txt'), 'keep\n');
+    fs.writeFileSync(path.join(repo2, 'del.txt'), 'delme\nline2\nline3\n');
+    fs.writeFileSync(path.join(repo2, 'rn1.txt'), 'rename me\n');
+    git(repo2, 'init -q -b main');
+    git(repo2, '-c user.name=t -c user.email=t@t add -A');
+    git(repo2, '-c user.name=t -c user.email=t@t commit -q -m init');
+    git(repo2, `remote add origin ${repo2.replace(/\\/g, '/')}`);
+    git(repo2, 'fetch -q origin');
+    git(repo2, 'checkout -q -b ticket/55-01-md origin/main');
+    git(repo2, 'rm -q del.txt');                                    // → modify/delete
+    git(repo2, 'mv rn1.txt rnA.txt');                               // → rename/rename
+    git(repo2, '-c user.name=t -c user.email=t@t commit -q -m feat');
+    git(repo2, 'checkout -q main');
+    git(repo2, 'checkout -q -b main2 main');
+    fs.writeFileSync(path.join(repo2, 'del.txt'), 'modified on main\nline2\nline3\n');
+    git(repo2, 'mv rn1.txt rnB.txt');
+    git(repo2, '-c user.name=t -c user.email=t@t add -A');
+    git(repo2, '-c user.name=t -c user.email=t@t commit -q -m mainchanges');
+    git(repo2, 'branch -f main main2');
+    git(repo2, 'checkout -q main');
+    git(repo2, 'branch -D main2');
+    git(repo2, 'fetch -q origin');
+    r = run(['init', '--root', root2, '--repo', 'https://example.invalid/x.git', '--repo-dir', repo2], tmp);
+    run(['new-card', '--root', root2, '--id', '55-01-md', '--level', 'L1', '--model', 'test', '--force'], tmp);
+    r = run(['merge-check', '--root', root2, '--id', '55-01-md'], tmp);
+    check('merge-check 认出 modify/delete 并判非机械（H1：文件名解析回归）',
+      /✗非机械\(modify\/delete\) del\.txt/.test(r.out) && !/机械候选 del\.txt/.test(r.out),
+      (r.out.split('\n').filter(l => /del\.txt|VERDICT/.test(l)).join(' || ') || firstLine(r.out)));
+    check('merge-check 认出 rename/rename 并判非机械（H1：文件名解析回归）',
+      /✗非机械\(rename\/rename\) rn1\.txt/.test(r.out),
+      (r.out.split('\n').filter(l => /rn1\.txt|rnA|rnB/.test(l)).join(' || ') || firstLine(r.out)));
+    // fail-closed：解析不出类型的文件**不得**默认成「机械候选」（旧实现用 ['unknown'] 兜底正是这么错的）
+    check('无法判定的冲突不默认成机械候选（fail-closed）',
+      !/机械候选 rnA\.txt/.test(r.out) && !/机械候选 rnB\.txt/.test(r.out),
+      (r.out.split('\n').filter(l => /无法判定|机械候选/.test(l)).join(' || ') || firstLine(r.out)));
+  }
+  // 反例：已全部合入的分支要判 already-merged（该归档/回收，不是「再合一次」）。
+  // 夹具必须造**真实的零领先分支**：老写法传 `--branch origin/main` 是拿 origin/main 跟自己比，
+  // 恒为零领先——任何实现（哪怕 ahead 算错）都会输出 already-merged，是自证型断言（测不到东西）。
+  git(repo, 'branch ticket/001-smoke origin/main');
+  r = run(['merge-check', '--root', root, '--id', '001-smoke'], tmp);
+  check('merge-check 对真实的零领先分支判 already-merged（防「合一个空 diff」）',
+    r.code === 0 && /VERDICT already-merged/.test(r.out) && /merge-check: ticket\/001-smoke/.test(r.out),
+    firstLine(r.out));
+  git(repo, 'branch -D ticket/001-smoke');
+  // 合并卡（merge-<开发卡id>）没有自有分支：--id merge-x 要自动落到开发卡的 ticket/x 上，
+  // 否则合并专员照 PROTOCOL §3 敲 --id <merge 卡> 会被「分支不存在」绊住。
+  r = run(['merge-check', '--root', root, '--id', 'merge-099-cf'], tmp);
+  check('merge-check 认合并卡 id 并自动落到开发卡分支',
+    /合并卡 merge-099-cf/.test(r.out) && /merge-check: ticket\/099-cf/.test(r.out) && !/分支 .* 不存在/.test(r.out),
+    r.out.trim().split('\n').slice(0, 2).join(' || '));
+  // 不可信 --branch 必须拒，**不得**静默回落到按 id 推导的另一支（否则冲突面判在别的分支上还报绿）。
+  // 判据不能写 `!/PWNED/`：拒信里会回显被拒的值（那是诊断信息，不是执行痕迹）——要看的是「没落到别的分支上」。
+  r = run(['merge-check', '--root', root, '--id', '099-cf', '--branch', 'x;echo PWNED'], tmp);
+  check('merge-check 拒绝不可信 --branch 且不回落（无注入、无静默换支）',
+    r.code === 1 && /不是可信 ref/.test(r.out) && !/VERDICT|merge-check: ticket/.test(r.out),
+    firstLine(r.out));
+  // 夹具必须是**真实存在**的分支：--branch 指的是哪支，输出就得判哪支。用 main（零领先 ⇒
+  // already-merged）刚好同时证明两件事——它真按 --branch 走了，且**没有**回落去判 ticket/099-cf。
+  // 判据必须含 `r.code === 0` 与「真产出了 VERDICT」：只看 header 文本的话，命令在打印 header 后
+  // 失败（基准解析不了 / 分支不存在）也会让正则匹配上，等于给失败路径发绿灯。
+  r = run(['merge-check', '--root', root, '--id', '099-cf', '--branch', 'main'], tmp);
+  check('显式给合法 --branch 时按它预演（不回落）',
+    r.code === 0 && /merge-check: main → /.test(r.out) && /VERDICT/.test(r.out)
+    && !/merge-check: ticket\/099-cf/.test(r.out), firstLine(r.out));
+  // 基准 ref 解析不了时必须立刻停：`git merge-tree` 对不存在的 ref 只回一个含糊的非零退出，
+  // 会被误读成「有冲突」——那等于给出一个假的冲突面。
+  r = run(['merge-check', '--root', root, '--id', '099-cf', '--base', 'origin/nope'], tmp);
+  check('merge-check 拒绝解析不了的 --base（不把不存在的 ref 报成冲突）',
+    r.code === 1 && /解析不了/.test(r.out) && !/VERDICT/.test(r.out), firstLine(r.out));
+  fs.rmSync(cards('open', '099-cf.md'));
+  git(repo, 'branch -D ticket/099-cf');
+  git(repo, 'branch -D ticket/098-pending');
 
   // ---------- in-project 模式与默认回合 main（v0.12.0 布局统一 · v0.14.0 合并流修订）----------
   // 统一后三技能（jxx-ticket-board / jxx-implement / jxx-implement-spec）共用同一布局：

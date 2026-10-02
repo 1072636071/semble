@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.0 — 收口四段闭环（随 jxx-ticket-board v0.15.0 / ADR-012）
+
+工单完成后不只在「审查 → 合入 main」收尾——新增「交付之后：收口是四段闭环」节，把开发组需要知道的四件事写实：① **现场不归你管**（合并专员合入后 `rm-wt` 回收工作树与已合入分支，别自己删、也别假设现场永远在）；② **冲突在碰工作树之前就已知**（合并专员先 `merge-check` 内存预演；判为非机械 binary / modify-delete / rename 的会交回你）；③ **解冲突 = 改 diff = 原审查失效**，必须重跑 `/jxx-code-review` 再交（ADR-005）；④ **受阻暂存不回收现场**（活还没上 main）。README 的「相关技能」补齐合并冲突处置入口。
 ## 1.3.0 — 默认回合 main（随 jxx-ticket-board v0.14.0 / ADR-011）
 
 完成工单后默认回合主分支（含 PRD 工单）：投卡「合入目标」一律 main；`add-wt` 一律从 origin/main 拉（PRD 分支不再预建，降为受阻暂存道）；代码审查 diff 基准 = origin/main；合并归合并专员，技术受阻才暂存 PRD 分支或 blocked，且必须向用户汇报不能回合 main 的原因（PROTOCOL §3/§3.1）。

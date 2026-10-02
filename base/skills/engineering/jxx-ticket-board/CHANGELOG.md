@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.15.0 — 收口四段闭环：合并预演 + 回收可机检（ADR-012）
+
+**用户指令**：工单完成后要审查、合入主分支、**回收工作空间**，并处理合并冲突。v0.14.0 把前三段做成了流程，第四段「回收」只写了散文、没有判据——实测某项目因此积下 **105 个 `ticket/*` 分支对 13 个 worktree、11 张 `done` 卡里 6 张仍挂 worktree**。本版把收口定成**四段闭环**并逐段给确定性判据。
+
+> **首轮实现的缺陷与修正（独立复审实测揪出，详见 `references/ADR-012-close-the-loop.md` 末节）**：第一版过了它自己的 144 条断言，但 `merge-check` 的冲突文件名解析有两处根本性失效，且**方向都是报绿**——`modify/delete` 与 `rename/*` 类被判成「机械候选」放行（决策 3 的一半失效）、带空格的二进制文件名走另一条独立绕过路径（另一半失效）。另有三处闸门静默失效：卡面带 `- 分支:` 时规范名孤儿不被检查、`origin/main` 硬编码使非 main 基准仓上闸门与预演全部失效、基准 ref 不存在被报成「冲突异常」。**均已修**，并补齐能证伪的反例（断言数 144 → 152）。
+
+- **收口的定义 = 四段**（PROTOCOL §3 重写）：定点复核 → **合入前预演冲突面** → 合入 main → **回收工作空间**。§3.1 PRD 收口由两件事扩为三件事（清暂存 + 置 PRD done + **回收本 PRD 全残留现场**）；§5.4/§5.5 auto 模式同步。
+- **新增 `board.mjs merge-check --id <卡id>`（合入前内存预演）**：`git merge-tree --write-tree` 三方合并，**不改 index / 不动 HEAD / 不建 commit**（在真工作树上试错 rebase 会留半途现场，且按 ADR-005 解决冲突即令原审查失效）。四个 VERDICT：`already-merged`（零领先，该归档而非再合）/ `merge-clean` / `conflict`（逐文件列名 + 分诊）/ `merge-failed`（异常）。另报 merge-base 供判断审查基准是否漂移。
+- **冲突分诊改为可判定**：`·机械候选`（内容类 `[content]`）⇒ 逐 hunk 保留双方意图自解（`jxx-resolving-merge-conflicts`，绝不 `--abort`），**解完 diff 已变 ⇒ 必须重跑 `/jxx-code-review` 再合**（ADR-005 的约束首次进协议动作）；`✗非机械`（`binary` / `modify-delete` / `rename`）⇒ 交回开发组，**不许合并专员拍板**。
+  - **二进制报法的坑（实测）**：git 对二进制同样报 `CONFLICT (content)`，真信号是 `warning: Cannot merge binary files: <file>`。只读括号类型会把二进制误判成「机械候选」——`merge-check` 已固化这条分辨。
+- **`rm-wt` 回收 = 工作树 + 分支两件**：分支去留由**合入实况**裁定——数 `origin/main..ticket/<卡id>`，零领先才自动删；仍有领先**默认保留并报明领先数**（不静默丢活），`--delete-branch` 强删、`--keep-branch` 保留。此前 `--delete-branch` 是可选开关、没人按，回收等于只做了一半。
+- **`verify` 新增回收对账闸门**：已收口（`done`/`archived`）的卡仍挂 `wt/<id>` 或零领先的 `ticket/<id>` 分支 ⇒ `MISMATCH` 点名 + 给出可照做的 `rm-wt` 命令；**领先 main 的分支只报 `INFO`**——判据必须区分「孤儿」与「暂存」，否则闸门会教人删掉未合入的活。这条是收口闭环的守门人（此前收口位一条闸门都没有 ⇒ 不回收是恒绿路径）。
+- **受阻暂存时不回收现场**（PROTOCOL §3）：暂存 PRD 分支 = 活还没上 main，只回收已进 main 的部分。
+- **auto 模式补核对**：编排者每卡收口后 `verify`，出现未回收即补 `rm-wt`（一次一卡）；这是编排者唯一可碰 worktree 的动作，仍受 §7 红线约束（不得交给子代理批量回收）。
+- **配套**：`starter-merger`（四段 + 冲突分诊 + 回收后 `verify`）、`starter-auto`（回收核对 + 汇报须含未能回合 main 的原因与去向）、`starter-dev`（交付后现场不归 worker 管）、`SKILL.md` 概述/命令面/description 触发词（合并、回收工作空间、清理 worktree、合并冲突）、新增 `references/ADR-012-close-the-loop.md`（ADR-011 的回收句由其接手）。
+- **selftest 128 → 152 项断言，0 失败**（新增 24 条。**其中 8 条是首轮独立复审揪出的真实缺陷的回归**：`merge-check` 的冲突文件名解析——`modify/delete` 与 `rename/rename` 类的 git 消息里文件名后面紧跟句中 `in`，旧实现「找第一个 in」的正则把捕获甩到句子中段 ⇒ 类型退化成 unknown ⇒ **这两类非机械冲突被判成「机械候选」放行**（失效方向是报绿，正好与 ADR-012 决策 3 相反）；`warning: Cannot merge binary files: (\S+)` 的 `\S+` 遇空格即停 ⇒ **带空格的二进制文件**走另一条独立绕过路径；`verify` 回收对账在卡面带 `- 分支:` 时**只判卡面那一支**、规范名 `ticket/<id>` 的零领先孤儿静默通过；三处 `origin/main` 硬编码导致**非 main 基准（master）仓上闸门与预演全部静默失效**。另修：无法判定类型时由「默认机械候选」改为 **fail-closed（不默认机械候选）**；`--base` 校验提到 fetch 之前；`rm-wt` 分支候选与 verify 同口径；回收提示对裸目录给出真能跑的修法。其余为回收对账 / `rm-wt` 三态 / 预演不落现场 / 参数闸门等基线断言）。
+
 ## 0.14.0 — 默认回合 main（ADR-011 修订 ADR-009 合并流）
 
 **用户指令**：完成工单后默认回合主分支；不能回合时必须汇报不能回合的原因（会话内显式回报 + merge 卡流转段 + 账本）。

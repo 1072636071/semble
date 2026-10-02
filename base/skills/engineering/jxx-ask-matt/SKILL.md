@@ -67,7 +67,7 @@ wayfinder 完成调查后交出接力棒——它自己不构建。汇入主流�
 
 - **`/jxx-grill-me`** — 与 `/jxx-grill-with-docs` 相同的穷追不舍的追问，但适用于**不在工作目录中工作**的情况。无状态：不在本地保存任何东西，不构建 `CONTEXT.md`——将决策以 markdown 块形式留在聊天中。用于锐化任何不在仓库中的计划或设计。
 - **`/jxx-grilling`** — 两者之下共享的 grill 原语：按轮推进的 frontier 访谈——每一轮提问当前未解决的极小决策集，每个问题附上推荐答案。`/jxx-grill-with-docs` 和 `/jxx-grill-me` 都是它的有状态包装。
-- **`/jxx-resolving-merge-conflicts`** — 当 merge 或 rebase 产生冲突时使用。读懂*双方*分支的意图，以保留两者的方式解决冲突。
+- **`/jxx-resolving-merge-conflicts`** — 当 merge 或 rebase 产生冲突时使用。读懂*双方*分支的意图，以保留两者的方式解决冲突。走工单看板流时另有两步：先用 `board.mjs merge-check` 预演分诊（内存预演，不落现场；二进制冲突的报法是 `warning: Cannot merge binary files` 而非括号里的类型），且**解完 diff 已变 ⇒ 必须重跑 `/jxx-code-review`**（原审查失效）；非机械冲突交回开发组。
 - **`/jxx-git-auth`** — 需要 Git 凭据时：push/clone 报 401/403、操作私有仓库、调平台 API 或用 `gh` CLI。加载 cnb / GitHub / Gitee 令牌并注入当前操作；令牌源在仓库之外，技能内只存路径。模型可自动调用。
 - **`/jxx-caveman`** — 需要极简输出时：用户要求简洁/别说废话，或输出明显注水。只删废话，技术内容全留；安全警告与不可逆确认时自动恢复正常表达。`stop caveman` / `normal mode` 退出。
 - **`/jxx-to-questionnaire`** — 当计划需要的答案你（agent）给不出、而你面对的人也不持有这些答案时使用。将待决策项转化为一份措辞中立的问卷，交给持有答案的人填写——去程答案和返程决策都留在文件里。

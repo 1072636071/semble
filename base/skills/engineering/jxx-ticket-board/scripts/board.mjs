@@ -56,6 +56,12 @@ const SEGMENT_RE = /^[A-Za-z0-9._-]+$/;
 // 现在拼串没法注入，但「参数位塞进 shell 元字符」的错误用法也一并由本函数兜住：
 // 下面的 REF_RE / safeRef 是第二道闸——进参数位的自由文本必须先过白名单。
 const git = (cwd, ...cmd) => execFileSync('git', cmd.flat().filter(x => x !== undefined && x !== null), { cwd, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+// 成功/失败都要读 stdout 的只读 git（`git merge-tree` 预演冲突时退出 1 而 stdout 才是结论）。
+// git() 走 execFileSync，非零退出即抛异常、stdout 随异常对象走——预演冲突的场景必须另开这条路。
+const gitTry = (cwd, ...cmd) => {
+  try { return { code: 0, out: git(cwd, ...cmd) }; }
+  catch (e) { return { code: e.status ?? 1, out: String(e.stdout ?? '').trim(), err: String(e.stderr ?? '').trim() }; }
+};
 
 function localIso() {
   const d = new Date(), p = n => String(n).padStart(2, '0');
@@ -89,6 +95,11 @@ function wsMode(root, meta) {
 function mergeTargetOf(_ticketFile) {
   return 'main';
 }
+// 合入基准的远端引用（v0.15.1）：一律从 workspace.json 的 baseBranch 推导，**不要**硬编码
+// `origin/main`。init 支持 `--branch master` 等；在非 main 基准的仓库上硬编码会让所有以它为基准的
+// 判定（回收对账 / 分支回收 / 预演）**静默失效**——实测 master 仓上零领先的孤儿分支只报
+// 「领先 origin/main ? 个提交」而 verify 判绿，闸门等于不存在。
+const baseRefOf = meta => `origin/${(meta && meta.baseBranch) || 'main'}`;
 
 // ---------- 卡位解析（工作流位 token ↔ 物理落点）----------
 // 三态板：open/<id>.md ｜ open/<id>.claimed.md ｜ open/<id>.review.md ｜ done/<id>.md ｜ archived/<id>.md
@@ -1018,12 +1029,12 @@ function cmdVerify(argv) {
       console.log(`INFO held 卡 ${c} 依赖已齐，可 mv 回 open/ 释放待领`);
   }
   // 在飞卡分支差异检测：review 有卡却零差异 = 假交付；claimed 零差异仅 INFO（刚开工正常）
-  // 基准 = origin/main（v0.14.0）：所有工单分支一律从 main 拉出、默认回合 main，
-  // 零差异判据相对 main 直接有效；旧卡面残留的 PRD 分支合入目标值不再作数。
+  // 基准 = 工作区的 baseBranch（v0.14.0：所有工单分支一律从它拉出、默认回合它），
+  // 零差异判据相对基准直接有效；旧卡面残留的 PRD 分支合入目标值不再作数。
   for (const s of ['claimed', 'review']) for (const c of listCards(root, s)) {
     const cf = cardFields(fs.readFileSync(cardFile(root, s, c), 'utf8'));
     const b = safeRef(cf.branch); if (!b) continue;
-    const diffRef = 'origin/main';
+    const diffRef = baseRefOf(meta);
     try {
       if (git(meta.repoPath, 'rev-list', '--count', `${diffRef}..${b}`) === '0') {
         if (s === 'review') problems.push(`MISMATCH 假交付嫌疑 ${c}: 分支 ${b} 与 ${diffRef} 零差异，何来交付`);
@@ -1068,6 +1079,55 @@ function cmdVerify(argv) {
     if (reviewIds.has(d)) { console.log(`INFO wt/${d} 交付成果所在，留待合并专员合入后回收`); continue; }
     if (declaredWt.has(d.toLowerCase())) { console.log(`INFO wt/${d} 由卡 ${declaredWt.get(d.toLowerCase())} 的 worktree 行声明（非规范名）`); continue; }
     if (!wtList.includes(path.join(wtRoot, d))) problems.push(`WARN worktree wt/${d} 无 claimed 卡引用`);
+  }
+  // ---------- 回收对账（v0.15.0）：收口闭环的最后一环，此前无人守 ----------
+  // 「开发 → 审查 → 合入 main → **回收工作空间**」的第四段此前只写在协议散文里，脚本面零判据：
+  // 合入后不回收，wt/ 与 ticket/* 分支无限堆积。实测某项目 105 个 ticket/* 分支对 13 个 worktree、
+  // 11 张 done 卡里 6 张仍挂着 worktree —— 正是「只有前三位（待领/在办/待审）有闸门、
+  // 收口位没有闸门」的必然结果。这里把第四段变成可机检的两条。
+  // 判据刻意只打在**已收口**（done/archived）的卡上：未收口的卡本来就该留着现场续接。
+  const BASE_REF = baseRefOf(meta);
+  // 候选分支 = **规范名 ∪ 卡面 `- 分支:` 声明**。必须两个都查：只查卡面声明会让「卡面写了别的分支」
+  // 的卡把规范名的孤儿分支**整体绕开**——实测（卡面声明 ticket/99-demo + 另有零领先的规范孤儿
+  // ticket/601-orphan）只报 99-demo，601-orphan 静默通过，正是本闸门要治的故障形态又漏了一遍。
+  // 同文件 935/939 处的既有实现用的就是「两个候选都查」，这里对齐它。
+  const reclaimOf = (id) => {
+    const hasWt = fs.existsSync(path.join(root, 'wt', id));
+    const cands = new Set([`ticket/${id}`]);
+    for (const s of LANES) {
+      const p = cardFile(root, s, cardName(root, id, s));
+      if (!fs.existsSync(p)) continue;
+      const b = safeRef(cardFields(fs.readFileSync(p, 'utf8')).branch);
+      if (b) cands.add(b);
+      break;
+    }
+    const branches = [];
+    for (const branch of cands) {
+      let exists = false, ahead = null;
+      try { git(repoDir, 'rev-parse', '--verify', branch); exists = true; } catch { /* 分支已回收 */ }
+      if (!exists) continue;
+      try { ahead = Number(git(repoDir, 'rev-list', '--count', `${BASE_REF}..${branch}`)); } catch { ahead = null; }
+      branches.push({ branch, ahead });
+    }
+    return { hasWt, branches };
+  };
+  for (const s of ['done', 'archived']) for (const c of listCards(root, s)) {
+    const id = cardIdOf(c);
+    if (/^merge-/.test(id)) continue; // 合并卡无自有 worktree / 分支（操作对象是开发卡的现场）
+    const { hasWt, branches } = reclaimOf(id);
+    if (hasWt) {
+      // 提示里的命令**必须真能跑**：`rm-wt` 的白名单（SEGMENT_RE）拒收怪名、且它走 `git worktree remove`
+      // 对「裸目录」（未注册为 worktree）天然无能为力——那恰恰是真实现场最常见的形态。
+      const runnable = SEGMENT_RE.test(id) && id !== '.' && id !== '..';
+      const isWt = (() => { try { return git(repoDir, 'worktree', 'list').includes(path.join(root, 'wt', id)); } catch { return false; } })();
+      const fix = !runnable ? '目录名不合规范，需人工确认后手工处理'
+        : (isWt ? `跑 board.mjs rm-wt --root <root> --ticket ${id}` : `该目录不是已注册的 worktree（裸目录）：先 git -C <repo> worktree prune，再人工确认后删除 ${path.join(root, 'wt', id)}`);
+      problems.push(`MISMATCH 未回收工作树 wt/${id}：卡已 ${s} ⇒ ${fix}`);
+    }
+    for (const { branch, ahead } of branches) {
+      if (ahead === 0) problems.push(`MISMATCH 未回收分支 ${branch}：已全部进 ${BASE_REF}，卡已 ${s} ⇒ 跑 board.mjs rm-wt --root <root> --ticket ${id}（工作树已回收时命令会报"目录不存在"：改用 git -C <repo> branch -d ${branch}）`);
+      else console.log(`INFO 分支 ${branch}（卡 ${id} 已 ${s}）领先 ${BASE_REF} ${ahead === null ? '（数不出：基准引用不可用）' : ahead + ' 个提交'}——暂存 PRD 分支或未合入；查 merge 卡去向，勿盲删`);
+    }
   }
   // repo 主工作区脏度（仅提示）
   const dirty = git(repoDir, 'status', '--porcelain').split('\n').filter(Boolean).length;
@@ -1395,10 +1455,13 @@ function cmdAddWt(argv) {
   const repoDir = meta.repoPath, wtPath = path.join(root, 'wt', id), branch = `ticket/${id}`;
   let base = safeRef(arg(argv, 'base'));
   if (!base) {
-    // v0.14.0（默认回合 main）：未显式给 --base 时一律从 origin/main 拉——所有工单 diff 只含自己的活；
+    // v0.14.0（默认回合 main）：未显式给 --base 时一律从基准分支拉——所有工单 diff 只含自己的活；
     // PRD 分支不再预建，只在合并受阻时由合并专员惰性创建作暂存道（PROTOCOL §3）。
-    base = 'origin/main';
+    // 基准取 workspace.json 的 baseBranch（v0.15.1）：`init --branch master` 的仓上拉 origin/main 会直接失败。
+    base = baseRefOf(meta);
   }
+  try { git(repoDir, 'rev-parse', '--verify', base); }
+  catch { die(`基准分支 ${base} 解析不了（工作区分支是 ${meta.baseBranch || 'main'}？先 fetch，或用 --base 指定）`); }
   // 目录被外部删除会留下 stale worktree 注册，导致下面的 -b 回退分支失败；先 prune。
   try { git(repoDir, 'worktree', 'prune'); } catch { /* ignore */ }
   try { git(repoDir, 'rev-parse', '--verify', branch); git(repoDir, 'worktree', 'add', wtPath, branch); }
@@ -1418,11 +1481,177 @@ function cmdRmWt(argv) {
   if (path.dirname(target) !== wtBase) die(`拒绝回收：解析出的路径越出 wt/（${target}）`);
   if (!fs.existsSync(target)) die(`拒绝回收：目录不存在 ${target}`);
   git(repoDir, 'worktree', 'remove', target, ...(flag(argv, 'force') ? ['--force'] : []));
-  if (flag(argv, 'delete-branch')) git(repoDir, 'branch', '-D', `ticket/${id}`);
+  // 回收 = 工作树 + 分支两件（「回收工作空间」的完整语义）。分支是否可删由**合入实况**裁定，不靠纪律：
+  // 分支已全部进基准分支（零领先）才自动删；零领先不成立 = 还有未合入的活，默认留分支并报明原因
+  // （2026-10 实测：某项目 105 个 ticket/* 分支对 13 个 worktree，回收只做了一半）。
+  // `--delete-branch` 显式强删（合并专员确认已暂存/已放弃时用）、`--keep-branch` 显式保留（要留着复查时用）。
+  // 候选分支与 verify 的回收对账**同一口径**（规范名 ∪ 卡面 `- 分支:` 声明）：只认规范名会让「卡面写了
+  // 别名分支」的现场回收报成功却没收到那支（实测卡声明 ticket/77-demo、实际存在 ticket/108-alt 时，
+  // rm-wt 只判规范名并打印「无同名分支」，而 verify 判的是 77-demo —— 同一现场两个命令看两支分支）。
+  const BASE_REF = baseRefOf(needWs(root));
+  const branchCands = new Set([`ticket/${id}`]);
+  {
+    const loc = cardPath(root, id);
+    if (loc) {
+      const b = safeRef(cardFields(fs.readFileSync(loc.path, 'utf8')).branch);
+      if (b) branchCands.add(b);
+    }
+  }
+  const msgs = [];
+  for (const branch of branchCands) {
+    let exists = false;
+    try { git(repoDir, 'rev-parse', '--verify', branch); exists = true; } catch { /* 分支已不在 */ }
+    if (!exists) continue;
+    if (flag(argv, 'keep-branch')) { msgs.push(`分支 ${branch} 按要求保留`); continue; }
+    let ahead = null;
+    try { ahead = Number(git(repoDir, 'rev-list', '--count', `${BASE_REF}..${branch}`)); } catch { /* 基准引用不可用 */ }
+    const merged = ahead === 0;
+    if (merged || flag(argv, 'delete-branch')) {
+      // 已合入用 `-d`（安全：git 自己会校验是否真已并入上游）；只有显式强删才用 `-D`
+      git(repoDir, 'branch', merged ? '-d' : '-D', branch);
+      msgs.push(merged ? `分支 ${branch} 已合入 ${BASE_REF} 并删除` : `分支 ${branch} 未合入仍按 --delete-branch 强删（该分支上的活已丢）`);
+    } else {
+      msgs.push(`分支 ${branch} 领先 ${BASE_REF} ${ahead === null ? '（数不出：基准引用不可用）' : ahead + ' 个提交'} ⇒ 保留（未合入的活不能删；合入后重跑本命令回收，或 --delete-branch 强删）`);
+    }
+  }
+  const branchMsg = msgs.length ? `，${msgs.join('；')}` : '，无同名分支';
   try { git(repoDir, 'worktree', 'prune'); } catch { /* 无注册可清 */ }
   autoHtml(root);
   snapshot(root, `rm-wt ${id}`);
-  console.log(`rm-wt: wt/${id} 已回收${flag(argv, 'delete-branch') ? '，分支已删' : ''}。`);
+  console.log(`rm-wt: wt/${id} 已回收${branchMsg}。`);
+}
+
+// ---------- merge-check（合入前预演：干净视角，不碰工作树）----------
+// 合并专员「先审后合」里的**确定性**部分：冲突面与越界面不该靠人肉试错发现（试错会在真工作树上留下
+// 半途 rebase 现场，正是 ADR-005 记的「解决冲突产生新 diff ⇒ 原审查失效」的入口）。
+// `git merge-tree --write-tree` 在**内存里**做三方合并：退出 0 = 干净可合，退出 1 = 有冲突且列出文件；
+// 全程不改 index、不动 HEAD、不建 commit ⇒ 预演多少次都不会污染任何工作区。
+// 非机械类冲突（binary / modify-delete / rename）单独标出：那几类不是「重命名、import 路径、格式」，
+// 需发明新行为才能收场，按 PROTOCOL §3 交回开发组，不许合并专员自行拍板。
+function cmdMergeCheck(argv) {
+  const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));
+  const meta = needWs(root);
+  const id = arg(argv, 'id') || die('缺少 --id <卡id>');
+  const repoDir = meta.repoPath;
+  const baseArg = arg(argv, 'base');
+  // 默认基准取 workspace.json 的 baseBranch（**不要**硬编码 origin/main）：非 main 基准的仓库上
+  // 硬编码会让本命令与回收对账一起静默失效（实测 master 仓上默认基准解析不了）。
+  const base = baseArg === undefined ? baseRefOf(meta) : safeRef(baseArg);
+  if (!base) die(`--base \"${baseArg}\" 不是可信 ref`);
+  // 显式给了 --branch 就必须可信：不合规直接拒（**不要**静默回落到按 id 推导的 ref ——
+  // 那会把「我指的这一支」悄悄换成「另一支」，冲突面判在别的分支上而命令照旧报绿）。
+  const branchArg = arg(argv, 'branch');
+  // 合并卡（merge-<开发卡id>）没有自有分支：它的操作对象是开发卡的 ticket/<开发卡id>。
+  // 认这个前缀并自动去前缀，免得合并专员照 §3 敲 `--id merge-x` 时被一张空分支绊住。
+  const devId = cardIdOf(id).replace(/^merge-/, '');
+  const branch = branchArg === undefined ? `ticket/${devId}` : safeRef(branchArg);
+  if (!branch) die(`--branch \"${branchArg}\" 不是可信 ref（只接受 [A-Za-z0-9._/-]，禁 .. 与 shell 元字符）`);
+  if (!CARD_ID_RE.test(cardIdOf(id)) && branchArg === undefined)
+    die(`--id \"${id}\" 不符规范（NNN-slug 或 merge-NNN-slug，kebab-case）——用 --branch 显式指定分支可绕过`);
+  if (/^merge-/.test(cardIdOf(id)) && branchArg === undefined)
+    console.log(`INFO --id 是合并卡 ${id}：按其对应的开发卡分支 ${branch} 预演`);
+  try { git(repoDir, 'rev-parse', '--verify', branch); }
+  catch { die(`分支 ${branch} 不存在（先确认卡 id / 是否已回收）`); }
+  console.log(`merge-check: ${branch} → ${base}`);
+  // 基准 ref 的校验必须**排在 fetch 与任何 ahead 计算之前**：fetch 失败只 WARN、rev-list 失败会静默
+  // 变成 ahead=null，于是「远端被改名/未配」这类配置错误会一路走到 merge-tree 才炸，并被报成
+  // 「VERDICT merge-failed 属异常」——把配置问题伪装成冲突异常，与 `--base` 显式校验的行为自相矛盾。
+  try { git(repoDir, 'rev-parse', '--verify', base); }
+  catch { die(`--base \"${base}\" 解析不了（写错 ref 名？远端被改名或未配 origin？先 fetch，或用 --base 指定存在的基准）`); }
+  try { git(repoDir, 'fetch', 'origin', '--quiet'); } catch { console.log(`WARN fetch 失败（认证？），以下判定基于本地 ${base} 引用`); }
+
+  const ahead = (() => { try { return Number(git(repoDir, 'rev-list', '--count', `${base}..${branch}`)); } catch { return null; } })();
+  if (ahead === 0) { console.log(`VERDICT already-merged — ${branch} 相对 ${base} 零领先，无需再合（应裁决归档 / 回收）`); return; }
+  if (ahead === null) die(`数不出 ${base}..${branch} 的领先提交数（基准引用不可用？）——拒绝在不确定的前提下预演`);
+  console.log(`INFO 领先 ${base} ${ahead} 个提交`);
+
+  // 变更面：三点 diff（merge-base），与 /jxx-code-review 的审查基准同源
+  let changed = [];
+  try { changed = git(repoDir, 'diff', '--name-only', `${base}...${branch}`).split('\n').filter(Boolean); } catch { /* 无 merge-base */ }
+  console.log(`INFO 本分支改动 ${changed.length} 个文件`);
+
+  // 三方预演（内存合并，不落任何工作区状态）
+  const mt = gitTry(repoDir, 'merge-tree', '--write-tree', '--name-only', base, branch);
+  const lines = mt.out.split('\n');
+  const oid = lines[0] || '';
+  const rest = lines.slice(1);
+  const blankAt = rest.indexOf('');
+  const conflicted = (blankAt >= 0 ? rest.slice(0, blankAt) : []).filter(Boolean);
+  const messages = (blankAt >= 0 ? rest.slice(blankAt + 1) : rest).filter(Boolean);
+  // 冲突类型归属：**以 `--name-only` 的 conflicted 列表为权威键集**，反过来判断「这条消息说的是不是它」。
+  // 不能反过来做（从消息文本里正则抠文件名）——那是本命令第一版的真实缺陷：modify/delete 与 rename 类的
+  // 消息形如 `<file> deleted in <ref> and modified in <ref>` / `<file> renamed to <x> in <ref> ...`，
+  // 文件名后面紧跟的 `in` 出现在句中，任何「找第一个 in/文件名」的正则都会把捕获起点甩到句子中段，
+  // 解析出的「文件名」是半句话 ⇒ types 的键永远匹配不上真文件名 ⇒ 类型退化成 unknown ⇒
+  // 这两类**非机械冲突被判成「机械候选」**，正好与 ADR-012 决策 3 的红线相反（且失效方向是报绿）。
+  const typeOf = (msg, f) => {
+    const t = msg.match(/^CONFLICT \(([^)]+)\):/);
+    if (!t) return null;
+    const body = msg.slice(t[0].length).trim();
+    // content / add-add 型：`Merge conflict in <file>`
+    // modify-delete / rename-* 型：`<file> deleted|renamed|modified ...`
+    // 含特殊字符时 git 会给文件名加引号，两种形态都认。
+    const quoted = `"${f}"`;
+    return (body.startsWith(`Merge conflict in ${f}`) || body.startsWith(`Merge conflict in ${quoted}`)
+      || body.startsWith(`${f} `) || body.startsWith(`${quoted} `)) ? t[1] : null;
+  };
+  const types = new Map();   // file -> 冲突类型集合
+  const binaryFiles = new Set();
+  for (const f of conflicted) {
+    for (const m of messages) {
+      // 二进制冲突**不单列类型**：git 对它也报 `CONFLICT (content)`，另起一行 `warning: Cannot merge
+      // binary files: <file> (<ref> vs. <ref>)` 才说明它没有可读 hunk（实测确认）。文件名以空格分隔的
+      // 部分不能用 `\S+` 抓——`my blob.bin` 会被截成 `my`，于是该文件进不了 binaryFiles、
+      // 又因类型是 content 被过滤掉 ⇒ 干净的「机械候选」（这是与上面那条**相互独立**的绕过路径）。
+      const bw = m.match(/^warning: Cannot merge binary files: /);
+      if (bw) {
+        const cand = m.slice(bw[0].length).replace(/\s+\([^()]*\)\s*$/, '').trim();
+        if (cand === f || cand === `"${f}"`) binaryFiles.add(f);
+        continue;
+      }
+      const ty = typeOf(m, f);
+      if (ty) { if (!types.has(f)) types.set(f, new Set()); types.get(f).add(ty); }
+    }
+  }
+
+  if (mt.code === 0) {
+    console.log(`VERDICT merge-clean — 三方预演无冲突（结果树 ${oid.slice(0, 12)}），可 rebase + 合入 ${base}`);
+  } else if (!conflicted.length) {
+    console.log(`VERDICT merge-failed — 预演退出 ${mt.code} 但未列出冲突文件，属异常：人工查看 git merge-tree 原始输出`);
+    if (mt.err) console.log(`  stderr: ${mt.err.split('\n')[0]}`);
+  } else {
+    console.log(`VERDICT conflict — ${conflicted.length} 个文件冲突：`);
+    // 非机械类：binary（无文本 hunk 可读）/ modify-delete（要决定删还是留）/ rename（要决定名字）
+    // —— 这三类都不是「逐 hunk 保留双方意图」能收场的，必须交回开发组。
+    const NON_MECHANICAL = /^(binary|modify\/delete|rename\/delete|delete\/modify|rename\/rename|submodule)$/;
+    let nonMech = 0;
+    let unresolved = 0;
+    for (const f of conflicted) {
+      const ts = [...(types.get(f) || [])];
+      // 非机械 = 没有可逐 hunk 保留的双方意图：二进制（读不了 hunk）/ modify-delete（要决定删还是留）
+      // / rename 类（要决定名字）。这几类收场必然要发明行为，按 PROTOCOL §3 交回开发组。
+      const bad = [];
+      if (binaryFiles.has(f)) bad.push('binary');
+      bad.push(...ts.filter(t => NON_MECHANICAL.test(t) && t !== 'content'));
+      const uniq = [...new Set(bad)];
+      // **fail-closed**：类型一条都没解析出来（既非 content、也无 binary 标记）= 我们看不懂这个冲突，
+      // 绝不当成「机械候选，你自己解」——那正是把 unknown 兜底成机械候选的旧缺陷。按需人工裁决处理。
+      const unknown = !uniq.length && !ts.length;
+      if (uniq.length) nonMech++;
+      if (unknown) unresolved++;
+      const mark = uniq.length ? `✗非机械(${uniq.join('+')})` : (unknown ? '?无法判定' : '·机械候选');
+      console.log(`  ${mark} ${f}  [${ts.join(' + ') || '未解析出类型'}]`);
+    }
+    if (unresolved) console.log(`INFO ${unresolved} 个文件未能判定冲突类型（git 输出形态超出本命令的解析）⇒ 按需人工裁决处理，**不得**当机械候选直接解`);
+    console.log(nonMech
+      ? `INFO ${nonMech} 个文件属非机械冲突（binary / modify-delete / rename）⇒ 按 PROTOCOL §3 交回开发组，禁合并专员发明行为`
+      : (unresolved ? 'INFO 存在无法判定的冲突 ⇒ 先人工看清冲突面再决定处置' : 'INFO 全部为内容类冲突（机械候选）⇒ 合并专员按 jxx-resolving-merge-conflicts 逐 hunk 保留双方意图解决；解决后 diff 已变，必须重跑审查'));
+    console.log('INFO 预演不落现场：解决冲突请在工单 worktree（wt/<卡id>）里做，勿在权威工作区搭 rebase');
+  }
+
+  // 审查基准漂移提示：审查报告若早于当前 origin/main 的 tip，则审查对象与合入对象不是同一份
+  const mergeBase = (() => { try { return git(repoDir, 'merge-base', base, branch); } catch { return ''; } })();
+  if (mergeBase) console.log(`INFO merge-base ${mergeBase.slice(0, 12)}（审查/复核的 diff 基准；rebase 后此值会变，变了就要重审）`);
 }
 
 // ---------- auto（自动编排模式 v0.9.0） ----------
@@ -1607,7 +1836,7 @@ function cmdSnapshot(argv) {
 // ---------- command table ----------
 const cmd = process.argv[2];
 const argv = process.argv.slice(3);
-const table = { init: cmdInit, board: cmdBoard, html: cmdHtml, ledger: cmdLedger, verify: cmdVerify, 'new-card': cmdNewCard, 'add-wt': cmdAddWt, 'rm-wt': cmdRmWt, 'card-read': cmdCardRead, 'card-set': cmdCardSet, 'card-move': cmdCardMove, 'card-rm': cmdCardRm, snapshot: cmdSnapshot, render: cmdRender, migrate: cmdMigrate, auto: cmdAuto };
+const table = { init: cmdInit, board: cmdBoard, html: cmdHtml, ledger: cmdLedger, verify: cmdVerify, 'new-card': cmdNewCard, 'add-wt': cmdAddWt, 'rm-wt': cmdRmWt, 'merge-check': cmdMergeCheck, 'card-read': cmdCardRead, 'card-set': cmdCardSet, 'card-move': cmdCardMove, 'card-rm': cmdCardRm, snapshot: cmdSnapshot, render: cmdRender, migrate: cmdMigrate, auto: cmdAuto };
 if (!cmd || !table[cmd]) die(`未知子命令 "${cmd || '(空)'}"。可用：${Object.keys(table).join(' / ')}`);
 try { table[cmd](argv); }
 catch (e) { die(`${cmd} 失败：${e.stderr?.toString().trim().split('\n')[0] || e.message}`); }

@@ -1,9 +1,9 @@
 ---
 name: jxx-implement
-description: 基于 spec 或一组 ticket 实现（implement）用户描述的工作。统一开发面：必须在项目内的工单 worktree（wt/<卡id>）里开发、走统一看板（jxx-ticket-board）的卡位流转，三段硬出口不变。
+description: 基于 spec 或一组 ticket 实现（implement）用户描述的工作。统一开发面：必须在项目内的工单 worktree（wt/<卡id>）里开发、走统一看板（jxx-ticket-board）的卡位流转，三段硬出口不变；交付后收口是四段闭环（复核 → 合并预演处理冲突 → 合入 main → 回收工作空间），冲突解完必须重审。
 disable-model-invocation: false
 metadata:
-  version: 1.3.0
+  version: 1.4.0
 ---
 
 实现用户在 spec 或工单中描述的工作。
@@ -44,7 +44,16 @@ node tools/jxx-bootstrap.mjs --root <项目根>        # 缺则创建（种子�
 
 ### 交付（硬出口之后）
 
-- [ ] **交付移卡**：commit 整齐、`git push origin ticket/<卡id>` 后，在卡的「交付记录」追加提交范围 + 审查报告指针、「终审待验清单」逐条写实，然后 `board.mjs card-move --root <项目根> --id <卡id> --to review`（卡到待终审位），刷看板（`board.mjs html --root <项目根>`），回报「已交付待终审」。**合并不是本技能的事**——合并专员默认把工单分支回合 main（PROTOCOL §3，含 PRD 工单，v0.14.0 起）；技术受阻才暂存 PRD 分支或 blocked，且必须向用户汇报不能回合的原因。
+- [ ] **交付移卡**：commit 整齐、`git push origin ticket/<卡id>` 后，在卡的「交付记录」追加提交范围 + 审查报告指针、「终审待验清单」逐条写实，然后 `board.mjs card-move --root <项目根> --id <卡id> --to review`（卡到待终审位），刷看板（`board.mjs html --root <项目根>`），回报「已交付待终审」。**合并不是本技能的事**——合并专员把工单分支回合 main（PROTOCOL §3，含 PRD 工单，v0.14.0 起）；技术受阻才暂存 PRD 分支或 blocked，且必须向用户汇报不能回合的原因。
+
+### 交付之后：收口是四段闭环（v0.15.0 起，PROTOCOL §3）
+
+合并不是「合完就完」。收口 = `复核 → 合入前预演（merge-check）→ 合入 main → 回收工作空间（rm-wt）`，**四段缺一不算收口**，且最后一段以前没有判据（实测积下 105 个孤儿分支 / 6 张 done 卡仍挂 worktree）。你作为开发组要知道的三件事：
+
+- **现场不归你管**：合并专员合入后 `rm-wt` 回收 `wt/<卡id>` 与已合入的 `ticket/<卡id>` 分支。别自己删（可能还在返工路径上），也别假设现场永远在。
+- **冲突在碰工作树之前就已知**：合并专员先跑 `board.mjs merge-check --root <项目根> --id <卡id>`（内存三方预演，不落现场）。判为 `✗非机械`（binary / modify-delete / rename）的冲突**会交回你**——那几类没有可逐 hunk 保留的双方意图，合并专员不许自行发明行为。你按 `/jxx-resolving-merge-conflicts` 处理（追溯来源 → 逐 hunk → 跑检查 → 完成，**绝不 `--abort`**）。
+- **解冲突 = 改 diff = 原审查失效**：你解决冲突后必须重跑 `/jxx-code-review` 再交（ADR-005）。合并专员不替你重审。
+- **受阻暂存不回收**：你这一单若因门禁红 / 依赖序未到被暂存进 PRD 分支，现场会保留（活还没上 main）——这是正常的，不是漏回收。
 
 工单状态流转：`ready-for-agent` → `pending-review`（功能开发完）→ `done`（审查通过）。完整生命周期见 `docs/agents/issue-tracker.md` 的「工单状态与生命周期」节。
 

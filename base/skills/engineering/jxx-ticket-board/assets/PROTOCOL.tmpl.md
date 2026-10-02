@@ -78,32 +78,71 @@
   1. 一切成果（代码、工单文档增量、**审查报告**）都在 `ticket/<卡id>` 分支上；审查报告放分支内 `.scratch/<工单>/reviews/`，审查报告即 /jxx-code-review 产物（干净视角执行，针对 `git diff {{BASE_BRANCH}}...ticket/<卡id>`）。
   2. 分支已 commit 整齐（无未提交残留），已 `git push origin ticket/<卡id>`（remote 是成果备份面）。
 - 返工：卡被改回 `open\<卡id>.claimed.md`（终审意见写在卡的「流转追加段」）→ 继续在原 worktree/分支干活，改完再交。
+- **交付后现场不归你管**：合并专员复核、预演、合入后按 §3 第四段回收 `wt/<卡id>` 与已合入的 `ticket/<卡id>` 分支。**别自己删**（可能还在返工路径上），也别假设现场会永远在——交付即意味着你这一轮的原 worktree 随时可能被回收。
 - 干不下去：卡「流转追加段」写原因，然后 `card-move --to blocked`——三态下这一步**不新建目录**：卡回到 `open\<卡id>.md` 待领位并被自动打上 `needs-info` 标签，**刷看板**，回报用户。等人拍板用 `card-set --field labels --value ready-for-human`。
 - 禁止：动权威工作区（`{{REPO_PATH}}`）主干、提交到 `{{BASE_BRANCH}}`、移动他人 `.claimed` 的卡、把成果正文只写在卡里。
 
-## 3. 合并专员规则（先审后合 · 默认回合 main）
+## 3. 合并专员规则（先审后合 · 默认回合 main · 收口即回收）
+
+> **本节的四段是一次不可拆的收口动作**：定点复核 → 预演并处置冲突 → 合入 main → **回收工作空间**。
+> 前三段做完就算完、第四段落下，是 2026-10 实测到的真实故障形态：某项目积下 **105 个 `ticket/*`
+> 分支对 13 个 worktree、11 张 `done` 卡里 6 张仍挂着 worktree**——缺的不是纪律，是判据（收口位
+> 此前一条闸门都没有）。第四段现在有确定性判据兜底（`verify` 回收对账），别指望下一个人记得。
 
 - 领 `merge-<卡id>` 卡（协议同上，先 move 后填）。同一时刻**只处理一张**合并卡，多张按卡内顺序。
 - **合入目标：一律默认 `main`（v0.14.0 起，PRD 工单同此）**。工单完成审查后默认直接回合主分支。
-- **第一步是定点复核（干净视角，碰 git 之前）**：读对应开发卡（`open\<卡id>.review.md`）的「终审待验清单」与「交付记录」，对照工单 PRD 验收标准，用只读 git（`git show <分支>:<路径>`、`git diff origin/main...<分支>`、`git grep`）+ 可派只读子代理，逐项实证 worker 自报是否属实：修复真在？越界夹带？报告实体？清单每项给 闭合✓/未闭合✗+证据。**diff 基准 = `origin/main`**（所有工单分支都从 main 拉出）。
-- **复核过 → 才执行合并**：`git -C "{{REPO_PATH}}" fetch` → 把 `ticket/<卡id>` rebase 到最新 `origin/main` → **确认没影响**（diff 面限于工单声明范围、本地门禁/测试绿、无越界夹带）→ 合入 **main** 并 push → 回收 worktree/分支（**回收只用 `board.mjs rm-wt --root <root> --ticket <单卡id>`，一次一卡；禁止批量/递归删除——见 §7**）。
-- **不能回合 main ⇒ 降级 + 汇报（硬性，缺汇报 = 流程未完成）**。技术受阻时按下表降级，且**必须当场向用户显式汇报不能回合的原因**（冲突面 / 哪个门禁红 / 卡在哪张依赖），同时在 merge 卡「流转追加段」与领导者账本各留一行：
-  - **rebase 冲突超出机械可解**（需发明新行为才能解）：不得自行发明——把开发卡改名回 `open\<卡id>.review.md` 并在流转段写明冲突面，交回开发组按 `jxx-resolving-merge-conflicts` 处理（解决即改 diff，diff 变了必须复审）。
-  - **rebase 干净但门禁/测试红，或本分支携带未上 main 的兄弟工单提交**（diff 越出本工单声明面，典型 = 同 PRD 依赖序未到）：
-    - 工单**属 PRD** ⇒ **暂存降级**：把 `ticket/<卡id>` 合入 PRD 分支 `ticket/<NN>-<slug>`（**不存在则先从 `origin/main` 建**）暂存，等 §3.1 收口清入 main。工单 `Status: done` 照置（实现与审查已完成），但卡面与汇报必须注明「暂存于 PRD 分支，未上 main」。
-    - **散工单** ⇒ 无暂存道：`card-move --to blocked`（自动带 `needs-info`），等人工拍板。
-- **复核不过 → 打回**：merge 卡写明发现项后 `card-move --to blocked`（或按卡指示把开发卡改名回 `open\<卡id>.claimed.md` 附发现项）；**禁止带伤合并**。
-- 例外：merge 卡若标注「领导者口径裁决未决」（L4 卡或跨单口径冲突），合并专员只做复核不做裁决，复核结论回报后待领导者拍板才可合。
-- 合并成功：merge 卡追加结果（合入 commit、合入目标、复核结论行、时间；**未能上 main 的写清原因与去向**），`mv → done\`，**刷看板**；对应开发卡由领导者移 `done\`。
 
-### 3.1 PRD 收口：清暂存 + 状态收口
+**第一段 · 定点复核（干净视角，碰 git 之前）**：读对应开发卡（`open\<卡id>.review.md`）的「终审待验清单」与「交付记录」，对照工单 PRD 验收标准，用只读 git（`git show <分支>:<路径>`、`git diff origin/main...<分支>`、`git grep`）+ 可派只读子代理，逐项实证 worker 自报是否属实：修复真在？越界夹带？报告实体？清单每项给 闭合✓/未闭合✗+证据。**diff 基准 = `origin/main`**（所有工单分支都从 main 拉出）。复查不过 ⇒ 见本节末「复核不过」。
+
+**第二段 · 预演（先看冲突面，再碰工作树）**：
+
+```bash
+node <skill>/scripts/board.mjs merge-check --root <root> --id <卡id>
+```
+
+`merge-check` 用 `git merge-tree --write-tree` 在**内存里**做三方合并——不改 index、不动 HEAD、不建 commit，预演多少次都不会污染任何工作区（这正是重点：在真工作树上试错 rebase，会留下半途现场，且严格意义上使原审查失效，见 ADR-005）。输出四个 VERDICT 之一：
+
+| VERDICT | 含义 | 动作 |
+|---|---|---|
+| `already-merged` | 零领先 `origin/main` | 无需再合 ⇒ 该裁决归档 + 回收（别合一个空 diff） |
+| `merge-clean` | 预演无冲突 | 进第三段，rebase 预期干净 |
+| `conflict` | 有冲突，已逐文件列名 | 按下方**冲突分诊**处置 |
+| `merge-failed` | 退出非零但未列冲突文件 | 异常：人工看 `git merge-tree` 原始输出再说 |
+
+**冲突分诊（`conflict` 时，按 `merge-check` 的标记分两路）**：
+
+- **`·机械候选`（内容类冲突，`[content]`）** ⇒ rebase 后逐 hunk 解决，**保留双方意图**、绝不发明新行为，按 `jxx-resolving-merge-conflicts` 五步走（追溯来源 → 逐 hunk → 跑自动化检查 → 完成 rebase，**绝不 `--abort`**）。**解决完 diff 就变了 ⇒ 原审查失效，必须重跑 `/jxx-code-review` 再合**（ADR-005 记的正是这条）。
+- **`✗非机械`（binary / modify-delete / rename 类）** ⇒ **不许合并专员自行拍板**：这几类没有可逐 hunk 保留的「双方意图」（二进制读不出 hunk；modify-delete 要决定删还是留；rename 要决定名字），收场必然要发明行为。把开发卡改名回 `open\<卡id>.review.md`，在流转段写清冲突面，交回开发组按 `jxx-resolving-merge-conflicts` 处理。
+  注意二进制的报法：git 对它同样报 `CONFLICT (content)`，真正的信号是 `warning: Cannot merge binary files`——`merge-check` 已替你分辨，**别只看括号里的类型**。
+
+**第三段 · 合入**：`git -C "{{REPO_PATH}}" fetch` → 把 `ticket/<卡id>` rebase 到最新 `origin/main` → **确认没影响**（diff 面限于工单声明范围、本地门禁/测试绿、无越界夹带）→ 合入 **main** 并 push。
+
+**第四段 · 回收工作空间（收口的定义里就有这一段）**：
+
+```bash
+node <skill>/scripts/board.mjs rm-wt --root <root> --ticket <单卡id>
+```
+
+**回收 = 工作树 + 分支两件**。分支该不该删由**合入实况**裁定，不靠人判断：`rm-wt` 自动数 `origin/main..ticket/<卡id>`——零领先（已全部合入）才删分支；仍有领先 ⇒ **默认保留并报明领先数**（未合入的活不能删），此时要么合入后重跑 `rm-wt`，要么确认已暂存/已放弃后用 `--delete-branch` 强删；要留着复查用 `--keep-branch`。一次一卡，禁止批量/递归删除（见 §7）。
+
+- **不能回合 main ⇒ 降级 + 汇报（硬性，缺汇报 = 流程未完成）**。技术受阻时按下表降级，且**必须当场向用户显式汇报不能回合的原因**（冲突面 / 哪个门禁红 / 卡在哪张依赖），同时在 merge 卡「流转追加段」与领导者账本各留一行：
+  - **冲突判为非机械（见第二段分诊）**：不得自行发明——交回开发组（解决即改 diff，diff 变了必须复审）。
+  - **rebase 干净但门禁/测试红，或本分支携带未上 main 的兄弟工单提交**（diff 越出本工单声明面，典型 = 同 PRD 依赖序未到）：
+    - 工单**属 PRD** ⇒ **暂存降级**：把 `ticket/<卡id>` 合入 PRD 分支 `ticket/<NN>-<slug>`（**不存在则先从 `origin/main` 建**）暂存，等 §3.1 收口清入 main。工单 `Status: done` 照置（实现与审查已完成），但卡面与汇报必须注明「暂存于 PRD 分支，未上 main」。**暂存属于「没能回 main」**：开发卡的现场**不回收**（那分支上的活还没上 main），只回收已进 main 的部分。
+    - **散工单** ⇒ 无暂存道：`card-move --to blocked`（自动带 `needs-info`），等人工拍板。
+- **复核不过 → 打回**：merge 卡写明发现项后 `card-move --to blocked`（或按卡指示把开发卡改名回 `open\<卡id>.claimed.md` 附发现项）；**禁止带伤合并**；打回时不动现场（开发组要接着在原 worktree 干）。
+- 例外：merge 卡若标注「领导者口径裁决未决」（L4 卡或跨单口径冲突），合并专员只做复核不做裁决，复核结论回报后待领导者拍板才可合。
+- **合并成功（四段全做完才算）**：merge 卡追加结果（合入 commit、合入目标、复核结论行、回收结果、时间；**未能上 main 的写清原因与去向**），`mv → done\`，**刷看板**；对应开发卡由领导者移 `done\`。合入之后跑一次 `verify`：第四段若漏了，回收对账会直接点名（`MISMATCH 未回收工作树 wt/<id>` / `MISMATCH 未回收分支 ticket/<id>`）——**看到这两条就是第四段没做完**，照提示的 `rm-wt` 命令补齐即可，别把红灯当噪声。
+
+### 3.1 PRD 收口：清暂存 + 状态收口 + 回收现场
 
 - **触发二选一**：① 该 PRD 全部工单 `done`/`wontfix`（无论已直合 main 还是暂存 PRD 分支）；② 用户明确要求合并。两者之外**不得**把 PRD 分支合进 main。
-- **收口 = 两件事**：a) 把 PRD 暂存分支（`ticket/<NN>-<slug>`，**存在才有**）上尚未上 main 的工单清入 main；b) 把 `PRD.md` 的 `**Status:**` 置 `done`。
+- **收口 = 三件事**：a) 把 PRD 暂存分支（`ticket/<NN>-<slug>`，**存在才有**）上尚未上 main 的工单清入 main；b) 把 `PRD.md` 的 `**Status:**` 置 `done`；c) **回收本 PRD 全部残留 worktree 与已合入分支**。
 - **PRD 收口卡**：领导者投 `merge-<NN>-<prd-slug>`（`--level L1 --keep-inbox`，PRD.md 状态非 ready-for-agent 时投卡加 `--force`），卡内写明：待清分支 = PRD 分支 `ticket/<NN>-<prd-slug>`、合入目标 = `main`、哪些工单此前因受阻暂存。
-- **合并专员执行**：暂存分支存在 → 对整支 PRD 分支跑 `/jxx-code-review`（`git diff origin/main...ticket/<NN>-<prd-slug>`）→ 审查过 → rebase 到最新 `origin/main` → 合入 main 并 push；**无暂存（全部工单已直合 main）→ 跳过清入**。随后把 `PRD.md` 的 `**Status:**` 置 `done`（随合并提交或在 main 工作区另提）→ 回收该 PRD 全部残留 worktree（仍走 rm-wt，一次一卡）。
+- **合并专员执行**：暂存分支存在 → 先 `merge-check --id <NN>-<prd-slug>` 看冲突面（整支分支更容易与 main 分叉，预演比逐单更有必要）→ 对整支 PRD 分支跑 `/jxx-code-review`（`git diff origin/main...ticket/<NN>-<prd-slug>`）→ 审查过 → rebase 到最新 `origin/main` → 合入 main 并 push；**无暂存（全部工单已直合 main）→ 跳过清入**。随后把 `PRD.md` 的 `**Status:**` 置 `done`（随合并提交或在 main 工作区另提）。
+- **回收本 PRD 全部残留现场**：逐张 `rm-wt --ticket <单卡id>`（**一次一卡**，红线 §7），把该 PRD 各工单的 worktree 与已合入分支一并清掉——**这是收口的最后一步，不做等于没收口**。收完跑 `verify`：`MISMATCH 未回收工作树/分支` 应为零。
 - 审查有发现项 → 投普通开发卡返修（返修后按 §3 重新直合 main，或再次暂存），修好重走收口。
-- 暂存清不进 main（rebase 冲突 / 门禁红）时，同样按 §3 的汇报硬性要求向用户说明原因，卡留 `blocked` 等人工。
+- 暂存清不进 main（rebase 冲突 / 门禁红）时，同样按 §3 的汇报硬性要求向用户说明原因，卡留 `blocked` 等人工；**此时不回收现场**（活还没上 main）。
 
 ## 4. 卡内文法（verify 对账依赖，勿改）
 
@@ -162,15 +201,16 @@
 
 ### 5.4 合并专员规则（auto 模式）
 
-- auto 模式下合并专员由编排者 spawn，职责与 §3 一致——先审后合、冲突红线、禁止带伤合并。
-- 合并专员处理合并冲突时：机械冲突（重命名、import 路径、格式）可自行解决；**需发明新行为的冲突** → `card-move --to blocked`（= 卡回 open 待领位 + needs-info 标签），等人工处理。
-- 合并成功 → merge 卡 + 开发卡移 `done/`，记账，刷看板。
+- auto 模式下合并专员由编排者 spawn，职责与 §3 一致——四段全走：先审后合、**预演冲突面**、**合入后回收工作空间**、禁止带伤合并。
+- 合并专员处理合并冲突时：**先 `merge-check --id <卡id>` 拿冲突面**，再按 §3 第二段的分诊走——`·机械候选`（内容类）逐 hunk 保留双方意图自解，**解完 diff 已变 ⇒ 必须重跑审查**；`✗非机械`（binary / modify-delete / rename）**不许自解** → `card-move --to blocked`（= 卡回 open 待领位 + needs-info 标签），等人工处理。
+- 合并成功 → **四段全做完**（含 `rm-wt` 回收工作树与已合入分支）→ merge 卡 + 开发卡移 `done/`，记账，刷看板。
 
 ### 5.5 失败处理
 
 - **worker 失败**：先重试一次（重新 spawn）；仍失败 → `card-move --to blocked`（needs-info 标签），编排者继续推进其他卡。
 - **审查失败**：发现项汇总 → 卡改名回 `open/<卡id>.claimed.md` 返工 → 重新 spawn worker → 重新审查。
-- **合并冲突**：机械冲突 merger 自解；非机械冲突 → `--to blocked` 等人工。
+- **合并冲突**：机械候选 merger 自解（解后重审）；非机械 → `--to blocked` 等人工。
+- **合入后未回收**：编排者不要假设 merger 做全了——每张卡收口后跑一次 `verify`；出现 `MISMATCH 未回收工作树/分支 <卡id>` ⇒ 由编排者按提示的 `rm-wt --ticket <单卡id>` 补齐（**一次一卡**），再继续推进。这是 auto 模式下唯一允许编排者碰 worktree 的动作，且只走 `rm-wt`（红线 §7：不得交给子代理做批量回收）。
 - **编排者自身失败**：`verify` 重建状态，从断点续接。
 
 ## 6. 断线 / 交接
@@ -184,7 +224,7 @@
 
 四条红线：
 
-1. **回收只走授权通道**：`node <skill>\scripts\board.mjs rm-wt --root <root> --ticket <单卡id>`，**一次一卡**。该命令只接受单段目录名、只删 `<root>/wt/<单卡id>`，越界即拒。禁止 `rm -rf` / `Remove-Item -Recurse` / 通配符 / 循环批量删除。
+1. **回收只走授权通道**：`node <skill>\scripts\board.mjs rm-wt --root <root> --ticket <单卡id>`，**一次一卡**（工作树与分支两件同此红线——分支回收同样不得批量）。该命令只接受单段目录名、只删 `<root>/wt/<单卡id>`，越界即拒。禁止 `rm -rf` / `Remove-Item -Recurse` / 通配符 / 循环批量删除。
 2. **`control\` 只读不删**：任何删除、清空、递归覆盖 `control\` 的命令一律禁止；改模板走 `board.mjs render --write`（旧版自动备份到 `control/.render-backup/`）。
 3. **禁止把批量破坏性操作交给子代理**：领导者不得授权「把剩下的孤儿一起清了」这类批量动作；子代理只领**单张卡**的明确 id。批量清单留在 `control/human.html`，由人逐条确认后单张执行。
 4. **禁止后台/长超时运行破坏性命令**：工具在超时后会把命令**提升为后台任务继续跑**（本仓 harness 的 pwsh 行为），于是「以为它超时了」时删除仍在进行、且无人再看输出。回收一律用 `board.mjs rm-wt`（有界、秒级），不要给它 `timeoutMs` 长值、不要 `run_in_background`；任何删除动作之后**必须先重新查实况**再下结论。

@@ -15,6 +15,7 @@ Read {{ROOT}}\control\PROTOCOL.md
 - 推进方式强制 `/jxx-implement`（三段硬出口见协议 §2）。
 - 领卡时**自报 harness 与 LLM**：`card-move --id <卡id> --to claimed --actor <会话标识> --harness <你所在的 harness 名> --llm <你实际用的模型名>`（例 Qoder / Claude Code / CodeBuddy；模型名例 Claude Sonnet 4.5 / GPT-5 / DeepSeek-V3.2）。看板「处理中」泳道就按这行显示处理者与已办时长，进位/离位的时间戳由命令自动盖；漏了会留红字「（未标注）」，随时 `card-set --field Harness --value <名>` / `card-set --field LLM --value <名>` 补（协议 §4）。
 - 交付时把「终审待验清单」逐条写实（合并专员会逐项实证，虚报会被打回）。
+- **交付后现场不归你管**：合并专员复核、预演、合入 main 后按协议 §3 第四段回收 `wt/<卡id>` 与已合入的 `ticket/<卡id>` 分支。别自己删（可能还在返工路径上），也别假设现场永远在。
 
 ## 本次任务
 
