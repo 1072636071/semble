@@ -9,6 +9,7 @@ import { dirname, join } from 'node:path'
 import { Board } from './board.mjs'
 import { scanBoard, listTickets, listPrds, prdListText, ticketCardId, ticketNum, cardDeps } from './cards.mjs'
 import { adrGate, prdGate, ticketsGate, opsGate } from './gates.mjs'
+import { createQuickTicket } from './quick.mjs'
 import { workerPrompt, reviewerPrompt, mergerPrompt, reviewerDims, parseVerdict } from './prompts.mjs'
 
 export const STAGES = ['decide', 'adr', 'prd', 'tickets', 'implement', 'ops', 'done']
@@ -118,6 +119,26 @@ export class Orchestrator {
       cards: new Map(), timer: undefined, stopped: false,
       blocked: [], lastError: undefined, controllers: new Set(),
     }
+  }
+
+  /** quick 快车道：会话内临时问题/用户口头描述 → 散工单 → 直接进看板流水线（无 PRD）。 */
+  async quick(agent, idea, slug) {
+    const sessionId = agent.session.id ?? agent.id
+    const root = agent.session.header.cwd
+    if (!root) throw new Error('jxx-driver: 当前会话没有工作目录（cwd 为空），无法编排')
+    if (this.runs.has(sessionId)) throw new Error('本会话已有进行中的编排（/jxx status 查看，/jxx stop 停止）')
+    const t = createQuickTicket(root, idea, slug)
+    const run = this.newRun(agent, sessionId, root, `quick ${idea.slice(0, 60)}`, 'implement')
+    run.featureDir = t.featureDir
+    run.quick = true
+    this.runs.set(sessionId, run)
+    try {
+      await this.enterImplement(run)
+    } catch (e) {
+      this.runs.delete(sessionId)
+      throw e
+    }
+    return { run, ticket: t }
   }
 
   advance(agent) {
