@@ -1,0 +1,6 @@
+# dsh-jxx-driver bundle patch：把编排插件插进 profile 组合。
+# 手动装载（开发期）：在 profile 的 cordis.patch.yml 里 insert 一行，
+#   name 写本插件 src/index.mjs 的绝对路径（loader 会把绝对路径转 file URL）。
+- insert:
+    - id: jxx-driver
+      name: "dsh-jxx-driver"

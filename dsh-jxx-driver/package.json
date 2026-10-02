@@ -1,0 +1,23 @@
+{
+  "name": "dsh-jxx-driver",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "jxx 流程 DSH 编排插件：卡位 watcher + 僵死计时器 + 编排状态机，自动推进 投卡→开发→三维审查→合并",
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "test": "node --test test/cards.test.mjs test/gates.test.mjs test/orchestrator.test.mjs"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}
