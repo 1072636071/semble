@@ -15,7 +15,7 @@
     }
   },
   "scripts": {
-    "test": "node --test test/cards.test.mjs test/gates.test.mjs test/quick.test.mjs test/go.test.mjs test/auto-parse.test.mjs test/auto-confirm.test.mjs test/orchestrator.test.mjs"
+    "test": "node --test test/cards.test.mjs test/gates.test.mjs test/quick.test.mjs test/go.test.mjs test/auto-parse.test.mjs test/auto-confirm.test.mjs test/orchestrator.test.mjs test/consistency.test.mjs"
   },
   "engines": {
     "node": ">=20.11"

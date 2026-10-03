@@ -601,7 +601,11 @@ export class Orchestrator {
   persist(run) {
     run.updatedAt = nowIso()
     try {
-      writeJsonAtomic(join(run.root, 'control', 'jxx-driver-state.json'), {
+      // 按 run id 分文件落盘（PRD 100-01）：单文件 `jxx-driver-state.json` 是「单写者」假设，
+      // 多编排 run 并存时后写者会整文件覆盖先写者的执行史（PRD 97 实测被另一 run 覆写）。
+      // 每个 run 写自己的 `jxx-driver-runs/<runId>.json`，读侧无需解析、写侧天然无锁竞争；
+      // 旧单文件不再写入（历史 run 的执行史由 ledger.md 只追加账本与卡面承载，不迁移）。
+      writeJsonAtomic(join(run.root, 'control', 'jxx-driver-runs', `${run.id}.json`), {
         id: run.id, stage: run.stage, idea: run.idea, featureDir: run.featureDir,
         createdAt: run.createdAt, updatedAt: run.updatedAt,
         cards: Object.fromEntries([...run.cards.entries()].map(([id, c]) => [id, { phase: c.phase, retries: c.retries, spawnedAt: c.spawnedAt, note: c.note }])),
