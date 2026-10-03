@@ -4,7 +4,7 @@
  * 设计裁决见 TencentDB-Agent-Memory 仓 docs/adr/0110-jxx-driver-plugin.md。
  *
  * 四个面：
- *  - 工具 jxx_flow（模型面）：start / auto / advance / status / stop
+ *  - 工具 jxx_flow（模型面）：go / advance / status / stop
  *  - 命令 /jxx（人面）：同一内核
  *  - systemPrompt context：每轮注入当前阶段 + 下一步
  *  - agent/disposed 监听：宿主释放时清场
@@ -20,15 +20,27 @@ export const inject = ['subagents', 'systemPrompt', 'agents', 'tools']
 
 const FLOW_TOOL = 'jxx_flow'
 
-const FLOW_DESCRIPTION = [
-  'jxx 流程编排统一入口：驱动「想法 → 决策 → ADR → PRD → 工单 → 实现审查 → 运维」。一个 action=go 吃所有输入，内部按规模分流：',
-  '① 小任务（单点修复/文案/小函数，一次提交能收口）→ 建一张散工单直接进看板流水线（开发→三维审查→合并 main），不产 ADR/PRD；',
-  '② 中任务（跨多文件/要拆 2-5 张工单/有设计取舍但不必 ADR）→ 先 grill 决策，产出 ADR（如需要）+ PRD + 工单，再进自动编排；',
-  '③ 大任务（新系统/架构级/跨会话多 PRD）→ grill + ADR 必出，PRD 拆分与里程碑规划后再编排；',
-  '④ 输入指向既有 PRD（编号/标题可匹配）→ 直接对该 PRD 自动编排；',
-  '⑤ 调查后仍无法定规模/方案的 → 用 ask_user_question 让用户在「自动决策（给推荐）/手动决策（逐项拍板）」间选择。',
-  '另：action=status 看阶段与卡位；action=stop 停止并中止在飞子会话；action=advance 仅用于 start 走出的阶段链（go 已内含推进）。',
-].join('')
+/** 免确认口径（ADR-0113）：插件驱动的编排队列不向用户追问，拍板理由落文档留痕。 */
+const AUTO_CONFIRM_NOTE = '本编排队列**免确认**（ADR-0113）：决策定稿、PRD seam、工单粒度由你自行按推荐拍板并直接落盘，把取舍理由写进 ADR「决策」段 / PRD 对应小节，不要 ask_user_question、不要停下等用户确认。'
+
+/** autoConfirm=false 时的对照口径：恢复人工闸门——该问就问，别替用户拍板。 */
+const MANUAL_CONFIRM_NOTE = '本编排队列**保留人工闸门**（config.autoConfirm=false）：决策取舍、PRD seam、工单粒度都先与用户确认再落盘，不要替用户拍板。'
+
+/** @param {boolean} autoConfirm 决定⑤项与尾注的措辞（config 可关，措辞必须跟着走）。 */
+function flowDescription(autoConfirm) {
+  return [
+    'jxx 流程编排统一入口：驱动「想法 → 决策 → ADR → PRD → 工单 → 实现审查 → 运维」。一个 action=go 吃所有输入，内部按规模分流：',
+    '① 小任务（单点修复/文案/小函数，一次提交能收口）→ 建一张散工单直接进看板流水线（开发→三维审查→合并 main），不产 ADR/PRD；',
+    '② 中任务（跨多文件/要拆 2-5 张工单/有设计取舍但不必 ADR）→ 先定决策，产出 ADR（如需要）+ PRD + 工单，再进自动编排；',
+    '③ 大任务（新系统/架构级/跨会话多 PRD）→ 决策 + ADR 必出，PRD 拆分与里程碑规划后再编排；',
+    '④ 输入指向既有 PRD（编号/标题可匹配）→ 直接对该 PRD 自动编排；',
+    autoConfirm
+      ? '⑤ 拿不准规模/方案时**自己按推荐拍板**继续（免确认）；只有当输入意图本身有歧义、拍错轨道会白干时才用 ask_user_question 澄清（例如「完成这些优化」同时命中多份 PRD——问清是哪一份，而不是问怎么拆）。'
+      : '⑤ 调查后仍无法定规模/方案的 → 用 ask_user_question 让用户在「自动决策（给推荐）/手动决策（逐项拍板）」间选择。',
+    '另：action=status 看阶段与卡位；action=stop 停止并中止在飞子会话；action=advance 仅用于 start 走出的阶段链（go 已内含推进）。',
+    autoConfirm ? AUTO_CONFIRM_NOTE : MANUAL_CONFIRM_NOTE,
+  ].join('')
+}
 
 export function apply(ctx, rawConfig) {
   const config = normalizeConfig(rawConfig)
@@ -37,7 +49,7 @@ export function apply(ctx, rawConfig) {
   // ---- 工具面 ----
   ctx.tools.register({
     name: FLOW_TOOL,
-    description: FLOW_DESCRIPTION,
+    description: flowDescription(config.autoConfirm),
     parameters: {
       type: 'object',
       properties: {
@@ -156,11 +168,14 @@ async function goDispatch(orch, args, agent) {
   const steerMsg = [
     `[jxx-driver] go 收到输入：「${idea}」。请先做规模分流（读代码/查上下文后再定）：`,
     `- 小任务（单点修复/文案/小函数，一次提交收口）→ 调 jxx_flow(action="go", track="quick", idea="<问题描述>")`,
-    `- 中任务（跨多文件/2-5 张工单/有取舍）→ 调 jxx_flow(action="go", track="standard", idea="<想法>")——先 grill 决策再 ADR+PRD+工单+编排`,
+    `- 中任务（跨多文件/2-5 张工单/有取舍）→ 调 jxx_flow(action="go", track="standard", idea="<想法>")——先定决策再 ADR+PRD+工单+编排`,
     `- 大任务（新系统/架构级/跨会话）→ 调 jxx_flow(action="go", track="deep", idea="<想法>")——ADR 必出，PRD 拆分与里程碑规划`,
     `- 若输入其实指向某个已有 PRD（如「完成这些优化」= 某编号）→ 调 jxx_flow(action="go", track="auto", idea="<编号>")`,
     prds.length > 0 ? `既有 PRD：${prds.map((p) => `${p.num}·${p.title}`).join(' / ')}` : '（.scratch/ 下暂无 PRD）',
-    '调查后仍无法定规模或方案 → ask_user_question 问用户选「自动决策（按你的推荐走）/ 手动决策（逐项拍板）」。',
+    orch.config.autoConfirm
+      ? '轨迹定了就直接走，不要就规模/方案回头问用户（本编排免确认，见下）。'
+      : '调查后仍无法定规模或方案 → ask_user_question 问用户选「自动决策（按你的推荐走）/ 手动决策（逐项拍板）」。',
+    orch.config.autoConfirm ? AUTO_CONFIRM_NOTE : MANUAL_CONFIRM_NOTE,
   ].join('\n')
   if (agent && typeof agent.steer === 'function') {
     agent.steer({
@@ -173,7 +188,9 @@ async function goDispatch(orch, args, agent) {
   return {
     ok: true, routed: 'pending-model-triage', input: idea,
     prds: prds.map((p) => ({ num: p.num, title: p.title, ready: p.ready, total: p.total })),
-    hint: '已把分流材料 steer 给你：先调查定规模，再带 track 重调 go；拿不准用 ask_user_question 问用户（自动决策 vs 手动决策）',
+    hint: orch.config.autoConfirm
+      ? '已把分流材料 steer 给你：先调查定规模，再带 track 重调 go；免确认——自己按推荐拍板，别就规模/方案回头问用户'
+      : '已把分流材料 steer 给你：先调查定规模，再带 track 重调 go；拿不准用 ask_user_question 问用户（自动决策 vs 手动决策）',
   }
 }
 
@@ -192,7 +209,9 @@ function runStandard(orch, agent, idea) {
   orch.start(agent, idea)
   return {
     ok: true, route: 'standard', stage: 'decide',
-    hint: '先和用户把决策聊透（grill，一次一问给推荐）；大任务 ADR 必出、多 PRD 时做里程碑规划。产出 ADR 后 jxx_flow(action="advance") 逐段推进',
+    hint: orch.config.autoConfirm
+      ? '免确认：自行按推荐把决策定稿（取舍理由写进 ADR「决策」段），大任务 ADR 必出、多 PRD 时做里程碑规划；产出后 jxx_flow(action="advance") 逐段推进'
+      : '先和用户把决策聊透（grill，一次一问给推荐）；大任务 ADR 必出、多 PRD 时做里程碑规划。产出 ADR 后 jxx_flow(action="advance") 逐段推进',
   }
 }
 

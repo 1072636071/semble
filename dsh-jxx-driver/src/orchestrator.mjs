@@ -14,14 +14,33 @@ import { workerPrompt, reviewerPrompt, mergerPrompt, reviewerDims, parseVerdict 
 
 export const STAGES = ['decide', 'adr', 'prd', 'tickets', 'implement', 'ops', 'done']
 
-const STAGE_HINTS = {
+const ADR_HINT = '读 ADR，用 jxx-to-spec 把决策写成 PRD（.scratch/<NN>-<slug>/PRD.md，H1 `# PRD <NN> · <标题>`，固定小节顺序：问题陈述→用户故事→解决方案→实现决策→测试决策），写完调用 jxx_flow(action=advance)。'
+
+/** 人工闸门版提示词：给人手跑 /jxx 的会话用（技能正文的人工闸门原样生效）。 */
+export const STAGE_HINTS = {
   decide: '和用户把想法决策清楚（grill：一次一问、给推荐）；定稿后把决策写成 ADR（docs/adr/NNNN-<slug>.md，结构：H1 `# ADR-NNNN · 标题` + `## 背景`/`## 决策`/`## 后果`），然后调用 jxx_flow(action=advance)。',
   adr: 'ADR 已产出（decide 段闸门已验）。确认 docs/adr/ 下 ADR 就位后调用 jxx_flow(action=advance) 进入 PRD 段。',
-  prd: '读 ADR，用 jxx-to-spec 把决策写成 PRD（.scratch/<NN>-<slug>/PRD.md，H1 `# PRD <NN> · <标题>`，固定小节顺序：问题陈述→用户故事→解决方案→实现决策→测试决策），写完调用 jxx_flow(action=advance)。',
+  prd: ADR_HINT,
   tickets: '读 PRD，用 jxx-to-tickets 拆成追踪弹工单（issues/<NN>-<slug>.md，每单含 **Status:** ready-for-agent 与 **Blocked by:** 行），写完调用 jxx_flow(action=advance)。',
   implement: '编排进行中：插件自动 spawn worker/审查者/合并专员推进工单。你只需监控；出现异常我会上报。',
   ops: '全部工单已收口。请做运维收尾：把本次经验写进 docs/retro/<YYYY-MM-DD>-<slug>.md（回顾：哪里顺、哪里卡、环境改进建议），然后调用 jxx_flow(action=advance)。PRD 分支收口与 worktree 回收由人决定，插件不做。',
   done: '流程已完成。',
+}
+
+/**
+ * 免确认版提示词（config.autoConfirm=true，默认 · ADR-0113）：插件驱动的编排队列
+ * **不向用户追问**——决策定稿、PRD seam、工单粒度全部由你按推荐自行拍板并直接落盘。
+ * 技能正文里的人工闸门（jxx-to-spec 第 2 步「与用户确认 seam」、jxx-to-tickets 第 4 步
+ * 「询问粒度直到用户批准」）是给人手跑会话的，本编排会话明确豁免：**不要 ask_user_question、
+ * 不要停下等确认**，把拍板理由写进产出文档（ADR「决策」段 / PRD 对应小节）留痕。
+ * 免确认不等于免判断：方案取舍仍要照技能的实质要求做（垂直切片规则、阻塞边、seam 取最高层）。
+ */
+export const AUTO_CONFIRM_HINTS = {
+  ...STAGE_HINTS,
+  decide: '由你**直接完成决策**（本编排队列免确认：不再一次一问地 grill 用户，按推荐自行拍板并把取舍理由写进 ADR 的「决策」段）；定稿后把决策写成 ADR（docs/adr/NNNN-<slug>.md，结构：H1 `# ADR-NNNN · 标题` + `## 背景`/`## 决策`/`## 后果`），然后调用 jxx_flow(action=advance)。',
+  adr: 'ADR 已产出（decide 段闸门已验）。自行核对 docs/adr/ 下 ADR 就位（这是文件自检，不是问用户）后调用 jxx_flow(action=advance) 进入 PRD 段。',
+  prd: `读 ADR，用 jxx-to-spec 把决策写成 PRD（.scratch/<NN>-<slug>/PRD.md，H1 \`# PRD <NN> · <标题>\`，固定小节顺序：问题陈述→用户故事→解决方案→实现决策→测试决策）。**免确认（ADR-0113）**：跳过 jxx-to-spec 第 2 步「与用户确认 seam」——你自行按「优先已有 seam、取尽可能高层、seam 越少越好」选定并在 PRD 的「实现决策」段写明选择理由；不要 ask_user_question、不要停下等用户确认。写完调用 jxx_flow(action=advance)。`,
+  tickets: `读 PRD，用 jxx-to-tickets 拆成追踪弹工单（issues/<NN>-<slug>.md，每单含 **Status:** ready-for-agent 与 **Blocked by:** 行）。**免确认（ADR-0113）**：跳过 jxx-to-tickets 第 4 步「询问用户粒度/阻塞边直到批准」——你自行按垂直切片规则定稿粒度与阻塞边后**直接发布**，不要 ask_user_question、不要停下等用户批准；粒度取舍理由写进 .scratch/<NN>-<slug>/map.md。写完调用 jxx_flow(action=advance)。`,
 }
 
 function nowIso() {
@@ -40,6 +59,8 @@ export class Orchestrator {
     this.ctx = ctx
     this.config = config
     this.log = log
+    /** 免确认（ADR-0113）：插件驱动的编排队列按 config 选提示词集；默认开。 */
+    this.hints = config.autoConfirm ? AUTO_CONFIRM_HINTS : STAGE_HINTS
     /** 一个驱动会话同时只带一个 run（ADR-0110 D1：真相源唯一、防双轨）。 */
     this.runs = new Map() // sessionId -> run
   }
@@ -54,7 +75,7 @@ export class Orchestrator {
     const run = this.newRun(agent, sessionId, root, idea, 'decide')
     this.runs.set(sessionId, run)
     this.persist(run)
-    this.notify(run, `已就位。当前阶段：decide。${STAGE_HINTS.decide}`)
+    this.notify(run, `已就位。当前阶段：decide。${this.hints.decide}`)
     return run
   }
 
@@ -161,7 +182,7 @@ export class Orchestrator {
     const board = run.stage === 'implement' ? this.safeScan(run) : undefined
     return {
       active: true, stage: run.stage, idea: run.idea, featureDir: run.featureDir,
-      stageHint: STAGE_HINTS[run.stage],
+      stageHint: this.hints[run.stage],
       createdAt: run.createdAt, updatedAt: run.updatedAt,
       cards: run.cards.size ? [...run.cards.entries()].map(([id, c]) => ({ id, phase: c.phase, retries: c.retries })) : [],
       blocked: run.blocked,
@@ -234,9 +255,9 @@ export class Orchestrator {
     if (to === 'implement') {
       // implement 是异步的：起 watcher，立刻返回
       void this.enterImplement(run).catch((e) => this.failRun(run, `进 implement 失败：${e.message}`))
-      return { advanced: true, stage: to, hint: STAGE_HINTS[to], note: '编排器已接管，开始投卡与 spawn' }
+      return { advanced: true, stage: to, hint: this.hints[to], note: '编排器已接管，开始投卡与 spawn' }
     }
-    return { advanced: true, stage: to, hint: STAGE_HINTS[to] }
+    return { advanced: true, stage: to, hint: this.hints[to] }
   }
 
   // ---------- implement 编排 ----------

@@ -42,6 +42,9 @@ export function normalizeConfig(raw) {
     maxRetries: intField(raw, 'maxRetries', 1, { min: 0 }),
     /** 三维审查全过后是否自动 spawn 合并专员（ADR-011 默认回合 main）。 */
     autoMerge: boolField(raw, 'autoMerge', true),
+    /** 免确认：插件驱动的编排队列不向用户追问（决策定稿 / PRD seam / 工单粒度），
+     * 技能正文里的人工闸门保持不变——那是给人手跑会话的（ADR-0113）。 */
+    autoConfirm: boolField(raw, 'autoConfirm', true),
     /** 卡位轮询间隔毫秒。 */
     pollIntervalMs: intField(raw, 'pollIntervalMs', 5000, { min: 50 }),
     /** 打点日志。 */

@@ -19,14 +19,23 @@ jxx 流程的 DSH 编排插件。把 `jxx-ticket-board` 的 auto 模式从「打
 | 你说 | 发生什么 |
 |---|---|
 | `/jxx 侧栏数字不对` | 模型判为小任务 → 散工单快车道（无 ADR/PRD，直接开发→三维审查→合并 main） |
-| `/jxx 做一个导出功能` | 模型判为中任务 → 先 grill 决策，再 ADR+PRD+工单+自动编排 |
+| `/jxx 做一个导出功能` | 模型判为中任务 → 先定决策，再 ADR+PRD+工单+自动编排 |
 | `/jxx 重构整个记忆层` | 模型判为大任务 → ADR 必出，PRD 拆分与里程碑规划 |
 | `/jxx 94` 或 `/jxx 完成四面板` | 命中既有 PRD → 直接对该 PRD 自动编排 |
-| 调查后仍拿不准 | 模型用 ask_user_question 问你选「自动决策 / 手动决策」 |
+| 输入意图本身有歧义 | 模型用 ask_user_question 澄清（例如「完成这些优化」同时命中多份 PRD，问清是哪一份） |
 
 工具面 `jxx_flow`：`action="go"`（必填 `idea`，可选 `track`: `quick`/`standard`/`deep`/`auto` 强制指定轨道，跳过模型分流）、`status`、`stop`、`advance`。旧写法 `start`/`quick`/`auto` 仍作为别名可用。
 
 **分流判断在模型，不在插件**（ADR-0110 D3）：机械层只提供 PRD 匹配与三条通道的执行。模型判错的代价 = 一轮 steer 返工，不是流程损坏。
+
+## 免确认（`autoConfirm`，默认开 · ADR-0113）
+
+插件驱动的编排队列**不向用户追问**：决策定稿、PRD seam、工单粒度全部由会话模型按推荐自行拍板并直接落盘，取舍理由写进 ADR「决策」段 / PRD「实现决策」段 / `.scratch/<NN>-<slug>/map.md` 留痕。
+
+- **只豁免插件驱动的编排会话**。技能正文里的人工闸门（`jxx-to-spec` 第 2 步「与用户确认 seam」、`jxx-to-tickets` 第 4 步「询问粒度直到用户批准」）**一字未改**——人手跑 `/jxx-to-spec` / `/jxx-to-tickets` 仍然会问你。豁免通过编排段的下发提示词实现（`AUTO_CONFIRM_HINTS`）。
+- **免确认 ≠ 免判断**：垂直切片规则、阻塞边推导、seam 取尽可能高层这些实质要求照旧执行，只是不再停下来等你点头。
+- 输入意图本身有歧义（如「完成这些优化」同时命中多份 PRD）时**仍会问**——拍错轨道会白干，这属于澄清而非确认。
+- 关掉：`config.autoConfirm: false` 即回到人工闸门措辞。
 
 ## 配置（cordis.patch.yml 的该行 config）
 
@@ -37,6 +46,7 @@ jxx 流程的 DSH 编排插件。把 `jxx-ticket-board` 的 auto 模式从「打
 | `staleMinutes` | `30` | claimed 卡无存活 worker 的超时阈值 |
 | `maxRetries` | `1` | worker 失败/审查不过的返工上限 |
 | `autoMerge` | `true` | 三审全过后是否自动 spawn 合并专员 |
+| `autoConfirm` | `true` | 免确认：编排队列不追问决策定稿 / PRD seam / 工单粒度（ADR-0113） |
 | `pollIntervalMs` | `5000` | 卡位轮询间隔 |
 
 ## 测试

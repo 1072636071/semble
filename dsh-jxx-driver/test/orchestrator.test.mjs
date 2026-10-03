@@ -196,13 +196,16 @@ test('gates：advance 在 decide 阶段无 ADR 被拒', async () => {
 test('gates：decide → adr → prd 逐段推进（回归：evalGate 曾漏 adr case 卡死在 adr）', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'jxx-gate-adr-'))
   mkdirSync(join(root, 'docs', 'adr'), { recursive: true })
-  writeFileSync(join(root, 'docs', 'adr', '0112-x.md'), '# ADR-0112 · x\n\n## 背景\nx\n\n## 决策\ny\n')
   const { ctx, agent } = mkCtx(root)
   const orch = new Orchestrator(ctx, CONFIG(), ctx.logger)
   t.after(async () => { await orch.dispose() })
 
   orch.start(agent, '一个想法')
   assert.equal(orch.status(agent).stage, 'decide')
+
+  // ADR 必须在 run 开始后落盘——adrGate 以 run.createdAt 为下界筛「本次新建」，
+  // 先写后 start 会因 mtime < createdAt 被判成旧文件（同毫秒才侥幸通过，是测试夹具的脆弱点）
+  writeFileSync(join(root, 'docs', 'adr', '0112-x.md'), '# ADR-0112 · x\n\n## 背景\nx\n\n## 决策\ny\n')
 
   const a1 = orch.advance(agent) // decide：adrGate 验 ADR → adr
   assert.equal(a1.advanced, true)
