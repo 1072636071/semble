@@ -28,14 +28,33 @@ jxx 流程的 DSH 编排插件。把 `jxx-ticket-board` 的 auto 模式从「打
 
 **分流判断在模型，不在插件**（ADR-0110 D3）：机械层只提供 PRD 匹配与三条通道的执行。模型判错的代价 = 一轮 steer 返工，不是流程损坏。
 
-## 免确认（`autoConfirm`，默认开 · ADR-0113）
+## 接待台角色（ADR-0115 · D1）
 
-插件驱动的编排队列**不向用户追问**：决策定稿、PRD seam、工单粒度全部由会话模型按推荐自行拍板并直接落盘，取舍理由写进 ADR「决策」段 / PRD「实现决策」段 / `.scratch/<NN>-<slug>/map.md` 留痕。
+执行 jxx 插件命令的会话 = **编排接待台，不是工人**：
+
+- **不做任务**——不写实现代码、不领卡、不替 worker/审查者/合并专员干活；实现一律由插件 spawn 的子 agent 完成。
+- **主业是理解用户需求**——拿不准就问，把意图聊清再推进；决策定稿必须经用户确认。
+- **编排期只监控**——看 status、收编排器通知、如实转告用户。
+
+角色话术单源 = `orchestrator.mjs` 的 `SESSION_ROLE`，注入四个面：`jxx_flow` 工具描述前导、`go` 分流 steer、各轨道返回 hint、`systemPrompt` context（`test/session-role.test.mjs` 锁两档配置下都在）。
+
+## 部分免确认（`autoConfirm`，默认开 · ADR-0113；ADR-0115 收窄）
+
+插件驱动的编排队列只在 **PRD seam 与工单粒度** 两处**不向用户追问**：由会话模型按推荐拍板并直接落盘，取舍理由写进 PRD 对应小节 / `.scratch/<NN>-<slug>/map.md` 留痕。**决策定稿（decide 段）不再豁免**——接待会话必须把需求与用户聊透、经确认后再落 ADR（ADR-0115 D2；实测「decide 也自动」会让会话把「理解需求」一并自动化掉）。
 
 - **只豁免插件驱动的编排会话**。技能正文里的人工闸门（`jxx-to-spec` 第 2 步「与用户确认 seam」、`jxx-to-tickets` 第 4 步「询问粒度直到用户批准」）**一字未改**——人手跑 `/jxx-to-spec` / `/jxx-to-tickets` 仍然会问你。豁免通过编排段的下发提示词实现（`AUTO_CONFIRM_HINTS`）。
 - **免确认 ≠ 免判断**：垂直切片规则、阻塞边推导、seam 取尽可能高层这些实质要求照旧执行，只是不再停下来等你点头。
 - 输入意图本身有歧义（如「完成这些优化」同时命中多份 PRD）时**仍会问**——拍错轨道会白干，这属于澄清而非确认。
-- 关掉：`config.autoConfirm: false` 即回到人工闸门措辞。
+- 关掉：`config.autoConfirm: false` 即回到全人工闸门措辞。
+
+## 子 agent 默认提示词（ADR-0115 · D3）
+
+worker / 审查者 / 合并专员的提示词两级供给：
+
+1. `control/starter/<role>.md`（board init 渲染产物、项目真源，可能被定制）——存在即优先用；
+2. `src/default-starters/<role>.md`（插件内置固化副本，占位符运行时替换）——缺失时兑底。
+
+内置副本与技能真源 `base/skills/engineering/jxx-ticket-board/assets/starter-*.tmpl.md` **逐字节一致**，由 `test/default-starters.test.mjs` 锁死——改技能模板后必须同步重拷（测试失败信息给拷贝命令）。
 
 ## 配置（cordis.patch.yml 的该行 config）
 
@@ -46,7 +65,7 @@ jxx 流程的 DSH 编排插件。把 `jxx-ticket-board` 的 auto 模式从「打
 | `staleMinutes` | `30` | claimed 卡无存活 worker 的超时阈值 |
 | `maxRetries` | `1` | worker 失败/审查不过的返工上限 |
 | `autoMerge` | `true` | 三审全过后是否自动 spawn 合并专员 |
-| `autoConfirm` | `true` | 免确认：编排队列不追问决策定稿 / PRD seam / 工单粒度（ADR-0113） |
+| `autoConfirm` | `true` | 部分免确认：编排队列不追问 PRD seam / 工单粒度（ADR-0113）；决策定稿仍需用户确认（ADR-0115） |
 | `pollIntervalMs` | `5000` | 卡位轮询间隔 |
 
 ## 测试

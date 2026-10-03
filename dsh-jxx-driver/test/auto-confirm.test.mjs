@@ -1,5 +1,6 @@
 /**
- * 免确认（ADR-0113）：插件驱动的编排队列不向用户追问决策定稿 / PRD seam / 工单粒度。
+ * 免确认（ADR-0113，经 ADR-0115 收窄）：插件驱动的编排队列不向用户追问 PRD seam / 工单粒度；
+ * decide 段（决策定稿）恢复人工闸门——接待会话必须把需求与用户聊透并获确认（ADR-0115 D2）。
  * 覆盖：config 字段默认与显式关、两套提示词集的分派、关掉后回到人工闸门措辞。
  */
 import { test } from 'node:test'
@@ -45,14 +46,17 @@ test('config.autoConfirm：默认开；可显式关；非布尔响亮报错', ()
   assert.throws(() => cfg({ autoConfirm: 'yes' }), /autoConfirm/)
 })
 
-test('autoConfirm=true：decide/prd/tickets 三段提示词都要求自行拍板、不问用户', () => {
+test('autoConfirm=true：decide 恢复人工闸门等用户确认（ADR-0115），prd/tickets 两段免确认自行拍板', () => {
   const root = mkRoot()
   const { ctx, agent } = mkCtx(root)
   const orch = new Orchestrator(ctx, cfg({ autoConfirm: true }), ctx.logger)
 
+  // decide 段：ADR-0115 收窄——决策方向必须经用户确认，不再自动拍板
   const decideHint = orch.hints.decide
-  assert.match(decideHint, /免确认/)
-  assert.match(decideHint, /自行拍板/)
+  assert.match(decideHint, /人工闸门/)
+  assert.match(decideHint, /用户确认/)
+  assert.match(decideHint, /聊透/)
+  assert.doesNotMatch(decideHint, /自行拍板/)
 
   // PRD 段：点名豁免 jxx-to-spec 第 2 步的「与用户确认 seam」
   assert.match(orch.hints.prd, /免确认/)
@@ -104,13 +108,14 @@ test('advance 下发的 hint 走当前提示词集（免确认 vs 人工闸门�
   }
 })
 
-test('start 的会话内通知也按提示词集分派（免确认时不再委派用户定稿）', () => {
+test('start 的会话内通知也按提示词集分派（decide 恢复等用户确认，后续两段仍免确认）', () => {
   const root = mkRoot()
   const { ctx, agent } = mkCtx(root)
   const orch = new Orchestrator(ctx, cfg({ autoConfirm: true }), ctx.logger)
   orch.start(agent, '一个想法')
   const note = agent.followups.at(-1).content[0].text
   assert.match(note, /当前阶段：decide/)
+  assert.match(note, /用户确认/)
   assert.match(note, /免确认/)
   void orch.stop(agent)
 })

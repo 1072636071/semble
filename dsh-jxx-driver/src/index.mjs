@@ -11,7 +11,7 @@
  */
 
 import { normalizeConfig } from './config.mjs'
-import { Orchestrator, STAGES } from './orchestrator.mjs'
+import { Orchestrator, STAGES, SESSION_ROLE } from './orchestrator.mjs'
 import { listPrds } from './cards.mjs'
 import { randomUUID as cryptoUUID } from 'node:crypto'
 
@@ -20,8 +20,8 @@ export const inject = ['subagents', 'systemPrompt', 'agents', 'tools']
 
 const FLOW_TOOL = 'jxx_flow'
 
-/** 免确认口径（ADR-0113）：插件驱动的编排队列不向用户追问，拍板理由落文档留痕。 */
-const AUTO_CONFIRM_NOTE = '本编排队列**免确认**（ADR-0113）：决策定稿、PRD seam、工单粒度由你自行按推荐拍板并直接落盘，把取舍理由写进 ADR「决策」段 / PRD 对应小节，不要 ask_user_question、不要停下等用户确认。'
+/** 免确认口径（ADR-0113，经 ADR-0115 收窄）：只豁免 PRD seam 与工单粒度；决策定稿必须经用户确认。 */
+const AUTO_CONFIRM_NOTE = '本编排队列**部分免确认**（ADR-0113，ADR-0115 收窄）：PRD seam、工单粒度由你按推荐拍板并直接落盘（理由写 PRD 对应小节 / map.md），这两处不要 ask_user_question、不要停下等确认；**决策定稿除外**——decide 段必须把需求与用户聊透并获确认后再落 ADR。'
 
 /** autoConfirm=false 时的对照口径：恢复人工闸门——该问就问，别替用户拍板。 */
 const MANUAL_CONFIRM_NOTE = '本编排队列**保留人工闸门**（config.autoConfirm=false）：决策取舍、PRD seam、工单粒度都先与用户确认再落盘，不要替用户拍板。'
@@ -29,6 +29,8 @@ const MANUAL_CONFIRM_NOTE = '本编排队列**保留人工闸门**（config.auto
 /** @param {boolean} autoConfirm 决定⑤项与尾注的措辞（config 可关，措辞必须跟着走）。 */
 function flowDescription(autoConfirm) {
   return [
+    SESSION_ROLE,
+    '',
     'jxx 流程编排统一入口：驱动「想法 → 决策 → ADR → PRD → 工单 → 实现审查 → 运维」。一个 action=go 吃所有输入，内部按规模分流：',
     '① 小任务（单点修复/文案/小函数，一次提交能收口）→ 建一张散工单直接进看板流水线（开发→三维审查→合并 main），不产 ADR/PRD；',
     '② 中任务（跨多文件/要拆 2-5 张工单/有设计取舍但不必 ADR）→ 先定决策，产出 ADR（如需要）+ PRD + 工单，再进自动编排；',
@@ -99,7 +101,7 @@ export function apply(ctx, rawConfig) {
       const run = orch.runs.get(agent.session?.id ?? agent.id)
       if (!run || run.stopped) return ''
       return [
-        `[jxx-driver] 编排进行中 · 阶段 ${run.stage}/${STAGES.length}`,
+        `[jxx-driver] 编排进行中 · 阶段 ${run.stage}/${STAGES.length} · 接待台角色：不做任务、只监控与沟通（ADR-0115）`,
         `下一步：${run.stage === 'implement' ? '编排器正在推进工单（看 /jxx status）' : '完成后调用 jxx_flow(action=advance)'}`,
         run.featureDir ? `工作目录：${run.featureDir}` : '',
       ].filter(Boolean).join('\n')
@@ -176,6 +178,8 @@ async function goDispatch(orch, args, agent) {
       ? '轨迹定了就直接走，不要就规模/方案回头问用户（本编排免确认，见下）。'
       : '调查后仍无法定规模或方案 → ask_user_question 问用户选「自动决策（按你的推荐走）/ 手动决策（逐项拍板）」。',
     orch.config.autoConfirm ? AUTO_CONFIRM_NOTE : MANUAL_CONFIRM_NOTE,
+    '',
+    SESSION_ROLE,
   ].join('\n')
   if (agent && typeof agent.steer === 'function') {
     agent.steer({
@@ -200,7 +204,7 @@ async function runQuick(orch, agent, idea, slug) {
   return {
     ok: true, route: 'quick', stage: 'implement', runId: run.id,
     featureDir: ticket.featureDir, ticketFile: ticket.ticketFile, cardId: ticket.cardId,
-    hint: '散工单已建并进入看板流水线（开发→三维审查→合并 main）；无需 ADR/PRD',
+    hint: '散工单已建并进入看板流水线（开发→三维审查→合并 main）；无需 ADR/PRD。你只监控与上报，不自己动手改代码（ADR-0115 接待台角色）',
   }
 }
 
@@ -210,7 +214,7 @@ function runStandard(orch, agent, idea) {
   return {
     ok: true, route: 'standard', stage: 'decide',
     hint: orch.config.autoConfirm
-      ? '免确认：自行按推荐把决策定稿（取舍理由写进 ADR「决策」段），大任务 ADR 必出、多 PRD 时做里程碑规划；产出后 jxx_flow(action="advance") 逐段推进'
+      ? '先把需求与用户聊透、经用户确认后定稿 ADR（ADR-0115：决策不自动拍板）；之后 PRD seam 与工单粒度免确认，大任务 ADR 必出、多 PRD 时做里程碑规划；产出后 jxx_flow(action="advance") 逐段推进'
       : '先和用户把决策聊透（grill，一次一问给推荐）；大任务 ADR 必出、多 PRD 时做里程碑规划。产出 ADR 后 jxx_flow(action="advance") 逐段推进',
   }
 }
@@ -219,7 +223,7 @@ function runStandard(orch, agent, idea) {
 async function runAuto(orch, agent, idea) {
   try {
     const run = await orch.auto(agent, idea)
-    return { ok: true, route: 'auto', stage: 'implement', runId: run.id, featureDir: run.featureDir, hint: '编排器已接管' }
+    return { ok: true, route: 'auto', stage: 'implement', runId: run.id, featureDir: run.featureDir, hint: '编排器已接管。你只监控与上报，不自己动手（ADR-0115 接待台角色）' }
   } catch (e) {
     if (e.code === 'CANDIDATES') {
       if (agent && typeof agent.steer === 'function') {
