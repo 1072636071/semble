@@ -192,3 +192,24 @@ test('gates：advance 在 decide 阶段无 ADR 被拒', async () => {
   assert.ok(r.missing.length > 0)
   await orch.stop(agent)
 })
+
+test('gates：decide → adr → prd 逐段推进（回归：evalGate 曾漏 adr case 卡死在 adr）', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'jxx-gate-adr-'))
+  mkdirSync(join(root, 'docs', 'adr'), { recursive: true })
+  writeFileSync(join(root, 'docs', 'adr', '0112-x.md'), '# ADR-0112 · x\n\n## 背景\nx\n\n## 决策\ny\n')
+  const { ctx, agent } = mkCtx(root)
+  const orch = new Orchestrator(ctx, CONFIG(), ctx.logger)
+  t.after(async () => { await orch.dispose() })
+
+  orch.start(agent, '一个想法')
+  assert.equal(orch.status(agent).stage, 'decide')
+
+  const a1 = orch.advance(agent) // decide：adrGate 验 ADR → adr
+  assert.equal(a1.advanced, true)
+  assert.equal(a1.stage, 'adr')
+
+  const a2 = orch.advance(agent) // adr：幂等复验 ADR → prd（修复前这里报「未知阶段 adr」）
+  assert.equal(a2.advanced, true)
+  assert.equal(a2.stage, 'prd')
+  assert.ok(a2.hint && a2.hint.includes('PRD'), 'prd 段应下发提示词')
+})
