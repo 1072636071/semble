@@ -68,19 +68,45 @@ const CONFIG = () => normalizeConfig({
 // 这里通过「index 的行为契约」测试：由 index.mjs 的 apply 装配的完整面太重（需要 tools registry），
 // 故对 go 的三条机械路径做编排层等价验证 + 对 steer 材料做内容断言（复制 index 内联逻辑最小化）。
 
-test('go：裸意图（无 track）→ 返回 pending-model-triage + steer 分流材料 + PRD 清单', async (t) => {
+test('go：裸意图（无 track）→ pending-model-triage + steer 分流材料（ADR-0118：不含既有 PRD 清单）', async (t) => {
   const root = mkRepo()
   const { ctx, agent } = mkCtx(root)
   const orch = new Orchestrator(ctx, CONFIG(), ctx.logger)
   t.after(async () => { await orch.dispose() })
-  // 直接验证 orchestrator 层供的三个通道都在（go 的分派在 index，E2E 面由 orchestrator 测试覆盖）
-  // 这里测 go 的「分流材料」事实来源：listPrds + steer 消息由 index 组装。
-  // 为不复制实现，改测：无 track 时 orch 未被启动（无 run），这是 go 不越权替模型拍板的契约。
+  // 无 track 时 orch 未被启动（无 run）——go 不越权替模型拍板。
   assert.equal(orch.status(agent).active, false)
-  // PRD 清单事实
-  const prds = (await import('../src/cards.mjs')).listPrds(root)
-  assert.equal(prds.length, 1)
-  assert.equal(prds[0].num, '96')
+
+  // 经真实 apply() 走 go 分流面：断言 steer 只给三条轨道 + 显式编号提示，**不给既有 PRD 清单**。
+  const mod = await import('../src/index.mjs')
+  let tool
+  const mountCtx = {
+    logger: { info() {}, warn() {}, error() {} },
+    on() {},
+    effect(fn) { fn() },
+    get() { return undefined },
+    tools: { register(t) { tool = t } },
+    systemPrompt: { context() {} },
+    subagents: { start: async () => { throw new Error('不该 spawn') } },
+    agents: { get: () => undefined },
+  }
+  mod.apply(mountCtx, { autoConfirm: true, verbose: false, pollIntervalMs: 50 })
+  const steered = []
+  const triAgent = {
+    id: 'sess-triage', session: { id: 'sess-triage', header: { cwd: root } },
+    steer(m) { steered.push(m.content[0].text) }, followup() {},
+  }
+  const triage = await tool.execute({ action: 'go', idea: '做点东西' }, { agent: triAgent })
+
+  assert.equal(triage.routed, 'pending-model-triage')
+  assert.equal(triage.prds, undefined, '返回值不再带既有 PRD 清单（ADR-0118）')
+  assert.equal(steered.length, 1)
+  assert.doesNotMatch(steered[0], /既有 PRD[：:]/, 'steer 不再列既有 PRD 清单')
+  assert.doesNotMatch(steered[0], /就绪工单/, 'steer 不渲染候选清单')
+  assert.match(steered[0], /track="quick"/)
+  assert.match(steered[0], /track="standard"/)
+  assert.match(steered[0], /track="deep"/)
+  // 工具描述同样不得再宣称「输入指向既有 PRD → 自动编排」这类推荐
+  assert.doesNotMatch(tool.description, /输入指向既有 PRD/)
 })
 
 test('go(track="quick")：直达散工单流水线', async (t) => {

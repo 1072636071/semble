@@ -1,4 +1,4 @@
-/** 卡位扫描与工单解析——只读 control/ 与 .scratch/，不做任何写操作。 */
+/** 卡位扫描、工单解析与功能目录定位——只读 control/ 与 .scratch/，不做任何写操作。 */
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { join, basename } from 'node:path'
 
@@ -81,37 +81,36 @@ export function ticketNum(base) {
   return m ? String(parseInt(m[1], 10)) : undefined
 }
 
-/** 列出 .scratch/ 下全部 PRD：编号、slug、标题、就绪工单数（auto 参数解析的数据面）。 */
-export function listPrds(root) {
+/**
+ * 确定性匹配一个功能目录（ADR-0118）：只接受两种形态——纯编号（`94`）或功能目录名（`94-jxx-driver-plugin`）。
+ * 不做标题/slug 子串模糊匹配，不扫出 PRD 清单，不做多候选推荐；匹配不上返回 undefined 由调用方响亮报错。
+ * @returns {string|undefined} 命中的功能目录绝对路径
+ */
+export function findFeatureDir(root, ref) {
   const scratch = join(root, '.scratch')
-  if (!existsSync(scratch)) return []
-  const out = []
-  for (const name of readdirSync(scratch)) {
-    const m = name.match(/^(\d+)-(.+)$/)
-    if (!m) continue
-    const dir = join(scratch, name)
-    const prdFile = join(dir, 'PRD.md')
-    if (!existsSync(prdFile)) continue
-    let title = name
-    try {
-      title = (readFileSync(prdFile, 'utf8').match(/^#\s+(.+)$/m) || [])[1]?.trim() || name
-    } catch { /* 读不了就用目录名 */ }
-    let tickets = []
-    try { tickets = listTickets(dir) } catch { /* issues/ 缺失按 0 处理 */ }
-    out.push({
-      num: String(parseInt(m[1], 10)),
-      slug: m[2],
-      dir,
-      title,
-      ready: tickets.filter((t) => t.status === 'ready-for-agent').length,
-      total: tickets.length,
-    })
+  if (!existsSync(scratch)) return undefined
+  const raw = String(ref || '').trim()
+  if (raw === '') return undefined
+  // 形态一：纯数字编号（前导零容忍）
+  if (/^\d+$/.test(raw)) {
+    const wanted = String(parseInt(raw, 10))
+    for (const name of readdirSync(scratch)) {
+      const m = name.match(/^(\d+)-(.+)$/)
+      if (m && String(parseInt(m[1], 10)) === wanted) {
+        const dir = join(scratch, name)
+        if (existsSync(join(dir, 'PRD.md'))) return dir
+      }
+    }
+    return undefined
   }
-  return out
-}
-
-/** 候选清单的人读渲染（错误消息与 steer 共用）。 */
-export function prdListText(prds) {
-  if (!prds || prds.length === 0) return '\n  （.scratch/ 下没有 PRD）'
-  return '\n' + prds.map((p) => `  - ${p.num} · ${p.title}（就绪工单 ${p.ready}/${p.total}）`).join('\n')
+  // 形态二：功能目录名（允许前导零形态 `094-xxx`）
+  const names = readdirSync(scratch)
+  const direct = names.find((n) => n === raw)
+  const padded = raw.replace(/^0+(?=\d)/, '')
+  const loose = direct || names.find((n) => n.replace(/^0+(?=\d)/, '') === padded)
+  if (loose) {
+    const dir = join(scratch, loose)
+    if (existsSync(join(dir, 'PRD.md'))) return dir
+  }
+  return undefined
 }

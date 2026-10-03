@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync, renameSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { Board } from './board.mjs'
-import { scanBoard, listTickets, listPrds, prdListText, ticketCardId, ticketNum, cardDeps } from './cards.mjs'
+import { scanBoard, listTickets, findFeatureDir, ticketCardId, ticketNum, cardDeps } from './cards.mjs'
 import { adrGate, prdGate, ticketsGate, opsGate } from './gates.mjs'
 import { createQuickTicket } from './quick.mjs'
 import { workerPrompt, reviewerPrompt, mergerPrompt, reviewerDims, parseVerdict } from './prompts.mjs'
@@ -95,47 +95,26 @@ export class Orchestrator {
     return run
   }
 
-  /** 对既有 PRD 直接进入 implement（对应 jxx-ticket-board 的 auto 模式）。
-   * 参数解析（ADR-0110 D3：机械解析归插件，语义归 agent）：
-   *  - 无参 → 抛 candidates（agent 读 status.prds 自行裁决后带编号重调）；
-   *  - 纯数字/NN → 精确编号匹配；
-   *  - slug 子串/标题子串 → 唯一命中即用，多命中抛 candidates；
-   *  - 自由文本（如"完成这些优化"）→ 同 slug 匹配，不命中抛 candidates + 原文，由 agent 语义裁决。 */
-  async auto(agent, prdPrefix) {
+  /** 对**显式指定**的既有 PRD 直接进入 implement（对应 jxx-ticket-board 的 auto 模式）。
+   * 参数解析（ADR-0118：插件不扫目录、不猜意图、不列候选——要编排哪份由用户/模型给编号）：
+   *  - 无参 / 匹配不上 → 响亮报错（只说清要什么形态），不列 PRD 清单；
+   *  - 纯数字/NN（含补零形态 `094`）→ 精确编号匹配；
+   *  - 功能目录名（如 `94-jxx-driver-plugin`）→ 精确目录名匹配。
+   * 标题/slug 子串模糊匹配与 CANDIDATES 候选清单已撤除（ADR-0118 D1/D2）。 */
+  async auto(agent, prdRef) {
     const sessionId = agent.session.id ?? agent.id
     const root = agent.session.header.cwd
     if (!root) throw new Error('jxx-driver: 当前会话没有工作目录（cwd 为空），无法编排')
     if (this.runs.has(sessionId)) throw new Error('本会话已有进行中的编排（/jxx status 查看，/jxx stop 停止）')
-    const prds = listPrds(root)
-    if (prds.length === 0) {
-      throw new Error('jxx-driver: .scratch/ 下没有 PRD——先 /jxx start 走决策→PRD，或确认工作目录正确')
-    }
-    const raw = String(prdPrefix || '').trim()
-    let featureDir
+    const raw = String(prdRef || '').trim()
     if (raw === '') {
-      const e = new Error('jxx-driver: auto 需要指定 PRD。当前可选：')
-      e.code = 'CANDIDATES'
-      e.prds = prds
-      throw e
+      throw new Error('jxx-driver: auto 需要显式指定 PRD（PRD 编号或功能目录名，如 `94` 或 `94-jxx-driver-plugin`）。插件不扫描 .scratch/ 也不猜意图——请把编号给出来。')
     }
-    const wanted = raw.replace(/^0+/, '') || raw
-    const byNum = prds.filter((p) => p.num === wanted || p.num === raw)
-    if (byNum.length === 1) {
-      featureDir = byNum[0].dir
-    } else {
-      const kw = raw.toLowerCase()
-      const byText = prds.filter((p) => p.slug.toLowerCase().includes(kw) || p.title.toLowerCase().includes(kw))
-      if (byText.length === 1) {
-        featureDir = byText[0].dir
-      } else {
-        const e = new Error(
-          (byText.length > 1 ? `jxx-driver: 「${raw}」命中 ${byText.length} 份 PRD，请指定编号：` : `jxx-driver: 「${raw}」匹配不到 PRD。当前可选：`)
-          + prdListText(byText.length > 1 ? byText : prds))
-        e.code = 'CANDIDATES'
-        e.prds = byText.length > 1 ? byText : prds
-        e.rawInput = raw
-        throw e
-      }
+    // 确定性匹配：编号（去前导零）或功能目录名（去前导零 + 目录名）
+    const wanted = raw.replace(/^0+(?=\d)/, '')
+    const featureDir = findFeatureDir(root, wanted)
+    if (!featureDir) {
+      throw new Error(`jxx-driver: .scratch/ 下找不到 PRD「${raw}」。要编排既有 PRD 请给准确的编号或功能目录名（形如 94 或 94-jxx-driver-plugin）；插件不列候选清单——不确定时先看一下 .scratch/ 有哪些目录。`)
     }
     const run = this.newRun(agent, sessionId, root, `auto ${raw}`, 'implement')
     run.featureDir = featureDir

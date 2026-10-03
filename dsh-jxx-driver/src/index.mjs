@@ -12,7 +12,6 @@
 
 import { normalizeConfig } from './config.mjs'
 import { Orchestrator, STAGES, SESSION_ROLE } from './orchestrator.mjs'
-import { listPrds } from './cards.mjs'
 import { randomUUID as cryptoUUID } from 'node:crypto'
 
 export const name = 'jxx-driver'
@@ -35,9 +34,9 @@ function flowDescription(autoConfirm) {
     '① 小任务（单点修复/文案/小函数，一次提交能收口）→ 建一张散工单直接进看板流水线（开发→三维审查→合并 main），不产 ADR/PRD；',
     '② 中任务（跨多文件/要拆 2-5 张工单/有设计取舍但不必 ADR）→ 先定决策，产出 ADR（如需要）+ PRD + 工单，再进自动编排；',
     '③ 大任务（新系统/架构级/跨会话多 PRD）→ 决策 + ADR 必出，PRD 拆分与里程碑规划后再编排；',
-    '④ 输入指向既有 PRD（编号/标题可匹配）→ 直接对该 PRD 自动编排；',
+    '④ 要编排某份**已知编号**的既有 PRD → 调 jxx_flow(action="go", track="auto", idea="<PRD 编号或功能目录名>")——编号由你/用户给出，插件不扫目录、不猜、不列候选；',
     autoConfirm
-      ? '⑤ 拿不准规模/方案时**自己按推荐拍板**继续（免确认）；只有当输入意图本身有歧义、拍错轨道会白干时才用 ask_user_question 澄清（例如「完成这些优化」同时命中多份 PRD——问清是哪一份，而不是问怎么拆）。'
+      ? '⑤ 拿不准规模/方案时**自己按推荐拍板**继续（免确认）；只有当输入意图本身有歧义、拍错轨道会白干时才用 ask_user_question 澄清（例如用户只说「把那块优化一下」却没说清是哪块——问清要做什么，而不是问怎么拆）。'
       : '⑤ 调查后仍无法定规模/方案的 → 用 ask_user_question 让用户在「自动决策（给推荐）/手动决策（逐项拍板）」间选择。',
     '另：action=status 看阶段与卡位；action=stop 停止并中止在飞子会话；action=advance 仅用于 start 走出的阶段链（go 已内含推进）。',
     autoConfirm ? AUTO_CONFIRM_NOTE : MANUAL_CONFIRM_NOTE,
@@ -56,7 +55,7 @@ export function apply(ctx, rawConfig) {
       type: 'object',
       properties: {
         action: { type: 'string', enum: ['go', 'advance', 'status', 'stop'] },
-        idea: { type: 'string', description: 'go 时的输入：想法/问题描述/PRD 编号或标题关键词，任意形态' },
+        idea: { type: 'string', description: 'go 时的输入：想法/问题描述，或 track="auto" 时的 PRD 编号/功能目录名' },
         track: { type: 'string', enum: ['auto', 'quick', 'standard', 'deep'], description: 'go 可选：强制指定轨道（quick=散工单快车道 / standard=决策+PRD+编排 / deep=大任务 ADR+里程碑；缺省由你按描述语义判定）' },
         slug: { type: 'string', description: 'quick 轨道可选：工单 slug（kebab-case）；缺省从 idea 推导' },
       },
@@ -79,7 +78,7 @@ export function apply(ctx, rawConfig) {
     commands.register({
       name: 'jxx',
       description: 'jxx 流程编排统一入口（/jxx <想法|问题|PRD号>——自动分流；/jxx status · /jxx stop）',
-      input: { hint: '<想法或问题描述或PRD号> | status | stop' },
+      input: { hint: '<想法或问题描述，或已知 PRD 编号> | status | stop' },
       handler: async ({ agent, rawInput }) => {
         const { action, rest, track } = parseCommandInput(rawInput)
         try {
@@ -126,7 +125,7 @@ async function dispatch(orch, args, agent) {
       return goDispatch(orch, { ...args, action: 'go', track: args.track ?? 'standard' }, agent)
     case 'quick': // 旧入口别名 = quick 轨道
       return goDispatch(orch, { ...args, action: 'go', track: args.track ?? 'quick' }, agent)
-    case 'auto': // 旧入口别名 = go（PRD 匹配是 auto 内建路径）
+    case 'auto': // 旧入口别名 = go（显式 PRD 编号编排是 auto 内建路径）
       return goDispatch(orch, { ...args, action: 'go', idea: args.idea ?? args.prd, track: args.track ?? 'auto' }, agent)
     case 'advance':
       return orch.advance(agent)
@@ -141,16 +140,15 @@ async function dispatch(orch, args, agent) {
 
 /**
  * 统一入口 go：一个 action 吃所有输入，分流判断归会话模型（ADR-0110 D3——语义归 LLM）。
- * 机械层只提供事实（PRD 匹配、既有候选）与三条通道（quick/standard/auto 的既有实现）。
- * 分流结果以 `route` 字段返回 + steer 一条提示，模型按 route 行动；不唯一/拿不准 → 返回
- * needsDecision，由模型用 ask_user_question 让用户在「自动决策 / 手动决策」间选。
+ * 机械层只提供三条通道（quick/standard/auto 的既有实现），**不扫目录、不猜意图、不列候选**
+ * （ADR-0118：既有 PRD 推荐已撤除，要编排哪份由用户/模型给出编号）。
+ * 分流结果以 `route` 字段返回 + steer 一条提示，模型按 route 行动。
  */
 async function goDispatch(orch, args, agent) {
   const idea = String(args.idea ?? '').trim()
   const track = args.track // 模型可显式指定：auto | quick | standard | deep
-  const prds = listPrdsSafe(orch, agent)
 
-  // 1) 模型指定 auto 轨或输入长得像编号 → 走 PRD 匹配
+  // 1) 模型指定 auto 轨或输入长得像编号 → 走显式 PRD 编排（编号必须给准，不做模糊推荐）
   if (track === 'auto' || /^\d{1,4}$/.test(idea)) {
     return runAuto(orch, agent, idea)
   }
@@ -172,8 +170,7 @@ async function goDispatch(orch, args, agent) {
     `- 小任务（单点修复/文案/小函数，一次提交收口）→ 调 jxx_flow(action="go", track="quick", idea="<问题描述>")`,
     `- 中任务（跨多文件/2-5 张工单/有取舍）→ 调 jxx_flow(action="go", track="standard", idea="<想法>")——先定决策再 ADR+PRD+工单+编排`,
     `- 大任务（新系统/架构级/跨会话）→ 调 jxx_flow(action="go", track="deep", idea="<想法>")——ADR 必出，PRD 拆分与里程碑规划`,
-    `- 若输入其实指向某个已有 PRD（如「完成这些优化」= 某编号）→ 调 jxx_flow(action="go", track="auto", idea="<编号>")`,
-    prds.length > 0 ? `既有 PRD：${prds.map((p) => `${p.num}·${p.title}`).join(' / ')}` : '（.scratch/ 下暂无 PRD）',
+    `- 若用户明确指向某份已知编号的既有 PRD → 调 jxx_flow(action="go", track="auto", idea="<编号或功能目录名>")（插件不扫目录、不猜意图、不列候选——编号得给准）`,
     orch.config.autoConfirm
       ? '轨迹定了就直接走，不要就规模/方案回头问用户（本编排免确认，见下）。'
       : '调查后仍无法定规模或方案 → ask_user_question 问用户选「自动决策（按你的推荐走）/ 手动决策（逐项拍板）」。',
@@ -191,7 +188,6 @@ async function goDispatch(orch, args, agent) {
   }
   return {
     ok: true, routed: 'pending-model-triage', input: idea,
-    prds: prds.map((p) => ({ num: p.num, title: p.title, ready: p.ready, total: p.total })),
     hint: orch.config.autoConfirm
       ? '已把分流材料 steer 给你：先调查定规模，再带 track 重调 go；免确认——自己按推荐拍板，别就规模/方案回头问用户'
       : '已把分流材料 steer 给你：先调查定规模，再带 track 重调 go；拿不准用 ask_user_question 问用户（自动决策 vs 手动决策）',
@@ -219,37 +215,13 @@ function runStandard(orch, agent, idea) {
   }
 }
 
-/** track=auto：PRD 匹配直进编排。 */
+/**
+ * track=auto：对**显式给出**的既有 PRD 直接进编排（ADR-0118）。
+ * 匹配不上就响亮报错——不列候选、不猜意图（要编排哪份由用户/模型给编号）。
+ */
 async function runAuto(orch, agent, idea) {
-  try {
-    const run = await orch.auto(agent, idea)
-    return { ok: true, route: 'auto', stage: 'implement', runId: run.id, featureDir: run.featureDir, hint: '编排器已接管。你只监控与上报，不自己动手（ADR-0115 接待台角色）' }
-  } catch (e) {
-    if (e.code === 'CANDIDATES') {
-      if (agent && typeof agent.steer === 'function') {
-        agent.steer({
-          id: cryptoUUID(),
-          role: 'user',
-          content: [{ type: 'text', text: `[jxx-driver] 「${idea}」命中多份 PRD，请选出用户意图对应的一份（必要时问用户），然后 jxx_flow(action="go", track="auto", idea="<编号>")：\n${e.message.split('：').slice(1).join('：')}` }],
-          source: { kind: 'user' },
-        })
-      }
-      return {
-        ok: false, needsChoice: true, input: idea,
-        prds: (e.prds || []).map((p) => ({ num: p.num, title: p.title, ready: p.ready, total: p.total })),
-        message: e.message,
-        hint: '从 prds 里选出用户意图对应的一份，带编号重调 go(track="auto")；拿不准就问用户',
-      }
-    }
-    throw e
-  }
-}
-
-function listPrdsSafe(orch, agent) {
-  try {
-    const root = agent?.session?.header?.cwd
-    return root ? listPrds(root) : []
-  } catch { return [] }
+  const run = await orch.auto(agent, idea)
+  return { ok: true, route: 'auto', stage: 'implement', runId: run.id, featureDir: run.featureDir, hint: '编排器已接管。你只监控与上报，不自己动手（ADR-0115 接待台角色）' }
 }
 
 function parseCommandInput(raw) {
@@ -260,7 +232,7 @@ function parseCommandInput(raw) {
   // 旧别名仍可打：/jxx auto 94 等（都汇入 go）
   if (text.startsWith('start')) return { action: 'go', rest: text.slice(5).trim(), track: 'standard' }
   if (text.startsWith('quick')) return { action: 'go', rest: text.slice(5).trim(), track: 'quick' }
-  if (text.startsWith('auto')) return { action: 'go', rest: text.slice(4).trim(), track: 'auto' }
+  if (text.startsWith('auto')) return { action: 'go', rest: text.slice(4).trim(), track: 'auto' } // /jxx auto <PRD编号>
   return { action: 'go', rest: text } // 裸输入（如「解决问题」）= go（模型分流）
 }
 
