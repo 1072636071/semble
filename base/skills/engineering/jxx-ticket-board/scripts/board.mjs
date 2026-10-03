@@ -1464,10 +1464,64 @@ function cmdAddWt(argv) {
   catch { die(`基准分支 ${base} 解析不了（工作区分支是 ${meta.baseBranch || 'main'}？先 fetch，或用 --base 指定）`); }
   // 目录被外部删除会留下 stale worktree 注册，导致下面的 -b 回退分支失败；先 prune。
   try { git(repoDir, 'worktree', 'prune'); } catch { /* ignore */ }
+  if (fs.existsSync(wtPath)) {
+    // 重入（PRD 100-02 附带修复）：worktree 已在——git worktree add 会报 already exists，
+    // 但持有者锁可能缺失（旧版开辟的现场）。补锁后原样返回，不重建不动现场。
+    const existLock = path.join(wtPath, '.board-lock.json');
+    if (!fs.existsSync(existLock)) {
+      fs.writeFileSync(existLock, JSON.stringify({ ticket: id, actor: arg(argv, 'actor') || 'unknown', created_at: new Date().toISOString(), base }, null, 2) + '\n');
+      console.log(`add-wt: wt/${id} 已存在（重入），补写持有者锁（actor=${arg(argv, 'actor') || 'unknown'}）。`);
+    } else {
+      console.log(`add-wt: wt/${id} 已存在（重入），持有者锁原样保留（不覆盖——锁记录最初开辟者）。`);
+    }
+    autoHtml(root);
+    return;
+  }
   try { git(repoDir, 'rev-parse', '--verify', branch); git(repoDir, 'worktree', 'add', wtPath, branch); }
   catch { git(repoDir, 'worktree', 'add', wtPath, '-b', branch, base); }
+  // 持有者锁（PRD 100-02）：登记「这个 worktree 是谁的」的机械事实——PRD 97 撞卡事故
+  // （平行会话把他人 worktree 的 WIP 快照打包合入 main）的防线第一步。只登记不拦截：
+  // card-move/merge-check 等既有命令行为零变更，查询走 wt-check；拦截语义留给未来按实况再定。
+  // 幂等：worktree 复用（分支已存在的重入）不覆盖已有锁——锁记录的是最初开辟者。
+  const lockFile = path.join(wtPath, '.board-lock.json');
+  if (!fs.existsSync(lockFile)) {
+    const lock = {
+      ticket: id,
+      actor: arg(argv, 'actor') || 'unknown',
+      created_at: new Date().toISOString(),
+      base,
+    };
+    fs.writeFileSync(lockFile, JSON.stringify(lock, null, 2) + '\n');
+  }
   autoHtml(root);
-  console.log(`add-wt: wt/${id}（分支 ${branch}，基 ${base}）就绪。进目录后记得装依赖。`);
+  console.log(`add-wt: wt/${id}（分支 ${branch}，基 ${base}）就绪。进目录后记得装依赖。持有者锁：.board-lock.json（actor=${arg(argv, 'actor') || 'unknown'}）`);
+}
+
+// ---------- wt-check（PRD 100-02：持有者锁查询） ----------
+function cmdWtCheck(argv) {
+  const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));
+  const id = arg(argv, 'ticket') || die('缺少 --ticket <卡id>');
+  if (!SEGMENT_RE.test(id) || id === '.' || id === '..') die(`--ticket "${id}" 非法：只接受单段目录名`);
+  const lockFile = path.join(root, 'wt', id, '.board-lock.json');
+  if (!fs.existsSync(lockFile)) {
+    console.error(`wt-check: wt/${id} 无持有者锁（.board-lock.json 不存在）——可能是旧版 add-wt 开辟的现场或目录不存在`);
+    process.exit(1);
+  }
+  let lock;
+  try { lock = JSON.parse(fs.readFileSync(lockFile, 'utf8')); }
+  catch (e) { die(`锁文件解析失败（${lockFile}）：${e.message}`); }
+  const actor = arg(argv, 'actor');
+  const line = `wt/${id} 持有者 = ${lock.actor}（开辟 ${lock.created_at}，基 ${lock.base ?? '-'}）`;
+  if (actor === undefined) {
+    console.log(line);
+    return;
+  }
+  if (String(actor) === lock.actor) {
+    console.log(`${line} —— 与你（${actor}）一致，可以操作`);
+    return;
+  }
+  console.error(`${line} —— 与你（${actor}）不一致！不要动这个 worktree（PRD 97 撞卡事故防线；如需接手请先与持有者/编排者确认）`);
+  process.exit(1);
 }
 function cmdRmWt(argv) {
   const root = path.resolve(arg(argv, 'root') || die('缺少 --root'));
@@ -1836,7 +1890,7 @@ function cmdSnapshot(argv) {
 // ---------- command table ----------
 const cmd = process.argv[2];
 const argv = process.argv.slice(3);
-const table = { init: cmdInit, board: cmdBoard, html: cmdHtml, ledger: cmdLedger, verify: cmdVerify, 'new-card': cmdNewCard, 'add-wt': cmdAddWt, 'rm-wt': cmdRmWt, 'merge-check': cmdMergeCheck, 'card-read': cmdCardRead, 'card-set': cmdCardSet, 'card-move': cmdCardMove, 'card-rm': cmdCardRm, snapshot: cmdSnapshot, render: cmdRender, migrate: cmdMigrate, auto: cmdAuto };
+const table = { init: cmdInit, board: cmdBoard, html: cmdHtml, ledger: cmdLedger, verify: cmdVerify, 'new-card': cmdNewCard, 'add-wt': cmdAddWt, 'rm-wt': cmdRmWt, 'merge-check': cmdMergeCheck, 'card-read': cmdCardRead, 'card-set': cmdCardSet, 'card-move': cmdCardMove, 'card-rm': cmdCardRm, snapshot: cmdSnapshot, render: cmdRender, migrate: cmdMigrate, auto: cmdAuto, 'wt-check': cmdWtCheck };
 if (!cmd || !table[cmd]) die(`未知子命令 "${cmd || '(空)'}"。可用：${Object.keys(table).join(' / ')}`);
 try { table[cmd](argv); }
 catch (e) { die(`${cmd} 失败：${e.stderr?.toString().trim().split('\n')[0] || e.message}`); }
