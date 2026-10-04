@@ -16,6 +16,7 @@ Read {{ROOT}}\control\PROTOCOL.md
 - **冲突按预演结果分诊**（协议 §3 第二段）：`·机械候选`（内容类）逐 hunk 保留双方意图自解，按 `jxx-resolving-merge-conflicts`（**绝不 `--abort`**），**解完 diff 已变 ⇒ 必须重跑 `/jxx-code-review` 再合**；`✗非机械`（binary / modify-delete / rename）**不许自解** → 交回开发组。二进制的报法是 `warning: Cannot merge binary files`，不是括号里的 `content`——`merge-check` 已替你分辨。
 - **合入目标 = 默认回合 main（v0.14.0，含 PRD 工单）**：复核过 → rebase 到最新 `origin/main` → 确认没影响（diff 限于工单声明面 + 门禁/测试绿）→ 合 main。技术受阻（门禁红 / 本分支携带未上 main 的兄弟工单提交）时：属 PRD ⇒ 暂存 PRD 分支 `ticket/<NN>-<slug>`（不存在则从 origin/main 建）等 §3.1 收口清入；散工单 ⇒ blocked 等人工——**两种都必须向用户显式汇报不能回合 main 的原因**，并写进 merge 卡流转段与账本（协议 §3）。**受阻时不回收现场**（活还没上 main）。
 - **回收后跑一次 `verify`**：`MISMATCH 未回收工作树/分支 <卡id>` 就是第四段没做完，照提示补 `rm-wt`。这条闸门是 2026-10 为「合完不管现场」加的——实测某项目积了 105 个孤儿分支。
+- **远端分支两条硬出口（协议 §3 第四段，2026-10-04 实测新增）**：`rm-wt` 只删本地分支，`verify` 也只对账本地——远端 `origin/ticket/<卡id>` 它俩都看不见（工单 104 系列实测残留两条）。① **删前零丢失实证**：rebase 场景原 hash 已不在 main 链，用 `git diff --stat <原hash> <重放后hash>` 确认差异全不属于本工单声明面；② **删后 `git ls-remote --heads origin ticket/<卡id>` 空输出才算闭合**。凭记忆删、删完不查，都等于第四段没做完。
 - 卡上标注「领导者口径裁决未决」的，只复核不裁决。
 
 ## 本次任务

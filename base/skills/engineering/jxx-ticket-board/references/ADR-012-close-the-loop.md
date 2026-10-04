@@ -24,6 +24,7 @@ ADR-011 把合并流改成「默认回合 main」，并写下第四段「回收 
 4. **回收 = 工作树 + 分支两件，且分支去留由合入实况裁定**。`rm-wt` 数 `origin/main..ticket/<卡id>`：零领先（已全部合入）才自动删分支；仍有领先 ⇒ **默认保留并报明领先数**（未合入的活不能删），`--delete-branch` 强删、`--keep-branch` 保留。**受阻暂存（PRD 分支）时明确不回收现场**——活还没上 main。
 5. **新增回收对账闸门（`verify`）**：已收口（`done`/`archived`）的卡若还挂着 `wt/<id>`，或零领先的 `ticket/<id>` 分支 ⇒ `MISMATCH` 点名并给出可照做的 `rm-wt` 命令；**领先 main 的分支只报 `INFO`**（那是暂存活，盲删等于丢活——判据必须区分「孤儿」与「暂存」，否则闸门会教人删掉未合入的活）。
 6. **auto 模式补核对动作**：编排者每卡收口后跑 `verify`，出现未回收就按提示补 `rm-wt`（**一次一卡**）。这是 auto 模式下编排者唯一允许碰 worktree 的动作，且仍受 §7 红线约束（不得交给子代理做批量回收）。
+7. **回收第四件 = 远端分支，两条硬出口（2026-10-04 修订，工单 104 系列实测）**：`rm-wt` 与 `verify` 的判据都只覆盖本地两件（工作树 + 本地分支）——`rm-wt` 删本地后，远端 `origin/ticket/<卡id>` 成盲区；且 rebase 重放后原提交 hash 与 main 不同链，「已合入」的 hash 实证须换方法。实测工单 104 系列（104-01/104-03）各残留一条 `origin/ticket/*`。补两条硬出口进 PROTOCOL §3 第四段：① **删远端分支前零丢失实证**——先 `merge-base --is-ancestor <hash> origin/main`；原 hash 已不在 main 链（rebase 场景）则 `git diff --stat <原hash> <重放后hash>`，差异文件必须全部不属于本工单声明面（那是 main 上并行的兄弟提交），**不许凭记忆删**；② **删后 `git ls-remote --heads origin ticket/<卡id>` 空输出才算闭合**。远端残留 `verify` 看不见，靠此纪律人工闭环。
 
 ## 后果
 
