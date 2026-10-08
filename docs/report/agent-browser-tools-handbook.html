@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent 浏览器操作工具 · 安装使用手册（20 工具 / 4 流派）</title>
+<style>
+  :root{
+    --h:222;
+    --bg:hsl(var(--h),22%,97%);
+    --surface:#ffffff;
+    --surface-2:hsl(var(--h),24%,95%);
+    --text:hsl(var(--h),26%,17%);
+    --muted:hsl(var(--h),14%,42%);
+    --faint:hsl(var(--h),16%,40%);
+    --border:hsl(var(--h),20%,89%);
+    --accent:hsl(var(--h),75%,47%);
+    --accent-weak:hsl(var(--h),72%,96%);
+    --ok:hsl(152,52%,36%);
+    --ok-bg:hsl(152,52%,95%);
+    --warn:hsl(34,85%,34%);
+    --warn-bg:hsl(40,90%,94%);
+    --danger:hsl(0,66%,42%);
+    --danger-bg:hsl(0,70%,96%);
+    --unknown:hsl(var(--h),16%,40%);
+    --unknown-bg:hsl(var(--h),16%,94%);
+    --code-bg:hsl(var(--h),26%,13%);
+    --code-fg:hsl(var(--h),16%,88%);
+    --code-com:hsl(var(--h),12%,52%);
+    --radius:14px;
+    --shadow:0 4px 24px rgba(20,28,50,.08);
+    --mono:"SFMono-Regular",ui-monospace,"JetBrains Mono","Cascadia Code",Consolas,Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:var(--sans);line-height:1.7;
+    font-size:16px;-webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+
+  /* Hero */
+  header.hero{
+    background:linear-gradient(180deg,hsl(var(--h),40%,18%),hsl(var(--h),36%,24%));
+    color:#fff;padding:54px 0 46px;
+  }
+  .hero h1{font-size:clamp(26px,4vw,38px);margin:0 0 10px;letter-spacing:-.02em;line-height:1.18}
+  .hero p{margin:0;color:hsl(var(--h),20%,82%);max-width:62ch;font-size:16px}
+  .hero .stats{display:flex;flex-wrap:wrap;gap:14px;margin-top:26px}
+  .stat{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);
+    border-radius:12px;padding:12px 18px;backdrop-filter:blur(2px)}
+  .stat b{display:block;font-size:24px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .stat span{font-size:12.5px;color:hsl(var(--h),18%,80%)}
+
+  /* Sticky nav */
+  nav.toc{
+    position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);
+    backdrop-filter:saturate(160%) blur(8px);
+    border-bottom:1px solid var(--border);
+  }
+  nav.toc .wrap{display:flex;flex-wrap:wrap;gap:8px;padding-top:10px;padding-bottom:10px;align-items:center}
+  nav.toc a.brand{font-weight:700;color:var(--text);margin-right:6px}
+  nav.toc a.brand:hover{text-decoration:none}
+  .filters{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+  .filter{
+    font:inherit;font-size:13px;cursor:pointer;border:1px solid var(--border);
+    background:var(--surface);color:var(--muted);border-radius:999px;padding:5px 13px;
+    transition:all .18s ease;
+  }
+  .filter:hover{border-color:var(--accent);color:var(--accent)}
+  .filter[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  main{padding:38px 0 10px}
+  section.school{margin-bottom:54px;scroll-margin-top:64px}
+  .school-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px;
+    border-bottom:2px solid var(--border);padding-bottom:10px}
+  .school-head h2{font-size:23px;margin:0;letter-spacing:-.01em}
+  .school-head .count{font-size:13px;color:var(--faint);font-variant-numeric:tabular-nums}
+  .school-desc{color:var(--muted);font-size:14.5px;margin:0 0 20px}
+
+  /* Tool card */
+  article.tool{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:22px 22px 8px;margin-bottom:22px;scroll-margin-top:64px;
+  }
+  .tool__head{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;
+    justify-content:space-between;margin-bottom:14px}
+  .tool__head h3{margin:0;font-size:19px;letter-spacing:-.01em}
+  .tool__head .vendor{color:var(--faint);font-weight:400;font-size:14px}
+  .badges{display:flex;flex-wrap:wrap;gap:6px}
+  .badge{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap}
+  .badge--open{background:var(--accent-weak);color:var(--accent)}
+  .badge--biz{background:var(--unknown-bg);color:var(--unknown)}
+  .badge--ok{background:var(--ok-bg);color:var(--ok)}
+  .badge--warn{background:var(--warn-bg);color:var(--warn)}
+  .badge--danger{background:var(--danger-bg);color:var(--danger)}
+  .badge--unknown{background:var(--unknown-bg);color:var(--unknown)}
+
+  dl.fields{margin:0}
+  .field{display:grid;grid-template-columns:96px 1fr;gap:14px;padding:11px 0;
+    border-top:1px solid var(--surface-2)}
+  .field:first-child{border-top:none}
+  .field dt{flex:none;color:var(--muted);font-weight:600;font-size:13.5px;padding-top:2px}
+  .field dd{margin:0;min-width:0}
+  .field dd p{margin:0}
+  .note{font-size:13.5px;color:var(--muted)}
+
+  /* Code */
+  pre.code{position:relative;background:var(--code-bg);color:var(--code-fg);
+    border-radius:10px;padding:14px 14px 14px;overflow-x:auto;margin:4px 0;
+    font-family:var(--mono);font-size:13px;line-height:1.6;
+    tab-size:2;-webkit-overflow-scrolling:touch}
+  pre.code code{font-family:inherit;white-space:pre}
+  .copy-btn{position:absolute;top:8px;right:8px;font:inherit;font-size:11.5px;
+    background:rgba(255,255,255,.12);color:var(--code-fg);border:1px solid rgba(255,255,255,.18);
+    border-radius:7px;padding:3px 9px;cursor:pointer;opacity:0;transition:opacity .15s ease}
+  pre.code:hover .copy-btn,pre.code:focus-within .copy-btn{opacity:1}
+  .copy-btn:hover{background:rgba(255,255,255,.22)}
+  .cmd{color:hsl(150,60%,62%)}
+  .cmt{color:var(--code-com)}
+
+  /* Callout */
+  .callout{border-radius:12px;padding:14px 18px;margin:14px 0;font-size:14px;
+    border:1px solid;display:flex;gap:12px;align-items:flex-start}
+  .callout .ic{flex:none;font-weight:700;font-size:16px;line-height:1.4}
+  .callout--warn{background:var(--warn-bg);border-color:hsl(40,80%,80%);color:hsl(34,60%,28%)}
+  .callout--info{background:var(--accent-weak);border-color:hsl(var(--h),60%,85%);color:hsl(var(--h),40%,30%)}
+  .callout p{margin:0}
+
+  /* Comparison table */
+  .table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:var(--shadow);background:var(--surface)}
+  table{border-collapse:collapse;width:100%;min-width:720px;font-size:13.5px}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--surface-2);vertical-align:top}
+  thead th{background:var(--surface-2);font-weight:700;color:var(--text);position:sticky;top:0}
+  tbody tr:last-child td{border-bottom:none}
+  td .tag{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;
+    background:var(--surface-2);color:var(--muted);margin:1px 2px 1px 0}
+  td .tag--ok{background:var(--ok-bg);color:var(--ok)}
+  td .tag--warn{background:var(--warn-bg);color:var(--warn)}
+  td .tag--danger{background:var(--danger-bg);color:var(--danger)}
+  td .tag--unknown{background:var(--unknown-bg);color:var(--unknown)}
+
+  footer{margin-top:30px;padding:34px 0 56px;border-top:1px solid var(--border);color:var(--muted);font-size:13.5px}
+  footer h3{color:var(--text);font-size:15px;margin:0 0 8px}
+  footer ul{margin:6px 0 0;padding-left:20px}
+  footer li{margin:4px 0}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;font-size:13px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+
+  .dtree{margin:6px 0;display:flex;flex-direction:column;gap:11px}
+  .dtree .q{background:var(--surface-2);border:1px solid var(--border);border-left:4px solid var(--accent);
+    border-radius:10px;padding:12px 16px;font-weight:600;font-size:14.5px}
+  .dtree .q .qno{display:inline-block;background:var(--accent);color:#fff;border-radius:6px;
+    font-size:12px;font-weight:700;padding:1px 9px;margin-right:8px}
+  .dtree .branch{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:-1px 0 1px 4px}
+  .dtree .b{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:13.5px}
+  .dtree .b b{color:var(--accent)}
+  .dtree .b.no{border-left:3px solid var(--faint);color:var(--muted)}
+  .dtree .b.yes{border-left:3px solid var(--ok)}
+  @media (max-width:640px){.dtree .branch{grid-template-columns:1fr}}
+
+  :focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+  @media (max-width:640px){
+    .field{grid-template-columns:1fr;gap:3px}
+    .field dt{padding-top:0}
+    .tool__head{flex-direction:column;align-items:flex-start}
+    .stat b{font-size:21px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    *{transition:none!important}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <h1>Agent 浏览器操作工具 · 安装使用手册</h1>
+    <p>面向 AI Agent 的「让大模型操作浏览器」工具全梳理：MCP Server、专用框架、浏览器原生能力、SDK/Skills 生态四大流派共 20 个方案。每条安装/接入命令均来自官方一手来源（GitHub README / 官方文档），可点击「来源」核对。</p>
+    <div class="stats">
+      <div class="stat"><b>20</b><span>工具方案</span></div>
+      <div class="stat"><b>4</b><span>主流派</span></div>
+      <div class="stat"><b>✅</b><span>命令可复制 · 来源可追溯</span></div>
+      <div class="stat"><b>❓</b><span>无法核实处如实标注</span></div>
+    </div>
+  </div>
+</header>
+
+<nav class="toc" aria-label="目录筛选">
+  <div class="wrap">
+    <a class="brand" href="#top">🧭 浏览器 Agent 手册</a>
+    <div class="filters" role="group" aria-label="按流派筛选">
+      <button class="filter" data-filter="all" aria-pressed="true">全部</button>
+      <button class="filter" data-filter="mcp" aria-pressed="false">MCP Server</button>
+      <button class="filter" data-filter="framework" aria-pressed="false">框架 / 视觉</button>
+      <button class="filter" data-filter="native" aria-pressed="false">原生 / 反爬</button>
+      <button class="filter" data-filter="sdk" aria-pressed="false">SDK / Skills</button>
+      <button class="filter" data-filter="decision" aria-pressed="false">选型</button>
+      <button class="filter" data-filter="compare" aria-pressed="false">对比表</button>
+    </div>
+  </div>
+</nav>
+
+<main class="wrap" id="top">
+
+  <div class="callout callout--warn">
+    <span class="ic">⚠️</span>
+    <p><b>合规提醒：</b>亚马逊诉 Perplexity（2026-03 临时禁令）已确立先例——<b>AI Agent 未经授权操作第三方网站可能构成违法</b>。凡涉及登录态复用、反爬绕过（stealth / TLS 轮换 / 验证码破解）、批量抓取的方案，操作前务必评估目标站点 ToS 与当地法律。本手册仅作技术安装说明，不鼓励任何越权行为。</p>
+  </div>
+
+  <!-- ===================== MCP ===================== -->
+  <section class="school" id="school-mcp" data-school="mcp">
+    <div class="school-head"><h2>① MCP Server 类</h2><span class="count">5 个 · 通用标准首选</span></div>
+    <p class="school-desc">把浏览器能力包装成 MCP 工具，接入任意 MCP 客户端（Claude Desktop / Code、Cursor、VS Code 等）。最通用、最易集成，适合把「浏览器操作」作为工具挂到现有 Agent。</p>
+
+    <article class="tool" id="playwright-mcp">
+      <div class="tool__head"><h3>Playwright MCP <span class="vendor">· Microsoft</span></h3>
+        <div class="badges"><span class="badge badge--open">开源</span><span class="badge badge--ok">无需云 Key</span><span class="badge badge--ok">官方 MCP ✅</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>基于 Playwright 的 MCP Server，用结构化无障碍快照（accessibility snapshot，非截图）让 LLM 自动化浏览器。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/microsoft/playwright-mcp" target="_blank" rel="noopener">github.com/microsoft/playwright-mcp</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>Node.js 18+；任意 MCP 客户端；浏览器由 Playwright 自带（chromium）。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmd">npx</span> @playwright/mcp@latest
+
+<span class="cmt"># Claude Code 一键添加</span>
+<span class="cmd">claude</span> mcp add playwright npx @playwright/mcp@latest</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><pre class="code"><code>{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    }
+  }
+}</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <p class="note">无头模式加 <code>--headless</code>；SSE/HTTP 加 <code>--port 8931</code>；隔离 profile 加 <code>--isolated</code>。</p></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><p class="note">在 MCP 客户端直接自然语言，例如：</p><pre class="code"><code>Navigate to https://example.com and click the first link,
+then summarize the page.</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <p class="note">或作为 HTTP server 启动供其他 client 通过 SSE 连：<code>npx @playwright/mcp@latest --port 8931</code></p></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>持久化 profile 同一时间只能被一个实例占用，并发客户端需 <code>--isolated</code> 或指定不同 <code>--user-data-dir</code>；官方浏览器扩展可复用已登录标签页与登录态。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://github.com/microsoft/playwright-mcp/blob/main/README.md" target="_blank" rel="noopener">playwright-mcp README</a></dd></div>
+      </dl>
+    </article>
+
+    <article class="tool" id="chrome-devtools-mcp">
+      <div class="tool__head"><h3>Chrome DevTools MCP <span class="vendor">· Google</span></h3>
+        <div class="badges"><span class="badge badge--open">开源</span><span class="badge badge--ok">无需云 Key</span><span class="badge badge--ok">官方 MCP ✅</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>让 coding agent 控制与检视真实 Chrome，提供完整 DevTools 能力（性能分析、网络、console、调试），底层 puppeteer。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/ChromeDevTools/chrome-devtools-mcp" target="_blank" rel="noopener">github.com/ChromeDevTools/chrome-devtools-mcp</a> · <a href="https://developer.chrome.com/blog/chrome-devtools-mcp" target="_blank" rel="noopener">官方博客</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>Node.js LTS；Chrome 当前稳定版或更新；npm。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmd">npx</span> -y chrome-devtools-mcp@latest</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><pre class="code"><code>{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"]
+    }
+  }
+}</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <p class="note">轻量模式：<code>args: ["-y","chrome-devtools-mcp@latest","--slim","--headless"]</code></p></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><p class="note">配置后在 MCP 客户端输入：</p><pre class="code"><code>Check the performance of https://developers.chrome.com</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <p class="note">⚠️ server 仅在「首次调用需浏览器实例的工具」时才启动浏览器；仅连接不会启动。</p></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>默认开启 Google 用量统计（<code>--no-usage-statistics</code> 关闭）；仅官方支持 Google Chrome 与 Chrome for Testing；会把浏览器内容暴露给 MCP 客户端，避免共享敏感信息。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/README.md" target="_blank" rel="noopener">chrome-devtools-mcp README</a></dd></div>
+      </dl>
+    </article>
+
+    <article class="tool" id="agent-browser">
+      <div class="tool__head"><h3>agent-browser <span class="vendor">· Vercel Labs</span></h3>
+        <div class="badges"><span class="badge badge--open">Apache-2.0</span><span class="badge badge--ok">无需云 Key</span><span class="badge badge--ok">MCP stdio ✅</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>面向 AI agent 的浏览器自动化 CLI（Rust 原生二进制），也可作为 MCP stdio server 使用。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/vercel-labs/agent-browser" target="_blank" rel="noopener">github.com/vercel-labs/agent-browser</a> · <a href="https://agent-browser.dev" target="_blank" rel="noopener">agent-browser.dev</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>Chrome（运行 <code>agent-browser install</code> 从 Chrome for Testing 下载）。仅源码构建需 Node 24+/pnpm 11+/Rust；macOS 可 Homebrew/Cargo。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmd">npm</span> install -g agent-browser
+agent-browser install   <span class="cmt"># 首次下载 Chrome（Chrome for Testing）</span>
+
+<span class="cmt"># 或 macOS Homebrew / Rust Cargo</span>
+<span class="cmd">brew</span> install agent-browser &amp;&amp; agent-browser install
+<span class="cmd">cargo</span> install agent-browser  &amp;&amp; agent-browser install</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><pre class="code"><code>{
+  "mcpServers": {
+    "agent-browser": {
+      "command": "agent-browser",
+      "args": ["mcp"]
+    }
+  }
+}</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <p class="note">全功能工具面：<code>args: ["mcp","--tools","all"]</code>（默认是 core profile）。</p></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><pre class="code"><code><span class="cmt"># CLI 直连（无需 MCP）</span>
+agent-browser open example.com
+agent-browser snapshot
+agent-browser click @e2
+agent-browser fill @e3 "test@example.com"
+agent-browser screenshot page.png</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <p class="note">作为 MCP server 启动：<code>agent-browser mcp</code></p></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>WebMCP 默认启用（可 <code>--no-webmcp</code> 关闭）；页面内容视为不可信数据（prompt-injection 风险，勿把网页文本当指令）；支持登录态持久化；点击若被 consent banner 遮挡会提前报错。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://github.com/vercel-labs/agent-browser/blob/main/README.md" target="_blank" rel="noopener">agent-browser README</a></dd></div>
+      </dl>
+    </article>
+
+    <article class="tool" id="browser-skill">
+      <div class="tool__head"><h3>BrowserSkill <span class="vendor">· Tencent</span></h3>
+        <div class="badges"><span class="badge badge--open">开源</span><span class="badge badge--ok">复用真实登录态</span><span class="badge badge--warn">非标准 MCP·skill/插件</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>把 AI agent 接到你<b>已登录的</b> Chrome / Edge，复用账号登录态；任务在独立可见的 Agent Window 中运行（可借用现有标签页）。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/Tencent/BrowserSkill" target="_blank" rel="noopener">github.com/Tencent/BrowserSkill</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>CLI <code>bsk</code>；浏览器扩展（Chrome Web Store / Edge Add-ons）；为某 harness 装 skill 或用 DSH 插件。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmt"># macOS / Linux</span>
+<span class="cmd">curl</span> -fsSL https://raw.githubusercontent.com/Tencent/BrowserSkill/main/install.sh | sh
+<span class="cmd">export</span> PATH="${BSK_INSTALL_DIR:-$HOME/.local/bin}:$PATH"
+bsk --version
+
+<span class="cmt"># Windows (PowerShell)</span>
+<span class="cmd">irm</span> https://raw.githubusercontent.com/Tencent/BrowserSkill/main/install.ps1 | iex
+bsk --version</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><p class="note">⚠️ 已核实：仓库<strong>不提供</strong>通用 <code>mcpServers</code> JSON（<code>bsk</code> 不是 MCP server，经本地 daemon 桥接浏览器扩展）。接入走 skill 文件 / DSH 插件：</p><pre class="code"><code><span class="cmt"># Cursor 等：安装对应 harness 的 skill</span>
+bsk install-skill --harness cursor --json
+
+<span class="cmt"># DeepSeek Harness：用插件（自带 skill + 原生 browser_* 工具）</span>
+dsh plugin --profile web add @wxg-prc-cpg/browser-skill-dsh-plugin
+dsh --profile web</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><pre class="code"><code>bsk session start --no-focus --json   <span class="cmt"># 记下返回的 session_id</span>
+bsk navigate https://example.com --session &lt;id&gt;
+bsk observe   --session &lt;id&gt;
+bsk screenshot --session &lt;id&gt; --out example.png
+bsk session stop &lt;id&gt;                  <span class="cmt"># 用完务必停掉</span></code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <p class="note">连接检查：<code>bsk doctor</code>（需扩展显示 Connected）。</p></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>驱动用户<b>真实、已登录</b>的浏览器，页面内容视为不可信数据；远程模式通过 WSS 配对（浏览器主动发起，本地无需开放入站端口），远程不支持文件上传/下载；必须安装并启用浏览器扩展的本地连接。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://github.com/Tencent/BrowserSkill/blob/main/README.md" target="_blank" rel="noopener">README</a> · <a href="https://github.com/Tencent/BrowserSkill/blob/main/AGENT_INSTALL.md" target="_blank" rel="noopener">AGENT_INSTALL.md</a></dd></div>
+      </dl>
+    </article>
+
+    <article class="tool" id="cloudflare-playwright-mcp">
+      <div class="tool__head"><h3>Cloudflare Playwright MCP <span class="vendor">· Cloudflare</span></h3>
+        <div class="badges"><span class="badge badge--open">开源</span><span class="badge badge--warn">需 Cloudflare 账号</span><span class="badge badge--ok">远程 SSE ✅</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>基于 Playwright + Cloudflare Workers + Browser Rendering，部署为<b>远程</b> MCP server（SSE），在云端浏览器运行自动化。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/cloudflare/playwright-mcp" target="_blank" rel="noopener">github.com/cloudflare/playwright-mcp</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>Node.js / npm；Cloudflare 账号、Wrangler、Browser Rendering 绑定。Claude Desktop 连远程 SSE 需 <code>mcp-remote</code> 代理。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmd">npm</span> ci
+<span class="cmd">cd</span> cloudflare &amp;&amp; npm run build
+<span class="cmd">cd</span> cloudflare/example &amp;&amp; npm ci
+<span class="cmd">npx</span> wrangler deploy</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><pre class="code"><code>{
+  "mcpServers": {
+    "cloudflare-playwright-mcp": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://[my-mcp-url].workers.dev/sse"]
+    }
+  }
+}</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <p class="note">VS Code：<code>code --add-mcp '{"name":"cloudflare-playwright","type":"sse","url":"https://[my-mcp-url].workers.dev/sse"}'</code></p></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><p class="note">连接后直接对话：</p><pre class="code"><code>Go to demo.playwright.dev/todomvc
+Create some todo entry
+Take a screenshot</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <p class="note">可选 Vision 模式（截图 + XY 坐标）配合 computer-use 模型。</p></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>云端浏览器，需 Cloudflare 账号与 Browser Rendering，<b>可能产生费用</b>；Claude Desktop 远程 SSE 必须 mcp-remote 代理；默认 Snapshot 模式。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://github.com/cloudflare/playwright-mcp/blob/main/README.md" target="_blank" rel="noopener">cloudflare/playwright-mcp README</a></dd></div>
+      </dl>
+    </article>
+  </section>
+
+  <!-- ===================== Framework ===================== -->
+  <section class="school" id="school-framework" data-school="framework">
+    <div class="school-head"><h2>② 框架 / 视觉类</h2><span class="count">5 个 · 直接建 Agent</span></div>
+    <p class="school-desc">把「浏览器自动化」做成框架或 SDK，你写代码/自然语言描述任务，框架负责把意图转成操作。适合快速搭一个专用 Web Agent。</p>
+
+    <article class="tool" id="browser-use">
+      <div class="tool__head"><h3>Browser Use</h3>
+        <div class="badges"><span class="badge badge--open">开源+Cloud</span><span class="badge badge--warn">需模型 Key</span><span class="badge badge--ok">官方 MCP ✅</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>基于 LLM 的浏览器自动化 Agent（Python 生态），自然语言驱动浏览器完成多步任务；官方另提供 Browser Use Cloud（含 ChatBrowserUse 模型）。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/browser-use/browser-use" target="_blank" rel="noopener">github.com/browser-use/browser-use</a> · <a href="https://docs.browser-use.com" target="_blank" rel="noopener">docs.browser-use.com</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>Python 3.11+（示例 3.12）、uv 或 pip、Chromium、LLM API Key（推荐 BROWSER_USE_API_KEY）。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmd">pip</span> install uv
+<span class="cmd">uv</span> venv --python 3.12
+<span class="cmd">source</span> .venv/bin/activate   <span class="cmt"># Windows: .venv\Scripts\activate</span>
+<span class="cmd">uv</span> pip install browser-use
+<span class="cmd">uvx</span> browser-use install     <span class="cmt"># 安装/校验 Chromium</span></code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><pre class="code"><code><span class="cmt"># 终端一键注册（Claude 系客户端）</span>
+<span class="cmd">claude</span> mcp add browser-use -- uvx --from 'browser-use[cli]' browser-use --mcp</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <pre class="code"><code>{
+  "mcpServers": {
+    "browser-use": {
+      "command": "uvx",
+      "args": ["--from", "browser-use[cli]", "browser-use", "--mcp"]
+    }
+  }
+}</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><pre class="code"><code><span class="cmd">from</span> browser_use <span class="cmd">import</span> Agent, ChatBrowserUse
+<span class="cmd">from</span> dotenv <span class="cmd">import</span> load_dotenv
+<span class="cmd">import</span> asyncio
+load_dotenv()
+<span class="cmd">async def</span> main():
+    llm = ChatBrowserUse()
+    agent = Agent(task="Find the number 1 post on Show HN", llm=llm)
+    <span class="cmd">await</span> agent.run()
+asyncio.run(main())</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <p class="note">项目根建 <code>.env</code> 填 Key（首推 ChatBrowserUse）：<code>BROWSER_USE_API_KEY</code> / <code>OPENAI_API_KEY</code> 等。</p></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>生产环境建议用官方 Sandbox（<code>@sandbox</code> 装饰器）就近运行 Agent 与浏览器降低延迟。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://docs.browser-use.com/open-source/quickstart" target="_blank" rel="noopener">quickstart</a> · <a href="https://docs.browser-use.com/open-source/customize/integrations/mcp-server" target="_blank" rel="noopener">MCP Server</a></dd></div>
+      </dl>
+    </article>
+
+    <article class="tool" id="stagehand">
+      <div class="tool__head"><h3>Stagehand <span class="vendor">· Browserbase</span></h3>
+        <div class="badges"><span class="badge badge--open">SDK 开源</span><span class="badge badge--warn">需 Browserbase Key</span><span class="badge badge--ok">官方 MCP ✅</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>AI 浏览器自动化框架，源自 Playwright 思路，提供 <code>act</code> / <code>extract</code> / <code>observe</code> 三大原语；可本地 Chrome(CDP) 或 Browserbase 云浏览器驱动。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/browserbase/stagehand" target="_blank" rel="noopener">github.com/browserbase/stagehand</a> · <a href="https://docs.stagehand.dev" target="_blank" rel="noopener">docs.stagehand.dev</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>Node.js 22.18+（或 Python 3.11+/Go/Bun）；本地模式需装 Chrome；Browserbase API Key。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmt"># TypeScript 推荐</span>
+<span class="cmd">pnpm</span> add @browserbasehq/stagehand 'zod@~4.4.3'
+<span class="cmt"># 或 npm install @browserbasehq/stagehand 'zod@~4.4.3'</span>
+<span class="cmt"># Python: pip install stagehand</span></code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <p class="note">⚠️ Zod 必须锁 <code>4.4.x</code>（如 <code>zod@~4.4.3</code>），否则 <code>extract()</code> 传 schema 可能报 TS 错。</p></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><pre class="code"><code>{
+  "mcpServers": {
+    "browserbase": {
+      "url": "https://mcp.browserbase.com/mcp?browserbaseApiKey=YOUR_BROWSERBASE_API_KEY"
+    }
+  }
+}</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <p class="note">自托管 STDIO：<code>command:"npx", args:["@browserbasehq/mcp"], env:{BROWSERBASE_API_KEY, BROWSERBASE_PROJECT_ID, GEMINI_API_KEY}</code></p></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><pre class="code"><code><span class="cmd">import</span> { localBrowser, Stagehand } <span class="cmd">from</span> "@browserbasehq/stagehand";
+<span class="cmd">import</span> { z } <span class="cmd">from</span> "zod/v4";
+<span class="cmd">const</span> browser = <span class="cmd">await</span> localBrowser.launch();
+<span class="cmd">const</span> stagehand = <span class="cmd">await</span> Stagehand.create({
+  browser, model: { modelName: "openai/gpt-5.6-sol", apiKey: process.env.OPENAI_API_KEY },
+});
+<span class="cmd">const</span> [page] = <span class="cmd">await</span> browser.context.pages();
+<span class="cmd">await</span> page.goto("https://stagehand.dev");
+<span class="cmd">await</span> stagehand.extract("Extract the value proposition.", z.object({ valueProposition: z.string() }));
+<span class="cmd">await</span> stagehand.act("Click the 'Evals' button.");</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>不自动读环境变量，需 <code>import "dotenv/config"</code> 并显式传 apiKey；本地模式须先装 Chrome；无 Playwright 依赖（走 CDP）。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://docs.stagehand.dev/v4/first-steps/quickstart" target="_blank" rel="noopener">quickstart</a> · <a href="https://www.browserbase.com/mcp" target="_blank" rel="noopener">Browserbase MCP</a></dd></div>
+      </dl>
+    </article>
+
+    <article class="tool" id="skyvern">
+      <div class="tool__head"><h3>Skyvern</h3>
+        <div class="badges"><span class="badge badge--warn">AGPL-3.0</span><span class="badge badge--warn">需 Skyvern Key</span><span class="badge badge--ok">官方 MCP ✅</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>AI 浏览器自动化（LLM + 计算机视觉），驱动未见过的网站完成填表/抽取/下载/登录/多步工作流；Python/TS/REST/MCP/CLI 接入。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/Skyvern-AI/skyvern" target="_blank" rel="noopener">github.com/Skyvern-AI/skyvern</a> · <a href="https://www.skyvern.com/docs" target="_blank" rel="noopener">skyvern.com/docs</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>Skyvern Cloud API Key 或自托管实例；Python 3.11+ / Node 18+；MCP 客户端（Claude Code/Desktop、Cursor、Windsurf、VS Code）。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmd">pip</span> install skyvern
+<span class="cmd">pip</span> install "skyvern[server]"   <span class="cmt"># 含 MCP 的自托管</span>
+skyvern setup claude-code         <span class="cmt"># 自动注册到客户端</span></code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><pre class="code"><code>{
+  "mcpServers": {
+    "Skyvern": {
+      "type": "streamable-http",
+      "url": "https://api.skyvern.com/mcp/",
+      "headers": { "x-api-key": "YOUR_SKYVERN_API_KEY" }
+    }
+  }
+}</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <p class="note">另有 stdio via mcp-remote 与本地自托管两种；支持 OAuth 登录（零配置）。</p></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><pre class="code"><code><span class="cmd">import</span> asyncio
+<span class="cmd">from</span> skyvern <span class="cmd">import</span> Skyvern
+<span class="cmd">async def</span> main():
+    client = Skyvern(api_key="YOUR_API_KEY")
+    result = <span class="cmd">await</span> client.run_task(
+        prompt="Get the title of the top post on Hacker News",
+        url="https://news.ycombinator.com")
+    print(result)
+asyncio.run(main())</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>官方 MCP 暴露 75+ 工具；<b>AGPL-3.0 商用闭源集成需评估合规</b>；云端按调用计费。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://www.skyvern.com/docs/developers/getting-started/mcp" target="_blank" rel="noopener">MCP 文档</a> · <a href="https://github.com/Skyvern-AI/skyvern/blob/main/docs/skill.md" target="_blank" rel="noopener">skill.md</a></dd></div>
+      </dl>
+    </article>
+
+    <article class="tool" id="midscene">
+      <div class="tool__head"><h3>Midscene <span class="vendor">· web-infra-dev</span></h3>
+        <div class="badges"><span class="badge badge--open">MIT</span><span class="badge badge--warn">需多模态 Key</span><span class="badge badge--danger">官方 MCP 已退役 ❌</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>视觉驱动的 UI 自动化（Vision-Driven），多模态大模型，支持 Web/Android/iOS/HarmonyOS/桌面；Web 端经 Playwright/Puppeteer，提供 <code>aiAct</code>/<code>aiQuery</code>/<code>aiAssert</code>/<code>aiWaitFor</code>。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/web-infra-dev/midscene" target="_blank" rel="noopener">github.com/web-infra-dev/midscene</a> · <a href="https://midscenejs.com" target="_blank" rel="noopener">midscenejs.com</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>Node.js；多模态模型（示例阿里云 qwen）；Playwright；可选 Chrome 扩展 Playground。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmd">npm</span> install @midscene/web playwright @playwright/test tsx --save-dev</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><div class="callout callout--warn" style="margin:6px 0"><span class="ic">⚠️</span><p>官方<b>整体停供 MCP 集成</b>——含 <code>@midscene/mcp</code> 与 <code>@midscene/web-bridge-mcp</code> 等全部 MCP server（npm 均停在 <code>1.9.8</code>）。改推 <a href="https://midscenejs.com/skills.html" target="_blank" rel="noopener">平台 Skills</a>，代码级自动化用 JS SDK / YAML runner；旧包可 pin <code>1.9.8</code> 临时续用。</p></div></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><pre class="code"><code><span class="cmt"># 先设模型环境变量（示例：阿里云 qwen）</span>
+<span class="cmd">export</span> MIDSCENE_MODEL_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
+<span class="cmd">export</span> MIDSCENE_MODEL_API_KEY="your-api-key"
+<span class="cmd">export</span> MIDSCENE_MODEL_NAME="qwen3.7-plus"</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <pre class="code"><code><span class="cmd">import</span> { chromium } <span class="cmd">from</span> 'playwright';
+<span class="cmd">import</span> { PlaywrightAgent } <span class="cmd">from</span> '@midscene/web/playwright';
+<span class="cmd">import</span> 'dotenv/config';
+<span class="cmd">const</span> browser = <span class="cmd">await</span> chromium.launch({ headless: true, args: ['--no-sandbox'] });
+<span class="cmd">const</span> page = <span class="cmd">await</span> browser.newPage();
+<span class="cmd">await</span> page.goto('https://www.ebay.com');
+<span class="cmd">const</span> agent = <span class="cmd">new</span> PlaywrightAgent(page);
+<span class="cmd">await</span> agent.aiAct('type "Headphones" in search box, hit Enter');
+<span class="cmd">const</span> items = <span class="cmd">await</span> agent.aiQuery('{itemTitle:string, price:Number}[], find item and price');</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>必须配置多模态模型环境变量；MCP 集成已整体退役（勿依赖任何 <code>@midscene/*-mcp</code> 包）；与 Chrome 扩展冲突可能报 <code>chrome-extension://</code> 错误。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://midscenejs.com/quick-start" target="_blank" rel="noopener">quick-start</a> · <a href="https://midscenejs.com/mcp" target="_blank" rel="noopener">MCP（已退役说明）</a> · <a href="https://midscenejs.com/skills.html" target="_blank" rel="noopener">Skills（替代方案）</a></dd></div>
+      </dl>
+    </article>
+
+    <article class="tool" id="agentql">
+      <div class="tool__head"><h3>AgentQL</h3>
+        <div class="badges"><span class="badge badge--open">SDK 开源</span><span class="badge badge--warn">需 AgentQL Key</span><span class="badge badge--ok">官方 MCP ✅</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>自然语言查询语言 + 开发者工具集，自然语言定位网页元素并以自定义结构返回数据；Python/JS/REST SDK，底层 Playwright。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/tinyfish-io/agentql" target="_blank" rel="noopener">github.com/tinyfish-io/agentql</a> · <a href="https://docs.agentql.com" target="_blank" rel="noopener">docs.agentql.com</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>Python 3.8+（或 Node/JS）；Playwright(chromium)；AgentQL API Key（dev.agentql.com 可领免费）。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmd">pip3</span> install agentql
+<span class="cmd">agentql</span> init        <span class="cmt"># 交互式下载依赖 + 配置 Key</span>
+<span class="cmt"># 手动: playwright install chromium; export AGENTQL_API_KEY=xxx</span></code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><pre class="code"><code>{
+  "mcpServers": {
+    "agentql": {
+      "command": "npx",
+      "args": ["-y", "agentql-mcp"],
+      "env": { "AGENTQL_API_KEY": "YOUR_API_KEY" }
+    }
+  }
+}</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><pre class="code"><code><span class="cmd">import</span> agentql
+<span class="cmd">from</span> playwright.sync_api <span class="cmd">import</span> sync_playwright
+<span class="cmd">with</span> sync_playwright() <span class="cmd">as</span> p:
+    browser = p.chromium.launch(headless=False)
+    page = agentql.wrap(browser.new_page())
+    page.goto("https://www.youtube.com/")
+    r = page.query_elements("{ search_input search_btn }")
+    r.search_input.fill("AgentQL"); r.search_btn.click()
+    browser.close()</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>必须有 <code>AGENTQL_API_KEY</code>；<code>agentql init</code> 交互式完成配置；默认 Playwright 驱动 Chromium。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://docs.agentql.com/quick-start" target="_blank" rel="noopener">quick-start</a> · <a href="https://github.com/tinyfish-io/agentql-mcp" target="_blank" rel="noopener">agentql-mcp</a></dd></div>
+      </dl>
+    </article>
+  </section>
+
+  <!-- ===================== Native / Anti-bot ===================== -->
+  <section class="school" id="school-native" data-school="native">
+    <div class="school-head"><h2>③ 浏览器原生能力 / 反爬类</h2><span class="count">5 个 · 实验期与隐身</span></div>
+    <p class="school-desc">A 类为浏览器/平台方内建能力（实验期或灰度）；B 类主打复用真实浏览器、突破反爬墙、隐身指纹。多数处于实验或商业灰度，请勿默认「开箱即用」。</p>
+
+    <article class="tool" id="webmcp">
+      <div class="tool__head"><h3>WebMCP <span class="vendor">· Web Model Context Protocol</span></h3>
+        <div class="badges"><span class="badge badge--open">规范开源</span><span class="badge badge--warn">实验期 flag</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>浏览器原生协议/能力，让网页把功能（JS 函数或 HTML <code>&lt;form&gt;</code>）暴露为带自然语言描述与 schema 的 "tools"，供 AI agent 调用。是「网页适配 AI」，<b>非</b> agent 控制任意网页。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://developer.chrome.com/docs/ai/webmcp" target="_blank" rel="noopener">developer.chrome.com/docs/ai/webmcp</a> · <a href="https://github.com/webmachinelearning/webmcp" target="_blank" rel="noopener">webmachinelearning/webmcp</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>Chrome 146+；需手动开启实验 flag；网页侧可选引入 <code>webmcp-types</code>。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmt"># 浏览器开启实验能力（地址栏，非装软件）</span>
+chrome://flags/#enable-webmcp-testing
+<span class="cmt"># 重启 Chrome 后网页内即可用 window.webmcp</span>
+<span class="cmt"># 网页开发侧可选安装 TS 类型</span>
+<span class="cmd">npm</span> install webmcp-types</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><p class="note">无需 MCP JSON；这是网页端向浏览器注册 tool 的 Web API，agent 侧通过 WebMCP 发现并调用。</p></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><pre class="code"><code><span class="cmd">if</span> ('webmcp' <span class="cmd">in</span> window) {
+  webmcp.register({
+    name: 'addToCart',
+    description: 'Add a product to the shopping cart',
+    inputSchema: {
+      type: 'object',
+      properties: { productId: { type: 'string', description: 'Product ID' } },
+      required: ['productId']
+    },
+    handler: <span class="cmd">async</span> ({ productId }) =&gt; ({ ok: true }),
+  });
+}</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>仍处<b>实验期</b>，默认关闭、需 flag 开启，勿称「开箱即用」；跨域 iframe 需 Permissions-Policy；详细 API 以官方 Imperative API 页为准。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://developer.chrome.com/docs/ai/webmcp" target="_blank" rel="noopener">Chrome 文档 WebMCP</a></dd></div>
+      </dl>
+    </article>
+
+    <article class="tool" id="chrome-skills">
+      <div class="tool__head"><h3>Chrome Skills <span class="vendor">· Skills in Chrome</span></h3>
+        <div class="badges"><span class="badge badge--biz">闭源 · Google 托管</span><span class="badge badge--warn">灰度推送</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>Google 在 Chrome + Gemini 内建的「一键 AI 工作流」功能，把常用提示词保存为 Skill 页面上一键复用。<b>面向终端用户的 Google 托管产品能力</b>，非开发者可独立部署的 agent 工具。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://blog.google/products-and-platforms/products/chrome/skills-in-chrome/" target="_blank" rel="noopener">blog.google · Skills in Chrome</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>桌面版 Chrome（Mac/Windows/ChromeOS）；Google 账号；Chrome 界面语言 English-US（公告期推送范围）；Gemini in Chrome 可用。</dd></div>
+        <div class="field"><dt>安装</dt><dd><p class="note">无需安装、无命令。随 Chrome 向受支持用户灰度推送；在「Gemini in Chrome」侧边栏输入 <code>/</code> 或点 <code>+</code> 创建/调用 Skill。</p></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><p class="note">无 MCP JSON、无外部接入配置，是 Gemini in Chrome 内部能力。</p></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><pre class="code"><code><span class="cmt"># 无代码 / 无命令：产品内操作</span>
+1) 在 Gemini in Chrome 侧边栏写一条想复用的提示词；
+2) 从聊天历史中把它「保存为 Skill」；
+3) 下次在任意页面输入 / 或点 + 选择该 Skill，即作用于当前页。</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>注意事项</dt><dd><b>非开发者工具、非开源、不可本地部署</b>；灰度推送，非全员可用，受语言/地区/账号限制；与 WebMCP 不同（WebMCP 给开发者暴露 tool，Skills 给普通用户复用提示词）。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://blog.google/products-and-platforms/products/chrome/skills-in-chrome/" target="_blank" rel="noopener">Google 官方博客（2026-04-14）</a></dd></div>
+      </dl>
+    </article>
+
+    <article class="tool" id="browseract">
+      <div class="tool__head"><h3>BrowserAct Skills <span class="vendor">· browser-act</span></h3>
+        <div class="badges"><span class="badge badge--open">仓库 MIT</span><span class="badge badge--warn">商业 SaaS</span><span class="badge badge--warn">本地无云端·Cloud 登录</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>面向 AI agent 的「真实浏览器自动化」CLI/技能库，主打突破反爬墙、卡住跨平台转人工、并行多任务互不污染、多账号隔离。底层 stealth 指纹/TLS 轮换/住宅代理/验证码破解。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/browser-act/skills" target="_blank" rel="noopener">github.com/browser-act/skills</a> · <a href="https://www.browseract.com" target="_blank" rel="noopener">browseract.com</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>Node.js（npx 运行）；云端能力需 BrowserAct 账号 / API Key（具体注册以官网为准 ❓）。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmt"># 作为 agent 技能添加</span>
+<span class="cmd">npx</span> skills add https://github.com/browser-act/skills --skill browser-act
+
+<span class="cmt"># 或获取核心技能集</span>
+browser-act get-skills core --skill-version 2.0.2</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><p class="note">⚠️ 两条产品线务必分清：<b>本地 Agent CLI</b>（<code>browser-act/skills</code>）全程本地执行、<b>无云端端点、无 mcpServers</b>，可选 Key 用 <code>auth set</code> 注入（仅 stealth / 验证码用）；只有 <b>BrowserAct Cloud</b>（SaaS）才提供云端 MCP/API——其 MCP 为控制台按 Bot 动态生成的专属 URL <code>https://mcp.browseract.com/&lt;id&gt;/mcp/</code>，配独立 MCP Key（<code>Authorization: Bearer</code>、<code>type:http</code>），需登录控制台获取，无现成固定 JSON。</p></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><pre class="code"><code>browser-act get-skills core --skill-version 2.0.2
+
+<span class="cmt"># 本地反爬能力（三级升级，无需云端）</span>
+browser-act browser create --type stealth --name "ephemeral" --private true
+browser-act --session ephemeral remote-assist --objective "人工接管完成验证"
+<span class="cmt"># 更多见 docs/anti-blocking.md · docs/concurrency.md · docs/remote-assist.md</span></code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>明确面向「过反爬墙」场景，使用须遵守目标站点 ToS 与当地法律；<b>本地 CLI 无云端依赖</b>（data-privacy.local-only）；BrowserAct Cloud 为付费 SaaS，MCP/REST 两套 Key 互不相通，计费以官网为准。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://github.com/browser-act/skills" target="_blank" rel="noopener">browser-act/skills README</a> · <a href="https://www.browseract.com" target="_blank" rel="noopener">browseract.com</a></dd></div>
+      </dl>
+    </article>
+
+    <article class="tool" id="obscura">
+      <div class="tool__head"><h3>Obscura <span class="vendor">· h4ckf0r0day</span></h3>
+        <div class="badges"><span class="badge badge--open">Apache-2.0</span><span class="badge badge--ok">可自托管</span><span class="badge badge--ok">MCP ✅</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>Rust 编写的开源无头浏览器引擎，V8 跑 JS、说 Chrome DevTools Protocol（CDP），可作 headless Chrome 替代品接入 Puppeteer/Playwright；内置 anti-detect；提供 MCP server。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/h4ckf0r0day/obscura" target="_blank" rel="noopener">github.com/h4ckf0r0day/obscura</a> · <a href="https://docs.obscura.sh" target="_blank" rel="noopener">docs.obscura.sh</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>对应平台二进制（releases 下载）或 Rust 工具链编译。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmt"># Linux x86_64</span>
+<span class="cmd">curl</span> -LO https://github.com/h4ckf0r0day/obscura/releases/latest/download/obscura-x86_64-linux.tar.gz
+<span class="cmd">tar</span> xzf obscura-x86_64-linux.tar.gz
+./obscura fetch https://example.com --eval "document.title"
+
+<span class="cmt"># macOS Apple Silicon / Windows: 见 releases 页；NixOS: nix-env -iA nixpkgs.obscura</span></code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><pre class="code"><code>{
+  "mcpServers": {
+    "obscura": {
+      "command": "/path/to/obscura",
+      "args": ["mcp"]
+    }
+  }
+}</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <p class="note">HTTP：<code>obscura mcp --http --port 3000</code>；隐形+代理：<code>obscura mcp --stealth --proxy http://proxy.example.com:8080</code></p></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><pre class="code"><code>./obscura fetch https://example.com --eval "document.title"</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>HTTP 传输默认绑 127.0.0.1，非回环需 <code>OBSCURA_MCP_TOKEN</code>(≥32 字节) 与 <code>OBSCURA_MCP_ALLOWED_ORIGINS</code>；本地/私网默认拦截，需 <code>--allow-private-network</code>；隐形能力使用须合规。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://github.com/h4ckf0r0day/obscura/blob/main/README.md" target="_blank" rel="noopener">obscura README</a> · <a href="https://docs.obscura.sh" target="_blank" rel="noopener">docs.obscura.sh</a></dd></div>
+      </dl>
+    </article>
+
+    <article class="tool" id="page-agent">
+      <div class="tool__head"><h3>Page-Agent <span class="vendor">· Alibaba</span></h3>
+        <div class="badges"><span class="badge badge--open">MIT</span><span class="badge badge--warn">需 LLM Key</span><span class="badge badge--warn">MCP Beta ⚠️</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>阿里开源的「活在网页里的 GUI Agent」——一行脚本让任意网页拥有自己的 AI agent，纯前端；支持自带 LLM。另提供 Chrome 扩展做跨标签页任务，及（Beta）MCP server 控制用户浏览器。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/alibaba/page-agent" target="_blank" rel="noopener">github.com/alibaba/page-agent</a> · <a href="https://alibaba.github.io/page-agent/" target="_blank" rel="noopener">alibaba.github.io/page-agent</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>浏览器（可选 Chrome 扩展）；自有 LLM 的 apiKey/baseURL/model；MCP 模式需先装扩展并批准 Hub。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmt"># npm 集成</span>
+<span class="cmd">npm</span> install page-agent
+<span class="cmt"># 或一行 &lt;script&gt; 引入（含免费 demo，无需 key）</span>
+<span class="cmt"># &lt;script src="https://cdn.jsdelivr.net/npm/page-agent@1.12.4/dist/iife/page-agent.demo.js"&gt;&lt;/script&gt;</span></code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><pre class="code"><code>{
+  "mcpServers": {
+    "page-agent": {
+      "command": "npx",
+      "args": ["-y", "@page-agent/mcp"],
+      "env": {
+        "LLM_BASE_URL": "https://api.openai.com/v1",
+        "LLM_API_KEY": "sk-xxx",
+        "LLM_MODEL_NAME": "gpt-5.2"
+      }
+    }
+  }
+}</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><pre class="code"><code><span class="cmd">import</span> { PageAgent } <span class="cmd">from</span> 'page-agent'
+<span class="cmd">const</span> agent = <span class="cmd">new</span> PageAgent({
+  model: 'qwen3.5-plus',
+  baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  apiKey: 'YOUR_API_KEY', language: 'en-US',
+})
+<span class="cmd">await</span> agent.execute('Click the login button')</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>MCP server 处 <b>Beta</b>，功能不完整、API 可能变，<b>勿用于生产</b>；本质是「网页内/客户端」agent；免费 demo 走测试 LLM，需同意 ToU；接外部 LLM 数据发往对应服务商。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://github.com/alibaba/page-agent" target="_blank" rel="noopener">page-agent README</a> · <a href="https://alibaba.github.io/page-agent/docs/features/mcp-server" target="_blank" rel="noopener">MCP 文档(Beta)</a></dd></div>
+      </dl>
+    </article>
+  </section>
+
+  <!-- ===================== SDK / Skills ===================== -->
+  <section class="school" id="school-sdk" data-school="sdk">
+    <div class="school-head"><h2>④ SDK / Skills 生态</h2><span class="count">5 个 · 库、云封装与插件</span></div>
+    <p class="school-desc">Python/TS SDK、云浏览器 API 的 MCP 封装，以及 Agent Skills / 插件市场机制。适合把浏览器能力嵌进自有代码或现有 Agent 生态。</p>
+
+    <article class="tool" id="bridgic-browser">
+      <div class="tool__head"><h3>bridgic-browser <span class="vendor">· bitsky-tech</span></h3>
+        <div class="badges"><span class="badge badge--open">MIT</span><span class="badge badge--ok">无需云 Key</span><span class="badge badge--warn">非 MCP·Skill/SDK</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>基于 Playwright 的 LLM 驱动浏览器自动化 Python 库，提供 CLI、Python Tools 与面向 agent 的 Skills（67 工具/15 类，含语义快照、隐身、持久/临时会话）。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/bitsky-tech/bridgic-browser" target="_blank" rel="noopener">github.com/bitsky-tech/bridgic-browser</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>Python 3.10+，Playwright 1.57+，Pydantic 2.11+，pip；本地 Chromium。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmd">pip</span> install bridgic-browser
+<span class="cmd">playwright</span> install chromium</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><p class="note">⚠️ 已核实：依赖不含 <code>mcp</code>/<code>@modelcontextprotocol</code>，<strong>无标准 MCP server</strong>；仅 Skill / Plugin / Python SDK 三种接入：</p><pre class="code"><code><span class="cmd">npx</span> skills add bitsky-tech/bridgic-browser --skill bridgic-browser</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><pre class="code"><code><span class="cmt"># CLI（持久 daemon 持有浏览器）</span>
+bridgic-browser open --headed https://example.com
+bridgic-browser snapshot
+bridgic-browser click f0201d1c
+bridgic-browser screenshot page.png
+bridgic-browser close</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <pre class="code"><code><span class="cmd">from</span> bridgic.browser.session <span class="cmd">import</span> Browser
+browser = Browser(headless=False)
+<span class="cmd">async def</span> main():
+    <span class="cmd">await</span> browser.navigate_to("https://example.com")
+    snap = <span class="cmd">await</span> browser.get_snapshot()
+    <span class="cmd">await</span> browser.close()</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>本地 Playwright，无强制云 Key；隐身默认开（覆盖 24+ 指纹向量）；默认持久 profile（~/.bridgic/），<code>clear_user_data=True</code> 可临时化；接入方式 Skill/Plugin/SDK，非标准 MCP。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://github.com/bitsky-tech/bridgic-browser" target="_blank" rel="noopener">bridgic-browser README</a></dd></div>
+      </dl>
+    </article>
+
+    <article class="tool" id="open-operator">
+      <div class="tool__head"><h3>open-operator <span class="vendor">· browserbase</span></h3>
+        <div class="badges"><span class="badge badge--warn">已停更 ⚠️</span><span class="badge badge--warn">需 OpenAI+Browserbase</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>基于 Next.js 的概念验证 Web Agent（Stagehand 把自然语言转无头操作，Browserbase 执行、OpenAI 决策）。<b>仓库已停更</b>，迁移到 gtm-demos。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/browserbase/open-operator" target="_blank" rel="noopener">github.com/browserbase/open-operator</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>pnpm（README 明确 NPM 不行）、Node.js；OpenAI API Key；Browserbase API Key + Project ID。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmd">pnpm</span> install
+<span class="cmd">cp</span> .env.example .env.local
+<span class="cmd">pnpm</span> dev</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><pre class="code"><code><span class="cmt"># .env.local</span>
+OPENAI_API_KEY=你的OpenAI密钥
+BROWSERBASE_API_KEY=你的Browserbase密钥
+BROWSERBASE_PROJECT_ID=你的Browserbase项目ID</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><pre class="code"><code><span class="cmd">pnpm</span> dev
+<span class="cmt"># 浏览器打开 http://localhost:3000 即可与 Open Operator 交互</span></code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>⚠️ 官方明确 "no longer actively maintained"、"proof of concept"，强烈建议改用 <b>Browserbase + 开源 Stagehand</b> 自建；依赖 Browserbase 付费云；生产不建议直接用本仓库。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://github.com/browserbase/open-operator" target="_blank" rel="noopener">open-operator README</a></dd></div>
+      </dl>
+    </article>
+
+    <article class="tool" id="mcp-hyperbrowser">
+      <div class="tool__head"><h3>mcp-hyperbrowser <span class="vendor">· pipeworx-io</span></h3>
+        <div class="badges"><span class="badge badge--open">封装 MIT</span><span class="badge badge--warn">Hyperbrowser 付费</span><span class="badge badge--ok">MCP ✅</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>Hyperbrowser「AI agent 浏览器」API 的 MCP 封装，网关(远程 URL)或本地 stdio 两种模式，提供 scrape / extract / crawl 云端浏览器工具。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/pipeworx-io/mcp-hyperbrowser" target="_blank" rel="noopener">github.com/pipeworx-io/mcp-hyperbrowser</a> · <a href="https://www.hyperbrowser.ai/" target="_blank" rel="noopener">hyperbrowser.ai</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>Node.js（npx）；MCP 客户端。本地 stdio 需自带 Hyperbrowser API Key。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmd">npx</span> -y @pipeworx/mcp-hyperbrowser</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><pre class="code"><code>{
+  "mcpServers": {
+    "hyperbrowser": {
+      "url": "https://gateway.pipeworx.io/hyperbrowser/mcp"
+    }
+  }
+}</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre>
+          <p class="note">本地 stdio：<code>command:"npx", args:["-y","@pipeworx/mcp-hyperbrowser"]</code>（不含共享 meta-tools）。</p></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><pre class="code"><code>hyperbrowser_scrape({ "url": "https://example.com", "_apiKey": "your-key" })
+hyperbrowser_extract({ "urls": ["https://example.com"], "prompt": "Get product name and price",
+  "schema": { "type": "object", "properties": { "name": {"type":"string"}, "price": {"type":"string"} } },
+  "_apiKey": "your-key" })
+hyperbrowser_crawl({ "url": "https://example.com", "maxPages": 10, "_apiKey": "your-key" })</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>网关 URL 模式自动挂载 Pipeworx 共享 meta-tools（~30+），嫌占上下文用本地 stdio；本地 stdio 不代持 Key，每次调用须自带 <code>_apiKey</code>；Hyperbrowser 付费按量。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://github.com/pipeworx-io/mcp-hyperbrowser" target="_blank" rel="noopener">mcp-hyperbrowser README</a></dd></div>
+      </dl>
+    </article>
+
+    <article class="tool" id="claude-code-skills">
+      <div class="tool__head"><h3>Claude Code Skills / Plugins <span class="vendor">· MCP 市场</span></h3>
+        <div class="badges"><span class="badge badge--open">开放标准</span><span class="badge badge--unknown">视插件而定</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>Claude Code 的 Skills（技能）/ Plugins（插件）扩展机制与官方 MCP 插件市场；Skills 遵循 Agent Skills 开放标准，Plugin 是含 skills/agents/hooks/MCP servers 的目录单元。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/modelcontextprotocol/modelcontextprotocol" target="_blank" rel="noopener">modelcontextprotocol/modelcontextprotocol</a> · <a href="https://docs.anthropic.com/en/docs/claude-code/skills" target="_blank" rel="noopener">Claude Code Skills 文档</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd>Claude Code（claude CLI）；联网拉取市场/插件。</dd></div>
+        <div class="field"><dt>安装</dt><dd><pre class="code"><code><span class="cmt"># 会话内安装官方市场插件</span>
+/plugin install commit-commands@claude-plugins-official
+
+<span class="cmt"># 加自定义市场（本任务仓库）</span>
+/plugin marketplace add modelcontextprotocol/modelcontextprotocol
+/plugin install mcp-spec@modelcontextprotocol</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>接入配置</dt><dd><p class="note">Skill：在 <code>.claude/skills/&lt;name&gt;/SKILL.md</code> 写指令文件即可；Plugin 清单 <code>.claude-plugin/plugin.json</code>。</p><pre class="code"><code>{
+  "name": "modelcontextprotocol",
+  "owner": { "name": "Model Context Protocol" },
+  "plugins": [
+    { "name": "mcp-spec", "source": "./plugins/mcp-spec",
+      "description": "Skills for researching and contributing to the MCP specification" }
+  ]
+}</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>快速使用</dt><dd><pre class="code"><code><span class="cmt"># 写最小 Skill: .claude/skills/hello/SKILL.md</span>
+<span class="cmt"># ---</span>
+<span class="cmt"># name: hello</span>
+<span class="cmt"># description: 演示技能</span>
+<span class="cmt"># ---</span>
+<span class="cmt"># 当用户说"你好"时，用中文热情问候。</span>
+<span class="cmt"># 会话中输入 /hello 触发</span>
+/plugin marketplace add modelcontextprotocol/modelcontextprotocol
+/plugin install mcp-spec@modelcontextprotocol</code><button class="copy-btn" type="button" aria-label="复制代码">复制</button></pre></dd></div>
+        <div class="field"><dt>注意事项</dt><dd>Skills 遵循 Agent Skills 开放标准；插件可携带 MCP servers 与 hooks，安装前在 /plugin 面板查看 "Will install" 与安全提示；官方市场默认已注册，第三方需先 /plugin marketplace add；本市场现仅含 mcp-spec（非浏览器类）。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/.claude-plugin/marketplace.json" target="_blank" rel="noopener">marketplace.json</a> · <a href="https://docs.anthropic.com/en/docs/claude-code/plugins/install" target="_blank" rel="noopener">Plugins 安装文档</a></dd></div>
+      </dl>
+    </article>
+
+    <article class="tool" id="nmoiaiiento">
+      <div class="tool__head"><h3>NmoIAIgenTo <span class="vendor">· jhh562yy</span></h3>
+        <div class="badges"><span class="badge badge--unknown">许可证 ❓</span><span class="badge badge--unknown">可用性 ❓</span></div>
+      </div>
+      <dl class="fields">
+        <div class="field"><dt>定位</dt><dd>本地优先 AI agent 桌面端（Tauri 2 · React 19 · Rust），本机读写文件、跑 shell、MCP、Skills、记忆、cron，含 VCP 插件生态与 Go 网关浏览器访问。</dd></div>
+        <div class="field"><dt>官方</dt><dd><a href="https://github.com/jhh562yy/NmoIAIgenTo" target="_blank" rel="noopener">github.com/jhh562yy/NmoIAIgenTo</a></dd></div>
+        <div class="field"><dt>前置依赖</dt><dd class="note">❓ 仓库 README 未提供。</dd></div>
+        <div class="field"><dt>安装</dt><dd class="note">❓ 仓库 README 仅一句话定位，<b>无任何安装/构建/配置命令</b>。</dd></div>
+        <div class="field"><dt>接入配置</dt><dd class="note">❓ 无文档（VCP 插件、Go 网关浏览器访问均未给出配置方式）。</dd></div>
+        <div class="field"><dt>快速使用</dt><dd class="note">❓ 无文档、无示例。</dd></div>
+        <div class="field"><dt>注意事项</dt><dd>⚠️ 已核实：main 分支仅 1 个 263 字节 README（一句定位），无安装/构建/配置/使用示例；自述栈（Tauri 2 · React 19 · Rust · VCP 插件 · Go 网关）为作者自述、仓库无代码佐证；生态成熟度与可用性 ❓，建议向作者/Issues 索取或视为「未发布/早期原型」。</dd></div>
+        <div class="field"><dt>来源</dt><dd><a href="https://github.com/jhh562yy/NmoIAIgenTo" target="_blank" rel="noopener">NmoIAIgenTo README（仅 1 文件）</a></dd></div>
+      </dl>
+    </article>
+  </section>
+
+  <section class="school" id="school-decision" data-school="decision">
+    <div class="school-head"><h2>⑤ 选型决策树</h2><span class="count">按场景 30 秒定位</span></div>
+    <p class="school-desc">从你的真实约束出发，自上而下问 5 个问题，沿「是 →」落到合适方案；答「否」就继续往下。</p>
+    <div class="dtree">
+      <div class="q"><span class="qno">Q1</span>要复用「真实已登录」的浏览器（你的 Chrome / Edge 登录态）？</div>
+      <div class="branch">
+        <div class="b yes"><b>是 →</b> BrowserSkill（独立 Agent Window 复用登录态）· Chrome DevTools MCP（调试真实 Chrome）</div>
+        <div class="b no">否 ↓ 继续</div>
+      </div>
+      <div class="q"><span class="qno">Q2</span>已有 MCP 客户端，想挂「浏览器工具」？</div>
+      <div class="branch">
+        <div class="b yes"><b>是 →</b> Playwright MCP（零云 Key 首选）· agent-browser（Rust CLI）· Obscura（自托管 + 隐身）</div>
+        <div class="b no">否 ↓ 继续</div>
+      </div>
+      <div class="q"><span class="qno">Q3</span>想快速写代码 / 自然语言搭「专用 Web Agent」？</div>
+      <div class="branch">
+        <div class="b yes"><b>是 →</b> Browser Use（Python）· Stagehand（TS）· AgentQL（NL 查询）· Midscene（视觉 SDK，MCP 已退役）</div>
+        <div class="b no">否 ↓ 继续</div>
+      </div>
+      <div class="q"><span class="qno">Q4</span>场景是「突破反爬墙 / 隐身 / 多账号隔离 / 转人工」？</div>
+      <div class="branch">
+        <div class="b yes"><b>是 →</b> BrowserAct（本地 CLI 或 Cloud）· Obscura · Stagehand（Browserbase Cloud）</div>
+        <div class="b no">否 ↓ 继续</div>
+      </div>
+      <div class="q"><span class="qno">Q5</span>想要「活在网页里的 GUI Agent / 前端集成」？</div>
+      <div class="branch">
+        <div class="b yes"><b>是 →</b> Page-Agent（前端 Agent，Beta）</div>
+        <div class="b no">否 ↓ 继续</div>
+      </div>
+      <div class="q" style="border-left-color:var(--warn)"><span class="qno" style="background:var(--warn)">兜底</span>扩展 agent 生态 / 插件化 / 云浏览器封装</div>
+      <div class="branch">
+        <div class="b yes"><b>→</b> Claude Code Skills / Plugins（技能与市场）· mcp-hyperbrowser（云端浏览器 MCP 封装）</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Comparison ===================== -->
+  <section class="school" id="school-compare" data-school="compare">
+    <div class="school-head"><h2>⑥ 横向对比表</h2><span class="count">20 工具速览</span></div>
+    <p class="school-desc">一眼看清每个方案的类型、是否需云 Key、官方 MCP 支持与维护状态。颜色语义见页脚图例。</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>流派</th><th>工具</th><th>类型 / 协议</th><th>是否需云 Key</th><th>官方 MCP</th><th>维护状态</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>MCP</td><td><a href="#playwright-mcp">Playwright MCP</a></td><td>官方 stdio/SSE</td><td><span class="tag tag--ok">否</span></td><td><span class="tag tag--ok">✅</span></td><td><span class="tag tag--ok">活跃</span></td></tr>
+          <tr><td>MCP</td><td><a href="#chrome-devtools-mcp">Chrome DevTools MCP</a></td><td>官方（puppeteer）</td><td><span class="tag tag--ok">否</span></td><td><span class="tag tag--ok">✅</span></td><td><span class="tag tag--ok">活跃 v1.x</span></td></tr>
+          <tr><td>MCP</td><td><a href="#agent-browser">agent-browser</a></td><td>Rust CLI + MCP</td><td><span class="tag tag--ok">否</span></td><td><span class="tag tag--ok">✅ stdio</span></td><td><span class="tag tag--ok">活跃</span></td></tr>
+          <tr><td>MCP</td><td><a href="#browser-skill">BrowserSkill</a></td><td>真实浏览器+扩展</td><td><span class="tag tag--ok">否（复用登录态）</span></td><td><span class="tag tag--warn">非标准 MCP</span></td><td><span class="tag tag--ok">活跃</span></td></tr>
+          <tr><td>MCP</td><td><a href="#cloudflare-playwright-mcp">Cloudflare Playwright MCP</a></td><td>远程 SSE (Workers)</td><td><span class="tag tag--warn">需账号/可能计费</span></td><td><span class="tag tag--ok">✅ SSE</span></td><td><span class="tag tag--ok">活跃</span></td></tr>
+          <tr><td>框架</td><td><a href="#browser-use">Browser Use</a></td><td>Python Agent</td><td><span class="tag tag--warn">需模型 Key</span></td><td><span class="tag tag--ok">✅</span></td><td><span class="tag tag--ok">活跃</span></td></tr>
+          <tr><td>框架</td><td><a href="#stagehand">Stagehand</a></td><td>TS/Py/Go 框架</td><td><span class="tag tag--warn">Browserbase Key</span></td><td><span class="tag tag--ok">✅ 托管+STDIO</span></td><td><span class="tag tag--ok">活跃</span></td></tr>
+          <tr><td>框架</td><td><a href="#skyvern">Skyvern</a></td><td>LLM+CV Agent</td><td><span class="tag tag--warn">Skyvern Key</span></td><td><span class="tag tag--ok">✅ 云端/本地</span></td><td><span class="tag tag--ok">活跃</span></td></tr>
+          <tr><td>框架</td><td><a href="#midscene">Midscene</a></td><td>视觉 UI 自动化</td><td><span class="tag tag--warn">多模态 Key</span></td><td><span class="tag tag--danger">❌ 整体退役</span></td><td><span class="tag tag--ok">活跃（MCP 停）</span></td></tr>
+          <tr><td>框架</td><td><a href="#agentql">AgentQL</a></td><td>NL 查询语言</td><td><span class="tag tag--warn">AgentQL Key</span></td><td><span class="tag tag--ok">✅</span></td><td><span class="tag tag--ok">活跃</span></td></tr>
+          <tr><td>原生</td><td><a href="#webmcp">WebMCP</a></td><td>浏览器原生 Web API</td><td><span class="tag tag--ok">否</span></td><td><span class="tag tag--unknown">— 网页注册 tool</span></td><td><span class="tag tag--warn">实验期 flag</span></td></tr>
+          <tr><td>原生</td><td><a href="#chrome-skills">Chrome Skills</a></td><td>Google 托管产品</td><td><span class="tag tag--ok">否</span></td><td><span class="tag tag--unknown">— 无 MCP</span></td><td><span class="tag tag--warn">灰度推送</span></td></tr>
+          <tr><td>原生</td><td><a href="#browseract">BrowserAct Skills</a></td><td>反爬 CLI/技能</td><td><span class="tag tag--warn">商业 SaaS</span></td><td><span class="tag tag--warn">⚠️ 仅 Cloud</span></td><td><span class="tag tag--ok">活跃</span></td></tr>
+          <tr><td>原生</td><td><a href="#obscura">Obscura</a></td><td>Rust 无头引擎+MCP</td><td><span class="tag tag--ok">否</span></td><td><span class="tag tag--ok">✅</span></td><td><span class="tag tag--ok">活跃</span></td></tr>
+          <tr><td>原生</td><td><a href="#page-agent">Page-Agent</a></td><td>前端 GUI Agent</td><td><span class="tag tag--warn">LLM Key（有免费 demo）</span></td><td><span class="tag tag--warn">⚠️ Beta</span></td><td><span class="tag tag--warn">Beta</span></td></tr>
+          <tr><td>SDK</td><td><a href="#bridgic-browser">bridgic-browser</a></td><td>Python SDK+Skill</td><td><span class="tag tag--ok">否（本地）</span></td><td><span class="tag tag--warn">非 MCP·Skill</span></td><td><span class="tag tag--ok">活跃</span></td></tr>
+          <tr><td>SDK</td><td><a href="#open-operator">open-operator</a></td><td>Next.js PoC Web App</td><td><span class="tag tag--warn">OpenAI+Browserbase</span></td><td><span class="tag tag--unknown">— 非 MCP</span></td><td><span class="tag tag--danger">⚠️ 已停更</span></td></tr>
+          <tr><td>SDK</td><td><a href="#mcp-hyperbrowser">mcp-hyperbrowser</a></td><td>Hyperbrowser MCP 封装</td><td><span class="tag tag--warn">Hyperbrowser 付费</span></td><td><span class="tag tag--ok">✅ 网关/STDIO</span></td><td><span class="tag tag--ok">活跃</span></td></tr>
+          <tr><td>SDK</td><td><a href="#claude-code-skills">Claude Code Skills</a></td><td>技能/插件机制+市场</td><td><span class="tag tag--unknown">视插件</span></td><td><span class="tag tag--unknown">随插件</span></td><td><span class="tag tag--ok">活跃（官方）</span></td></tr>
+          <tr><td>SDK</td><td><a href="#nmoiaiiento">NmoIAIgenTo</a></td><td>本地 Agent 桌面端</td><td><span class="tag tag--unknown">❓ 未知</span></td><td><span class="tag tag--unknown">❓ 未知</span></td><td><span class="tag tag--unknown">❓ 仅 README</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="callout callout--info">
+    <span class="ic">💡</span>
+    <p><b>选型速记：</b>开发集成优先 <b>Playwright MCP</b>；要读真实登录态用 <b>Chrome DevTools MCP</b> 或 <b>BrowserSkill</b>；快速搭 Agent 用 <b>Browser Use</b>；强反爬采集看 <b>BrowserAct / Obscura / Stagehand 云</b>；复用个人登录态用 <b>BrowserSkill</b>；前瞻实验看 <b>WebMCP</b>（2026-10 仍实验期，勿上生产）。</p>
+  </div>
+
+</main>
+
+<footer class="wrap">
+  <h3>调研方法 & 诚实标注</h3>
+  <ul>
+    <li>本手册由 4 个并行调研子 agent 按「每工具官方来源逐一核实」生成，命令与配置片段均可在各卡片「来源」链接核对。</li>
+    <li><b>❓ 标注</b> = 官方一手来源未给出或无法访问（如 BrowserSkill 通用 MCP JSON、BrowserAct 云端鉴权、NmoIAIgenTo 安装方式），已如实留空而非臆造。</li>
+    <li><b>实验期 / 灰度 / Beta / 已停更</b> 已在卡片徽章与对比表中标出，请勿默认「开箱即用」。</li>
+    <li>星标数、版本号等数字以官方页面/仓库为准；本手册聚焦「安装与使用」，未逐条复核 stars。</li>
+  </ul>
+  <div class="legend">
+    <span><span class="dot" style="background:var(--ok)"></span> 可用 / 无需 Key / 活跃</span>
+    <span><span class="dot" style="background:var(--warn)"></span> 需云 Key / 实验期 / 灰度 / Beta</span>
+    <span><span class="dot" style="background:var(--danger)"></span> 已停更 / MCP 已退役</span>
+    <span><span class="dot" style="background:var(--unknown)"></span> 无法核实 ❓</span>
+  </div>
+  <p style="margin-top:16px">生成于 JwikisSkills 调研工作流 · 配套报告：<a href="tech-browser-agent-tools-2026.md">tech-browser-agent-tools-2026.md</a></p>
+</footer>
+
+<script>
+  // 复制按钮
+  document.querySelectorAll('pre.code').forEach(function(block){
+    var btn=document.createElement('button');
+    btn.className='copy-btn';btn.type='button';btn.textContent='复制';
+    btn.setAttribute('aria-label','复制代码');
+    btn.addEventListener('click',function(){
+      var code=block.querySelector('code');
+      if(!code)return;
+      var text=code.textContent;
+      var done=function(){btn.textContent='已复制';setTimeout(function(){btn.textContent='复制';},1500);};
+      var fail=function(){btn.textContent='复制失败';setTimeout(function(){btn.textContent='复制';},1500);};
+      if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(done).catch(fail);
+      }else{
+        try{
+          var ta=document.createElement('textarea');ta.value=text;
+          ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);
+          ta.select();document.execCommand('copy');document.body.removeChild(ta);done();
+        }catch(e){fail();}
+      }
+    });
+    block.appendChild(btn);
+  });
+
+  // 流派筛选
+  var navBtns=document.querySelectorAll('.filter');
+  var schools=document.querySelectorAll('section.school');
+  navBtns.forEach(function(b){
+    b.addEventListener('click',function(){
+      var f=b.getAttribute('data-filter');
+      schools.forEach(function(s){
+        var ok=(f==='all')||(s.getAttribute('data-school')===f);
+        s.hidden=!ok;
+      });
+      navBtns.forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false');});
+      if(f!=='all'){var t=document.getElementById('school-'+f);if(t)t.scrollIntoView();}
+    });
+  });
+</script>
+</body>
+</html>
