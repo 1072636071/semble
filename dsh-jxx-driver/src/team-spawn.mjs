@@ -258,6 +258,32 @@ export function createTeamChannel({ teams, agent, pool, ledger, provider = 'spaw
       }
     },
 
+    /**
+     * stop/释放时中断在飞队友（PRD 110 工单 04 / ADR-0121 D4）：对每张在飞卡的中断动作回调
+     * `interruptFn(cardId, memberName)`——宿主端由编排层调 `teams.interrupt(run.agent, memberName)`；
+     * 成功与否都出册（PRD 110-02 口径：中断的轮次不再计预算）并从在飞集合摘除，本方法幂等。
+     * 出册语义与 harvest 出册一致（inFlight.delete），但**不** recordCompletion——interrupt 不是完工。
+     * 返回尝试中断的卡 id 数组（诊断/测试断言用）。interruptFn 异常不外泄（记日志，册照出——
+     * 队友可能已不在册，此时宿主 interrupt 本就会报错，不因它阻塞 run 清场）。
+     */
+    interruptInFlight(interruptFn) {
+      if (typeof interruptFn !== 'function') {
+        throw new Error('jxx-driver: interruptInFlight 需要 interruptFn(cardId, memberName) 回调')
+      }
+      const attempted = []
+      for (const cardId of [...inFlight]) {
+        const memberName = cardOwners.get(cardId)
+        inFlight.delete(cardId)
+        try {
+          if (memberName !== undefined) interruptFn(cardId, memberName)
+        } catch (e) {
+          log(`team: 中断在飞队友失败（${memberName ?? '未知'} / 卡 ${cardId}）：${e.message}`)
+        }
+        attempted.push(cardId)
+      }
+      return attempted
+    },
+
     /** 卡 → 最近派发的队友名（测试/诊断用）。 */
     nameOf(cardId) {
       return cardOwners.get(cardId)

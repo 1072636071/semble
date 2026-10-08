@@ -64,17 +64,51 @@ worker / 审查者 / 合并专员的提示词两级供给：
 
 内置副本与技能真源 `base/skills/engineering/jxx-ticket-board/assets/starter-*.tmpl.md` **逐字节一致**，由 `test/default-starters.test.mjs` 锁死——改技能模板后必须同步重拷（测试失败信息给拷贝命令）。
 
+## 团队模式（PRD 110 / ADR-0121）
+
+宿主装载了智能体团队服务（`ctx.agentTeams`）时，worker 与合并专员走**持久队友**（首次 `spawnTeammate` 建会话，后续复用走 `sendMessage` 指令下发），不再每轮重开全新子会话；`control/` 卡目录仍是唯一真相信号，团队通道只做指令下发与 SETTLED 回传收割（ADR-0110 不引入第二真相源）。
+
+**角色持久化矩阵**：
+
+| 角色 | 路径 | 持久性 |
+|---|---|---|
+| worker（dev） | 团队路径 | 持久队友；池大小 = `parallel`，并发卡各占一个队友、各领卡串行；完成任务数超 `reuseLimit` 即停发并换名重建 fresh 后继（名字永不复用；**在飞成员的退役**与重建交接简报属工单 03，未实现） |
+| 合并专员（merger） | 团队路径 | 持久队友；池 = 1，同名串行复用 |
+| 审查者（reviewer ×3） | 一次性 spawn | 每次全新会话（ADR-0121 D1：审查要求独立无污染视角，不持久化） |
+
+**生命周期**（D4，`test/lifecycle-fallback.test.mjs` 锁定）：
+
+- run 结束（全部工单收口进 ops）**不解散**成员——持久队友留在宿主 roster，同会话下一个 run 复用同一通道按名续接（不新开会话）；
+- `stop`（工具面 `action="stop"` 或 `/jxx stop` 命令面，会话释放同路）对**在飞**队友逐个 `interrupt`（中断当前轮次、保留其会话与待办信箱）；一次性路径仍沿用 AbortController 中止（行为不变）。stop 后编排器不再派发，在途派发失败也不回退新开一次性子会话；
+- 宿主重启或队友 failed 导致按名解析不到 → 下次派发走「点名不在册 → 换名重建 fresh 后继」分支；失败退避重发与同会话唤醒的韧性语义属工单 03（未实现）。
+
+**回退开关**（D5）：`teamMode: 'off'` 或宿主无 agentTeams 服务（或服务缺方法 / 通道建立失败）→ 全链路自动回退既有一次性路径，行为零变化（机械判据：既有测试文件零改动全绿）。留痕口径：「通道建立失败」有编排 history 留痕（含原因）；`teamMode=off` 与宿主服务缺失是**静默回退**——无服务的宿主不该被日志面打扰，属刻意设计。
+
+**SETTLED 回传协议**：团队模式下 worker / 合并专员完工（或受阻停手）后 `send_message` 回 Lead，回报文本**末行单独一行**写机读行，编排器按行收割收口（卡位扫描兜底，双路去重）：
+
+```
+已交付 110-04，审查报告已写卡。
+SETTLED: 110-04-lifecycle-fallback-docs
+```
+
+**失败后的用户操作**：当前实现下轮次失败/无回传由卡位扫描按 `staleMinutes` 兜底重派；「切换模型后唤醒同一队友」的韧性面（D3）属工单 03，实现前无需也不应期待该行为。
+
+**待部署窗实测项**（fixture 仅断言调用面，真宿主观感未实测，不写成结果）：真宿主 `interrupt` 后队友会话保留与下轮续接体验；宿主重启后 roster 冷恢复 + 按名续接全链（含会话恢复后 Lead agent 实例重建时，通道缓存持有的旧 agent 引用与宿主「exact live Lead」校验是否失配——失配则该会话通道需重建）；持久队友上下文占用随复用轮数的增长（`reuseLimit` 是否需要下调）。
+
 ## 配置（cordis.patch.yml 的该行 config）
 
 | 字段 | 默认 | 含义 |
 |---|---|---|
 | `boardScript` | `~/.agents/skills/jxx-ticket-board/scripts/board.mjs` | board.mjs 绝对路径 |
-| `parallel` | `3` | 并行 worker 上限 |
+| `parallel` | `3` | 并行 worker 上限（团队模式下同时是 worker 队友池大小） |
 | `staleMinutes` | `30` | claimed 卡无存活 worker 的超时阈值 |
 | `maxRetries` | `1` | worker 失败/审查不过的返工上限 |
 | `autoMerge` | `true` | 三审全过后是否自动 spawn 合并专员 |
 | `autoConfirm` | `true` | 部分免确认：编排队列不追问 PRD seam / 工单粒度（ADR-0113）；决策定稿仍需用户确认（ADR-0115） |
 | `pollIntervalMs` | `5000` | 卡位轮询间隔 |
+| `teamMode` | `auto` | 团队模式开关（PRD 110 / ADR-0121）：`auto` = 宿主有 agentTeams 时 worker/合并专员走持久队友；`off` = 全走既有一次性路径 |
+| `reuseLimit` | `8` | 队友复用预算：完成任务数超过该值判 retire，停发并换名重建 fresh 后继 |
+| `teamProvider` | `spawn` | 团队路径 `spawnTeammate` 的 provider（与一次性路径默认 provider 同名，不引入第二套） |
 
 ## 测试
 
@@ -95,3 +129,7 @@ npm test    # node --test，含真 board.mjs 的 fixture 看板 E2E
 web profile 有 HMR，patch 变更即时生效（无需重启）。
 
 **发布形态**：`dsh plugin --profile <name> add <本目录绝对路径>`（包已声明 `dsh.bundle.patch`）。
+
+## 经验沉淀（docs/retro/）
+
+每轮编排收尾（ops 段）由接待会话在**产品仓**（TencentDB-Agent-Memory）写 `docs/retro/<日期>-<slug>.md` 回顾——ADR-0121 落地过程（PRD 110 工单 01-04）的顺点/卡点实录见 `docs/retro/2026-10-08-jxx-driver-team-spawn.md`。插件仓 README 只留指针，不复制回顾正文。
