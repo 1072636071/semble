@@ -110,6 +110,21 @@ export function apply(ctx, rawConfig) {
   // ---- 宿主释放清场 ----
   ctx.on('agent/disposed', ({ agent }) => { void orch.onAgentDisposed(agent) })
 
+  // ---- 团队消息收割（PRD 110 工单 02 / ADR-0121）：Lead 收到队友完工回调 ----
+  // 投递到 Lead 的 team-message user 消息（宿主 mailbox 经 session/append 落账）：
+  // 文本末行 `SETTLED: <卡id>` → 编排器按消息路收口；卡位扫描兜底不动，双路去重。
+  ctx.on('session/event', (session, event) => {
+    try {
+      if (!event || event.type !== 'user/message') return
+      if (event.data?.source?.kind !== 'team-message') return
+      const blocks = Array.isArray(event.data.content) ? event.data.content : []
+      const text = blocks.filter((b) => b && b.type === 'text').map((b) => b.text).join('\n')
+      if (text !== '') orch.onTeamMessage(session?.id !== undefined ? { session } : undefined, text)
+    } catch (e) {
+      ctx.logger.warn(`[jxx-driver] 团队消息收割失败：${e.message}`)
+    }
+  })
+
   ctx.effect(() => () => { void orch.dispose() }, 'jxx-driver dispose')
 
   ctx.logger.info(`[jxx-driver] 已装载（board=${config.boardScript}，parallel=${config.parallel}，autoMerge=${config.autoMerge}）`)

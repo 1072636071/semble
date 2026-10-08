@@ -10,7 +10,8 @@ import { Board } from './board.mjs'
 import { scanBoard, listTickets, findFeatureDir, ticketCardId, ticketNum, cardDeps } from './cards.mjs'
 import { adrGate, prdGate, ticketsGate, opsGate } from './gates.mjs'
 import { createQuickTicket } from './quick.mjs'
-import { workerPrompt, reviewerPrompt, mergerPrompt, reviewerDims, parseVerdict } from './prompts.mjs'
+import { workerPrompt, reviewerPrompt, mergerPrompt, memberDirective, reviewerDims, parseVerdict } from './prompts.mjs'
+import { resolveAgentTeams, createNamePool, createReuseLedger, createTeamChannel } from './team-spawn.mjs'
 
 export const STAGES = ['decide', 'adr', 'prd', 'tickets', 'implement', 'ops', 'done']
 
@@ -135,6 +136,13 @@ export class Orchestrator {
       history: [{ t: nowIso(), event: `start：${idea.slice(0, 120)}（stage=${stage}）` }],
       cards: new Map(), timer: undefined, stopped: false,
       blocked: [], lastError: undefined, controllers: new Set(),
+      // 团队路径（PRD 110 工单 02）：通道在 enterImplement 立项一次（非惰性——首个 tick 就要派 worker）。
+      // 名字池/预算账本由通道工厂闭包持有，不挂 run（工单 03 如需重建经 setupTeamChannel 重走）。
+      channel: undefined,
+      // SETTLED 消息收割去重（双路去重：同一卡同一 settle 只收口一次）。
+      settledSeen: new Set(), messageHarvestBusy: false,
+      // onTeamMessage 的 canSettle/onSettledFor 闭包引用 run 本体（method 定义于类、run 后挂），
+      // 由 onTeamMessage 在调用时现场构造——无循环引用问题。
     }
   }
 
@@ -283,8 +291,37 @@ export class Orchestrator {
       run.history.push({ t: nowIso(), event: `投卡 ${cardId}（${r.created ? '新建' : '复用'}）` })
     }
     this.persist(run)
+    // 团队路径立项（PRD 110 工单 02）：teamMode=auto 且宿主有 agentTeams 才建通道；
+    // 惰性解析（无服务的宿主零依赖），建不起来响亮记录并回退一次性路径，不炸编排。
+    // 必须先于 startWatcher：首个 tick 会立刻派 worker，通道未建会竞态到一次性路径
+    // （实测：先 watcher 后立项 → 首 spawn 报「意外角色」、白耗一次重试预算——2026-10-08 E2E 红转绿的根因）。
+    this.setupTeamChannel(run)
     this.startWatcher(run)
-    this.notify(run, `进入 implement：${eligible.length} 张工单已投卡，编排器接管。并行上限 ${this.config.parallel}。`)
+    this.notify(run, `进入 implement：${eligible.length} 张工单已投卡，编排器接管。并行上限 ${this.config.parallel}。`
+      + (run.channel ? '团队模式：worker/合并专员走持久队友。' : ''))
+  }
+
+  /** 团队通道立项（PRD 110 工单 02 / ADR-0121）：服务缺失/构造失败 → run 无通道 = 一次性路径，不抛。 */
+  setupTeamChannel(run) {
+    if (this.config.teamMode !== 'auto') return
+    const teams = resolveAgentTeams(this.ctx)
+    if (!teams) return
+    try {
+      run.channel = createTeamChannel({
+        teams,
+        agent: run.agent,
+        pool: createNamePool({}),
+        ledger: createReuseLedger({ reuseLimit: this.config.reuseLimit }),
+        provider: this.config.teamProvider,
+        log: (msg) => this.log.info(`[jxx-driver] ${msg}`),
+      })
+      run.history.push({ t: nowIso(), event: '团队模式：agentTeams 就绪，worker/合并专员走持久队友' })
+    } catch (e) {
+      // 通道建不起来（参数/宿主异常）→ 响亮记录，回退一次性路径（ADR-0121 D3：不弃编排）
+      run.channel = undefined
+      this.log.warn(`[jxx-driver] 团队通道建立失败，回退一次性路径：${e.message}`)
+      run.history.push({ t: nowIso(), event: `团队通道建立失败，回退一次性路径：${e.message}` })
+    }
   }
 
   startWatcher(run) {
@@ -435,6 +472,7 @@ export class Orchestrator {
         run.blocked.push(`${c.id} 僵死超 ${this.config.staleMinutes} 分钟且重试超限，转人工`)
         this.notify(run, `卡 ${c.id} 僵死超过 ${this.config.staleMinutes} 分钟，重试已超限，转人工。`)
       } else {
+        rec.lastFailure = `僵死超 ${this.config.staleMinutes} 分钟无回传（卡 mtime 无推进）`
         run.history.push({ t: nowIso(), event: `${c.id} 僵死，重 spawn` })
         this.spawnWorker(run, c.id)
       }
@@ -464,6 +502,39 @@ export class Orchestrator {
     rec.phase = 'claimed'
     rec.alive = true
     rec.spawnedAt = nowIso()
+    if (run.channel) {
+      // 团队路径（PRD 110 工单 02）：worker 走持久队友——点名队友（返工/重试）→ sendMessage 复用，
+      // 无点名 → 通道自派（复用同角色未超预算者或取新名 spawnTeammate）。
+      // 失败不弃编排：通道抛错 → 响亮记录后回退一次性路径（D3 的重试/唤醒语义是工单 03）。
+      const controller = new AbortController()
+      run.controllers.add(controller)
+      // 重试附失败原因（构建内容 3）：返工发现项走 extraNote；上次失败原因走 lastFailure
+      const retryNote = extraNote || (rec.lastFailure ? `上次失败原因：${rec.lastFailure}` : '')
+      void run.channel.dispatch({
+        role: 'dev',
+        name: rec.memberName,
+        cardId,
+        poolSize: this.config.parallel, // worker 池 = parallel（工单 02 构建内容 2：各领卡串行）
+        prompt: rec.memberName
+          ? memberDirective(cardId, retryNote)
+          : workerPrompt(run.root, cardId, { member: true }) + extraNote,
+        signal: controller.signal, // 宿主契约必填（AbortSignal.any 对 undefined 抛 TypeError，终审发现项①）
+      }).then((r) => {
+        run.controllers.delete(controller)
+        rec.memberName = r.name
+        rec.lastFailure = undefined
+        run.history.push({ t: nowIso(), event: r.fresh ? `team: spawn worker ${cardId}（${r.name}）` : `team: 指令下发 ${cardId} → ${r.name}` })
+        this.persist(run)
+      }).catch((e) => {
+        run.controllers.delete(controller)
+        this.log.warn(`[jxx-driver] team worker 派发失败（${cardId}），回退一次性路径：${e.message}`)
+        run.history.push({ t: nowIso(), event: `team: worker 派发失败（${cardId}）：${e.message}` })
+        const prompt = workerPrompt(run.root, cardId) + extraNote
+        this.spawn(run, { role: 'dev', cardId, prompt, onSettled: (text, err) => this.onWorkerSettled(run, cardId, text, err) })
+        this.persist(run)
+      })
+      return
+    }
     const prompt = workerPrompt(run.root, cardId) + extraNote
     this.spawn(run, { role: 'dev', cardId, prompt, onSettled: (text, err) => this.onWorkerSettled(run, cardId, text, err) })
     run.history.push({ t: nowIso(), event: `spawn worker ${cardId}` })
@@ -485,6 +556,30 @@ export class Orchestrator {
   spawnMerger(run, cardId, mergeId) {
     const rec = run.cards.get(cardId)
     rec.mergeSettledAt = undefined
+    if (run.channel) {
+      // 团队路径（PRD 110 工单 02 / ADR-0121 D2）：合并专员持久队友化——同名复用，
+      // 超预算时通道自派停发换新名 fresh 后继（交接上下文 = 指令点名合并卡）。
+      const controller = new AbortController()
+      run.controllers.add(controller)
+      void run.channel.dispatch({
+        role: 'merger',
+        cardId: mergeId,
+        prompt: mergerPrompt(run.root, mergeId, cardId, { member: true }),
+        signal: controller.signal, // 宿主契约必填（同终审发现项①）
+      }).then((r) => {
+        run.controllers.delete(controller)
+        run.history.push({ t: nowIso(), event: r.fresh ? `team: spawn 合并专员 ${mergeId}（${r.name}）` : `team: 合并专员复用 ${r.name}（${mergeId}）` })
+        this.persist(run)
+      }).catch((e) => {
+        run.controllers.delete(controller)
+        this.log.warn(`[jxx-driver] team merger 派发失败（${mergeId}），回退一次性路径：${e.message}`)
+        run.history.push({ t: nowIso(), event: `team: merger 派发失败（${mergeId}）：${e.message}` })
+        const prompt = mergerPrompt(run.root, mergeId, cardId)
+        this.spawn(run, { role: 'merger', cardId, prompt, onSettled: (text, err) => this.onMergerSettled(run, cardId, text, err) })
+        this.persist(run)
+      })
+      return
+    }
     const prompt = mergerPrompt(run.root, mergeId, cardId)
     this.spawn(run, { role: 'merger', cardId, prompt, onSettled: (text, err) => this.onMergerSettled(run, cardId, text, err) })
     run.history.push({ t: nowIso(), event: `spawn 合并专员 ${mergeId}` })
@@ -535,6 +630,7 @@ export class Orchestrator {
     if (!rec) return
     if (err) {
       rec.retries = (rec.retries || 0) + 1
+      rec.lastFailure = err.message // 重试附失败原因（构建内容 3）
       if (rec.retries > this.config.maxRetries) {
         rec.phase = 'blocked'
         run.blocked.push(`${cardId} worker 失败超限：${err.message}`)
@@ -571,6 +667,55 @@ export class Orchestrator {
     }
     rec.mergeSettledAt = nowIso()
     // 是否真收口，下一个 tick 看合并卡是否进 done/（卡位才是真信号）
+  }
+
+  /**
+   * Lead 信箱收割（PRD 110 工单 02）：index.mjs 在 session/event 上监听到投递给 Lead 的
+   * team-message user 消息后调这里——从文本解析 `SETTLED: <卡id>`，判可收才按消息路收口。
+   * 卡位扫描兜底不动：消息丢失时 watcher 照常推进；双路去重 = canSettle 闸（收口后闸即关，
+   * 迟到/重复消息不再动手）+ settledSeen 记账；messageHarvestBusy 是逐消息互斥哨兵
+   * （单线程下防同消息重入，并发到达的消息交卡位兜底——审查发现项⑧改名澄清）。
+   */
+  onTeamMessage(agent, messageText) {
+    const sessionId = agent?.session?.id ?? agent?.id
+    const run = sessionId ? this.runs.get(sessionId) : undefined
+    if (!run || run.stopped || run.stage !== 'implement' || !run.channel) return
+    if (run.messageHarvestBusy) return
+    run.messageHarvestBusy = true
+    try {
+      const canSettle = (cardId) => {
+        // 开发卡：在办（claimed）且 alive 未清——alive 闸堵「同窗口重复消息双计预算」（终审发现项③）
+        if (run.cards.get(cardId)) {
+          const rec = run.cards.get(cardId)
+          return rec.phase === 'claimed' && rec.alive !== false
+        }
+        // 合并卡（merge-<id>）：主卡 phase=merging 且合并专员 settle 未置位——
+        // merge 卡不在 run.cards（编排卡账只录开发卡），闸看主卡（审查发现项②修复）。
+        if (cardId.startsWith('merge-')) return run.cards.get(cardId.slice('merge-'.length))?.phase === 'merging'
+        return false
+      }
+      const settled = run.channel.harvest({
+        canSettle,
+        onSettledFor: (cardId) => (text, err) => {
+          if (!run.settledSeen.has(cardId)) {
+            run.settledSeen.add(cardId)
+            run.history.push({ t: nowIso(), event: `team: ${cardId} SETTLED 回传，按消息路收口` })
+          }
+          if (cardId.startsWith('merge-')) {
+            this.onMergerSettled(run, cardId.slice('merge-'.length), text, err)
+          } else {
+            const rec = run.cards.get(cardId)
+            if (rec) rec.alive = false // 本轮结束：alive 清位（卡未推进时僵死重 spawn 面才能接管）
+            this.onWorkerSettled(run, cardId, text, err)
+          }
+        },
+        persist: () => this.persist(run),
+      })
+      const cardId = settled(messageText)
+      if (cardId !== undefined) this.log.info(`[jxx-driver] team: 收到 ${cardId} SETTLED 回传（消息路）`)
+    } finally {
+      run.messageHarvestBusy = false
+    }
   }
 
   // ---------- 工具 ----------

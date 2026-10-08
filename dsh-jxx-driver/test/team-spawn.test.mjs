@@ -1,13 +1,14 @@
 /**
- * team-spawn 层单测（PRD 110 工单 01 / ADR-0121）：
+ * team-spawn 层单测（PRD 110 工单 01+02 / ADR-0121）：
  * 懒解析鸭子类型（缺服务/缺方法/缺 get → undefined 不抛）、名字池（递增/跳过/耗尽/角色校验）、
  * 复用预算（计数与 retire 边界=严格大于 reuseLimit）、SETTLED 机读行（多行命中/缺失 fail-closed）、
- * config 三新项（teamMode 枚举 / reuseLimit 下限 / teamProvider 非空）。
+ * config 三新项（teamMode 枚举 / reuseLimit 下限 / teamProvider 非空）、
+ * 团队通道（工单 02：spawn 首建 + sendMessage 复用 + 超预算停发换新名 + SETTLED 收割去重）。
  * 红绿对照：删 team-spawn.mjs 名字池的 used.has 跳过逻辑 →「跳过已占用名」必红。
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { resolveAgentTeams, createNamePool, createReuseLedger, parseSettled, isValidName } from '../src/team-spawn.mjs'
+import { resolveAgentTeams, createNamePool, createReuseLedger, createTeamChannel, parseSettled, isValidName } from '../src/team-spawn.mjs'
 import { normalizeConfig } from '../src/config.mjs'
 
 /** 造 mock agentTeams 服务：给哪些方法名就长哪些方法。 */
@@ -195,4 +196,232 @@ test('config：teamProvider 非空字符串校验（空串响亮报错）', () =
   assert.equal(normalizeConfig({ teamProvider: 'sonnet' }).teamProvider, 'sonnet')
   assert.throws(() => normalizeConfig({ teamProvider: '' }), /teamProvider/)
   assert.throws(() => normalizeConfig({ teamProvider: 42 }), /teamProvider/)
+})
+
+// ---- 团队通道（工单 02）：指令下发 + SETTLED 收割 + 预算退役 ----
+
+/** 记录调用面调用的 mock agentTeams 服务（spawnTeammate 返回即建；sendMessage 即投）。 */
+function mockTeamsChannel() {
+  const calls = { spawned: [], sent: [] }
+  return {
+    calls,
+    service: {
+      async spawnTeammate(caller, req) { calls.spawned.push({ caller, req }); return { member: { name: req.name } } },
+      async sendMessage(caller, req) { calls.sent.push({ caller, req }); return { messageId: 'm1', status: 'accepted' } },
+      async interrupt() { return { previousStatus: 'inactive' } },
+    },
+  }
+}
+
+function mkChannel(teams, { reuseLimit = 8 } = {}) {
+  const logs = []
+  return {
+    logs,
+    channel: createTeamChannel({
+      teams,
+      agent: { id: 'lead-1' },
+      pool: createNamePool({}),
+      ledger: createReuseLedger({ reuseLimit }),
+      provider: 'spawn',
+      log: (m) => logs.push(m),
+    }),
+  }
+}
+
+test('通道：首次 dispatch 走 spawnTeammate（context=fresh、provider 透传、名池取名）', async () => {
+  const { service, calls } = mockTeamsChannel()
+  const { channel } = mkChannel(service)
+  const r = await channel.dispatch({ role: 'dev', cardId: '110-02-team-worker-path', prompt: '首条指令', signal: undefined })
+  assert.equal(r.fresh, true)
+  assert.equal(r.name, 'dev-a')
+  assert.equal(calls.spawned.length, 1)
+  const req = calls.spawned[0].req
+  assert.equal(req.name, 'dev-a')
+  assert.equal(req.context, 'fresh')
+  assert.equal(req.provider, 'spawn')
+  assert.equal(req.prompt[0].text, '首条指令')
+  assert.ok(req.description.includes('110-02-team-worker-path'), 'description 默认带卡 id')
+  assert.equal(calls.sent.length, 0)
+})
+
+test('通道：同角色二次 dispatch 走 sendMessage 复用（不重开队友）', async () => {
+  const { service, calls } = mockTeamsChannel()
+  const { channel } = mkChannel(service)
+  await channel.dispatch({ role: 'dev', cardId: 'a1', prompt: '第一轮' })
+  const r = await channel.dispatch({ role: 'dev', cardId: 'a2', prompt: '第二轮' })
+  assert.equal(r.fresh, false)
+  assert.equal(r.name, 'dev-a')
+  assert.equal(calls.spawned.length, 1, '仍只有一次 spawnTeammate')
+  assert.equal(calls.sent.length, 1)
+  assert.equal(calls.sent[0].req.target, 'dev-a')
+  assert.equal(calls.sent[0].req.content[0].text, '第二轮')
+})
+
+test('通道：merger 与 dev 各自独立名池（角色前缀区分）', async () => {
+  const { service, calls } = mockTeamsChannel()
+  const { channel } = mkChannel(service)
+  const w = await channel.dispatch({ role: 'dev', cardId: 'a1', prompt: 'p' })
+  const m = await channel.dispatch({ role: 'merger', cardId: 'merge-a1', prompt: 'p' })
+  assert.equal(w.name, 'dev-a')
+  assert.equal(m.name, 'merger-a')
+})
+
+test('通道：点名队友不在册（历史名册）→ 按新名建 fresh 后继，不用失效名', async () => {
+  const { service, calls } = mockTeamsChannel()
+  const pool = createNamePool({ taken: ['dev-a'] }) // dev-a 已被本 run 之外的过往占用
+  const channel = createTeamChannel({
+    teams: service, agent: { id: 'lead-1' }, pool, ledger: createReuseLedger({ reuseLimit: 8 }),
+  })
+  const r = await channel.dispatch({ role: 'dev', name: 'dev-a', cardId: 'a1', prompt: 'p' })
+  assert.equal(r.fresh, true)
+  assert.notEqual(r.name, 'dev-a')
+  assert.equal(calls.spawned[0].req.name, r.name)
+})
+
+test('通道：同名队友超预算 → 停发退役 + 换新名 fresh 后继（名字不复用）', async () => {
+  const { service, calls } = mockTeamsChannel()
+  const { channel } = mkChannel(service, { reuseLimit: 1 })
+  await channel.dispatch({ role: 'dev', cardId: 'a1', prompt: 'p' })
+  await channel.dispatch({ role: 'dev', cardId: 'a2', prompt: 'p' }) // 复用 dev-a（计 1 ≤ 1，不退）
+  // 记满预算：completed=2 > reuseLimit=1（两卡都经通道派发，harvest 各计一次）
+  const cards = new Map([['a1', { phase: 'claimed', alive: true }], ['a2', { phase: 'claimed', alive: true }]])
+  const h = channel.harvest({ canSettle: (id) => cards.get(id)?.phase === 'claimed' && cards.get(id).alive !== false, onSettledFor: () => () => {}, persist: () => {} })
+  h('SETTLED: a1')
+  h('SETTLED: a2')
+  const r = await channel.dispatch({ role: 'dev', cardId: 'a3', prompt: '第三轮' })
+  assert.equal(r.retired, 1)
+  assert.equal(r.fresh, true)
+  assert.equal(r.name, 'dev-b')
+  assert.equal(calls.spawned.length, 2)
+  assert.equal(calls.spawned[1].req.name, 'dev-b')
+  assert.equal(channel.stats().retiredTotal, 1)
+  // 退役名不再接活：后续派发不会回到 dev-a
+  const r2 = await channel.dispatch({ role: 'dev', cardId: 'a4', prompt: 'p' })
+  assert.equal(r2.name, 'dev-b')
+})
+
+test('通道：未超预算不退（复用继续）——retire 边界在通道层同样成立', async () => {
+  const { service, calls } = mockTeamsChannel()
+  const { channel } = mkChannel(service, { reuseLimit: 3 })
+  await channel.dispatch({ role: 'dev', cardId: 'a1', prompt: 'p' })
+  const cards = new Map([['a1', { phase: 'claimed', alive: true }], ['a2', { phase: 'claimed', alive: true }], ['a3', { phase: 'claimed', alive: true }]])
+  const h = channel.harvest({ canSettle: (id) => cards.get(id)?.phase === 'claimed' && cards.get(id).alive !== false, onSettledFor: () => () => {}, persist: () => {} })
+  h('SETTLED: a1')
+  h('SETTLED: a2')
+  h('SETTLED: a3')
+  const r = await channel.dispatch({ role: 'dev', cardId: 'a4', prompt: 'p' })
+  assert.equal(r.retired, 0)
+  assert.equal(r.fresh, false, '恰好等于 reuseLimit 不退役（严格大于语义）')
+  assert.equal(r.name, 'dev-a')
+  assert.equal(calls.spawned.length, 1)
+})
+
+test('通道：harvest 命中卡在办 → onSettledFor 回调 + 计预算 + persist，返回卡 id', async () => {
+  const { service } = mockTeamsChannel()
+  const { channel } = mkChannel(service)
+  await channel.dispatch({ role: 'dev', cardId: 'a1', prompt: 'p' })
+  const settled = []
+  const cards = new Map([['a1', { phase: 'claimed', alive: true }]])
+  const h = channel.harvest({
+    canSettle: (id) => cards.get(id)?.phase === 'claimed' && cards.get(id).alive !== false,
+    onSettledFor: (cardId) => (text, err) => settled.push([cardId, text, err]),
+    persist: () => {},
+  })
+  const got = h('已交付。\nSETTLED: a1')
+  assert.equal(got, 'a1')
+  assert.deepEqual(settled, [['a1', '已交付。\nSETTLED: a1', undefined]])
+  // 卡状态归编排层（onSettledFor 内清 alive）；通道只管计量与出册
+  assert.equal(cards.get('a1').alive, true)
+  assert.equal(channel.nameOf('a1'), 'dev-a')
+  assert.equal(channel.list()[0].completed, 1)
+})
+
+test('通道：harvest 对非在办卡幂等（重复/迟到消息不二次收口——双路去重的第二路闸门）', async () => {
+  const { service } = mockTeamsChannel()
+  const { channel } = mkChannel(service)
+  await channel.dispatch({ role: 'dev', cardId: 'a1', prompt: 'p' })
+  let calls = 0
+  const cards = new Map([['a1', { phase: 'reviewing', alive: false }]]) // 已被卡位路推进
+  const h = channel.harvest({ canSettle: () => false, onSettledFor: () => () => { calls += 1 }, persist: () => {} })
+  assert.equal(h('SETTLED: a1'), undefined)
+  assert.equal(calls, 0)
+  assert.equal(h('普通消息无机读行'), undefined)
+  assert.equal(h(42), undefined)
+  assert.equal(h(undefined), undefined)
+})
+
+test('通道：harvest 回调抛异常不外泄（收割不炸监听面）', async () => {
+  const { service } = mockTeamsChannel()
+  const { channel, logs } = mkChannel(service)
+  await channel.dispatch({ role: 'dev', cardId: 'a1', prompt: 'p' })
+  const cards = new Map([['a1', { phase: 'claimed', alive: true }]])
+  const h = channel.harvest({ canSettle: () => true, onSettledFor: () => () => { throw new Error('boom') }, persist: () => {} })
+  assert.equal(h('SETTLED: a1'), 'a1')
+  assert.ok(logs.some((l) => l.includes('onSettled 异常')))
+})
+
+test('通道：构造缺件（无服务/无 agent/无名池/无账本）→ 响亮报错', () => {
+  const { service } = mockTeamsChannel()
+  assert.throws(() => createTeamChannel({}), /agentTeams/)
+  assert.throws(() => createTeamChannel({ teams: service }), /Lead agent/)
+  assert.throws(() => createTeamChannel({ teams: service, agent: { id: 'x' } }), /名字池/)
+  assert.throws(() => createTeamChannel({ teams: service, agent: { id: 'x' }, pool: createNamePool({}) }), /预算账本/)
+})
+
+test('通道：worker 池语义——并发卡各占一个队友（roleCount < poolSize 取新名），不全员压一人', async () => {
+  const { service, calls } = mockTeamsChannel()
+  const { channel } = mkChannel(service)
+  const p1 = channel.dispatch({ role: 'dev', cardId: 'a1', prompt: 'p', poolSize: 3 })
+  const p2 = channel.dispatch({ role: 'dev', cardId: 'a2', prompt: 'p', poolSize: 3 })
+  const [r1, r2] = await Promise.all([p1, p2])
+  assert.notEqual(r1.name, r2.name, '并发两卡应各得一个队友（池=3）')
+  assert.equal(calls.spawned.length, 2)
+  // 第三卡：池未满继续取新名
+  const r3 = await channel.dispatch({ role: 'dev', cardId: 'a3', prompt: 'p', poolSize: 3 })
+  assert.equal(calls.spawned.length, 3)
+  // 第四卡：池满且全员忙 → 取在飞最少者复用（不超池）
+  const r4 = await channel.dispatch({ role: 'dev', cardId: 'a4', prompt: 'p', poolSize: 3 })
+  assert.equal(calls.spawned.length, 3, '池满不再 spawn')
+  assert.equal(r4.fresh, false)
+  // 完工出册后释放队友：a1 settle → 其队友空闲，下一卡复用该空闲者
+  const h = channel.harvest({ canSettle: () => true, onSettledFor: () => () => {}, persist: () => {} })
+  h('SETTLED: a1')
+  const r5 = await channel.dispatch({ role: 'dev', cardId: 'a5', prompt: 'p', poolSize: 3 })
+  assert.equal(r5.fresh, false, '空闲队友优先复用，不再新建')
+  assert.equal(channel.nameOf('a5'), channel.nameOf('a1'))
+})
+
+test('通道：poolSize 非法（0/小数）→ 响亮报错', async () => {
+  const { service } = mockTeamsChannel()
+  const { channel } = mkChannel(service)
+  await assert.rejects(() => channel.dispatch({ role: 'dev', cardId: 'x', prompt: 'p', poolSize: 0 }), /poolSize/)
+  await assert.rejects(() => channel.dispatch({ role: 'dev', cardId: 'x', prompt: 'p', poolSize: 1.5 }), /poolSize/)
+})
+
+test('通道：merger 不受池影响（默认 poolSize=1，同名串行复用）', async () => {
+  const { service, calls } = mockTeamsChannel()
+  const { channel } = mkChannel(service)
+  await channel.dispatch({ role: 'merger', cardId: 'merge-a1', prompt: 'p' })
+  await channel.dispatch({ role: 'merger', cardId: 'merge-a2', prompt: 'p' })
+  assert.equal(calls.spawned.length, 1, 'merger 池=1：第二张合并卡复用同一队友')
+  assert.equal(calls.sent.length, 1)
+})
+
+test('通道：harvest 缺 canSettle → 响亮报错（闸必须由编排层显式注入）', async () => {
+  const { service } = mockTeamsChannel()
+  const { channel } = mkChannel(service)
+  assert.throws(() => channel.harvest({ onSettledFor: () => () => {} }), /canSettle/)
+})
+
+test('通道：prompt 逐字节确认——workerPrompt 带 member 才有 SETTLED 尾注，一次性路径不变', async () => {
+  // 经 orchestrator 的接线断言放 E2E；此处只锁 prompts 纯函数
+  const { workerPrompt, mergerPrompt } = await import('../src/prompts.mjs')
+  const withMember = workerPrompt('E:\\r', '110-02-team-worker-path', { member: true })
+  const without = workerPrompt('E:\\r', '110-02-team-worker-path')
+  assert.match(withMember, /SETTLED: 110-02-team-worker-path/)
+  assert.equal(without, workerPrompt('E:\\r', '110-02-team-worker-path'), '无 member 与默认一致')
+  assert.ok(!without.includes('SETTLED:'), '一次性路径不带 SETTLED 尾注（现行为逐字节不变）')
+  const mergerMember = mergerPrompt('E:\\r', 'merge-x', 'x', { member: true })
+  assert.match(mergerMember, /SETTLED: merge-x/)
+  assert.ok(!mergerPrompt('E:\\r', 'merge-x', 'x').includes('SETTLED:'))
 })
