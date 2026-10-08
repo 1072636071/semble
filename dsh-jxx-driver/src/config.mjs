@@ -45,12 +45,13 @@ export function normalizeConfig(raw) {
   if (typeof raw !== 'object' || Array.isArray(raw)) {
     throw new Error(`jxx-driver: config 必须是对象，收到 ${JSON.stringify(raw)}`)
   }
-  const boardScript = raw.boardScript !== undefined
-    ? raw.boardScript
-    : join(homedir(), '.agents', 'skills', 'jxx-ticket-board', 'scripts', 'board.mjs')
-  if (typeof boardScript !== 'string' || boardScript.trim() === '') {
-    throw new Error('jxx-driver: config.boardScript 必须是非空字符串')
-  }
+  // boardScript 校验句式统一走 nonEmptyStringField（PRD 110 工单 01 三维审查顺延项，
+  // T89 v6 留痕「由工单 02 接线时落实」——此前为与助手同语义的内联校验，报错形态不变）
+  const boardScript = nonEmptyStringField(
+    raw,
+    'boardScript',
+    join(homedir(), '.agents', 'skills', 'jxx-ticket-board', 'scripts', 'board.mjs'),
+  )
   return {
     /** board.mjs 脚本绝对路径（jxx-ticket-board 已装副本）。 */
     boardScript,

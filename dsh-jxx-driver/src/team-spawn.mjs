@@ -1,7 +1,7 @@
 /**
- * team-spawn 层（PRD 110 工单 01 / ADR-0121）：
- * 宿主智能体团队模式（agentTeams）的懒解析、队友名字池、复用预算与 SETTLED 机读行解析。
- * 本模块零依赖、零行为接线——只提供纯函数/工厂；编排器接入（spawn 路由/消息收割）在工单 02。
+ * team-spawn 层（PRD 110 工单 01+02 / ADR-0121）：
+ * 宿主智能体团队模式（agentTeams）的懒解析、队友名字池、复用预算、SETTLED 机读行解析，
+ * 以及编排器接入的团队通道（指令下发 dispatch + SETTLED 回传收割 harvest + 预算退役）。
  *
  * 设计要点：
  *  - resolveAgentTeams 走鸭子类型懒解析，不进 index.mjs 的 inject 静态声明——
@@ -9,7 +9,11 @@
  *  - 名字池：角色前缀（dev/merger）+ 字母递增（dev-a、dev-b…）；被占用/重建过的名字跳过；
  *    生成名遵守 lower-kebab-case、≤64、不得为 lead（宿主硬约束）；池耗尽响亮报错转人工。
  *  - 复用预算：每队友完成任务计数；超过 reuseLimit 由 maybeRetire 判 retire，
- *    供上层换名重建 fresh 后继（换名重建本体在工单 03）。
+ *    供上层换名重建 fresh 后继（重建中的交接简报与失败唤醒是工单 03）。
+ *  - 团队通道（工单 02）：worker 池（= config.parallel，并发卡各占一个队友、各领卡串行）
+ *    与合并专员（池 = 1）走持久队友（spawnTeammate 首次 + sendMessage 复用）；
+ *    三维审查者保持一次性 spawn（ADR-0121 D1）。settle 收割 = Lead 会话 team-message 文本里的
+ *    `SETTLED: <卡id>`；卡位扫描兜底不动，双路去重（同一卡同一 settle 只收口一次）。
  */
 
 /** 懒解析宿主 agentTeams 服务：ctx 缺失 / 无 get / 服务缺三方法之一 → undefined（不抛）。 */
@@ -104,4 +108,169 @@ export function parseSettled(text) {
     }
   }
   return undefined
+}
+
+/**
+ * 团队通道工厂（PRD 110 工单 02 / ADR-0121 D1/D2）：worker/合并专员的持久队友指令下发与 SETTLED 回传收割。
+ *  - dispatch：返工/重试的点名队友仍在册 → sendMessage 复用（同一会话带上下文接指令）；
+ *    无点名 / 点名已退役不在册 → 先把同角色超预算的旧队友「停发」（不再接新活、从名册摘除，
+ *    宿主约束名字永不复用，在飞轮次不追杀——生命周期收口在工单 03/04），再复用同角色未超预算者，
+ *    最后从名字池取新名 spawnTeammate 建 fresh 后继；交接上下文 = 指令文本自带卡号与最新状态
+ *    （worker 返工附审查发现、重试附失败原因；merger 交接简报是工单 03 的活）。
+ *  - harvest：解析投递到 Lead 的 team-message 文本（末行 `SETTLED: <cardId>`）→ 卡在办（phase=claimed）
+ *    才收口——onSettled 语义与一次性路径完全一致；卡位是唯一真相信号，消息丢失时 watcher 兜底
+ *    照常推进，双路（消息 + 卡位）天然去重（ADR-0110：不引入第二真相源）。
+ *  - 预算真源唯一：retire 判定只走 ledger.maybeRetire（账本构造时已注入 reuseLimit），本工厂不收第二份。
+ */
+export function createTeamChannel({ teams, agent, pool, ledger, provider = 'spawn', log } = {}) {
+  if (!teams || typeof teams !== 'object') {
+    throw new Error(`jxx-driver: createTeamChannel 需要已解析的 agentTeams 服务，收到 ${JSON.stringify(teams)}`)
+  }
+  if (!agent) throw new Error('jxx-driver: createTeamChannel 需要 Lead agent（caller 凭据，exact live Agent）')
+  if (!pool || typeof pool.next !== 'function') {
+    throw new Error('jxx-driver: createTeamChannel 需要名字池（createNamePool 产物）')
+  }
+  if (!ledger || typeof ledger.maybeRetire !== 'function') {
+    throw new Error('jxx-driver: createTeamChannel 需要复用预算账本（createReuseLedger 产物）')
+  }
+  if (log === undefined) log = () => {}
+
+  /** name -> { role, completed }（completed 与 ledger 同步推进，派发侧直接判复用）。 */
+  const members = new Map()
+  /** cardId -> 最近一次派发的队友名（settle 时计预算用）。 */
+  const cardOwners = new Map()
+  /** 在飞卡集合（dispatch 入册、harvest 出册）——「队友空闲」= 名下无在飞卡。 */
+  const inFlight = new Set()
+  let retiredTotal = 0
+  const recordCompletion = (name) => {
+    ledger.recordCompletion(name)
+    const m = members.get(name)
+    if (m) m.completed += 1
+  }
+  /** 该队友名下在飞卡数（0 = 空闲，可接新卡）。 */
+  const loadOf = (name) => [...inFlight].filter((c) => cardOwners.get(c) === name).length
+
+  return {
+    /**
+     * 指令下发。返回 { name, fresh, retired }：fresh = 本次 spawnTeammate 新建；
+     * retired = 本次因超预算停发的旧队友数。
+     *
+     * 池语义（工单 02 构建内容 2：worker 池 = poolSize，各领卡串行）：无点名时——
+     * ① 先把「超预算且空闲（名下无在飞卡）」的同角色旧队友停发（在飞的退役留给工单 03 收口）；
+     * ② 复用空闲且未超预算的队友（多个空闲取完成数最少者）；
+     * ③ 在册同角色数 < poolSize → 名字池取新名 spawnTeammate（并发卡各得一个队友）；
+     * ④ 池满且全员忙 → 取在飞最少者复用（宿主信箱按序投递 = 该队友串行领卡）。
+     */
+    async dispatch({ role, name: hintName, cardId, prompt, description, signal, poolSize = 1 }) {
+      if (typeof role !== 'string' || role === '') {
+        throw new Error(`jxx-driver: dispatch 缺角色前缀，收到 ${JSON.stringify(role)}`)
+      }
+      if (!Number.isSafeInteger(poolSize) || poolSize < 1) {
+        throw new Error(`jxx-driver: dispatch poolSize 必须是 ≥1 的整数，收到 ${JSON.stringify(poolSize)}`)
+      }
+      const retires = []
+      let name = hintName
+      if (name === undefined || !members.has(name)) {
+        if (name !== undefined) log(`team: 点名 ${name} 已不在册（退役/历史名册），按新名重建 fresh 后继`)
+        for (const [n, m] of members) {
+          if (m.role === role && loadOf(n) === 0 && ledger.maybeRetire(n).retire) {
+            retires.push(n)
+            members.delete(n) // 停发：不再接新活（名字永不复用，后继走新名）
+          }
+        }
+        const idle = [...members.entries()]
+          .filter(([n, m]) => m.role === role && loadOf(n) === 0 && !ledger.maybeRetire(n).retire)
+          .sort((a, b) => a[1].completed - b[1].completed)
+        const roleCount = [...members.values()].filter((m) => m.role === role).length
+        if (idle.length > 0) name = idle[0][0]
+        else if (roleCount < poolSize) name = pool.next(role)
+        else {
+          // 池满且全员忙（或空闲者都到预算）：取在飞最少者复用——宿主信箱保证其串行消化
+          const busy = [...members.entries()].filter(([, m]) => m.role === role)
+          if (busy.length === 0) name = pool.next(role)
+          else name = busy.sort((a, b) => loadOf(a[0]) - loadOf(b[0]))[0][0]
+        }
+      }
+      if (!isValidName(name)) {
+        throw new Error(`jxx-driver: 队友名非法：${JSON.stringify(name)}（须 lower-kebab-case、≤64、非 lead）`)
+      }
+      if (cardId !== undefined) {
+        cardOwners.set(cardId, name)
+        if (!inFlight.has(cardId)) inFlight.add(cardId) // 在飞入册（返工重派同一卡不重复计）
+      }
+      retiredTotal += retires.length
+      if (members.has(name)) {
+        await teams.sendMessage(agent, {
+          target: name,
+          content: [{ type: 'text', text: prompt }],
+          signal,
+        })
+        log(`team: 指令下发 ${name}（复用，角色 ${role}${cardId ? `，卡 ${cardId}` : ''}）`)
+        return { name, fresh: false, retired: retires.length }
+      }
+      await teams.spawnTeammate(agent, {
+        name,
+        description: description ?? (cardId ? `jxx-driver ${role} · ${cardId}` : `jxx-driver ${role}`),
+        prompt: [{ type: 'text', text: prompt }],
+        context: 'fresh',
+        provider,
+        signal,
+      })
+      members.set(name, { role, completed: 0 })
+      log(`team: 队友新建 ${name}（角色 ${role}${retires.length ? `；到预算退役 ${retires.join('/')}` : ''}）`)
+      return { name, fresh: true, retired: retires.length }
+    },
+
+    /**
+     * SETTLED 收割器：命中机读行且 canSettle(cardId) 判可收 → 计预算 + 出册
+     * + onSettledFor(cardId)（编排层按卡给回调，语义同一次性路径）+ persist，返回卡 id；
+     * 其余一律 undefined 不动手（重复/迟到消息幂等，双路去重）。
+     * canSettle 由编排层注入（审查发现项②③）：开发卡 = phase=claimed 且 alive 未清
+     * （alive 闸堵住「同窗口重复消息双计预算」）；合并卡 = 对应开发卡 phase=merging 且
+     * mergeSettledAt 未置位——merge 卡不在编排卡账（run.cards 只录开发卡），闸必须看主卡。
+     */
+    harvest({ canSettle, onSettledFor, persist }) {
+      if (typeof canSettle !== 'function') {
+        throw new Error('jxx-driver: createTeamChannel.harvest 需要 canSettle(cardId) 谓词')
+      }
+      if (typeof onSettledFor !== 'function') {
+        throw new Error('jxx-driver: createTeamChannel.harvest 需要 onSettledFor(cardId) 回调解析器')
+      }
+      return (messageText) => {
+        if (typeof messageText !== 'string') return undefined
+        const cardId = parseSettled(messageText)
+        if (cardId === undefined) return undefined
+        if (!canSettle(cardId)) return undefined
+        const memberName = cardOwners.get(cardId)
+        if (memberName !== undefined) recordCompletion(memberName)
+        inFlight.delete(cardId) // 出册：该队友名下少一张在飞卡
+        try {
+          onSettledFor(cardId)(messageText, undefined)
+        } catch (e) {
+          log(`team: onSettled 异常：${e.message}`)
+        }
+        try {
+          persist()
+        } catch (e) {
+          log(`team: persist 异常：${e.message}`)
+        }
+        return cardId
+      }
+    },
+
+    /** 卡 → 最近派发的队友名（测试/诊断用）。 */
+    nameOf(cardId) {
+      return cardOwners.get(cardId)
+    },
+
+    /** 名册视图（测试/诊断用）。 */
+    list() {
+      return [...members.entries()].map(([name, m]) => ({ name, ...m }))
+    },
+
+    /** 统计（测试/诊断用）。 */
+    stats() {
+      return { members: members.size, retiredTotal }
+    },
+  }
 }

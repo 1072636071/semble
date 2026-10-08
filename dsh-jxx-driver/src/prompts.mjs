@@ -31,9 +31,13 @@ function starter(root, role) {
   return renderPlaceholders(readFileSync(builtin, 'utf8'), root)
 }
 
-export function workerPrompt(root, cardId) {
+/** 团队路径 worker 尾注（PRD 110 工单 02）：完工回报末行机读行，供编排器收割 settle；一次性路径不追加（现行为逐字节不变）。 */
+const SETTLED_WORKER_NOTE = (cardId) => `\n\n---\n机读要求（团队模式）：完工（或受阻停手）后用 send_message 向 lead 回报一句话进展，回报文本的最后一行必须单独一行写 \`SETTLED: ${cardId}\`（卡 id 原样，不带其他字符）。`
+
+export function workerPrompt(root, cardId, { member } = {}) {
   return starter(root, 'dev')
     + `\n\n---\n本次指定：优先领取卡片 \`${cardId}\`（你由 jxx-driver 编排器拉起；只领这一张，领不到就停下来回报，不要发明新活）。\n`
+    + (member ? SETTLED_WORKER_NOTE(cardId) : '')
 }
 
 const VERDICT_DIRECTIVE = '\n\n---\n机读要求：回复正文的最后一行必须单独一行写 `VERDICT: PASS` 或 `VERDICT: FAIL`（全大写，不带其他字符）。审查报告正文照常写回卡内「流转追加段」。\n'
@@ -46,9 +50,26 @@ export function reviewerPrompt(root, cardId, dimension) {
   return base + VERDICT_DIRECTIVE
 }
 
-export function mergerPrompt(root, mergeId, cardId) {
-  return starter(root, 'merger')
-    + `\n\n---\n本次指定：合并卡 \`${mergeId}\`（对应开发卡 \`${cardId}\`）。\n`
+/** 团队路径合并专员首条指令尾注：消息式指令需点名任务与回传行（一次性路径不追加）。 */
+const MERGER_ASSIGN = (mergeId, cardId) => `\n\n---\n本次指定：合并卡 \`${mergeId}\`（对应开发卡 \`${cardId}\`）。\n`
+const MERGER_MEMBER_NOTE = (mergeId, cardId) => MERGER_ASSIGN(mergeId, cardId)
+  + `机读要求（团队模式）：本轮收口（或受阻停手）后用 send_message 向 lead 回报一句话结果，回报文本的最后一行必须单独一行写 \`SETTLED: ${mergeId}\`（卡 id 原样，不带其他字符）。`
+
+export function mergerPrompt(root, mergeId, cardId, { member } = {}) {
+  return starter(root, 'merger') + (member ? MERGER_MEMBER_NOTE(mergeId, cardId) : MERGER_ASSIGN(mergeId, cardId))
+}
+
+/**
+ * 团队模式下发给**已有队友**的复用指令（PRD 110 工单 02）：持久队友已带着角色提示词上下文，
+ * 消息只点任务与回报要求。首条指令已含 `SETTLED: <卡id>` 机读行要求，复用指令继续点名同一行，
+ * 保证每轮回报末行都有机读行（编排器按行收割，行缺失 = 不收口）。
+ */
+export function memberDirective(cardId, note = '') {
+  return [
+    `[jxx-driver] 领卡施工：\`${cardId}\`。`,
+    note ? note.trim() : '',
+    `本轮完工（或受阻停手）后用 send_message 向 lead 回报一句话进展，回报文本的最后一行必须单独一行写 \`SETTLED: ${cardId}\`（卡 id 原样，不带其他字符）。`,
+  ].filter(Boolean).join('\n') + '\n'
 }
 
 const DIMS = ['std', 'spec', 'rule']
