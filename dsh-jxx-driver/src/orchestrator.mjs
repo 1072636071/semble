@@ -80,6 +80,10 @@ export class Orchestrator {
     this.hints = config.autoConfirm ? AUTO_CONFIRM_HINTS : STAGE_HINTS
     /** 一个驱动会话同时只带一个 run（ADR-0110 D1：真相源唯一、防双轨）。 */
     this.runs = new Map() // sessionId -> run
+    /** 会话级团队通道缓存（PRD 110 工单 04 / ADR-0121 D4）：run 结束不解散持久队友，
+     * 同会话下一个 run 复用同一通道（名册/名字池/预算账本都在闭包里，按名续接）；
+     * halt 不清（成员保留），插件卸载 dispose 才清。 */
+    this.teamChannels = new Map() // sessionId -> channel
   }
 
   // ---------- 公共入口 ----------
@@ -134,10 +138,13 @@ export class Orchestrator {
       id: randomUUID(), root, sessionId, agent, idea,
       stage, createdAt: nowIso(), updatedAt: nowIso(),
       history: [{ t: nowIso(), event: `start：${idea.slice(0, 120)}（stage=${stage}）` }],
-      cards: new Map(), timer: undefined, stopped: false,
+      cards: new Map(), timer: undefined, stopped: false, dispatchFrozen: false,
       blocked: [], lastError: undefined, controllers: new Set(),
       // 团队路径（PRD 110 工单 02）：通道在 enterImplement 立项一次（非惰性——首个 tick 就要派 worker）。
       // 名字池/预算账本由通道工厂闭包持有，不挂 run（工单 03 如需重建经 setupTeamChannel 重走）。
+      // 生命周期（工单 04 / ADR-0121 D4）：通道按会话缓存（this.teamChannels），run 结束不解散
+      // 持久队友；本 run 只清自己的收割去重簿记（settledSeen），名册/名字池/预算账本随通道闭包
+      // 存续，同会话下一个 run 经 setupTeamChannel 命中缓存按名续接。
       channel: undefined,
       // SETTLED 消息收割去重（双路去重：同一卡同一 settle 只收口一次）。
       settledSeen: new Set(), messageHarvestBusy: false,
@@ -209,16 +216,25 @@ export class Orchestrator {
     return { stopped: true }
   }
 
-  /** agent/disposed 时清场：停轮询、abort 在飞子会话。 */
+  /** agent/disposed 时清场：停轮询、abort 在飞子会话；并失效该会话的通道缓存
+   * （PRD 110 工单 04 规则审查发现项）：缓存闭包持有创建时的 Lead agent 引用，
+   * 会话释放后该实例已死，复用即毒缓存（宿主 exact live Lead 校验必拒）。
+   * 成员本体仍在宿主 roster（D4 不解散），但插件侧不再复用旧通道；同 session id
+   * 重建会话后的新通道由工单 03 的「点名不在册 → 换名重建」路径兜底撞名面。 */
   async onAgentDisposed(agent) {
     const sessionId = agent.session?.id ?? agent.id
     const run = this.runs.get(sessionId)
     if (run) await this.halt(run, '宿主会话已释放')
+    if (this.teamChannels.has(sessionId)) {
+      this.teamChannels.delete(sessionId)
+      this.log.info(`[jxx-driver] 会话已释放，团队通道缓存失效（sessionId=${sessionId}）`)
+    }
   }
 
   async dispose() {
     for (const run of [...this.runs.values()]) await this.halt(run, '插件卸载')
     this.runs.clear()
+    this.teamChannels.clear() // 插件卸载才清通道缓存；单 run halt 保留（D4：成员不解散，同会话可续接）
   }
 
   // ---------- 阶段推进 ----------
@@ -306,8 +322,17 @@ export class Orchestrator {
     if (this.config.teamMode !== 'auto') return
     const teams = resolveAgentTeams(this.ctx)
     if (!teams) return
+    // 通道按会话续接（工单 04 / D4）：run 结束不解散持久队友；每 run 新建通道会拿到全新名字池，
+    // 对已存在的队友名再 spawnTeammate 必撞宿主「名字永不复用」约束（报错回退一次性路径，白建）——
+    // 复用同一通道闭包，名册/池/账本原样续接。
+    const cached = this.teamChannels.get(run.sessionId)
+    if (cached) {
+      run.channel = cached
+      run.history.push({ t: nowIso(), event: '团队模式：复用会话既有通道（持久队友按名续接，不解散）' })
+      return
+    }
     try {
-      run.channel = createTeamChannel({
+      const channel = createTeamChannel({
         teams,
         agent: run.agent,
         pool: createNamePool({}),
@@ -315,6 +340,8 @@ export class Orchestrator {
         provider: this.config.teamProvider,
         log: (msg) => this.log.info(`[jxx-driver] ${msg}`),
       })
+      run.channel = channel
+      this.teamChannels.set(run.sessionId, channel)
       run.history.push({ t: nowIso(), event: '团队模式：agentTeams 就绪，worker/合并专员走持久队友' })
     } catch (e) {
       // 通道建不起来（参数/宿主异常）→ 响亮记录，回退一次性路径（ADR-0121 D3：不弃编排）
@@ -484,7 +511,11 @@ export class Orchestrator {
     if (allDone) {
       run.stage = 'ops'
       run.updatedAt = nowIso()
-      run.history.push({ t: nowIso(), event: '全部工单 done，进 ops' })
+      // 生命周期（工单 04 / ADR-0121 D4）：run 结束**不**解散持久队友——成员留在宿主 roster，
+      // 同会话下一个 run 按名续接；只清本 run 的收割去重簿记（settledSeen）与在飞集（应已空，
+      // 卡全 done 即全部 settle 出册）。通道对象本身随 run 存续到 halt/dispose 再清。
+      run.settledSeen?.clear()
+      run.history.push({ t: nowIso(), event: '全部工单 done，进 ops（持久队友不解散，同会话下个 run 按名续接）' })
       if (run.timer) { clearInterval(run.timer); run.timer = undefined }
       this.persist(run)
       this.notify(run, `全部工单已合并收口。进入运维收尾：请写回顾（docs/retro/），然后 jxx_flow(action=advance)。`)
@@ -529,6 +560,7 @@ export class Orchestrator {
         run.controllers.delete(controller)
         this.log.warn(`[jxx-driver] team worker 派发失败（${cardId}），回退一次性路径：${e.message}`)
         run.history.push({ t: nowIso(), event: `team: worker 派发失败（${cardId}）：${e.message}` })
+        if (run.dispatchFrozen) { this.persist(run); return } // stop 后不再回退派发一次性子会话（工单 04 生命周期收口）
         const prompt = workerPrompt(run.root, cardId) + extraNote
         this.spawn(run, { role: 'dev', cardId, prompt, onSettled: (text, err) => this.onWorkerSettled(run, cardId, text, err) })
         this.persist(run)
@@ -574,6 +606,7 @@ export class Orchestrator {
         run.controllers.delete(controller)
         this.log.warn(`[jxx-driver] team merger 派发失败（${mergeId}），回退一次性路径：${e.message}`)
         run.history.push({ t: nowIso(), event: `team: merger 派发失败（${mergeId}）：${e.message}` })
+        if (run.dispatchFrozen) { this.persist(run); return } // stop 后不再回退派发一次性子会话（工单 04 生命周期收口）
         const prompt = mergerPrompt(run.root, mergeId, cardId)
         this.spawn(run, { role: 'merger', cardId, prompt, onSettled: (text, err) => this.onMergerSettled(run, cardId, text, err) })
         this.persist(run)
@@ -757,11 +790,46 @@ export class Orchestrator {
     }
   }
 
+  /**
+   * 停止/清场（PRD 110 工单 04 / ADR-0121 D4 生命周期收口）：
+   *  - 一次性路径：沿用 AbortController.abort()（在飞子会话被宿主中止）——语义不变；
+   *  - 团队路径：对在飞队友逐个 `teams.interrupt(run.agent, name)`（中断当前轮次、保留会话与
+   *    待办信箱，宿主 roster.ts:204 契约；持久成员**不散伙**）；interrupt 后仍 abort 派发信号，
+   *    dispatch 的 sendMessage/spawnTeammate 若还在途也随之终止；
+   *  - run 收尾：清本 run 收割簿记（settledSeen）、timer、controllers；runs 表摘除本 run。
+   *  复用语义：成员不解散（durable roster 按设计持久），同会话下一个 run 经 setupTeamChannel
+   *  重建通道按名续接；宿主重启/队友 failed 的按名解析失败 → 走 03 的重建路径（dispatch 首行
+   *  「点名不在册」分支已在）。stop 后本 run 不再派发：tick 首行 run.stopped 短路（run 总闸）
+   *  + dispatchFrozen 哨兵挡住已在途的 dispatch 回退分支（只挡派发，不动卡位，防 stop 后
+   *  静默新开一次性子会话）。
+   */
   async halt(run, reason) {
     run.stopped = true
     if (run.timer) { clearInterval(run.timer); run.timer = undefined }
+    if (run.channel && run.agent) {
+      const teams = resolveAgentTeams(this.ctx)
+      if (!teams) {
+        // 留痕口径（std 审查发现项）：通道在但宿主服务解析不到（异常路径）——响亮记录，不静默跳过中断
+        run.history.push({ t: nowIso(), event: '团队路径停止：宿主 agentTeams 解析不到，在飞队友无法 interrupt（交卡位兜底）' })
+        this.log.warn('[jxx-driver] 团队路径停止：agentTeams 解析不到，跳过 interrupt')
+      }
+      if (teams) {
+        const attempted = run.channel.interruptInFlight((_cardId, memberName) => {
+          // 宿主契约（deepseek-harness agent-team index.ts:221）：interrupt(caller=exact live Lead, targetName)
+          // 中断该队友在飞轮次、保留其会话与待办信箱；成员保留在册（D4 不解散）。
+          const r = teams.interrupt(run.agent, memberName)
+          run.history.push({ t: nowIso(), event: `team: 中断在飞队友 ${memberName}（previousStatus=${r?.previousStatus ?? 'unknown'}）` })
+        })
+        if (attempted.length > 0) {
+          run.history.push({ t: nowIso(), event: `团队路径停止：中断在飞 ${attempted.length} 张卡的在飞轮次，持久成员不解散` })
+          this.log.info(`[jxx-driver] 团队路径停止：interrupt 在飞队友 ×${attempted.length}`)
+        }
+      }
+    }
     for (const c of run.controllers || []) { try { c.abort() } catch { /* noop */ } }
     run.controllers?.clear()
+    run.dispatchFrozen = true // stop 后在途 dispatch 的回退分支不再新开一次性子会话（工单 04 生命周期收口）
+    run.settledSeen?.clear() // 本 run 的收割去重簿记随 run 清场；成员名册/预算账本随通道闭包存续（D4）
     run.history.push({ t: nowIso(), event: `停止：${reason}` })
     this.persist(run)
     this.runs.delete(run.sessionId)
