@@ -72,6 +72,9 @@ export function normalizeConfig(raw) {
     teamMode: teamModeField(raw, 'teamMode', 'auto'),
     /** 队友复用预算：完成任务数超过该值判 retire，供上层换名重建 fresh 后继。 */
     reuseLimit: intField(raw, 'reuseLimit', 8, { min: 1 }),
+    /** 团队路径失败韧性（PRD 110 工单 03 / ADR-0121 D3）：同会话退避重发的连续失败上限，
+     * 超限 → notify 等用户切模型（等待恢复不弃会话）；0 = 关闭退避重发（失败立即转人工）。 */
+    teamBackoff: intField(raw, 'teamBackoff', 3, { min: 0 }),
     /** 团队路径的 spawn provider（与一次性路径默认 provider 同名，不引入第二套）。 */
     teamProvider: nonEmptyStringField(raw, 'teamProvider', 'spawn'),
     /** 打点日志。 */

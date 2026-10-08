@@ -150,7 +150,8 @@ export function createTeamChannel({ teams, agent, pool, ledger, provider = 'spaw
   /** 该队友名下在飞卡数（0 = 空闲，可接新卡）。 */
   const loadOf = (name) => [...inFlight].filter((c) => cardOwners.get(c) === name).length
 
-  return {
+  /** 通道本体（具名自引用：rebuild 返回自身，编排层直接换引用）。 */
+  const api = {
     /**
      * 指令下发。返回 { name, fresh, retired }：fresh = 本次 spawnTeammate 新建；
      * retired = 本次因超预算停发的旧队友数。
@@ -161,7 +162,7 @@ export function createTeamChannel({ teams, agent, pool, ledger, provider = 'spaw
      * ③ 在册同角色数 < poolSize → 名字池取新名 spawnTeammate（并发卡各得一个队友）；
      * ④ 池满且全员忙 → 取在飞最少者复用（宿主信箱按序投递 = 该队友串行领卡）。
      */
-    async dispatch({ role, name: hintName, cardId, prompt, description, signal, poolSize = 1 }) {
+    async dispatch({ role, name: hintName, cardId, prompt, description, signal, poolSize = 1, resend = false }) {
       if (typeof role !== 'string' || role === '') {
         throw new Error(`jxx-driver: dispatch 缺角色前缀，收到 ${JSON.stringify(role)}`)
       }
@@ -170,7 +171,12 @@ export function createTeamChannel({ teams, agent, pool, ledger, provider = 'spaw
       }
       const retires = []
       let name = hintName
-      if (name === undefined || !members.has(name)) {
+      if (resend) {
+        // 同名直发（工单 03 同会话唤醒）：目标必须显式点名且在册——不在册响亮报错，绝不静默开新名
+        if (name === undefined || !members.has(name)) {
+          throw new Error(`jxx-driver: 同名重发目标不在册：${JSON.stringify(name)}（换名重建或一次性路径由上层裁决）`)
+        }
+      } else if (name === undefined || !members.has(name)) {
         if (name !== undefined) log(`team: 点名 ${name} 已不在册（退役/历史名册），按新名重建 fresh 后继`)
         for (const [n, m] of members) {
           if (m.role === role && loadOf(n) === 0 && ledger.maybeRetire(n).retire) {
@@ -263,6 +269,31 @@ export function createTeamChannel({ teams, agent, pool, ledger, provider = 'spaw
       return cardOwners.get(cardId)
     },
 
+    /**
+     * 换名重建（PRD 110 工单 03 构建内容 4，最后手段）：宿主探针确认旧队友 failed 后调用——
+     * 从名册摘除旧名（退租，名字池永不再发它）并把其名下在飞卡出册；同通道复用
+     * （dispatch 无点名时池自然给出新名 fresh 后继）。旧名不存在于名册（如首派即败，spawnTeammate
+     * 失败没登记）也照常退租——名字池的 used 集合由池自己持有，重建侧只摘名册。
+     * 返回通道自身（编排层直接换引用）。
+     */
+    rebuild({ role, oldName, reason } = {}) {
+      if (typeof role !== 'string' || role === '') {
+        throw new Error(`jxx-driver: rebuild 缺角色前缀，收到 ${JSON.stringify(role)}`)
+      }
+      if (typeof oldName !== 'string' || oldName === '') {
+        throw new Error(`jxx-driver: rebuild 缺旧队友名，收到 ${JSON.stringify(oldName)}`)
+      }
+      const had = members.delete(oldName)
+      for (const [card, owner] of [...cardOwners]) {
+        if (owner === oldName) {
+          cardOwners.delete(card)
+          inFlight.delete(card)
+        }
+      }
+      log(`team: 换名重建（${role}）：${oldName} 退租${had ? '' : '（名册无记录）'}${reason ? `——${reason}` : ''}`)
+      return api
+    },
+
     /** 名册视图（测试/诊断用）。 */
     list() {
       return [...members.entries()].map(([name, m]) => ({ name, ...m }))
@@ -273,4 +304,94 @@ export function createTeamChannel({ teams, agent, pool, ledger, provider = 'spaw
       return { members: members.size, retiredTotal }
     },
   }
+  return api
+}
+
+// ---------- 失败韧性原语（PRD 110 工单 03 / ADR-0121 D3：LLM 失败不弃会话） ----------
+
+/**
+ * 同会话退避序列：第 n 次失败（n 从 1 起）后的重发等待 = min(2^n * 5s, 60s)（工单原文，
+ * n 从 0 计幂——首次失败等 5s）。曲线：5s、10s、20s、40s、60s、60s…封顶；
+ * attempt 上限保护防指数溢出。
+ */
+export function backoffDelayMs(attempt) {
+  if (!Number.isSafeInteger(attempt) || attempt < 1) {
+    throw new Error(`jxx-driver: backoffDelayMs 需要从 1 起的失败次数，收到 ${JSON.stringify(attempt)}`)
+  }
+  if (attempt > 30) return 60_000
+  return Math.min(2 ** (attempt - 1) * 5_000, 60_000)
+}
+
+/**
+ * 失败态探针（工单 03 构建内容 4）：宿主公开面只有 `listMembers(caller)`（同步），
+ * 返回 `TeamMemberView[]`（types.ts:58-67：`status: 'running' | 'inactive' | 'provisioning' | 'failed'`）。
+ * 判据（鸭子类型，缺 listMembers = 无探针 → 恒 false，唤醒语义兜底）：
+ *  - `memberFailed`：存在点名成员且 status === 'failed' —— 会话已死，sendMessage 不会唤醒它，
+ *    只能换名重建 fresh 后继（roster.ts:296 失败已定格、无复活边）；
+ *  - `memberBusy`：存在点名成员且 status === 'running' —— 回合仍在飞，重发会造成重复投递，等下一轮再看。
+ */
+export function createMemberProbe({ teams, agent, log } = {}) {
+  if (!teams || typeof teams !== 'object') {
+    throw new Error(`jxx-driver: createMemberProbe 需要已解析的 agentTeams 服务，收到 ${JSON.stringify(teams)}`)
+  }
+  if (!agent) throw new Error('jxx-driver: createMemberProbe 需要 Lead agent（caller 凭据）')
+  if (log === undefined) log = () => {}
+  const findMember = (name) => {
+    if (typeof teams.listMembers !== 'function') return undefined
+    try {
+      return teams.listMembers(agent).find((m) => m && m.name === name)
+    } catch (e) {
+      log(`team: listMembers 探针异常（按未知处理）：${e.message}`)
+      return undefined
+    }
+  }
+  return {
+    /** 点名队友已 failed（宿主判定会话已死）→ 换名重建。探针缺失 → 恒 false。 */
+    memberFailed(name) {
+      return findMember(name)?.status === 'failed'
+    },
+    /** 点名队友回合仍在飞（running）→ 暂不重发，防重复投递。探针缺失 → 恒 false。 */
+    memberBusy(name) {
+      return findMember(name)?.status === 'running'
+    },
+  }
+}
+
+/** 流转行识别（卡内文法 §4）：`- ` 起头 + 日期列（`2026-10-08 21:51` / 含秒 / ISO `T` 分隔）。 */
+const FLOW_LINE = /^- \d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?Z?(?:\s*(?:UTC[+-]\d|\+\d{2}:?\d{2}))?\s*\|\s*\S/
+
+/**
+ * 交接简报提取器（工单 03 构建内容 4）：从卡面「流转追加段」按行提取流转行，
+ * 保留**最近的**流转记录、总字符预算 `maxChars`（默认 2000，工单上限）装不下即止。
+ * 返回 { text, lines, chars, truncated, matched }：matched=false = 无卡文本或零命中
+ * （text 为空串，上层拼「（交接简报缺失：卡无可读流转行）」）。
+ */
+export function buildHandoffFromCard(cardText, { maxChars = 2000 } = {}) {
+  if (typeof cardText !== 'string' || cardText === '') {
+    return { text: '', lines: 0, chars: 0, truncated: false, matched: false }
+  }
+  const lines = cardText.split(/\r?\n/).filter((l) => FLOW_LINE.test(l))
+  if (lines.length === 0) {
+    return { text: '', lines: 0, chars: 0, truncated: false, matched: false }
+  }
+  const kept = []
+  let used = 0
+  let truncated = false
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i]
+    let piece = line
+    if (used + piece.length + 1 > maxChars) {
+      // 剩余预算装不下整行：第一条（最新）硬截到剩余预算（工单口径 ≤2000 是硬上限），
+      // 之后只能丢更旧的行（truncated 置位）
+      piece = piece.slice(0, Math.max(0, maxChars - used - 1))
+      truncated = true
+      kept.push(piece)
+      used += piece.length
+      break
+    }
+    kept.push(piece)
+    used += piece.length + 1 // +1 = join 的换行
+  }
+  const text = kept.reverse().join('\n')
+  return { text, lines: lines.length, chars: text.length, truncated, matched: true }
 }

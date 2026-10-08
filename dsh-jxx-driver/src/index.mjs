@@ -38,7 +38,7 @@ function flowDescription(autoConfirm) {
     autoConfirm
       ? '⑤ 拿不准规模/方案时**自己按推荐拍板**继续（免确认）；只有当输入意图本身有歧义、拍错轨道会白干时才用 ask_user_question 澄清（例如用户只说「把那块优化一下」却没说清是哪块——问清要做什么，而不是问怎么拆）。'
       : '⑤ 调查后仍无法定规模/方案的 → 用 ask_user_question 让用户在「自动决策（给推荐）/手动决策（逐项拍板）」间选择。',
-    '另：action=status 看阶段与卡位；action=stop 停止并中止在飞子会话；action=advance 仅用于 start 走出的阶段链（go 已内含推进）。',
+    '另：action=status 看阶段与卡位；action=stop 停止并中止在飞子会话；action=advance 仅用于 start 走出的阶段链（go 已内含推进）；编排器上报「等待用户恢复」且用户切了模型/说继续后，调 action=resumed 唤醒同一队友（或 go(idea="继续") 同义）。',
     autoConfirm ? AUTO_CONFIRM_NOTE : MANUAL_CONFIRM_NOTE,
   ].join('')
 }
@@ -146,10 +146,12 @@ async function dispatch(orch, args, agent) {
       return orch.advance(agent)
     case 'status':
       return orch.status(agent)
+    case 'resumed':
+      return orch.flowResumed(agent, 'jxx_flow 显式恢复')
     case 'stop':
       return orch.stop(agent)
     default:
-      throw new Error(`未知 action：${args.action}（合法：go/advance/status/stop；start/quick/auto 仍作为别名可用）`)
+      throw new Error(`未知 action：${args.action}（合法：go/advance/status/stop/resumed；start/quick/auto 仍作为别名可用）`)
   }
 }
 
@@ -162,6 +164,13 @@ async function dispatch(orch, args, agent) {
 async function goDispatch(orch, args, agent) {
   const idea = String(args.idea ?? '').trim()
   const track = args.track // 模型可显式指定：auto | quick | standard | deep
+
+  // 0) 团队路径等待恢复面（PRD 110 工单 03）：等待窗内用户说「继续」→ 唤醒同一队友（上下文零丢失）
+  const resume = /^(继续|恢复|接着跑|go on|resume|continue)$/i
+  if (resume.test(idea) || (track === undefined && /^(go)$/i.test(idea))) {
+    const r = orch.flowResumed(agent, '用户口头恢复')
+    if (r.resumed) return { ok: true, route: 'resumed', resumed: true, revived: r.revived, hint: '已唤醒等待中的队友（同一会话，上下文零丢失），继续监控即可' }
+  }
 
   // 1) 模型指定 auto 轨或输入长得像编号 → 走显式 PRD 编排（编号必须给准，不做模糊推荐）
   if (track === 'auto' || /^\d{1,4}$/.test(idea)) {
