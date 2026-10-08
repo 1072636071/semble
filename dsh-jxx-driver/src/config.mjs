@@ -20,6 +20,26 @@ function boolField(c, key, def) {
   return v
 }
 
+const TEAM_MODES = ['auto', 'off']
+
+function teamModeField(c, key, def) {
+  const v = c[key]
+  if (v === undefined) return def
+  if (typeof v !== 'string' || !TEAM_MODES.includes(v)) {
+    throw new Error(`jxx-driver: config.${key} 必须是 ${TEAM_MODES.map((m) => `'${m}'`).join(' | ')} 之一，收到 ${JSON.stringify(v)}`)
+  }
+  return v
+}
+
+function nonEmptyStringField(c, key, def) {
+  const v = c[key]
+  if (v === undefined) return def
+  if (typeof v !== 'string' || v.trim() === '') {
+    throw new Error(`jxx-driver: config.${key} 必须是非空字符串，收到 ${JSON.stringify(v)}`)
+  }
+  return v
+}
+
 export function normalizeConfig(raw) {
   if (raw === undefined || raw === null) raw = {}
   if (typeof raw !== 'object' || Array.isArray(raw)) {
@@ -47,6 +67,12 @@ export function normalizeConfig(raw) {
     autoConfirm: boolField(raw, 'autoConfirm', true),
     /** 卡位轮询间隔毫秒。 */
     pollIntervalMs: intField(raw, 'pollIntervalMs', 5000, { min: 50 }),
+    /** 团队模式开关（PRD 110 / ADR-0121）：auto = 宿主有 agentTeams 时 worker/合并专员走持久队友；off = 全走既有一次性路径。 */
+    teamMode: teamModeField(raw, 'teamMode', 'auto'),
+    /** 队友复用预算：完成任务数超过该值判 retire，供上层换名重建 fresh 后继。 */
+    reuseLimit: intField(raw, 'reuseLimit', 8, { min: 1 }),
+    /** 团队路径的 spawn provider（与一次性路径默认 provider 同名，不引入第二套）。 */
+    teamProvider: nonEmptyStringField(raw, 'teamProvider', 'spawn'),
     /** 打点日志。 */
     verbose: boolField(raw, 'verbose', false),
   }
