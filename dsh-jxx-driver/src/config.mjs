@@ -59,13 +59,17 @@ export function normalizeConfig(raw) {
     parallel: intField(raw, 'parallel', 3),
     /** claimed 卡无存活 worker 且 mtime 超过该分钟数 → 判僵死重 spawn。 */
     staleMinutes: intField(raw, 'staleMinutes', 30),
-    /** 重试预算上限（单源语义定义，三消费面同口径引用——PRD 111-01 rule 审查发现项）：
+    /** 重试预算上限（单源语义定义，各消费面同口径引用——PRD 111-01 rule 审查发现项）：
      * ① worker 路（onWorkerSettled 失败分支）：retries > maxRetries → blocked；maxRetries=1 时
      *    worker 共 2 次机会（首派 + 1 重试）；
-     * ② 合并卡路（onMergerSettled 失败路 +1 / 前沿重派只读）：同式 `retries > maxRetries` 判超限，
-     *    但 retries 只在失败路计数（前沿不重复计数，R3 实录）→ maxRetries=1 时合并卡失败 1 次后
-     *    重派 1 次、再失败即 blocked（比 worker 路少 1 次机会——合并卡失败成本低重派风险高，收紧）；
-     * ③ 僵死路（worker/合并卡同构）：同 worker 口径。
+     * ② 合并卡路：影子账（merge- 键）retries 有 **3 个写点**、各承载一次独立的「本轮失败」事实
+     *    （onMergerSettled 失败路 / 段 6 僵死面 / 段 4 未收口超时面，明细见 orchestrator 对应注释），
+     *    前沿重派面只读不写（防同一次失败被记两次）。注意段 6 与失败路会看到**同一次**失败，
+     *    故二者之间有 mergeFailedAt 互斥（R2 rule 审查发现项：无此闸则一次失败扣两次预算、
+     *    maxRetries=1 下白丢那次重派）。同式 `retries > maxRetries` 判超限，maxRetries=1 时
+     *    合并卡失败 1 次后重派 1 次、再失败即 blocked（比 worker 路少 1 次机会——合并卡失败
+     *    成本低、重派风险高，收紧）；
+     * ③ 僵死路（worker/合并卡同构）：同 worker 口径，且合并卡僵死面自带超限转人工出口。
      * 三处消费面改语义前先读本注释对齐，防分裂漂移。 */
     maxRetries: intField(raw, 'maxRetries', 1, { min: 0 }),
     /** 三维审查全过后是否自动 spawn 合并专员（ADR-011 默认回合 main）。 */

@@ -550,11 +550,16 @@ export class Orchestrator {
       if (!devRec || devRec.phase !== 'merging') continue // 主卡不在合并窗（已被回挪降级/收口）→ 不派
       if (devRec.mergeSettledAt !== undefined) continue // 首派 settle 成功后走段 4 收口/超时面，不经前沿重派（防 done 竞速窗口复活，R3 实录）
       if ((rec.retries || 0) > this.config.maxRetries) {
-        // 重派预算 = 影子账 retries（单源：只在 onMergerSettled 失败路 +1——前沿不重复计数，
-        // 否则一次失败被记两次，maxRetries=1 时重派一发出即误判超限，R3 调试实证）
+        // 重派预算 = 影子账 retries（写点仅本循环之外的 3 处：段 4 未收口超时面 / 段 6 僵死面 /
+        // onMergerSettled 失败路；三处细节见各自注释——其中段 6 与失败路之间另有 mergeFailedAt
+        // 互斥，防同一次失败被两处各记一次）。前沿只读不写：否则一次失败被记两次，maxRetries=1 时
+        // 重派一发出即误判超限（R3 调试实证）
         rec.phase = 'blocked'
         run.blocked.push(`${c.id} 合并卡重派超限（失败 ${rec.retries}/${this.config.maxRetries}），转人工`)
         this.notify(run, `合并卡 ${c.id} 重派已达上限，转人工。${HUMAN_TAKEOVER_HINT}`)
+        // spec 审查发现项 2：转人工必须落到卡位与 triage 面上——三态板的阻塞列由 labels 的
+        // needs-info 表达（PROTOCOL §0），只改卡账会让该卡留在「待领取」列、verify 第 5 路也不报警
+        await this.selfHealReturnToInbox(run, c.id, { to: 'blocked', reason: 'jxx-driver: 合并卡重派超限，回待领位转人工' })
         this.persist(run)
         continue
       }
@@ -562,31 +567,84 @@ export class Orchestrator {
       break // 本 tick 最多重派一张合并卡（重派是异步的，防止同 tick 内重复入队）
     }
 
-    // 6) 僵死重 spawn：claimed 卡超时且无存活 worker（#106-C：合并卡僵死同构受管——
-    // 影子账 alive 全生命周期由 spawnMerger 置位 + onMergerSettled 归位单源管理；
-    // 真卡位 claimed 且影子已「不在飞」超过 staleMinutes = 轮次无 SETTLED 的僵死面）
+    // 6) 僵死重 spawn：claimed 卡超时且无存活 worker（#106-C：合并卡同构受管——与开发卡同一判据面）。
+    // 判死面 = 物理 claimed（合并专员真把卡领走了）+ **影子不在飞** + **队友不在跑**（团队路径）
+    // + 主卡仍在合并窗且本轮未 settle + 卡 mtime 超 staleMinutes（领走后零推进）。
+    // 为什么必须换掉旧守卫：旧式 `rec.phase !== 'claimed'` 比的是**影子账 phase**，而它是「重派路由位」
+    // （写面仅 open/blocked，全文无 claimed 写路径）⇒ 守卫恒真、整段退化成死代码。这正是 R1 三维审查
+    // std#1 与 rule#1 独立同判的阻断项（团队路径：合并专员领卡后静默死亡 ⇒ 零自愈/零 notify/零重派）。
+    // 为什么 alive 单闸不够、必须再叠**队友存活探针**（PRD 111 修订 1 / D6「同一张卡同一时刻只有一个
+    // 在飞轮次」，不可让步；R2 三维审查 spec 维度 High#1）：团队路径 dispatch **投递成功**即清
+    // shadow.alive，而「投递成功 ≠ 回合存活」——此后 alive=false 与轮次是否在跑无关，单凭 alive+卡面
+    // 静默会把合法耗时超过 staleMinutes 的**长合并回合**判死重派（实证 mergerCalls 1→2，两个合并专员
+    // 可能同时动同一分支），默认档下还会把仍在工作的回合误判「超限转人工」。
+    // 故判死前问宿主「这位队友还在跑吗」（roundInFlight：名单里 status==='running' ⇒ 让位）。
+    // 覆盖边界（如实声明，勿夸大）：团队路径（ADR-0121 默认形态）两卡种均自愈——成员失联
+    // （inactive/failed/查无此人）即放行判死；成员仍在跑则让位。**一次性路径**（teamMode=off / 宿主无
+    // agentTeams）无成员观测面（canObserveMembers 为 false）⇒ 自愈仍受 `alive` 闸约束：合并轮 alive
+    // 只在 onMergerSettled 归位，挂死轮次永不清位 ⇒ 该形态不自愈，长挂由人工/停止清场面兜底。
+    // 转人工有**两个出口**，落法同源（回待领位 + needs-info + run.blocked 落账），按哪一面先判到为定：
+    //   ① 本段僵死面超限（staleAttempt > maxRetries）——回挪前就已烧完预算，就地转人工；
+    //   ② 前沿重派超限（就绪前沿的合并卡重派分支）——回挪成功、点开重派时才发现预算已尽。
     const now = Date.now()
     for (const c of b.claimed.filter((x) => managed(x.id) && x.id.startsWith('merge-'))) {
       const rec = run.cards.get(c.id)
-      if (!rec || rec.alive || rec.phase !== 'claimed') continue
+      if (!rec) continue
+      // 重入守卫（R2 三维审查 std#1：与开发卡侧同构，此前合并侧缺此闸 ⇒ 回挪持续失败时无界循环）：
+      // 本段只接管「仍在合并窗、状态机尚未判终局」的卡（影子 phase=open 是重派路由位）。
+      // 一旦判成 blocked（超限转人工），下一 tick 不再重入——否则 cardMove 抛错被
+      // selfHealReturnToInbox 有意吞掉后返回 false，卡物理位留在 claimed、守卫又只看 alive，
+      // 就会每 tick 重复「retries++ → blocked.push → notify → 回挪再失败」（实测 5 秒 +79 次）。
+      if (rec.phase !== 'open') continue
+      const devRec = run.cards.get(devIdOf(c.id))
+      if (!devRec || devRec.phase !== 'merging') continue // 主卡不在合并窗（已收口/已降级）→ 不接管
+      // 韧性链在管（退避计时/等待窗）→ 重派面不抢（工单 03 语义，与前沿重派同一互斥闸）
+      if (rec.resilienceOwned) continue
+      // 本轮已 settle（成功回传）→ 交段 4 的收口/10 分钟超时面，绝不在僵死面重派：那会与
+      // done 竞速窗口抢跑，把已收口的合并卡复活（R3 调试实录的同型风险）
+      if (devRec.mergeSettledAt !== undefined) continue
+      // 在飞判据（R2 spec 审查 High#1）：团队路径看成员 status（队友 inactive/failed ⇒ 失联放行），
+      // 一次性路径退回 alive 位（与 HEAD 同语义，零行为漂移）。判据实现见 roundInFlight 注释。
+      if (this.mergerRoundInFlight(run, devRec, rec)) continue
+      // 这一轮是否已由失败路落过账？是则**本段完全让位**：失败路已做「回挪 + notify + retries+1」，
+      // 卡此刻已在待领位、等就绪前沿按预算重派；本段既不该再 +1（一次失败扣两次预算），也不该
+      // 抢先把本轮判终局（那会白丢本该保留的那次重派）。后手由前沿重派超限分支负责收口。
+      if (devRec.mergeFailedAt !== undefined) continue
       if (now - c.mtime < this.config.staleMinutes * 60_000) continue
       rec.retries = (rec.retries || 0) + 1
+      const staleAttempt = rec.retries
       rec.lastFailure = `僵死超 ${this.config.staleMinutes} 分钟无回传（合并卡）`
-      // 合并卡僵死只有回挪重派一个出路（影子账 phase 写面仅 open/blocked，无 claimed 恢复语义，
-      // blocked 转人工面由前沿重派超限分支承担——rule 审查发现项 2 确认永假分支已删）
+      if (staleAttempt > this.config.maxRetries) {
+        // 重试上限对合并卡同构生效（工单《构建内容 2》）：僵死面自己也要有终局出口——只依赖
+        // 「前沿重派超限分支」会在回挪失败时留下无界循环（卡物理位一直在 claimed、前沿看不到它，
+        // 每 tick 重复判死 + 烧计数）。此处直接转人工：回待领位 + needs-info，卡面可读、verify 可对账
+        rec.phase = 'blocked'
+        run.blocked.push(`${c.id} 合并卡僵死且重试超限（${staleAttempt}/${this.config.maxRetries}），转人工`)
+        this.notify(run, `合并卡 ${c.id} 的合并专员领卡后超 ${this.config.staleMinutes} 分钟无回传，重试已超限，转人工。${HUMAN_TAKEOVER_HINT}`)
+        await this.selfHealReturnToInbox(run, c.id, { to: 'blocked', reason: 'jxx-driver: 合并卡僵死超限，回待领位转人工' })
+        this.persist(run)
+        continue
+      }
       rec.phase = 'open'
-      run.history.push({ t: nowIso(), event: `${c.id} 合并卡僵死（第 ${rec.retries} 次失败），回挪重派` })
-      await this.selfHealReturnToInbox(run, c.id, { to: 'inbox', reason: 'jxx-driver: 合并卡僵死，回挪重派' })
+      run.history.push({ t: nowIso(), event: `${c.id} 合并卡僵死（第 ${staleAttempt} 次失败），回挪重派` })
+      const moved = await this.selfHealReturnToInbox(run, c.id, { to: 'inbox', reason: 'jxx-driver: 合并卡僵死，回挪重派' })
+      this.notify(run, `卡 ${c.id} 的合并专员领卡后超 ${this.config.staleMinutes} 分钟无回传（第 ${staleAttempt} 次失败），${moved ? '合并卡已回挪待领位自动重派' : '回挪未执行（交前沿/人工面兜底）'}；若连续僵死将转人工。${HUMAN_TAKEOVER_HINT}`)
       this.persist(run)
     }
     for (const c of b.claimed.filter((x) => managed(x.id) && !x.id.startsWith('merge-'))) {
       const rec = run.cards.get(c.id)
-      if (!rec || rec.alive || rec.phase !== 'claimed') continue
+      if (!rec || rec.phase !== 'claimed') continue
+      // 在飞判据（R2 spec 审查 High#2）：团队路径看成员 status（队友领卡后静默挂死 ⇒ inactive ⇒
+      // 本段接管自愈）；一次性路径退回 alive 位（与 HEAD 同语义，零行为漂移）
+      if (this.devRoundInFlight(run, rec)) continue
       if (now - c.mtime < this.config.staleMinutes * 60_000) continue
       rec.retries = (rec.retries || 0) + 1
       if (rec.retries > this.config.maxRetries) {
         rec.phase = 'blocked'
         run.blocked.push(`${c.id} 僵死超 ${this.config.staleMinutes} 分钟且重试超限，转人工`)
+        // spec 审查发现项 1（同根第三处）：终局面同样要动物理卡位——只改卡账会让卡滞留
+        // 「处理中」泳道且前沿/僵死两面都不再接管（前沿只收 open、僵死只收 claimed）= 本单要根治的死锁
+        await this.selfHealReturnToInbox(run, c.id, { to: 'blocked', reason: 'jxx-driver: 僵死超限，卡位回待领位转人工' })
         // spec 审查低项留痕：僵死超限走 maxRetries 面、不置 st.waiting——用户「继续」只能唤醒
         // waiting 卡；此 notify 的唤醒承诺仅在「曾发生派发失败（挂过等待窗）」时兑现，纯 stale 不承诺
         this.notify(run, `卡 ${c.id} 僵死超过 ${this.config.staleMinutes} 分钟，重试已超限，转人工。若编排器曾上报过「等待用户恢复」类连续失败（等待窗内说「继续」可唤醒同一队友），可在切换模型后让我继续；纯无响应僵死请人工核查卡面后重投。`)
@@ -723,9 +781,20 @@ export class Orchestrator {
     const rec = run.cards.get(cardId)
     rec.mergeSettledAt = undefined
     rec.mergeFailureNote = undefined
+    rec.mergeFailedAt = undefined // 新一轮开跑：清上一轮的失败标记（段 6 以此识别「本轮是否已失败过」）
+    rec.mergeFailedHandledAt = undefined
     const shadow = run.cards.get(mergeId)
-    // 影子账生命周期单源：spawnMerger 置在飞（alive=true、phase 不动——前沿/收口两面的相位判定
-    // 都以 alive 闸为准）；清位/回 open 只看 onMergerSettled（成功 settle 置位面 + 失败回挪面）
+    // 影子账生命周期口径（R1 三维审查 rule#2 纠偏：旧注释称「清位/回 open 只看 onMergerSettled」，
+    // 与同文件其它面的写点不符——R2 rule 审查再纠「单源管理」措辞过强：置在飞确为 spawnMerger
+    // **单源**，但清在飞不止 onMergerSettled，故按实况写全，不再声称单源）：
+    //  - 置在飞：**仅本处**（alive=true；phase 不动——phase 是重派路由位，写面只有 open/blocked）；
+    //  - 清在飞：本处两条派发路的回调——团队路 dispatch 的 .then/.catch、一次性路 onMergerSettled
+    //    （成功 settle 置 mergeSettledAt / 失败回挪）。**段 6 僵死面不清 alive**（它以 `rec.alive`
+    //    为否决闸，见该段注释：卡面静默无法区分「轮次挂了」与「轮次在干长活」，清位即等于允许双跑）；
+    //  - 回 open：onMergerSettled 失败回挪面；终局转人工则是 blocked。
+    // 注意：另有两条合并派发入口（resendTeamDirective 的 merger 分支、spawnFallback('merger')）
+    // 走的是「同一轮的续发/兜底重建」，**不在此处置位**——它们的轮次存活由段 6 的队友存活探针
+    // （roundInFlight 的成员观测面）与卡位信号判定，不依赖本处 alive 置位（R2 rule 审查发现项 2）。
     if (shadow) shadow.alive = true
     if (run.channel) {
       // 团队路径（PRD 110 工单 02 / ADR-0121 D2）：合并专员持久队友化——同名复用，
@@ -740,6 +809,9 @@ export class Orchestrator {
       }).then((r) => {
         run.controllers.delete(controller)
         if (shadow) shadow.alive = false
+        // 记名（R2 spec 审查 High#1）：段 6 判死前要用 mergeMemberName 问宿主「这位队友还在跑吗」。
+        // 投递成功即清 alive 是既有语义（投递 ≠ 回合存活），故存活判定不能只看 alive，必须有真探针。
+        if (r?.name) rec.mergeMemberName = r.name
         this.resilienceReset(run, mergeId)
         run.history.push({ t: nowIso(), event: r.fresh ? `team: spawn 合并专员 ${mergeId}（${r.name}）` : `team: 合并专员复用 ${r.name}（${mergeId}）` })
         this.persist(run)
@@ -760,23 +832,14 @@ export class Orchestrator {
       return
     }
     const prompt = mergerPrompt(run.root, mergeId, cardId)
-    // 一次性路径的 spawn label 用 merge id（与既有测试/账面口径一致）：run.cards 键 = 开发卡 id
-    // 本就不是 label 面（spawn() 的 rec 取 cardId 是给一次性 worker 用的，merger 本就恒 undefined——
-    // 之前 3 连派 + 无回调的根因是 label 里的 merge-<id> 被前面测试环境的 label 正则误配，与此无关，此处仅保持原样）
-    // cardId 传开发卡 id：spawn() 用它取 rec/落 alive；label 由 role 拼接（jxx-merger-<devId>，
-    // 与既有测试/账面口径一致）；onSettled 回开发卡口径（onMergerSettled 内部归一 merge 卡）。
-    // 影子账归位只走 onMergerSettled 单源（成功 mergeSettledAt 置位 / 失败回挪重派），不在派发层
-    // 提前归位——否则 done 竞速窗口会把已收口合并卡复活回 open/（R3 调试实录）
-    this.spawn(run, { role: 'merger', cardId, prompt, onSettled: async (text, err) => {
-      await this.onMergerSettled(run, cardId, text, err)
-      // 一次性路径派发收尾：成功轮次 → shadow.alive 已在 onMergerSettled 清位且 mergeSettledAt 置位；
-      // 失败轮次 → onMergerSettled 已把影子账回 open（retries 单源 +1）。成功轮次的影子账也要归 open
-      // 等收口闸（主卡 merging）——但必须避开 done 竞速窗口（主卡已 done 则保持，等段 4 收口）
-      if (!err) {
-        const shadowFinal = run.cards.get(mergeId)
-        if (shadowFinal && shadowFinal.phase === 'claimed') shadowFinal.phase = 'open'
-      }
-    } })
+    // 一次性路径合并派发口径（R1 三维审查 rule#4b 纠偏：旧注释首行「label 用 merge id」与紧随的
+    // 事实行自相矛盾，已删）：
+    //  - cardId 传**开发卡 id**：spawn() 用它取 rec，label 由 role 拼接 = `jxx-merger-<devId>`（不带
+    //    merge- 前缀，与既有测试/账面正则口径一致）；
+    //  - 开发卡 rec 的 alive **不**由本层代清（spawn() 按 role 判归属，merger 轮不碰开发卡在飞闸）；
+    //    合并轮的生存信号 = 影子账 alive，由 spawnMerger 置位 / onMergerSettled 归位单源管理；
+    //  - onSettled 回开发卡口径（onMergerSettled 内部归一 merge 卡）。
+    this.spawn(run, { role: 'merger', cardId, prompt, onSettled: (text, err) => this.onMergerSettled(run, cardId, text, err) })
     run.history.push({ t: nowIso(), event: `spawn 合并专员 ${mergeId}` })
     this.persist(run)
   }
@@ -784,11 +847,15 @@ export class Orchestrator {
   spawn(run, { role, cardId, prompt, onSettled }) {
     const controller = new AbortController()
     const rec = run.cards.get(cardId)
-    // 一次性路径 worker：cardId = 开发卡 id → rec 在册（失败时 done 回调清 alive，清扫面才能接管）。
-    // 合并卡一次性派发：run.cards 键 = 开发卡 id，cardId 也传开发卡 id——label 拼出 jxx-merger-<devId>
-    // （与既有 fixture/账面正则口径一致，不带 merge- 前缀）；recOfLabel 置 undefined 是因为该 rec 属
-    // 开发卡，其 alive 由 onMergerSettled 经影子账单源管理，spawn 层不得代清（否则双重清位竞速）。
-    const recOfLabel = rec && !cardId.startsWith('merge-') ? rec : undefined
+    // 在飞闸归属（R1 三维审查 std#2：旧注释宣称「recOfLabel 置 undefined」，代码却按 `cardId` 前缀
+    // 判——一次性路径的合并派发传的是**开发卡 id**（spawnMerger 尾部的 this.spawn），不带 merge- 前缀，于是该 rec
+    // 取到开发卡并在 done() 里代清了它的 alive，与注释相反）。真实归属按**角色**判：
+    //  - worker：rec 就是在飞闸本体（失败时清 alive，清扫/僵死面才能接管）；
+    //  - merger：合并轮的生存周期记在**影子账**（mergeId）上，由 spawnMerger 置位、onMergerSettled
+    //    与团队路 dispatch 回调清位管理（段 6 僵死面不写 alive，只读作否决闸），spawn 层不得代清
+    //    开发卡 alive（跨卡写，且与影子账双重清位竞速）。
+    // 合并卡 label 仍拼 `jxx-merger-<devId>`（既有 fixture/账面口径，不带 merge- 前缀）。
+    const recOfLabel = role === 'merger' ? undefined : rec
     run.controllers.add(controller)
     const start = async () => {
       let handle
@@ -1165,6 +1232,58 @@ export class Orchestrator {
     return run._probe
   }
 
+  /**
+   * 「这一轮的轮次是否仍在飞」——僵死面判死前的**唯一**在飞判据（PRD 111 工单 01 R2 spec 审查
+   * High#1/#2 同根修复）。两条执行路径的观测面不同，故按「能否观测到成员」分派，不猜、不混用：
+   *
+   * - **有成员观测面**（团队路径 / ADR-0121 默认形态）：以宿主 `listMembers` 的 `status` 为准——
+   *   `running` ⇒ 真在飞，让位；其余（`inactive`/`failed`/`provisioning`/查无此人）⇒ 失联，
+   *   放行判死由自愈面接管。
+   *   为什么不能只看 `alive`：团队路径的 `alive` 语义是「派发动作是否还在途中」而非「回合是否存活」
+   *   ——合并轮在 dispatch **投递成功**即被清位（投递 ≠ 回合存活），开发轮则相反（派发后无人清位，
+   *   挂死轮次的 `alive` 永为 true）。单看它两头出错：合并轮把合法长回合误判死重派（实测 1→2，
+   *   破 D6），开发轮让「队友领卡后静默挂死」零自愈（#106-A 的实况形态）。
+   * - **无成员观测面**（一次性路径：teamMode=off / 宿主无 agentTeams / listMembers 不可用）：
+   *   退回 `alive` 位否决——一次性 API 不提供「轮次是否存活」的观测面，放开该闸即等于允许双跑
+   *   （D6 破），故宁可不救「疑似仍在跑的活轮」，长挂由人工/停止清场面兜底。
+   */
+  roundInFlight(run, rec) {
+    try {
+      const probe = this.probeOf(run)
+      // 成员名未登记（如 dispatch 尚未返回、名册未记）⇒ 无法按名查询，退回 alive 位——
+      // 此时 alive 仍为 true（置位后未被清），保住「投递在途」这一在飞态
+      if (typeof probe.canObserve === 'function' && probe.canObserve() && rec?.memberName !== undefined) {
+        return probe.memberStatus(rec.memberName) === 'running'
+      }
+    } catch (e) {
+      this.log.warn(`[jxx-driver] 轮次存活探针异常（按未观测=回退 alive 位处理）：${e.message}`)
+    }
+    return rec?.alive === true
+  }
+
+  /** 合并轮的成员名记在**主卡**的 mergeMemberName（团队路径 dispatch .then 记名）。 */
+  mergerRoundInFlight(run, devRec, shadow) {
+    if (!run.channel) return shadow?.alive === true
+    return this.roundInFlight(run, { memberName: devRec?.mergeMemberName, alive: shadow?.alive })
+  }
+
+  /** 开发轮的成员名记在自身 memberName（团队路径 dispatch .then 记名）。 */
+  devRoundInFlight(run, rec) {
+    if (!run.channel) return rec?.alive === true
+    return this.roundInFlight(run, rec)
+  }
+
+  /** 团队路径是否具备成员观测面（供僵死面判定「队友失联」而非「无观测兜底」）。 */
+  canObserveMembers(run) {
+    if (!run.channel) return false
+    try {
+      const probe = this.probeOf(run)
+      return typeof probe.canObserve === 'function' && probe.canObserve() === true
+    } catch {
+      return false
+    }
+  }
+
   // ---------- 子会话收口回调 ----------
 
   async onWorkerSettled(run, cardId, _text, err) {
@@ -1172,20 +1291,29 @@ export class Orchestrator {
     if (!rec) return
     if (err) {
       rec.retries = (rec.retries || 0) + 1
+      // 本次判定号快照（spec 审查发现项 3）：下面 await 回挪期间同一卡的下一次 settle 可能交叉进入，
+      // 事后读 rec.retries 会让「第 N 次」留痕与本次判定错位（探针实录同卡同时出现「已达上限」与
+      // 「已回挪重派」两条互斥结论，且行号显示为 2 而该次实为 1）
+      const attempt = rec.retries
       rec.lastFailure = err.message // 重试附失败原因（构建内容 3）
       rec.alive = false
-      if (rec.retries > this.config.maxRetries) {
+      if (attempt > this.config.maxRetries) {
         rec.phase = 'blocked'
         run.blocked.push(`${cardId} worker 失败超限：${err.message}`)
         this.notify(run, `卡 ${cardId} worker 失败：${err.message}。已达重试上限，转人工。${HUMAN_TAKEOVER_HINT}`)
+        // spec 审查发现项 1：一次性路径的终局面同样要回挪物理卡位——只改卡账会让卡滞留
+        // `.claimed.md`（前沿只收 phase==='open'、僵死扫描只收 phase==='claimed'，两处都不再接管），
+        // 且一次性路径无 resilience 等待窗，「继续」也救不回；与团队路 failHandlerOf 的落法同源
+        // （to='blocked' → 待领位 + needs-info，PROTOCOL §0 的 blocked 语义、verify 第 5 路可对账）
+        await this.selfHealReturnToInbox(run, cardId, { to: 'blocked', reason: `jxx-driver: worker 失败超限（${err.message.slice(0, 80)}），卡位回待领位` })
       } else {
         rec.phase = 'open'
         // 死亡自愈（#106-A 根治）：卡账回 open 后必须物理回挪卡位，否则前沿看不到、重派死锁（110-03 实况 9h56m）
         const moved = await this.selfHealReturnToInbox(run, cardId, { to: 'inbox', reason: `jxx-driver: worker 失败（${err.message}），回挪待重派` })
-        run.history.push({ t: nowIso(), event: `${cardId} worker 失败（${err.message}），重试 ${rec.retries}${moved ? '（卡位已回挪）' : '（回挪失败，见上）'}` })
+        run.history.push({ t: nowIso(), event: `${cardId} worker 失败（${err.message}），重试 ${attempt}${moved ? '（卡位已回挪）' : '（回挪失败，见上）'}` })
         // notify 如实按 moved 分支（spec 审查发现项 3：回挪失败时文案与实况不符）
         const healNote = moved ? '已回挪待领位自动重派' : '回挪未执行（交前沿/人工面兜底）'
-        this.notify(run, `卡 ${cardId} worker 第 ${rec.retries} 次失败（${err.message}），${healNote}；若连续失败将转人工。${HUMAN_TAKEOVER_HINT}`)
+        this.notify(run, `卡 ${cardId} worker 第 ${attempt} 次失败（${err.message}），${healNote}；若连续失败将转人工。${HUMAN_TAKEOVER_HINT}`)
       }
     }
     // 成功时不改 phase——卡位才是真信号，下一个 tick 扫到 .review.md 才起审查
@@ -1210,11 +1338,20 @@ export class Orchestrator {
     if (!rec) return
     if (err) {
       // 合并专员中止即报（#106-C：曾零重试零痕迹中止）——合并卡回待领位，下 tick 前沿重派。
-      // retries 计数**单源**：影子账 retries 只在此处 +1（前沿/僵死面只读不写——双写会把一次
-      // 失败记成两次，maxRetries=1 时重派一发出即误判超限，R3 调试实证）。收口守卫在前：
-      // 已 done/归档的合并卡不再回挪（竞速窗口守卫由 selfHealReturnToInbox 再兜一层）。
+      // retries 写点如实口径（R1 三维审查 rule#2：本注释曾宣称「只在此处 +1 / 前沿僵死面只读不写」，
+      // 与代码不符——返工只改了前沿处 :553 的同名注释、漏了本处，现按实况对齐）：
+      // 影子账（merge- 键）retries 共 **3 个写点**，各承载一次独立的「本轮失败」事实：
+      //   ① 段 4 未收口超时面（mergeRec.retries）：settle 成功后长期不进 done
+      //   ② 段 6 僵死面（rec.retries）：合并专员领卡后 mtime 超 staleMinutes 而无存活队友
+      //   ③ 本处（onMergerSettled 失败路）：派发/轮次失败回调
+      // **但 ② 与本处并非天然互斥**（R2 rule 审查严重发现项）：本处把卡回挪回 open 并清 alive 后，
+      // 段 6 的判死前置闸会全部放行，若照样 +1 就是对同一次失败再扣一次预算——生产默认
+      // maxRetries=1 下只失败 1 次即 retries=2 > 1 直接转人工，本该保留的那次重派被白扣。
+      // 故本处落账时打 **mergeFailedAt 时间戳**，段 6 见该标记只做幂等收口（转人工）、不再计数重派。
+      // 判超限一律用本处快照式读取（`(x||0) > maxRetries`），不要在 await 前后重复读同一计数。
       const mergeId = mergeIdOf(cardId)
       if (shadow) { shadow.alive = false; shadow.retries = (shadow.retries || 0) + 1; shadow.phase = 'open' }
+      rec.mergeFailedAt = nowIso() // 供段 6 僵死面识别「本轮已失败」，防同一次失败双扣预算
       run.blocked.push(`${cardId} 合并专员失败：${err.message}，合并卡回挪待重派`)
       // 物理回挪仅当合并卡文件不在 open/（被合并专员挪走）时执行——keepInbox 投卡的合并卡
       // 物理位置始终在待领位，无需回挪；且异步 cardMove 与重派成功路竞速会把已收口（done/）
@@ -1230,10 +1367,9 @@ export class Orchestrator {
     }
     rec.mergeSettledAt = nowIso()
     if (shadow) shadow.alive = false // 成功 settle 清在飞闸
-    // 成功 settle：影子账 phase 保持 claimed（在办）等 done 收口——不归 open（否则前沿会在
-    // done 竞速窗口把已收口合并卡复活重派，R3 调试实录）；真正归 open 只在失败回挪面。
-    // 一次性路径的收尾归 open 由 spawnMerger 的 onSettled 收尾段处理（主卡 merging 才归）。
-    // 是否真收口，下一个 tick 看合并卡是否进 done/（卡位才是真信号）
+    // 成功 settle：影子账 phase 保持 open（影子 phase 是重派路由位，写面只有 open/blocked，
+    // 从无 claimed 写路径——R1 三维审查 std#1/rule#1 穷举确认）；是否真收口由段 4 看合并卡
+    // 是否进 done/ 决定（卡位才是真信号），失败回挪面才把它置回 open。
   }
 
   /**

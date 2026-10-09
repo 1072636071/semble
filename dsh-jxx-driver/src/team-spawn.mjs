@@ -391,9 +391,17 @@ export function createMemberProbe({ teams, agent, log } = {}) {
     }
   }
   return {
+    /** 宿主机是否提供成员观测面（listMembers）。缺失 ⇒ 一切存活判定交回调用方兜底。 */
+    canObserve() {
+      return typeof teams.listMembers === 'function'
+    },
     /** 点名队友已 failed（宿主判定会话已死）→ 换名重建。探针缺失 → 恒 false。 */
     memberFailed(name) {
       return findMember(name)?.status === 'failed'
+    },
+    /** 点名队友的宿主状态（`running`/`inactive`/`provisioning`/`failed`）；查无此人/无观测面 → undefined。 */
+    memberStatus(name) {
+      return findMember(name)?.status
     },
   }
 }
