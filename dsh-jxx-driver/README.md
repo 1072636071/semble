@@ -95,6 +95,21 @@ SETTLED: 110-04-lifecycle-fallback-docs
 
 **待部署窗实测项**（fixture 仅断言调用面，真宿主观感未实测，不写成结果）：真宿主 `interrupt` 后队友会话保留与下轮续接体验；宿主重启后 roster 冷恢复 + 按名续接全链（含会话恢复后 Lead agent 实例重建时，通道缓存持有的旧 agent 引用与宿主「exact live Lead」校验是否失配——失配则该会话通道需重建）；持久队友上下文占用随复用轮数的增长（`reuseLimit` 是否需要下调）。
 
+## 双编排器互斥与排查（PRD 108 retro P0-2 / P3-7）
+
+同一检出的 `control/` 卡目录与 git 是**共享状态机**——两台 dsh 各挂一个 jxx-driver 同时编排会互踩（PRD 108 实测：并行会话直落 main 绕过审查闸）。防护面：
+
+- **启动互斥**：`start` / `auto` / `quick` 三入口在创建 run 前扫 `control/jxx-driver-runs/*.lock.json`——存在**他方会话**的活跃锁即响亮拒绝（错误消息含对方 run id、阶段与清理指引）；本会话自己的锁放行（重启续接场景）；锁 `updatedAt` 超过 24h 视为宿主崩溃残留，放行 + warn；坏 JSON 锁文件放行（不因残留损坏堵死启动）。
+- **锁生命周期**：`persist` 每次落 `<runId>.lock.json`；`halt`（stop / 会话释放 / 插件卸载）与 `failRun` 摘除。锁文件是**机器可读的活跃证据**，不是白名单——发现陈旧锁可人工删除后重试。
+
+**静默死亡排查三步**（`jxx_flow status` 故障或怀疑编排停摆时，按序）：
+
+1. **run 史尾**：`control/jxx-driver-runs/<runId>.json` 的 `history` 尾部——最后事件是什么、`updatedAt` 是否冻结；
+2. **卡位**：`control/cards/open|done/` 里对应卡的文件名后缀（`.claimed.md` 滞留 + run 无 spawn 事件 = worker 死了没重派）；
+3. **账本**：`control/ledger.md` 尾部——最后一次 card-move 的 actor 与时间。
+
+另：宿主 Team 服务（`spawn_teammate` 面）席位上限（8/8，历史队友 inactive 占位无释放工具）触顶时，`spawn_teammate` 直接报错——**改用 subagent 通道**（`subagent` 工具）交付等价：回报/通知机制相同，交付物照常先落盘。
+
 ## 配置（cordis.patch.yml 的该行 config）
 
 | 字段 | 默认 | 含义 |

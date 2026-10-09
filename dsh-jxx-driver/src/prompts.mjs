@@ -31,11 +31,20 @@ function starter(root, role) {
   return renderPlaceholders(readFileSync(builtin, 'utf8'), root)
 }
 
+/**
+ * 「先落盘再回报」通用纪律（PRD 108 retro P1-3）：子会话可能随宿主 turn 边界死亡——
+ * 回报发了但交付物只在会话内存里 = 交付物丢失。所有角色的提示词尾注统一追加：
+ * 交付物（报告/簿记/patch 文本）**完成即落盘**，回报只引用路径与机读行。
+ * 单源常量：worker/审查者/合并专员三处尾注共用，防措辞漂移。
+ */
+const DISK_FIRST_NOTE = '\n\n---\n落盘纪律：每个交付物（报告、簿记、patch 文本）**完成一份就落盘一份**（写入文件），回报只引用已落盘的路径——会话可能被随时中断，先落盘的东西才保得住；「回报完再写文件」等于没写。\n'
+
 /** 团队路径 worker 尾注（PRD 110 工单 02）：完工回报末行机读行，供编排器收割 settle；一次性路径不追加（现行为逐字节不变）。 */
 const SETTLED_WORKER_NOTE = (cardId) => `\n\n---\n机读要求（团队模式）：完工（或受阻停手）后用 send_message 向 lead 回报一句话进展，回报文本的最后一行必须单独一行写 \`SETTLED: ${cardId}\`（卡 id 原样，不带其他字符）。`
 
 export function workerPrompt(root, cardId, { member } = {}) {
   return starter(root, 'dev')
+    + DISK_FIRST_NOTE
     + `\n\n---\n本次指定：优先领取卡片 \`${cardId}\`（你由 jxx-driver 编排器拉起；只领这一张，领不到就停下来回报，不要发明新活）。\n`
     + (member ? SETTLED_WORKER_NOTE(cardId) : '')
 }
@@ -47,7 +56,7 @@ export function reviewerPrompt(root, cardId, dimension) {
     .replaceAll('{{REVIEW_DIMENSION}}', dimension)
     .replaceAll('{{CARD_ID}}', cardId)
     .replaceAll('{{BASE_BRANCH}}', 'origin/main')
-  return base + VERDICT_DIRECTIVE
+  return base + DISK_FIRST_NOTE + VERDICT_DIRECTIVE
 }
 
 /** 团队路径合并专员首条指令尾注：消息式指令需点名任务与回传行（一次性路径不追加）。 */
@@ -56,7 +65,7 @@ const MERGER_MEMBER_NOTE = (mergeId, cardId) => MERGER_ASSIGN(mergeId, cardId)
   + `机读要求（团队模式）：本轮收口（或受阻停手）后用 send_message 向 lead 回报一句话结果，回报文本的最后一行必须单独一行写 \`SETTLED: ${mergeId}\`（卡 id 原样，不带其他字符）。`
 
 export function mergerPrompt(root, mergeId, cardId, { member } = {}) {
-  return starter(root, 'merger') + (member ? MERGER_MEMBER_NOTE(mergeId, cardId) : MERGER_ASSIGN(mergeId, cardId))
+  return starter(root, 'merger') + DISK_FIRST_NOTE + (member ? MERGER_MEMBER_NOTE(mergeId, cardId) : MERGER_ASSIGN(mergeId, cardId))
 }
 
 /**
