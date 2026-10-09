@@ -79,7 +79,8 @@ test('persist：按 run id 分文件落盘（jxx-driver-runs/<runId>.json），�
   })
   assert.equal(JSON.parse(readFileSync(join(root, 'control', 'jxx-driver-runs', `${otherId}.json`), 'utf8')).id, otherId)
   assert.equal(JSON.parse(readFileSync(runFile, 'utf8')).id, runId, '先写 run 的文件不被后写 run 覆盖')
-  assert.equal(readdirSync(join(root, 'control', 'jxx-driver-runs')).length, 2)
+  // 2 run json + 2 互斥锁（PRD 108 retro P0-2：persist 同时落 <runId>.lock.json，halt/failRun 摘除）
+  assert.equal(readdirSync(join(root, 'control', 'jxx-driver-runs')).length, 4)
 })
 
 function nowIso() {

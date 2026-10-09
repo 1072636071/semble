@@ -4,7 +4,7 @@
  * 插件无 rm-wt / 删 control / 批量操作调用面（ADR-0110 D4）。
  */
 import { randomUUID } from 'node:crypto'
-import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync, renameSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync, renameSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { Board } from './board.mjs'
 import { scanBoard, listTickets, findFeatureDir, ticketCardId, ticketNum, cardDeps } from './cards.mjs'
@@ -101,6 +101,7 @@ export class Orchestrator {
     const root = agent.session.header.cwd
     if (!root) throw new Error('jxx-driver: 当前会话没有工作目录（cwd 为空），无法编排')
     if (this.runs.has(sessionId)) throw new Error('本会话已有进行中的编排（/jxx status 查看，/jxx stop 停止）')
+    this.assertNoForeignRun(root, sessionId)
     const run = this.newRun(agent, sessionId, root, idea, 'decide')
     this.runs.set(sessionId, run)
     this.persist(run)
@@ -119,6 +120,7 @@ export class Orchestrator {
     const root = agent.session.header.cwd
     if (!root) throw new Error('jxx-driver: 当前会话没有工作目录（cwd 为空），无法编排')
     if (this.runs.has(sessionId)) throw new Error('本会话已有进行中的编排（/jxx status 查看，/jxx stop 停止）')
+    this.assertNoForeignRun(root, sessionId)
     const raw = String(prdRef || '').trim()
     if (raw === '') {
       throw new Error('jxx-driver: auto 需要显式指定 PRD（PRD 编号或功能目录名，如 `94` 或 `94-jxx-driver-plugin`）。插件不扫描 .scratch/ 也不猜意图——请把编号给出来。')
@@ -170,6 +172,7 @@ export class Orchestrator {
     const root = agent.session.header.cwd
     if (!root) throw new Error('jxx-driver: 当前会话没有工作目录（cwd 为空），无法编排')
     if (this.runs.has(sessionId)) throw new Error('本会话已有进行中的编排（/jxx status 查看，/jxx stop 停止）')
+    this.assertNoForeignRun(root, sessionId)
     const t = createQuickTicket(root, idea, slug)
     const run = this.newRun(agent, sessionId, root, `quick ${idea.slice(0, 60)}`, 'implement')
     run.featureDir = t.featureDir
@@ -1163,8 +1166,56 @@ export class Orchestrator {
         blocked: run.blocked,
         history: run.history,
       })
+      // 双编排器互斥锁（PRD 108 retro P0-2）：`control/` 卡目录与 git 是共享状态机，
+      // 两台 dsh 各挂一个 jxx-driver 同时编排会互踩（PRD 108 实测 7bc3c0aa 直落 main
+      // 绕过审查闸）。锁文件 = run 活跃的机器可读证据；halt/detach 时摘除。
+      writeJsonAtomic(join(run.root, 'control', 'jxx-driver-runs', `${run.id}.lock.json`), {
+        id: run.id, sessionId: run.sessionId, stage: run.stage,
+        startedAt: run.createdAt, updatedAt: run.updatedAt, reason: 'active',
+      })
     } catch (e) {
       this.log.warn(`[jxx-driver] 状态落盘失败：${e.message}`)
+    }
+  }
+
+  /** 摘除互斥锁（halt 与 failRun 收尾共用；文件缺失 = 幂等 no-op）。 */
+  releaseLock(run) {
+    try {
+      const lockPath = join(run.root, 'control', 'jxx-driver-runs', `${run.id}.lock.json`)
+      if (existsSync(lockPath)) rmSync(lockPath)
+    } catch { /* 锁摘除失败不阻断停止流程（lock 只影响新 run 启动判定） */ }
+  }
+
+  /**
+   * 双编排器互斥判定（PRD 108 retro P0-2）：扫 `control/jxx-driver-runs/*.lock.json`，
+   * 存在**非本会话**的活跃锁 = 另一台 dsh 的编排正在同一检出上跑 → 拒绝启动并响亮报错。
+   * 陈旧锁防御：updatedAt 超过 24h 视为孤儿（宿主崩溃未清理），放行并附警告。
+   */
+  assertNoForeignRun(root, sessionId) {
+    const dir = join(root, 'control', 'jxx-driver-runs')
+    if (!existsSync(dir)) return
+    const now = Date.now()
+    for (const f of readdirSync(dir)) {
+      if (!f.endsWith('.lock.json')) continue
+      try {
+        const lock = JSON.parse(readFileSync(join(dir, f), 'utf8'))
+        if (lock.sessionId === sessionId) continue // 同会话重启场景放行（单会话单 run 闸在 runs.has 已挡）
+        const age = now - Date.parse(lock.updatedAt ?? lock.startedAt ?? 0)
+        if (Number.isFinite(age) && age > 24 * 3600_000) {
+          this.log.warn(`[jxx-driver] 陈旧互斥锁放行（${f}，${Math.round(age / 3600_000)}h 未更新——宿主崩溃残留）`)
+          continue
+        }
+        throw new Error(
+          `jxx-driver: 检出上已有另一编排会话在跑（run ${lock.id}，${lock.stage} 阶段，${lock.sessionId}）。`
+          + ' 同一仓库的 control/ 卡目录与 git 是共享状态机，并行编排会互踩（PRD 108 实测直落 main 绕过审查闸）。'
+          + ' 若确认对方已死，可删除 control/jxx-driver-runs/<id>.lock.json 后重试。',
+        )
+      } catch (e) {
+        // 坏 JSON / 文件消失等锁文件自身问题 → 放行（不因残留损坏文件堵死启动）；
+        // 只有本方法主动抛的互斥错误才向上传播。
+        if (/另一编排会话在跑/.test(e.message)) throw e
+        continue
+      }
     }
   }
 
@@ -1212,6 +1263,7 @@ export class Orchestrator {
     run.settledSeen?.clear() // 本 run 的收割去重簿记随 run 清场；成员名册/预算账本随通道闭包存续（D4）
     run.history.push({ t: nowIso(), event: `停止：${reason}` })
     this.persist(run)
+    this.releaseLock(run)
     this.runs.delete(run.sessionId)
   }
 
@@ -1219,5 +1271,6 @@ export class Orchestrator {
     run.lastError = msg
     run.history.push({ t: nowIso(), event: `失败：${msg}` })
     this.notify(run, msg)
+    this.releaseLock(run) // failRun = run 终结（入口三条路径 catch 后 runs.delete），互斥锁随终结摘除
   }
 }
