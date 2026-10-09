@@ -14,6 +14,9 @@
  *    与合并专员（池 = 1）走持久队友（spawnTeammate 首次 + sendMessage 复用）；
  *    三维审查者保持一次性 spawn（ADR-0121 D1）。settle 收割 = Lead 会话 team-message 文本里的
  *    `SETTLED: <卡id>`；卡位扫描兜底不动，双路去重（同一卡同一 settle 只收口一次）。
+ *  - 失败韧性（工单 03）：同名直发 dispatch(resend)（不在册响亮报错，绝不静默开新名）、
+ *    换名重建 rebuild（同一通道摘旧名取新名；「旧名永不复用」由名字池 used 集合自身保证——
+ *    池分配即占用、永不回收，rebuild 只摘名册与在飞卡，不触池）。
  */
 
 /** 懒解析宿主 agentTeams 服务：ctx 缺失 / 无 get / 服务缺三方法之一 → undefined（不抛）。 */
@@ -328,7 +331,9 @@ export function backoffDelayMs(attempt) {
  * 判据（鸭子类型，缺 listMembers = 无探针 → 恒 false，唤醒语义兜底）：
  *  - `memberFailed`：存在点名成员且 status === 'failed' —— 会话已死，sendMessage 不会唤醒它，
  *    只能换名重建 fresh 后继（roster.ts:296 失败已定格、无复活边）；
- *  - `memberBusy`：存在点名成员且 status === 'running' —— 回合仍在飞，重发会造成重复投递，等下一轮再看。
+ *  - （R2 教训，勿再加 `memberBusy` 闸：status==='running' 口径 = 回合执行中，与「重发会双份投递」
+ *    无实证因果；曾经它跳过重发且不重挂计时器，重试链静默死亡，E2E 全挂——重复投递由卡位复查
+ *    与 harvest 去重兜住，见 orchestrator.scheduleTeamResend 注释。）
  */
 export function createMemberProbe({ teams, agent, log } = {}) {
   if (!teams || typeof teams !== 'object') {
@@ -349,10 +354,6 @@ export function createMemberProbe({ teams, agent, log } = {}) {
     /** 点名队友已 failed（宿主判定会话已死）→ 换名重建。探针缺失 → 恒 false。 */
     memberFailed(name) {
       return findMember(name)?.status === 'failed'
-    },
-    /** 点名队友回合仍在飞（running）→ 暂不重发，防重复投递。探针缺失 → 恒 false。 */
-    memberBusy(name) {
-      return findMember(name)?.status === 'running'
     },
   }
 }
@@ -381,12 +382,14 @@ export function buildHandoffFromCard(cardText, { maxChars = 2000 } = {}) {
     const line = lines[i]
     let piece = line
     if (used + piece.length + 1 > maxChars) {
-      // 剩余预算装不下整行：第一条（最新）硬截到剩余预算（工单口径 ≤2000 是硬上限），
-      // 之后只能丢更旧的行（truncated 置位）
+      // 剩余预算装不下整行：硬截到剩余预算（工单口径 ≤2000 是硬上限）；装不下任何内容（含换行）
+      // 时直接丢弃该行——保住 join 后 text.length ≤ maxChars 的硬边界
       piece = piece.slice(0, Math.max(0, maxChars - used - 1))
       truncated = true
-      kept.push(piece)
-      used += piece.length
+      if (piece.length > 0) {
+        kept.push(piece)
+        used += piece.length
+      }
       break
     }
     kept.push(piece)

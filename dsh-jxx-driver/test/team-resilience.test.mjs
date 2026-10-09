@@ -146,7 +146,7 @@ test('退避曲线：min(2^n * 5s, 60s)（n 从 0 计幂）——5s、10s、20s�
   assert.throws(() => backoffDelayMs(1.5), /backoffDelayMs/)
 })
 
-test('成员探针：listMembers 缺失 → 恒 false（不抛）；status=failed/busy/unknown 按表取值；探针异常吞掉按未知', () => {
+test('成员探针：listMembers 缺失 → 恒 false（不抛）；status=failed/unknown 按表取值；探针异常吞掉按未知；memberBusy 已移除（R2 教训）', () => {
   const agent = { id: 'a1' }
   const probe = createMemberProbe({ teams: { listMembers: () => [
     { name: 'dev-a', status: 'failed' }, { name: 'dev-b', status: 'running' }, { name: 'dev-c', status: 'inactive' },
@@ -155,11 +155,12 @@ test('成员探针：listMembers 缺失 → 恒 false（不抛）；status=faile
   assert.equal(probe.memberFailed('dev-b'), false)
   assert.equal(probe.memberFailed('dev-c'), false)
   assert.equal(probe.memberFailed('dev-不存在的'), false)
-  assert.equal(probe.memberBusy('dev-b'), true)
-  assert.equal(probe.memberBusy('dev-a'), false)
+  // memberBusy 已随 R2 修复移除：running（回合执行中）与「重发会双份投递」无实证因果，
+  // 且「跳过重发且不重挂」曾把重试链静默杀死——探针面只暴露 memberFailed
+  assert.equal(probe.memberBusy, undefined)
   const noProbe = createMemberProbe({ teams: { spawnTeammate() {}, sendMessage() {}, interrupt() {} }, agent, log: () => {} })
   assert.equal(noProbe.memberFailed('dev-a'), false)
-  assert.equal(noProbe.memberBusy('dev-a'), false)
+  assert.equal(noProbe.memberBusy, undefined)
   const throwProbe = createMemberProbe({ teams: { listMembers: () => { throw new Error('boom') } }, agent, log: () => {} })
   assert.equal(throwProbe.memberFailed('dev-a'), false)
   assert.throws(() => createMemberProbe({}), /agentTeams/)
@@ -360,6 +361,34 @@ test('韧性：go「继续」唤醒等待中的队友（恢复识别 → flowRes
   assert.equal(r2.resumed, true)
   await waitFor(() => orch.status(agent).stage === 'ops')
   assert.ok(existsSync(join(root, 'control', 'cards', 'done', `${cardId}.md`)))
+})
+
+test('韧性：jxx_flow action="resumed" 显式恢复 + go「继续」未命中 hint 进分流材料（index 层恢复识别面）', async () => {
+  const mod = await import('../src/index.mjs')
+  let tool
+  const mountCtx = {
+    logger: { info() {}, warn() {}, error() {} },
+    on() {}, effect(fn) { fn() }, get() { return undefined },
+    tools: { register(t) { tool = t } },
+    systemPrompt: { context() {} },
+    subagents: { start: async () => { throw new Error('不该 spawn') } },
+    agents: { get: () => undefined },
+  }
+  mod.apply(mountCtx, { autoConfirm: true, verbose: false, pollIntervalMs: 50 })
+  // action="resumed"（新增动作）：无编排会话 → 不炸、resumed=false 且带提示
+  const r = await tool.execute({ action: 'resumed' }, { agent: { id: 'sess-resume', session: { id: 'sess-resume' } } })
+  assert.equal(r.resumed, false)
+  assert.ok(r.hint)
+  // go「继续」未命中等待窗 → 不拦截，恢复说明附进分流 steer 材料（模型知道「继续」为何没生效）
+  const steered = []
+  const agent2 = {
+    id: 'sess-resume2', session: { id: 'sess-resume2' },
+    steer(m) { steered.push(m.content?.[0]?.text ?? String(m)) }, followup() {},
+  }
+  const r2 = await tool.execute({ action: 'go', idea: '继续' }, { agent: agent2 })
+  assert.notEqual(r2.route, 'resumed')
+  assert.equal(steered.length, 1)
+  assert.match(steered[0], /- 注：本会话没有进行中的编排/, 'steer 材料应带 flowResumed 未命中说明（- 注：前缀）')
 })
 
 // ---- 一次性路径不受影响（回归判据） ----
