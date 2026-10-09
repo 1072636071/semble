@@ -38,7 +38,7 @@ function flowDescription(autoConfirm) {
     autoConfirm
       ? '⑤ 拿不准规模/方案时**自己按推荐拍板**继续（免确认）；只有当输入意图本身有歧义、拍错轨道会白干时才用 ask_user_question 澄清（例如用户只说「把那块优化一下」却没说清是哪块——问清要做什么，而不是问怎么拆）。'
       : '⑤ 调查后仍无法定规模/方案的 → 用 ask_user_question 让用户在「自动决策（给推荐）/手动决策（逐项拍板）」间选择。',
-    '另：action=status 看阶段与卡位；action=stop 停止并中止在飞子会话；action=advance 仅用于 start 走出的阶段链（go 已内含推进）。',
+    '另：action=status 看阶段与卡位；action=stop 停止并中止在飞子会话；action=advance 仅用于 start 走出的阶段链（go 已内含推进）；编排器上报「等待用户恢复」且用户切了模型/说继续后，调 action=resumed 唤醒同一队友（或 go(idea="继续") 同义）。',
     autoConfirm ? AUTO_CONFIRM_NOTE : MANUAL_CONFIRM_NOTE,
   ].join('')
 }
@@ -54,7 +54,7 @@ export function apply(ctx, rawConfig) {
     parameters: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: ['go', 'advance', 'status', 'stop'] },
+        action: { type: 'string', enum: ['go', 'advance', 'status', 'stop', 'resumed'] },
         idea: { type: 'string', description: 'go 时的输入：想法/问题描述，或 track="auto" 时的 PRD 编号/功能目录名' },
         track: { type: 'string', enum: ['auto', 'quick', 'standard', 'deep'], description: 'go 可选：强制指定轨道（quick=散工单快车道 / standard=决策+PRD+编排 / deep=大任务 ADR+里程碑；缺省由你按描述语义判定）' },
         slug: { type: 'string', description: 'quick 轨道可选：工单 slug（kebab-case）；缺省从 idea 推导' },
@@ -146,12 +146,20 @@ async function dispatch(orch, args, agent) {
       return orch.advance(agent)
     case 'status':
       return orch.status(agent)
+    case 'resumed':
+      return orch.flowResumed(agent, 'jxx_flow 显式恢复')
     case 'stop':
       return orch.stop(agent)
     default:
-      throw new Error(`未知 action：${args.action}（合法：go/advance/status/stop；start/quick/auto 仍作为别名可用）`)
+      throw new Error(`未知 action：${args.action}（合法：go/advance/status/stop/resumed；start/quick/auto 仍作为别名可用）`)
   }
 }
+
+/** 口头恢复触发词（PRD 110 工单 03，行为触发词单源——rule 审查发现项收口，勿多处内联）。 */
+const RESUME_WORDS = /^(继续|恢复|接着跑|go on|resume|continue)$/i
+
+/** 裸 go / go on 的「on = 口头恢复」判定（与 RESUME_WORDS 同源的恢复语义面）。 */
+const GO_ON = /^go\s+on$/i
 
 /**
  * 统一入口 go：一个 action 吃所有输入，分流判断归会话模型（ADR-0110 D3——语义归 LLM）。
@@ -162,6 +170,17 @@ async function dispatch(orch, args, agent) {
 async function goDispatch(orch, args, agent) {
   const idea = String(args.idea ?? '').trim()
   const track = args.track // 模型可显式指定：auto | quick | standard | deep
+  let resumeHint // 「继续」未命中等待窗时的说明（附进分流材料，见步骤 0）
+
+  // 0) 团队路径等待恢复面（PRD 110 工单 03）：等待窗内用户说「继续」→ 唤醒同一队友（上下文零丢失）。
+  // 未命中（无等待窗/无编排）→ 不拦截，flowResumed 的 hint 附进分流材料，让模型知道「继续」为何没生效。
+  // （RESUME_WORDS 模块级单源——行为触发词改词即改语义，rule 审查发现项收口； Bare GO 视作口头恢复。）
+  const isResume = RESUME_WORDS.test(idea) || (track === undefined && /^go$/i.test(idea))
+  if (isResume) {
+    const r = orch.flowResumed(agent, '用户口头恢复')
+    if (r.resumed) return { ok: true, route: 'resumed', resumed: true, revived: r.revived, hint: '已唤醒等待中的队友（同一会话，上下文零丢失），继续监控即可' }
+    resumeHint = r.hint
+  }
 
   // 1) 模型指定 auto 轨或输入长得像编号 → 走显式 PRD 编排（编号必须给准，不做模糊推荐）
   if (track === 'auto' || /^\d{1,4}$/.test(idea)) {
@@ -189,10 +208,11 @@ async function goDispatch(orch, args, agent) {
     orch.config.autoConfirm
       ? '轨迹定了就直接走，不要就规模/方案回头问用户（本编排免确认，见下）。'
       : '调查后仍无法定规模或方案 → ask_user_question 问用户选「自动决策（按你的推荐走）/ 手动决策（逐项拍板）」。',
+    resumeHint ? `- 注：${resumeHint}` : '',
     orch.config.autoConfirm ? AUTO_CONFIRM_NOTE : MANUAL_CONFIRM_NOTE,
     '',
     SESSION_ROLE,
-  ].join('\n')
+  ].filter(Boolean).join('\n')
   if (agent && typeof agent.steer === 'function') {
     agent.steer({
       id: cryptoUUID(),
@@ -243,6 +263,8 @@ function parseCommandInput(raw) {
   const text = String(raw || '').trim()
   if (text === 'stop') return { action: 'stop', rest: '' }
   if (text === 'status' || text === '') return { action: 'status', rest: '' } // 裸 /jxx 才是查状态
+  if (text === 'resumed') return { action: 'resumed', rest: '' } // 恢复等待中的队友（PRD 110 工单 03）
+  if (/^go(\s+(on)?)?$/i.test(text)) return { action: 'go', rest: GO_ON.test(text) ? '继续' : '' } // 裸 go / go on：on = 口头恢复
   if (text.startsWith('go')) return { action: 'go', rest: text.slice(2).trim() }
   // 旧别名仍可打：/jxx auto 94 等（都汇入 go）
   if (text.startsWith('start')) return { action: 'go', rest: text.slice(5).trim(), track: 'standard' }
