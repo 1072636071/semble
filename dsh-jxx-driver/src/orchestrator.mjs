@@ -624,7 +624,13 @@ export class Orchestrator {
       // —— 就绪前沿只扫物理 open/ 面 ⇒ 看不见它；若本段也无条件让位，就再没有面接管，
       // 卡永久滞留「处理中」（实测：静置 10s / ~200 tick 零动作、零终局、零重派、零通知），
       // 正是本单要根治的静默死亡形态。故命中该标记时做**幂等终局**：不计数、不重派，
-      // 但把本轮判为 blocked 转人工（回待领位 + needs-info），保证有界收敛、卡面可对账。
+      // 但把本轮判为 blocked 转人工（回待领位 + needs-info），保证有界收敛。
+      // 卡面对账的**条件性**（R6 spec 复审发现项 1，勿读成无条件）：needs-info 随 `cardMove` 落到
+      // labels 行；若该次物理回挪本身失败（`selfHealReturnToInbox` 有意吞错只留痕），卡会留在
+      // `.claimed.md` 且 labels 行不带 needs-info ⇒ 此分支下「卡面可对账」**不成立**，只能靠
+      // `run.blocked` 落账 + history 留痕对账（卡账已 blocked，三态板阻塞列按 labels 改道收不到它）。
+      // 取舍：不在终局里硬改 labels（绕过 card-move 单源会与看板锁/竞速面打架），
+      // 该残形态由人工按 run.blocked 处置。
       // 幂等由 `mergeFailedHandledAt` 保证：同一轮失败只判终局一次，不每 tick 重复落账。
       if (devRec.mergeFailedAt !== undefined) {
         if (devRec.mergeFailedHandledAt === devRec.mergeFailedAt) continue // 本轮已判过终局
@@ -1262,9 +1268,15 @@ export class Orchestrator {
    * 「这一轮的轮次是否仍在飞」——僵死面判死前的**唯一**在飞判据（PRD 111 工单 01 R2 spec 审查
    * High#1/#2 同根修复）。两条执行路径的观测面不同，故按「能否观测到成员」分派，不猜、不混用：
    *
-   * - **有成员观测面**（团队路径 / ADR-0121 默认形态）：以宿主 `listMembers` 的 `status` 为准——
-   *   `running` ⇒ 真在飞，让位；其余（`inactive`/`failed`/`provisioning`/查无此人）⇒ 失联，
-   *   放行判死由自愈面接管。
+   * - **有成员观测面**（团队路径 / ADR-0121 默认形态）：以宿主 `listMembers` 的 `status` 为准。
+   *   **活跃态 = 在飞，让位**（`running` / `provisioning`）；**失联态 = 放行判死**（`inactive` /
+   *   `failed` / 查无此人）。
+   *   为什么 `provisioning` 也算在飞（R6 spec 复审发现项）：宿主语义里它是**活跃态**——
+   *   `packages/experimental/tool-agent-team/src/index.ts:39` 的
+   *   `ACTIVE_WAIT_STATUSES = new Set(['running', 'provisioning'])`（「正在创建成员」= 本轮已受理、
+   *   尚未开跑）明确把二者并列为「能推进」的成员态；`agent-team/src/types.ts` 亦把 `provisioning`
+   *   列为 live phase。若把它划入失联面，宿主对**已领卡**的成员报 `provisioning` 时就会被判死重派
+   *   ⇒ 两个专员同时动同一分支，**破 D6 不变量**。故宁可让位（该轮很快会转 `running`）。
    *   为什么不能只看 `alive`：团队路径的 `alive` 语义是「派发动作是否还在途中」而非「回合是否存活」
    *   ——合并轮在 dispatch **投递成功**即被清位（投递 ≠ 回合存活），开发轮则相反（派发后无人清位，
    *   挂死轮次的 `alive` 永为 true）。单看它两头出错：合并轮把合法长回合误判死重派（实测 1→2，
@@ -1279,7 +1291,8 @@ export class Orchestrator {
       // 成员名未登记（如 dispatch 尚未返回、名册未记）⇒ 无法按名查询，退回 alive 位——
       // 此时 alive 仍为 true（置位后未被清），保住「投递在途」这一在飞态
       if (typeof probe.canObserve === 'function' && probe.canObserve() && rec?.memberName !== undefined) {
-        return probe.memberStatus(rec.memberName) === 'running'
+        const status = probe.memberStatus(rec.memberName)
+        return status === 'running' || status === 'provisioning' // 活跃态集合见上方注释（宿主 ACTIVE_WAIT_STATUSES）
       }
     } catch (e) {
       this.log.warn(`[jxx-driver] 轮次存活探针异常（按未观测=回退 alive 位处理）：${e.message}`)

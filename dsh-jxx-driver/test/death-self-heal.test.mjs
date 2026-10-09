@@ -260,7 +260,7 @@ test('死亡自愈：一次性路径 worker 失败超限 → 卡回待领位 + n
  * - `devStatus`：dev 队友在 listMembers 里报的宿主状态（running = 健在；inactive/failed = 失联）
  * - `devHangs`：dev 队友领卡后**不回传 SETTLED**（模拟 #106-A 的「领卡后静默挂死」实况）
  */
-function mkTeamHealCtx(root, { prd, silentMergerRounds = 0, devStatus = 'running', devHangs = false, devCardId, liveMerger = false }) {
+function mkTeamHealCtx(root, { prd, silentMergerRounds = 0, devStatus = 'running', devHangs = false, devCardId, liveMerger = false, mergerStatus = 'running' }) {
   const agent = {
     id: `sess-team-${prd}`, session: { id: `sess-team-${prd}`, header: { cwd: root } },
     followups: [], followup(msg) { this.followups.push(msg) },
@@ -298,7 +298,7 @@ function mkTeamHealCtx(root, { prd, silentMergerRounds = 0, devStatus = 'running
           const past = new Date(Date.now() - 2 * 60 * 60 * 1000)
           utimesSync(claimed, past, past)
         }
-        if (lastMergerName) members.set(lastMergerName, { name: lastMergerName, status: 'running' })
+        if (lastMergerName) members.set(lastMergerName, { name: lastMergerName, status: mergerStatus })
         return
       }
       if (calls.mergerRounds <= silentMergerRounds) {
@@ -672,6 +672,26 @@ test('死亡自愈：开发卡「僵死超限」终局面必须回挪卡位（�
   const st = orch.status(agent)
   assert.ok(st.cards.some((c) => c.id === cardId && c.phase === 'blocked'), '卡账转 blocked 与物理位一致')
   assert.ok(st.blocked.some((b) => /僵死超.*超限/.test(b)), `run.blocked 落账超限（实际：${JSON.stringify(st.blocked)}）`)
+})
+
+test('活轮保护：成员 provisioning（宿主活跃态）不得被判死重派（R6 spec 复审发现项）', { timeout: 60_000 }, async (t) => {
+  if (!existsSync(BOARD)) { t.skip('本机未装 jxx-ticket-board'); return }
+  // 宿主语义里 `provisioning` 是**活跃态**：packages/experimental/tool-agent-team/src/index.ts:39
+  // `ACTIVE_WAIT_STATUSES = new Set(['running','provisioning'])`（「正在创建成员」= 本轮已受理、
+  // 尚未开跑），agent-team/src/types.ts 亦列为 live phase。若判死面把它划入失联面，宿主对已领卡的
+  // 成员报 provisioning 时就会被判死重派 ⇒ 两个专员同时动同一分支，破 D6 不变量。
+  // 本用例即该不变量的判据：状态报 provisioning ⇒ 不得判死、不得重派。
+  const { root, mergeId } = mkRepo(79)
+  const { ctx, agent, calls } = mkTeamHealCtx(root, { prd: 79, devStatus: 'provisioning', liveMerger: true, mergerStatus: 'provisioning', devCardId: '79-01-solo' })
+  const orch = new Orchestrator(ctx, CONFIG({ staleMinutes: 1, maxRetries: 3 }), ctx.logger)
+  t.after(async () => { await orch.dispose() })
+  await orch.auto(agent, '79')
+  await waitFor(() => calls.mergerRounds >= 1, 40_000, 50, '合并专员已派出')
+  await new Promise((r) => setTimeout(r, 3000)) // ~50 tick：无 provisiong 保护则必然判死重派
+  const hist = fullHistory(orch, 'sess-team-79')
+  assert.equal(calls.mergerRounds, 1, `provisioning 轮不得被重复派发（D6；实次 ${calls.mergerRounds}）`)
+  assert.ok(!/合并卡僵死/.test(hist), 'provisioning 轮不得被误判僵死')
+  assert.equal(orch.status(agent).cards.find((c) => c.id === mergeId)?.phase, 'open', '影子账未判终局')
 })
 
 test('D6 不变量：仍在飞的合并轮次（卡面静默）不得被误判死重复派发', { timeout: 60_000 }, async (t) => {
