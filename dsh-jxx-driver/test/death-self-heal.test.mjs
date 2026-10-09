@@ -35,12 +35,12 @@ function mkRepo(prdNum) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-async function waitFor(pred, timeoutMs = 30_000, stepMs = 50) {
+async function waitFor(pred, timeoutMs = 30_000, stepMs = 50, label = '') {
   const start = Date.now()
   for (;;) {
     const v = await pred()
     if (v) return v
-    if (Date.now() - start > timeoutMs) throw new Error('waitFor 超时')
+    if (Date.now() - start > timeoutMs) throw new Error(`waitFor 超时${label ? `：${label}` : ''}`)
     await sleep(stepMs)
   }
 }

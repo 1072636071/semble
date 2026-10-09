@@ -572,15 +572,11 @@ export class Orchestrator {
       if (now - c.mtime < this.config.staleMinutes * 60_000) continue
       rec.retries = (rec.retries || 0) + 1
       rec.lastFailure = `僵死超 ${this.config.staleMinutes} 分钟无回传（合并卡）`
-      if (rec.retries > this.config.maxRetries) {
-        rec.phase = 'blocked'
-        run.blocked.push(`${c.id} 合并卡僵死超 ${this.config.staleMinutes} 分钟且重试超限，转人工`)
-        this.notify(run, `合并卡 ${c.id} 僵死（无 SETTLED 回传）且重试超限，转人工。${HUMAN_TAKEOVER_HINT}`)
-      } else {
-        rec.phase = 'open'
-        run.history.push({ t: nowIso(), event: `${c.id} 合并卡僵死（第 ${rec.retries} 次失败），回挪重派` })
-        await this.selfHealReturnToInbox(run, c.id, { to: 'inbox', reason: 'jxx-driver: 合并卡僵死，回挪重派' })
-      }
+      // 合并卡僵死只有回挪重派一个出路（影子账 phase 写面仅 open/blocked，无 claimed 恢复语义，
+      // blocked 转人工面由前沿重派超限分支承担——rule 审查发现项 2 确认永假分支已删）
+      rec.phase = 'open'
+      run.history.push({ t: nowIso(), event: `${c.id} 合并卡僵死（第 ${rec.retries} 次失败），回挪重派` })
+      await this.selfHealReturnToInbox(run, c.id, { to: 'inbox', reason: 'jxx-driver: 合并卡僵死，回挪重派' })
       this.persist(run)
     }
     for (const c of b.claimed.filter((x) => managed(x.id) && !x.id.startsWith('merge-'))) {
@@ -788,8 +784,10 @@ export class Orchestrator {
   spawn(run, { role, cardId, prompt, onSettled }) {
     const controller = new AbortController()
     const rec = run.cards.get(cardId)
-    // 合并卡一次性派发：run.cards 键 = 开发卡 id，spawn label 需带 merge- 前缀（fixture/账面按
-    // jxx-merger-merge-<id> 匹配），但 onSettled 仍回开发卡口径（onMergerSettled 内部自己归一）。
+    // 一次性路径 worker：cardId = 开发卡 id → rec 在册（失败时 done 回调清 alive，清扫面才能接管）。
+    // 合并卡一次性派发：run.cards 键 = 开发卡 id，cardId 也传开发卡 id——label 拼出 jxx-merger-<devId>
+    // （与既有 fixture/账面正则口径一致，不带 merge- 前缀）；recOfLabel 置 undefined 是因为该 rec 属
+    // 开发卡，其 alive 由 onMergerSettled 经影子账单源管理，spawn 层不得代清（否则双重清位竞速）。
     const recOfLabel = rec && !cardId.startsWith('merge-') ? rec : undefined
     run.controllers.add(controller)
     const start = async () => {
