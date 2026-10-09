@@ -650,6 +650,30 @@ test('有界性：合并轮失败且回挪失败时不得闭死（卡位滞留 c
   assert.equal(run.blocked.length, blockedBefore, `终局必须幂等，不得每 tick 重复落账（${blockedBefore} → ${run.blocked.length}）`)
 })
 
+test('死亡自愈：开发卡「僵死超限」终局面必须回挪卡位（同根第三处出口的判据）', { timeout: 90_000 }, async (t) => {
+  if (!existsSync(BOARD)) { t.skip('本机未装 jxx-ticket-board'); return }
+  // R5 spec 复审发现项 1：本条在冻结面上**零守护**（把回挪行改为 `Promise.resolve(false)` 后
+  // 全量 118/118 仍全绿）。形态 = 团队路径 dev 队友领卡后失联 + mtime 超 staleMinutes + 已超重试上限
+  // ⇒ 终局面必须动物理卡位（回待领位 + needs-info），否则卡滞留「处理中」泳道、前沿/僵死两面
+  // 都不再接管（前沿只收 open、僵死只收 claimed）= 本单要根治的死锁。
+  const { root, cardId } = mkRepo(80)
+  const { ctx, agent } = mkTeamHealCtx(root, { prd: 80, devStatus: 'inactive', devHangs: true, devCardId: cardId })
+  // maxRetries=0 ⇒ 首次判死即超限，直接走终局出口（不再依赖重派多轮）
+  const orch = new Orchestrator(ctx, CONFIG({ staleMinutes: 1, maxRetries: 0, autoMerge: false }), ctx.logger)
+  t.after(async () => { await orch.dispose() })
+  const openDir = join(root, 'control', 'cards', 'open')
+
+  await orch.auto(agent, '80')
+  await waitFor(() => /僵死超/.test(fullHistory(orch, 'sess-team-80')), 60_000, 50,
+    `开发卡僵死超限终局必须落痕（历史=${fullHistory(orch, 'sess-team-80').replace(/\n/g, ' | ')}）`)
+  // 终局出口的核心断言：物理卡位被搬出 claimed 位（不动物理位 = 卡滞留「处理中」= 未闭合）
+  await waitFor(() => !existsSync(join(openDir, `${cardId}.claimed.md`)), 40_000, 50,
+    '僵死超限终局面必须回挪物理卡位（只改卡账会让卡滞留处理中泳道）')
+  const st = orch.status(agent)
+  assert.ok(st.cards.some((c) => c.id === cardId && c.phase === 'blocked'), '卡账转 blocked 与物理位一致')
+  assert.ok(st.blocked.some((b) => /僵死超.*超限/.test(b)), `run.blocked 落账超限（实际：${JSON.stringify(st.blocked)}）`)
+})
+
 test('D6 不变量：仍在飞的合并轮次（卡面静默）不得被误判死重复派发', { timeout: 60_000 }, async (t) => {
   if (!existsSync(BOARD)) { t.skip('本机未装 jxx-ticket-board'); return }
   // PRD 111 修订 1 / D6：同一张卡同一时刻只有一个在飞轮次。一次性路径里 spawn 的轮次活着
