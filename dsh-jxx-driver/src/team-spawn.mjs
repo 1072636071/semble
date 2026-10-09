@@ -35,6 +35,20 @@ export function resolveAgentTeams(ctx) {
   return service
 }
 
+/**
+ * merge 卡 id ↔ 开发卡 id 归一（R1 审查重复代码发现项单源化）：
+ * `devIdOf('merge-x') === 'x'`（恒等其余输入）；`mergeIdOf('x') === 'merge-x'`（恒等其余输入）。
+ * merger 调用点两侧 id 口径混用是首轮实测缺陷源（failHandlerOf 不可达写、简报 base 归一重复），
+ * 一切前缀手术收口到这两个助手。
+ */
+export function devIdOf(cardId) {
+  return cardId.startsWith('merge-') ? cardId.slice('merge-'.length) : cardId
+}
+
+export function mergeIdOf(cardId) {
+  return cardId.startsWith('merge-') ? cardId : `merge-${cardId}`
+}
+
 /** 宿主硬约束：队友名 lower-kebab-case、≤64、不得为 lead。 */
 export function isValidName(name) {
   return (

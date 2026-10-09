@@ -155,6 +155,12 @@ async function dispatch(orch, args, agent) {
   }
 }
 
+/** 口头恢复触发词（PRD 110 工单 03，行为触发词单源——rule 审查发现项收口，勿多处内联）。 */
+const RESUME_WORDS = /^(继续|恢复|接着跑|go on|resume|continue)$/i
+
+/** 裸 go / go on 的「on = 口头恢复」判定（与 RESUME_WORDS 同源的恢复语义面）。 */
+const GO_ON = /^go\s+on$/i
+
 /**
  * 统一入口 go：一个 action 吃所有输入，分流判断归会话模型（ADR-0110 D3——语义归 LLM）。
  * 机械层只提供三条通道（quick/standard/auto 的既有实现），**不扫目录、不猜意图、不列候选**
@@ -168,8 +174,9 @@ async function goDispatch(orch, args, agent) {
 
   // 0) 团队路径等待恢复面（PRD 110 工单 03）：等待窗内用户说「继续」→ 唤醒同一队友（上下文零丢失）。
   // 未命中（无等待窗/无编排）→ 不拦截，flowResumed 的 hint 附进分流材料，让模型知道「继续」为何没生效。
-  const resume = /^(继续|恢复|接着跑|go on|resume|continue)$/i
-  if (resume.test(idea) || (track === undefined && /^(go)$/i.test(idea))) {
+  // （RESUME_WORDS 模块级单源——行为触发词改词即改语义，rule 审查发现项收口； Bare GO 视作口头恢复。）
+  const isResume = RESUME_WORDS.test(idea) || (track === undefined && /^go$/i.test(idea))
+  if (isResume) {
     const r = orch.flowResumed(agent, '用户口头恢复')
     if (r.resumed) return { ok: true, route: 'resumed', resumed: true, revived: r.revived, hint: '已唤醒等待中的队友（同一会话，上下文零丢失），继续监控即可' }
     resumeHint = r.hint
@@ -257,7 +264,7 @@ function parseCommandInput(raw) {
   if (text === 'stop') return { action: 'stop', rest: '' }
   if (text === 'status' || text === '') return { action: 'status', rest: '' } // 裸 /jxx 才是查状态
   if (text === 'resumed') return { action: 'resumed', rest: '' } // 恢复等待中的队友（PRD 110 工单 03）
-  if (/^go(\s+(on)?)?$/i.test(text)) return { action: 'go', rest: /^go\s+on$/i.test(text) ? '继续' : '' } // 裸 go / go on：on = 口头恢复
+  if (/^go(\s+(on)?)?$/i.test(text)) return { action: 'go', rest: GO_ON.test(text) ? '继续' : '' } // 裸 go / go on：on = 口头恢复
   if (text.startsWith('go')) return { action: 'go', rest: text.slice(2).trim() }
   // 旧别名仍可打：/jxx auto 94 等（都汇入 go）
   if (text.startsWith('start')) return { action: 'go', rest: text.slice(5).trim(), track: 'standard' }

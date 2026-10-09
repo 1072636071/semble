@@ -11,7 +11,15 @@ import { scanBoard, listTickets, findFeatureDir, ticketCardId, ticketNum, cardDe
 import { adrGate, prdGate, ticketsGate, opsGate } from './gates.mjs'
 import { createQuickTicket } from './quick.mjs'
 import { workerPrompt, reviewerPrompt, mergerPrompt, memberDirective, reviewerDims, parseVerdict } from './prompts.mjs'
-import { resolveAgentTeams, createNamePool, createReuseLedger, createTeamChannel, backoffDelayMs, createMemberProbe, buildHandoffFromCard } from './team-spawn.mjs'
+import { resolveAgentTeams, createNamePool, createReuseLedger, createTeamChannel, backoffDelayMs, createMemberProbe, buildHandoffFromCard, devIdOf, mergeIdOf } from './team-spawn.mjs'
+
+/**
+ * 合并指令组装单源（R1 审查重复代码发现项）：resend 重发与换名重建首条指令共用，
+ * 差异只在调用方的尾注追加——防止两处 prompt 形态漂移。
+ */
+function sendMergeDirective(run, mergeId, { member = false } = {}) {
+  return mergerPrompt(run.root, mergeId, devIdOf(mergeId), member ? { member: true } : undefined)
+}
 
 export const STAGES = ['decide', 'adr', 'prd', 'tickets', 'implement', 'ops', 'done']
 
@@ -489,7 +497,9 @@ export class Orchestrator {
       if (rec.retries > this.config.maxRetries) {
         rec.phase = 'blocked'
         run.blocked.push(`${c.id} 僵死超 ${this.config.staleMinutes} 分钟且重试超限，转人工`)
-        this.notify(run, `卡 ${c.id} 僵死超过 ${this.config.staleMinutes} 分钟，重试已超限，转人工。可能也是队友会话问题——若最近编排器上报过连续失败，可在切换模型后让我继续唤醒。`)
+        // spec 审查低项留痕：僵死超限走 maxRetries 面、不置 st.waiting——用户「继续」只能唤醒
+        // waiting 卡；此 notify 的唤醒承诺仅在「曾发生派发失败（挂过等待窗）」时兑现，纯 stale 不承诺
+        this.notify(run, `卡 ${c.id} 僵死超过 ${this.config.staleMinutes} 分钟，重试已超限，转人工。若编排器曾上报过「等待用户恢复」类连续失败（等待窗内说「继续」可唤醒同一队友），可在切换模型后让我继续；纯无响应僵死请人工核查卡面后重投。`)
       } else {
         // 轮次无 SETTLED 回传且卡位无推进（构建内容 1 的 stale 面）：记入该卡连续失败计数，
         // 重派失败会接续退避/等待/换名重建链；重派本身仍走既有 spawnWorker（幂等重领卡）
@@ -679,7 +689,7 @@ export class Orchestrator {
     if (!run.channel) {
       // 防御分支：现调用点都在通道存在的 catch 内；留作加固（通道被外部清空的未来路径）
       this.log.warn(`[jxx-driver] ${note}，无通道兜底一次性路径`)
-      this.spawnFallback(cardId, role, run)
+      this.spawnFallback(run, cardId, role)
       return
     }
     const state = this.resilienceState(run, cardId)
@@ -751,9 +761,8 @@ export class Orchestrator {
    */
   async resendTeamDirective(run, cardId, role, note) {
     if (role === 'merger') {
-      const devId = cardId.startsWith('merge-') ? cardId.slice('merge-'.length) : cardId
-      const mergeId = cardId.startsWith('merge-') ? cardId : `merge-${cardId}`
-      const prompt = mergerPrompt(run.root, mergeId, devId, { member: true })
+      const mergeId = mergeIdOf(cardId)
+      const prompt = sendMergeDirective(run, mergeId, { member: true })
         + `\n上次派发失败（自动重发）：${note}\n`
       await run.channel.dispatch({ role: 'merger', cardId: mergeId, prompt, signal: AbortSignal.any([AbortSignal.timeout(Orchestrator.RESEND_TIMEOUT_MS)]) })
       return
@@ -809,14 +818,14 @@ export class Orchestrator {
     } catch (e) {
       this.log.warn(`[jxx-driver] team 通道重建失败（${cardId}）：${e.message}，回退一次性路径`)
       run.history.push({ t: nowIso(), event: `team: 通道重建失败（${cardId}）：${e.message}` })
-      this.spawnFallback(cardId, role, run)
+      this.spawnFallback(run, cardId, role)
       return
     }
     const controller = new AbortController()
     run.controllers.add(controller)
     const rec = role === 'dev' ? run.cards.get(cardId) : undefined
     const prompt = (role === 'merger'
-      ? mergerPrompt(run.root, cardId.startsWith('merge-') ? cardId : `merge-${cardId}`, cardId.startsWith('merge-') ? cardId.slice('merge-'.length) : cardId, { member: true })
+      ? sendMergeDirective(run, mergeIdOf(cardId), { member: true })
       : workerPrompt(run.root, cardId, { member: true }))
       + (rec?.reworkNote ? `\n返工上下文（务必先读）：\n${rec.reworkNote}\n` : '')
       + `\n---\n交接简报（前一队友 ${oldName} 因 ${note} 退出，你接手同名卡）：\n${handoff || '（交接简报缺失：卡无可读流转行）'}\n`
@@ -831,23 +840,22 @@ export class Orchestrator {
       .catch((e2) => {
         run.controllers.delete(controller)
         this.log.warn(`[jxx-driver] team 重建派发失败（${cardId}）：${e2.message}，回退一次性路径`)
-        this.spawnFallback(cardId, role, run)
+        this.spawnFallback(run, cardId, role)
         this.persist(run)
       })
   }
 
   /** 一次性路径兜底（D3：彻底救不活也不弃编排）。返工上下文一并带上——丢上下文的兜底等于白兜。 */
-  spawnFallback(cardId, role, run) {
+  spawnFallback(run, cardId, role) {
     if (role === 'merger') {
-      const isMerge = cardId.startsWith('merge-')
-      const devId = isMerge ? cardId.slice('merge-'.length) : cardId
-      this.spawn(run, { role: 'merger', cardId: devId, prompt: mergerPrompt(run.root, isMerge ? cardId : `merge-${cardId}`, devId), onSettled: (text, err) => this.onMergerSettled(run, devId, text, err) })
+      const devId = devIdOf(cardId)
+      this.spawn(run, { role: 'merger', cardId: devId, prompt: sendMergeDirective(run, mergeIdOf(cardId)), onSettled: (text, err) => this.onMergerSettled(run, devId, text, err) })
       return
     }
     const rec = run.cards.get(cardId)
-    const extra = rec?.reworkNote
-      ? `\n\n---\n返工上下文（务必先读）：\n${rec.reworkNote}\n`
-      : (rec?.lastFailure ? `\n\n上次失败原因：${rec.lastFailure}` : '')
+    let extra = ''
+    if (rec?.reworkNote) extra = `\n\n---\n返工上下文（务必先读）：\n${rec.reworkNote}\n`
+    else if (rec?.lastFailure) extra = `\n\n上次失败原因：${rec.lastFailure}`
     this.spawn(run, { role: 'dev', cardId, prompt: workerPrompt(run.root, cardId) + extra, onSettled: (text, err) => this.onWorkerSettled(run, cardId, text, err) })
   }
 
@@ -860,7 +868,10 @@ export class Orchestrator {
     return (note) => {
       const rec = run.cards.get(cardId)
       if (role === 'merger') {
-        if (rec) rec.mergeFailureNote = note
+        // R1 审查发现项（rule Low，已修）：曾写 rec.mergeFailureNote（rec 按 cardId 取，merger 调用点
+        // 传的是 mergeId 而 run.cards 键 = 开发卡 id → 恒 undefined 不可达）；merge 账记在主卡
+        const devRec = run.cards.get(devIdOf(cardId))
+        if (devRec) devRec.mergeFailureNote = note
         run.blocked.push(`${cardId} 合并未收口（合并卡 ${cardId} team merger 连续失败超限：${note}），转人工`)
         this.notify(run, `合并卡 ${cardId} 的队友连续失败 ${note}，转人工核查。`)
         return
@@ -877,7 +888,9 @@ export class Orchestrator {
 
   /** 卡面交接简报（构建内容 4）：读 open/ 卡文件流转段 → buildHandoffFromCard（≤2000 字符）。 */
   buildHandoff(run, cardId) {
-    const base = cardId.startsWith('merge-') ? cardId.slice('merge-'.length) : cardId
+    // merger 重建简报读开发卡流转段（merge 卡首派前流转段近乎为空，开发卡史更丰富）——
+    // spec 字面「卡文件 control/cards/open/<id>.md」按此口径理解，R1 审查留痕
+    const base = devIdOf(cardId)
     for (const suffix of ['.md', '.claimed.md', '.review.md']) {
       const file = join(run.root, 'control', 'cards', 'open', `${base}${suffix}`)
       if (!existsSync(file)) continue
@@ -898,8 +911,8 @@ export class Orchestrator {
       st = { failures: 0, timer: undefined, waiting: false, waitingSince: undefined, revived: false, role: undefined, fail: undefined, memberName: undefined, lastError: undefined }
       run.resilience.byCard.set(cardId, st)
     }
-    st.memberName = run.cards.get(cardId)?.memberName
-      ?? (cardId.startsWith('merge-') ? run.cards.get(cardId.slice('merge-'.length))?.mergeMemberName : undefined)
+    const rec = run.cards.get(devIdOf(cardId))
+    st.memberName = (cardId.startsWith('merge-') ? rec?.mergeMemberName : rec?.memberName)
       ?? run.channel?.nameOf(cardId) // 首派即败：名字只在通道 cardOwners（成功过才进卡账）
     return st
   }
@@ -1053,7 +1066,7 @@ export class Orchestrator {
             run.history.push({ t: nowIso(), event: `team: ${cardId} SETTLED 回传，按消息路收口` })
           }
           if (cardId.startsWith('merge-')) {
-            const devId = cardId.slice('merge-'.length)
+            const devId = devIdOf(cardId)
             const devRec = run.cards.get(devId)
             if (devRec) devRec.mergeMemberName = run.channel.nameOf(cardId)
             this.resilienceReset(run, cardId)
@@ -1111,7 +1124,9 @@ export class Orchestrator {
         resilience: Object.fromEntries([...(run.resilience?.byCard?.entries() || [])].map(([id, st]) => [id, {
           failures: st.failures, waiting: st.waiting, waitingSince: st.waitingSince, memberName: st.memberName, lastError: st.lastError,
         }])),
-        revived: run.revived,
+        // R1 审查发现项（std High / rule Medium，已修）：曾误写 `run.revived`——字段从未初始化，
+        // 序列化恒 undefined，换名重建账本在 run json 观测面静默丢失；真账本在 run.resilience.revived
+        revived: run.resilience?.revived ?? [],
         blocked: run.blocked,
         history: run.history,
       })
