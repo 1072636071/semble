@@ -24,6 +24,12 @@ function sendMergeDirective(run, mergeId, { member = false } = {}) {
 export const STAGES = ['decide', 'adr', 'prd', 'tickets', 'implement', 'ops', 'done']
 
 /**
+ * 死亡自愈 notify 的机读引导尾注（PRD 111 工单 01 构建内容 4，与 02 恢复桥文案同风格）：
+ * 转人工类给 card-read 坐标，续接类给 go 指引。
+ */
+const HUMAN_TAKEOVER_HINT = '人工核查：card-read 该卡看流转段定夺；续接可 jxx_flow(action=go, track=auto, idea=<PRD号>)。'
+
+/**
  * 接待会话角色锁定（ADR-0115 D1）：执行 jxx 插件命令的会话 = 编排接待台，不是工人。
  * 注入面：jxx_flow 工具描述前导、go 分流 steer、各轨道返回 hint、systemPrompt context（四处同一常量，措辞单源）。
  * 边界：需求/决策类文档（ADR/PRD/工单）是与用户沟通的载体，仍由本会话产出；
@@ -332,6 +338,14 @@ export class Orchestrator {
       const r = await board.newCard(run.root, { id: cardId, ticketFile: t.file, deps })
       run.cards.set(cardId, { phase: 'open', retries: 0, note: r.created ? '新投' : '已有卡，复用', alive: false })
       run.history.push({ t: nowIso(), event: `投卡 ${cardId}（${r.created ? '新建' : '复用'}）` })
+      // 合并卡纳入受管簿记（PRD 111 工单 01 构建内容 2 / BACKLOG #106-C）：曾不在 run.cards，
+      // 合并专员中止无重试零痕迹（merge-110-01 实况）。只登记影子账，不提前 newCard——卡文件仍按
+      // 原时点在三审过后才投（段 3）；提前投会让复跑 run 把已 done 的合并卡复活（实测红）。
+      // 影子账只服务重派面（僵死扫描/回挪/重派上限/前沿重派），收口仍以主卡为准（段 4）。
+      const mergeId = mergeIdOf(cardId)
+      if (!run.cards.has(mergeId)) {
+        run.cards.set(mergeId, { phase: 'open', retries: 0, note: '合并卡影子账（重派面）', alive: false, mergeShadow: true })
+      }
     }
     this.persist(run)
     // 团队路径立项（PRD 110 工单 02）：teamMode=auto 且宿主有 agentTeams 才建通道；
@@ -446,6 +460,7 @@ export class Orchestrator {
         if (this.config.autoMerge) {
           const mergeId = mergeIdOf(id)
           await board.newCard(run.root, { id: mergeId, level: 'L1', keepInbox: true })
+          // 首派不挂影子 alive 闸：spawnMerger 完成即返回，一次性路径回调（含失败回挪）走 onMergerSettled
           this.spawnMerger(run, id, mergeId)
           run.history.push({ t: nowIso(), event: `${id} 三审全过，投合并卡 ${mergeId}` })
         } else {
@@ -478,7 +493,7 @@ export class Orchestrator {
 
     // 4) 合并收口：合并卡 done → 编排者把开发卡移 done（PROTOCOL §5.2-7）
     for (const [id, rec] of run.cards) {
-      if (rec.phase !== 'merging') continue
+      if (rec.phase !== 'merging' || rec.mergeShadow) continue
       const mergeId = mergeIdOf(id)
       if (b.done.has(mergeId) || b.done.has(id)) {
         if (!b.done.has(id)) {
@@ -489,22 +504,32 @@ export class Orchestrator {
         this.persist(run)
         continue
       }
-      // 合并专员已 settle 但合并卡没进 done → 看是否被 blocked（带 needs-info）
+      // 合并专员已 settle 但合并卡没进 done → 看是否被 blocked（带 needs-info）。
+      // #106-C「中止即报」已由 onMergerSettled(err) 路即时处置（回挪+notify+重派），此处的 10 分钟
+      // 超时面只兜「settle 成功但合并卡迟迟不进 done」的面；onMergerSettled 置位前 mergeSettledAt=undefined 不进此块
       if (rec.mergeSettledAt) {
         const mergeFile = join(run.root, 'control', 'cards', 'open', `${mergeId}.md`)
         const mergeBlocked = existsSync(mergeFile) && /-\s*labels:.*needs-info/.test(readFileSync(mergeFile, 'utf8'))
         const stuckMs = Date.now() - Date.parse(rec.mergeSettledAt)
         if (mergeBlocked || stuckMs > 10 * 60_000) {
-          rec.phase = 'blocked'
-          run.blocked.push(`${id} 合并未收口（合并卡 ${mergeId} 未进 done），转人工`)
-          this.notify(run, `卡 ${id} 的合并卡 ${mergeId} 未收口，转人工核查。`)
+          // 主卡账保持 merging（曾误写 rec.phase='blocked'——会把后续合并卡重派的收口挡死）；
+          // 超时面只降级合并卡本身：回待领位（needs-info）+ 下 tick 由合并卡前沿重派（#106-C 自愈）
+          const mergeRec = run.cards.get(mergeId)
+          if (mergeRec && !mergeRec.alive) {
+            mergeRec.phase = 'open'
+            mergeRec.retries = (mergeRec.retries || 0) + 1
+            await this.selfHealReturnToInbox(run, mergeId, { to: 'inbox', reason: `jxx-driver: 合并专员 settle 后 ${Math.round(stuckMs / 60000)} 分钟未收口，回挪重派` })
+          }
+          run.blocked.push(`${id} 合并未收口（合并卡 ${mergeId} 未进 done），合并卡已回挪待重派`)
+          this.notify(run, `卡 ${id} 的合并卡 ${mergeId} 未收口（${mergeBlocked ? '被转人工' : 'settle 后超 10 分钟'}），已回挪待领位自动重派。${HUMAN_TAKEOVER_HINT}`)
+          rec.mergeSettledAt = undefined
           this.persist(run)
         }
       }
     }
 
-    // 5) 就绪前沿：inbox 可领卡 + 空闲并行位 → spawn worker
-    const activeWorkers = [...run.cards.values()].filter((c) => c.phase === 'claimed' && c.alive).length
+    // 5) 就绪前沿：inbox 可领卡 + 空闲并行位 → spawn worker（合并卡重派同构受管，#106-C）
+    const activeWorkers = [...run.cards.values()].filter((c) => c.phase === 'claimed' && c.alive && !c.mergeShadow).length
     let freeSlots = this.config.parallel - activeWorkers
     for (const c of b.inbox.filter((x) => managed(x.id) && !x.id.startsWith('merge-'))) {
       if (freeSlots <= 0) break
@@ -513,10 +538,53 @@ export class Orchestrator {
       this.spawnWorker(run, c.id)
       freeSlots -= 1
     }
+    // 合并卡回挪重派（#106-C 自愈）：本 tick 的 b.inbox 快照可能早于本 tick 内异步回挪——
+    // 重新扫一次 open/ 确保刚回挪的合并卡下一 tick（而非再下一 tick）就被前沿看到
+    const bNow = scanBoard(run.root)
+    for (const c of bNow.inbox.filter((x) => managed(x.id) && x.id.startsWith('merge-'))) {
+      const rec = run.cards.get(c.id)
+      if (!rec || rec.phase !== 'open' || rec.alive) continue
+      if (rec.resilienceOwned) continue // 韧性链在管（退避计时/等待窗）——前沿不抢（工单 03 语义）
+      const devId = devIdOf(c.id)
+      const devRec = run.cards.get(devId)
+      if (!devRec || devRec.phase !== 'merging') continue // 主卡不在合并窗（已被回挪降级/收口）→ 不派
+      if (devRec.mergeSettledAt !== undefined) continue // 首派 settle 成功后走段 4 收口/超时面，不经前沿重派（防 done 竞速窗口复活，R3 实录）
+      if ((rec.retries || 0) > this.config.maxRetries) {
+        // 重派预算 = 影子账 retries（单源：只在 onMergerSettled 失败路 +1——前沿不重复计数，
+        // 否则一次失败被记两次，maxRetries=1 时重派一发出即误判超限，R3 调试实证）
+        rec.phase = 'blocked'
+        run.blocked.push(`${c.id} 合并卡重派超限（失败 ${rec.retries}/${this.config.maxRetries}），转人工`)
+        this.notify(run, `合并卡 ${c.id} 重派已达上限，转人工。${HUMAN_TAKEOVER_HINT}`)
+        this.persist(run)
+        continue
+      }
+      if (rec.alive === true) continue // 上轮重派还在飞（onMergerSettled 未回）——防同轮重复派（R3 实录：done 竞速窗口内 alive 已清但回调未跑完时不得再派）
+      this.spawnMerger(run, devId, c.id)
+      break // 本 tick 最多重派一张合并卡（重派是异步的，防止同 tick 内重复入队）
+    }
 
-    // 6) 僵死重 spawn：claimed 卡超时且无存活 worker
+    // 6) 僵死重 spawn：claimed 卡超时且无存活 worker（#106-C：合并卡僵死同构受管——
+    // 影子账 alive 全生命周期由 spawnMerger 置位 + onMergerSettled 归位单源管理；
+    // 真卡位 claimed 且影子已「不在飞」超过 staleMinutes = 轮次无 SETTLED 的僵死面）
     const now = Date.now()
-    for (const c of b.claimed.filter((x) => managed(x.id))) {
+    for (const c of b.claimed.filter((x) => managed(x.id) && x.id.startsWith('merge-'))) {
+      const rec = run.cards.get(c.id)
+      if (!rec || rec.alive || rec.phase !== 'claimed') continue
+      if (now - c.mtime < this.config.staleMinutes * 60_000) continue
+      rec.retries = (rec.retries || 0) + 1
+      rec.lastFailure = `僵死超 ${this.config.staleMinutes} 分钟无回传（合并卡）`
+      if (rec.retries > this.config.maxRetries) {
+        rec.phase = 'blocked'
+        run.blocked.push(`${c.id} 合并卡僵死超 ${this.config.staleMinutes} 分钟且重试超限，转人工`)
+        this.notify(run, `合并卡 ${c.id} 僵死（无 SETTLED 回传）且重试超限，转人工。${HUMAN_TAKEOVER_HINT}`)
+      } else {
+        rec.phase = 'open'
+        run.history.push({ t: nowIso(), event: `${c.id} 合并卡僵死（第 ${rec.retries} 次失败），回挪重派` })
+        await this.selfHealReturnToInbox(run, c.id, { to: 'inbox', reason: 'jxx-driver: 合并卡僵死，回挪重派' })
+      }
+      this.persist(run)
+    }
+    for (const c of b.claimed.filter((x) => managed(x.id) && !x.id.startsWith('merge-'))) {
       const rec = run.cards.get(c.id)
       if (!rec || rec.alive || rec.phase !== 'claimed') continue
       if (now - c.mtime < this.config.staleMinutes * 60_000) continue
@@ -541,8 +609,10 @@ export class Orchestrator {
       this.persist(run)
     }
 
-    // 7) 全部收口 → 进 ops
-    const allDone = run.cards.size > 0 && [...run.cards.values()].every((c) => c.phase === 'done')
+    // 7) 全部收口 → 进 ops（合并卡影子账只服务重派面，不参与 allDone 判定；
+    // blocked 等人工的卡也挡 ops——编排未收口，不能假设人工面会替它跑完）
+    const allDone = run.cards.size > 0
+      && [...run.cards.values()].every((c) => c.phase === 'done' || c.mergeShadow)
     if (allDone) {
       run.stage = 'ops'
       run.updatedAt = nowIso()
@@ -559,6 +629,33 @@ export class Orchestrator {
 
   safeScan(run) {
     try { return scanBoard(run.root) } catch { return undefined }
+  }
+
+  /**
+   * 死亡自愈回挪（PRD 111 工单 01 构建内容 1 / BACKLOG #106-A）：失败落账后把卡挪回待领位，
+   * 由就绪前沿自动重派（消灭「重试后卡滞留 claimed 静默死亡」实况）。一次性与团队两路共用；
+   * 物理挪卡失败（卡被人工动过/已收口等）只留痕不拖死收口链。
+   */
+  async selfHealReturnToInbox(run, cardId, { to = 'inbox', reason }) {
+    // to 透传 board.mjs 语义：inbox = 回待领位重派；blocked = 回待领位 + needs-info（等待窗保留转人工标记）
+    const target = to === 'blocked' ? 'blocked' : 'inbox'
+    // 收口守卫（R3 调试实证）：失败回调与卡位推进竞速时，卡可能已被 fixture/人工收口进 done/——
+    // 对已收口卡执行 cardMove(inbox) 会把它从 done/ 复活回 open/（merge-95 调试实录），必须跳过
+    const doneDir = join(run.root, 'control', 'cards', 'done')
+    const archivedDir = join(run.root, 'control', 'cards', 'archived')
+    if (existsSync(join(doneDir, `${cardId}.md`)) || existsSync(join(archivedDir, `${cardId}.md`))) {
+      run.history.push({ t: nowIso(), event: `死亡自愈：${cardId} 已收口/归档，跳过回挪（竞速守卫）` })
+      return false
+    }
+    try {
+      await run.board?.cardMove(run.root, { id: cardId, to: target, reason })
+      run.history.push({ t: nowIso(), event: `死亡自愈：${cardId} 卡位已回挪 ${target}（${reason}）` })
+      return true
+    } catch (e) {
+      run.history.push({ t: nowIso(), event: `死亡自愈：${cardId} 回挪失败（${e.message}）——卡可能已被人工处置，交前沿/人工面兜底` })
+      this.log.warn(`[jxx-driver] ${cardId} 死亡自愈回挪失败：${e.message}`)
+      return false
+    }
   }
 
   // ---------- spawn ----------
@@ -592,21 +689,25 @@ export class Orchestrator {
         this.resilienceReset(run, cardId)
         run.history.push({ t: nowIso(), event: r.fresh ? `team: spawn worker ${cardId}（${r.name}）` : `team: 指令下发 ${cardId} → ${r.name}` })
         this.persist(run)
-      }).catch((e) => {
+      }).catch(async (e) => {
         run.controllers.delete(controller)
         // 返工上下文（extraNote）记卡账：重发/重建/兜底三路都必须带上，不能只随本次调用蒸发
         if (extraNote) rec.reworkNote = extraNote
         if (run.dispatchFrozen) { this.persist(run); return } // stop 后不再走失败处置/回退派发（工单 04 生命周期收口）
-        this.safeHandleFailure(run, cardId, e, {
-          role: 'dev',
-          fail: this.failHandlerOf(run, cardId, 'dev') // fail 处置单源：failHandlerOf 按 cardId 语义落账
-        })
+        try {
+          await this.safeHandleFailure(run, cardId, e, {
+            role: 'dev',
+            fail: this.failHandlerOf(run, cardId, 'dev') // fail 处置单源：failHandlerOf 按 cardId 语义落账
+          })
+        } catch (healErr) {
+          this.log.warn(`[jxx-driver] ${cardId} 死亡自愈处置异常：${healErr.message}`)
+        }
         this.persist(run)
       })
       return
     }
     const prompt = workerPrompt(run.root, cardId) + extraNote
-    this.spawn(run, { role: 'dev', cardId, prompt, onSettled: (text, err) => this.onWorkerSettled(run, cardId, text, err) })
+    this.spawn(run, { role: 'dev', cardId, prompt, onSettled: (text, err) => { this.onWorkerSettled(run, cardId, text, err).catch((e2) => this.log.warn(`[jxx-driver] ${cardId} 收口回调异常：${e2.message}`)) } })
     run.history.push({ t: nowIso(), event: `spawn worker ${cardId}` })
     this.persist(run)
   }
@@ -627,6 +728,10 @@ export class Orchestrator {
     const rec = run.cards.get(cardId)
     rec.mergeSettledAt = undefined
     rec.mergeFailureNote = undefined
+    const shadow = run.cards.get(mergeId)
+    // 影子账生命周期单源：spawnMerger 置在飞（alive=true、phase 不动——前沿/收口两面的相位判定
+    // 都以 alive 闸为准）；清位/回 open 只看 onMergerSettled（成功 settle 置位面 + 失败回挪面）
+    if (shadow) shadow.alive = true
     if (run.channel) {
       // 团队路径（PRD 110 工单 02 / ADR-0121 D2）：合并专员持久队友化——同名复用，
       // 超预算时通道自派停发换新名 fresh 后继（交接上下文 = 指令点名合并卡）。
@@ -639,22 +744,44 @@ export class Orchestrator {
         signal: controller.signal, // 宿主契约必填（同终审发现项①）
       }).then((r) => {
         run.controllers.delete(controller)
+        if (shadow) shadow.alive = false
         this.resilienceReset(run, mergeId)
         run.history.push({ t: nowIso(), event: r.fresh ? `team: spawn 合并专员 ${mergeId}（${r.name}）` : `team: 合并专员复用 ${r.name}（${mergeId}）` })
         this.persist(run)
-      }).catch((e) => {
+      }).catch(async (e) => {
         run.controllers.delete(controller)
+        if (shadow) shadow.alive = false
         if (run.dispatchFrozen) { this.persist(run); return } // stop 后不再走失败处置/回退派发（工单 04 生命周期收口）
-        this.safeHandleFailure(run, mergeId, e, {
-          role: 'merger',
-          fail: this.failHandlerOf(run, mergeId, 'merger') // 单源落账（failHandlerOf 按 merger 语义记 mergeFailureNote；spawnMerger 作用域无 role 变量，必须显式传）
-        })
+        try {
+          await this.safeHandleFailure(run, mergeId, e, {
+            role: 'merger',
+            fail: this.failHandlerOf(run, mergeId, 'merger') // 单源落账（failHandlerOf 按 merger 语义记 mergeFailureNote；spawnMerger 作用域无 role 变量，必须显式传）
+          })
+        } catch (healErr) {
+          this.log.warn(`[jxx-driver] ${mergeId} 死亡自愈处置异常：${healErr.message}`)
+        }
         this.persist(run)
       })
       return
     }
     const prompt = mergerPrompt(run.root, mergeId, cardId)
-    this.spawn(run, { role: 'merger', cardId, prompt, onSettled: (text, err) => this.onMergerSettled(run, cardId, text, err) })
+    // 一次性路径的 spawn label 用 merge id（与既有测试/账面口径一致）：run.cards 键 = 开发卡 id
+    // 本就不是 label 面（spawn() 的 rec 取 cardId 是给一次性 worker 用的，merger 本就恒 undefined——
+    // 之前 3 连派 + 无回调的根因是 label 里的 merge-<id> 被前面测试环境的 label 正则误配，与此无关，此处仅保持原样）
+    // cardId 传开发卡 id：spawn() 用它取 rec/落 alive；label 由 role 拼接（jxx-merger-<devId>，
+    // 与既有测试/账面口径一致）；onSettled 回开发卡口径（onMergerSettled 内部归一 merge 卡）。
+    // 影子账归位只走 onMergerSettled 单源（成功 mergeSettledAt 置位 / 失败回挪重派），不在派发层
+    // 提前归位——否则 done 竞速窗口会把已收口合并卡复活回 open/（R3 调试实录）
+    this.spawn(run, { role: 'merger', cardId, prompt, onSettled: async (text, err) => {
+      await this.onMergerSettled(run, cardId, text, err)
+      // 一次性路径派发收尾：成功轮次 → shadow.alive 已在 onMergerSettled 清位且 mergeSettledAt 置位；
+      // 失败轮次 → onMergerSettled 已把影子账回 open（retries 单源 +1）。成功轮次的影子账也要归 open
+      // 等收口闸（主卡 merging）——但必须避开 done 竞速窗口（主卡已 done 则保持，等段 4 收口）
+      if (!err) {
+        const shadowFinal = run.cards.get(mergeId)
+        if (shadowFinal && shadowFinal.phase === 'claimed') shadowFinal.phase = 'open'
+      }
+    } })
     run.history.push({ t: nowIso(), event: `spawn 合并专员 ${mergeId}` })
     this.persist(run)
   }
@@ -662,6 +789,9 @@ export class Orchestrator {
   spawn(run, { role, cardId, prompt, onSettled }) {
     const controller = new AbortController()
     const rec = run.cards.get(cardId)
+    // 合并卡一次性派发：run.cards 键 = 开发卡 id，spawn label 需带 merge- 前缀（fixture/账面按
+    // jxx-merger-merge-<id> 匹配），但 onSettled 仍回开发卡口径（onMergerSettled 内部自己归一）。
+    const recOfLabel = rec && !cardId.startsWith('merge-') ? rec : undefined
     run.controllers.add(controller)
     const start = async () => {
       let handle
@@ -689,8 +819,10 @@ export class Orchestrator {
       }
     }
     const done = (text, err) => {
-      if (rec) rec.alive = false
-      try { onSettled(text, err) } catch (e) { this.log.warn(`[jxx-driver] onSettled 异常：${e.message}`) }
+      if (recOfLabel) recOfLabel.alive = false
+      // onSettled 可能 async（PRD 111 死亡自愈回挪是 await 面）：同步异常照吞，Promise 拒绝落 warn——
+      // 都不能逃出回调（Node ≥15 unhandledRejection 崩进程）
+      try { const r = onSettled(text, err); if (r && typeof r.catch === 'function') r.catch((e) => this.log.warn(`[jxx-driver] onSettled 异常：${e.message}`)) } catch (e) { this.log.warn(`[jxx-driver] onSettled 异常：${e.message}`) }
       this.persist(run)
     }
     void start()
@@ -744,6 +876,8 @@ export class Orchestrator {
     if (state.failures > this.config.teamBackoff) {
       // 连续超限（构建内容 3）：notify + 卡位转人工等待——用户切模型后经 jxx_flow resumed / go「继续」恢复唤醒**同一队友**
       state.waiting = true
+      const owningRec = run.cards.get(cardId)
+      if (owningRec) owningRec.resilienceOwned = true // 合并卡影子账：等待窗内前沿不抢（PRD 111 #106-C 重派面与韧性链互斥）
       state.waitingSince = nowIso() // 仅观测面（run json 排查用），不参与判路
       run.history.push({ t: nowIso(), event: `${cardId} team: 连续失败 ${state.failures} 次，超过退避上限 ${this.config.teamBackoff}，等待用户恢复（不弃会话）` })
       fail(note)
@@ -752,10 +886,11 @@ export class Orchestrator {
     this.scheduleTeamResend(run, cardId, role, state, note)
   }
 
-  /** 韧性入口防炸圈：失败处理自身异常不得逃出 catch 处理器（Node ≥15 unhandledRejection 会崩进程）。 */
-  safeHandleFailure(run, cardId, error, opts) {
+  /** 韧性入口防炸圈：失败处理自身异常不得逃出 catch 处理器（Node ≥15 unhandledRejection 会崩进程）。
+   * async 化（PRD 111 #106-A）：failHandlerOf 超限分支现含 await 回挪，异常仍被本层吞掉留痕。 */
+  async safeHandleFailure(run, cardId, error, opts) {
     try {
-      this.handleTeamDispatchFailure(run, cardId, error, opts)
+      await this.handleTeamDispatchFailure(run, cardId, error, opts)
     } catch (e) {
       this.log.warn(`[jxx-driver] team 失败处理自身异常（${cardId}）：${e.message}`)
     }
@@ -778,7 +913,7 @@ export class Orchestrator {
           await this.resendTeamDirective(run, cardId, role, note)
         } catch (e) {
           // 重发失败 = 又一次派发失败：回统一入口（计数/探针/超限判定全部复用原 fail 闭包）
-          this.safeHandleFailure(run, cardId, e, { role, fail: state.fail })
+          await this.safeHandleFailure(run, cardId, e, { role, fail: state.fail })
         }
       })()
     }, delay)
@@ -802,12 +937,16 @@ export class Orchestrator {
     }
     const rec = run.cards.get(cardId)
     if (!rec) return
-    if (rec.phase === 'blocked') {
-      // 唤醒落卡位：fail 落过 blocked 的卡先移回 claimed（在办）再重发
+    if (rec.phase === 'blocked' || rec.phase === 'open') {
+      // 唤醒落卡位：fail 落过 blocked 的卡先移回 claimed（在办）再重发。
+      // PRD 111 #106-A 后超限回挪的物理位是待领位（open），open + 等待窗也属「可唤醒」——
+      // 但必须显式排除韧性链已释放（failures=0）的真前沿卡（PRD 111 R3 回归补丁）。
+      const st = run.resilience.byCard.get(cardId)
+      if (rec.phase === 'open' && (!st || (!st.waiting && !st.failures))) return
       rec.phase = 'claimed'
       try {
         await run.board?.cardMove(run.root, { id: cardId, to: 'claimed', reason: 'jxx-driver: 用户已恢复，队友唤醒续跑' })
-        run.history.push({ t: nowIso(), event: `${cardId} 卡位 blocked → claimed（唤醒恢复）` })
+        run.history.push({ t: nowIso(), event: `${cardId} 卡位 ${rec.phase === 'claimed' ? 'blocked/open' : rec.phase} → claimed（唤醒恢复）` })
       } catch (e) {
         this.log.warn(`[jxx-driver] ${cardId} 卡位回 claimed 失败：${e.message}`)
       }
@@ -896,6 +1035,8 @@ export class Orchestrator {
    * fail 处置单源（工单 03 超限转人工的落账口径）：worker 连续失败超限 → 卡 blocked + notify 等恢复；
    * merger 超限 → 记 mergeFailureNote + notify 转人工。cardId 参数 = 调用点口径（worker=开发卡 id；
    * merger=merge 卡 id，可带 merge- 前缀——devId 在方法内归一）。
+   * PRD 111 #106-A：超限也统一回挪卡位（卡账=blocked 落账不变；物理卡位回待领位 + needs-info，
+   * 卡面可读、前沿不再把它当在办管理，唤醒恢复面负责拉回）。
    */
   failHandlerOf(run, cardId, role) {
     return (note) => {
@@ -912,7 +1053,7 @@ export class Orchestrator {
       if (rec) {
         rec.phase = 'blocked'
         rec.lastFailure = note
-        void run.board?.cardMove(run.root, { id: cardId, to: 'blocked', reason: 'jxx-driver: team worker 连续失败超限，等待用户恢复' }).catch(() => {})
+        void this.selfHealReturnToInbox(run, cardId, { to: 'blocked', reason: `jxx-driver: team 连续失败超限（${note.slice(0, 80)}），卡位回待领位` }).catch(() => {})
       }
       run.blocked.push(`${cardId} team worker 连续失败超限：${note}`)
       this.notify(run, `卡 ${cardId} 的队友连续失败 ${note}。可在切换模型后让我继续（jxx_flow 继续或直接说「继续」），我将重新唤醒同一队友。`)
@@ -960,6 +1101,8 @@ export class Orchestrator {
     st.waitingSince = undefined
     st.revived = false
     st.lastError = undefined
+    const owned = run.cards.get(cardId)
+    if (owned) owned.resilienceOwned = false // 韧性链释放，前沿可接管（重派面）
   }
 
   /**
@@ -973,8 +1116,12 @@ export class Orchestrator {
       const rec = run.cards.get(cardId)
       const merging = cardId.startsWith('merge-')
       const mainRec = merging ? run.cards.get(devIdOf(cardId)) : rec
-      // 卡位判定：等待窗内卡可能已被 fail 落成 blocked（worker 卡）或停在 merging（合并卡）
-      const cardOk = merging ? mainRec?.phase === 'merging' : (rec?.phase === 'claimed' || rec?.phase === 'blocked')
+      // 卡位判定：等待窗内卡可能已被 fail 落成 blocked（worker 卡）或停在 merging（合并卡）。
+      // PRD 111 #106-A 后 failHandlerOf 把物理卡位回挪待领位（卡账仍 blocked）——重发前卡位回 claimed 由
+      // resendTeamDirective 负责，这里只需放行；一次性路径的 onWorkerSettled 重试链不受影响（不经等待窗）。
+      const cardOk = merging
+        ? mainRec?.phase === 'merging'
+        : (rec?.phase === 'claimed' || rec?.phase === 'blocked' || (rec?.phase === 'open' && st.failures > 0))
       if (!mainRec || !cardOk) continue
       st.waiting = false
       st.revived = true
@@ -1022,19 +1169,23 @@ export class Orchestrator {
 
   // ---------- 子会话收口回调 ----------
 
-  onWorkerSettled(run, cardId, _text, err) {
+  async onWorkerSettled(run, cardId, _text, err) {
     const rec = run.cards.get(cardId)
     if (!rec) return
     if (err) {
       rec.retries = (rec.retries || 0) + 1
       rec.lastFailure = err.message // 重试附失败原因（构建内容 3）
+      rec.alive = false
       if (rec.retries > this.config.maxRetries) {
         rec.phase = 'blocked'
         run.blocked.push(`${cardId} worker 失败超限：${err.message}`)
-        this.notify(run, `卡 ${cardId} worker 失败：${err.message}。已达重试上限，转人工。`)
+        this.notify(run, `卡 ${cardId} worker 失败：${err.message}。已达重试上限，转人工。${HUMAN_TAKEOVER_HINT}`)
       } else {
         rec.phase = 'open'
-        run.history.push({ t: nowIso(), event: `${cardId} worker 失败（${err.message}），重试 ${rec.retries}` })
+        // 死亡自愈（#106-A 根治）：卡账回 open 后必须物理回挪卡位，否则前沿看不到、重派死锁（110-03 实况 9h56m）
+        const moved = await this.selfHealReturnToInbox(run, cardId, { to: 'inbox', reason: `jxx-driver: worker 失败（${err.message}），回挪待重派` })
+        run.history.push({ t: nowIso(), event: `${cardId} worker 失败（${err.message}），重试 ${rec.retries}${moved ? '（卡位已回挪）' : '（回挪失败，见上）'}` })
+        this.notify(run, `卡 ${cardId} worker 第 ${rec.retries} 次失败（${err.message}），已回挪待领位自动重派；若连续失败将转人工。${HUMAN_TAKEOVER_HINT}`)
       }
     }
     // 成功时不改 phase——卡位才是真信号，下一个 tick 扫到 .review.md 才起审查
@@ -1053,16 +1204,33 @@ export class Orchestrator {
     run.history.push({ t: nowIso(), event: `${cardId} 审查者 ${dim} 回：${rec.reviewResults[dim].verdict}` })
   }
 
-  onMergerSettled(run, cardId, _text, err) {
+  async onMergerSettled(run, cardId, _text, err) {
     const rec = run.cards.get(cardId)
+    const shadow = run.cards.get(mergeIdOf(cardId))
     if (!rec) return
     if (err) {
-      rec.phase = 'blocked'
-      run.blocked.push(`${cardId} 合并专员失败：${err.message}`)
-      this.notify(run, `卡 ${cardId} 合并专员失败：${err.message}，转人工。`)
+      // 合并专员中止即报（#106-C：曾零重试零痕迹中止）——合并卡回待领位，下 tick 前沿重派。
+      // retries 计数**单源**：影子账 retries 只在此处 +1（前沿/僵死面只读不写——双写会把一次
+      // 失败记成两次，maxRetries=1 时重派一发出即误判超限，R3 调试实证）。收口守卫在前：
+      // 已 done/归档的合并卡不再回挪（竞速窗口守卫由 selfHealReturnToInbox 再兜一层）。
+      const mergeId = mergeIdOf(cardId)
+      if (shadow) { shadow.alive = false; shadow.retries = (shadow.retries || 0) + 1; shadow.phase = 'open' }
+      run.blocked.push(`${cardId} 合并专员失败：${err.message}，合并卡回挪待重派`)
+      // 物理回挪仅当合并卡文件不在 open/（被合并专员挪走）时执行——keepInbox 投卡的合并卡
+      // 物理位置始终在待领位，无需回挪；且异步 cardMove 与重派成功路竞速会把已收口（done/）
+      // 的合并卡搬回 open/（R3 调试实录），非必要不动物理位。
+      const mergeOpen = existsSync(join(run.root, 'control', 'cards', 'open', `${mergeId}.md`))
+      if (!mergeOpen) {
+        await this.selfHealReturnToInbox(run, mergeId, { to: 'inbox', reason: `jxx-driver: 合并专员中止（${err.message}），回挪重派` })
+      }
+      this.notify(run, `卡 ${cardId} 合并专员中止：${err.message}。合并卡已回挪待领位自动重派；若连续中止转人工。${HUMAN_TAKEOVER_HINT}`)
       return
     }
     rec.mergeSettledAt = nowIso()
+    if (shadow) shadow.alive = false // 成功 settle 清在飞闸
+    // 成功 settle：影子账 phase 保持 claimed（在办）等 done 收口——不归 open（否则前沿会在
+    // done 竞速窗口把已收口合并卡复活重派，R3 调试实录）；真正归 open 只在失败回挪面。
+    // 一次性路径的收尾归 open 由 spawnMerger 的 onSettled 收尾段处理（主卡 merging 才归）。
     // 是否真收口，下一个 tick 看合并卡是否进 done/（卡位才是真信号）
   }
 
@@ -1081,14 +1249,13 @@ export class Orchestrator {
     run.messageHarvestBusy = true
     try {
       const canSettle = (cardId) => {
-        // 开发卡：在办（claimed）且 alive 未清——alive 闸堵「同窗口重复消息双计预算」（终审发现项③）
-        if (run.cards.get(cardId)) {
-          const rec = run.cards.get(cardId)
-          return rec.phase === 'claimed' && rec.alive !== false
-        }
-        // 合并卡（merge-<id>）：主卡 phase=merging 且合并专员 settle 未置位——
-        // merge 卡不在 run.cards（编排卡账只录开发卡），闸看主卡（审查发现项②修复）。
+        // 合并卡（merge-<id>）：主卡 phase=merging 且合并专员 settle 未置位——闸看主卡（审查发现项②修复）。
+        // PRD 111 #106-C 后合并卡影子账也在 run.cards，**必须先判 merge- 前缀**再走开发卡分支，
+        // 否则影子账（phase=open）抢先命中开发卡闸把 merger SETTLED 永久拒收（三类红同根，R3 修）。
         if (cardId.startsWith('merge-')) return run.cards.get(devIdOf(cardId))?.phase === 'merging'
+        // 开发卡：在办（claimed）且 alive 未清——alive 闸堵「同窗口重复消息双计预算」（终审发现项③）
+        const rec = run.cards.get(cardId)
+        if (rec) return rec.phase === 'claimed' && rec.alive !== false
         return false
       }
       const settled = run.channel.harvest({
