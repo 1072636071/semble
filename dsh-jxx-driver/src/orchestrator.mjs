@@ -581,7 +581,7 @@ export class Orchestrator {
     // 故判死前问宿主「这位队友还在跑吗」（roundInFlight：名单里 status==='running' ⇒ 让位）。
     // 覆盖边界（如实声明，勿夸大）：团队路径（ADR-0121 默认形态）两卡种均自愈——成员失联
     // （inactive/failed/查无此人）即放行判死；成员仍在跑则让位。**一次性路径**（teamMode=off / 宿主无
-    // agentTeams）无成员观测面（canObserveMembers 为 false）⇒ 自愈仍受 `alive` 闸约束：合并轮 alive
+    // agentTeams）无成员观测面（roundInFlight 走 alive 位兜底）⇒ 自愈仍受 `alive` 闸约束：合并轮 alive
     // 只在 onMergerSettled 归位，挂死轮次永不清位 ⇒ 该形态不自愈，长挂由人工/停止清场面兜底。
     // 转人工有**两个出口**，落法同源（回待领位 + needs-info + run.blocked 落账），按哪一面先判到为定：
     //   ① 本段僵死面超限（staleAttempt > maxRetries）——回挪前就已烧完预算，就地转人工；
@@ -606,11 +606,31 @@ export class Orchestrator {
       // 在飞判据（R2 spec 审查 High#1）：团队路径看成员 status（队友 inactive/failed ⇒ 失联放行），
       // 一次性路径退回 alive 位（与 HEAD 同语义，零行为漂移）。判据实现见 roundInFlight 注释。
       if (this.mergerRoundInFlight(run, devRec, rec)) continue
-      // 这一轮是否已由失败路落过账？是则**本段完全让位**：失败路已做「回挪 + notify + retries+1」，
-      // 卡此刻已在待领位、等就绪前沿按预算重派；本段既不该再 +1（一次失败扣两次预算），也不该
-      // 抢先把本轮判终局（那会白丢本该保留的那次重派）。后手由前沿重派超限分支负责收口。
-      if (devRec.mergeFailedAt !== undefined) continue
+      // 卡面仍新鲜（领走后有推进）⇒ 不判死。此闸在僵死/终局两分支之前：既保住「不误杀在干活
+      // 的轮次」的既有语义，也让下面的幂等终局**只在该卡真的静默超时后**才落下
+      // （避免与失败路那次可能仍在飞行中的 cardMove 竞速）。
       if (now - c.mtime < this.config.staleMinutes * 60_000) continue
+      // 这一轮是否已由失败路落过账？是则**本段不重复计数**（同一次失败被失败路与本段各 +1
+      // 就是「一次失败扣两次预算」——生产默认 maxRetries=1 下只失败 1 次即 retries=2 > 1
+      // 直接转人工，本该保留的那次重派被白扣，R2 rule 审查严重发现项）。
+      // 但**不能只 `continue` 让位**（R3 rule 审查严重发现项 F1）：失败路的回挪可能失败
+      // （卡被人工动过/权限问题等），此时卡物理位仍在 claimed/ 而卡账 phase 已被失败路置回 open
+      // —— 就绪前沿只扫物理 open/ 面 ⇒ 看不见它；若本段也无条件让位，就再没有面接管，
+      // 卡永久滞留「处理中」（实测：静置 10s / ~200 tick 零动作、零终局、零重派、零通知），
+      // 正是本单要根治的静默死亡形态。故命中该标记时做**幂等终局**：不计数、不重派，
+      // 但把本轮判为 blocked 转人工（回待领位 + needs-info），保证有界收敛、卡面可对账。
+      // 幂等由 `mergeFailedHandledAt` 保证：同一轮失败只判终局一次，不每 tick 重复落账。
+      if (devRec.mergeFailedAt !== undefined) {
+        if (devRec.mergeFailedHandledAt === devRec.mergeFailedAt) continue // 本轮已判过终局
+        devRec.mergeFailedHandledAt = devRec.mergeFailedAt
+        rec.phase = 'blocked'
+        run.blocked.push(`${c.id} 合并专员失败后卡位未推进（${devRec.mergeFailedAt}），转人工（预算不重复扣）`)
+        run.history.push({ t: nowIso(), event: `${c.id} 合并专员失败后卡位未推进，转人工（幂等终局，不重复计数）` })
+        this.notify(run, `合并卡 ${c.id} 本轮已失败（${devRec.mergeFailedAt}）且卡位超时未推进，转人工处理；不重复重派以免双跑。${HUMAN_TAKEOVER_HINT}`)
+        await this.selfHealReturnToInbox(run, c.id, { to: 'blocked', reason: 'jxx-driver: 合并轮已失败且卡位未推进，回待领位转人工' })
+        this.persist(run)
+        continue
+      }
       rec.retries = (rec.retries || 0) + 1
       const staleAttempt = rec.retries
       rec.lastFailure = `僵死超 ${this.config.staleMinutes} 分钟无回传（合并卡）`
@@ -1273,17 +1293,6 @@ export class Orchestrator {
     return this.roundInFlight(run, rec)
   }
 
-  /** 团队路径是否具备成员观测面（供僵死面判定「队友失联」而非「无观测兜底」）。 */
-  canObserveMembers(run) {
-    if (!run.channel) return false
-    try {
-      const probe = this.probeOf(run)
-      return typeof probe.canObserve === 'function' && probe.canObserve() === true
-    } catch {
-      return false
-    }
-  }
-
   // ---------- 子会话收口回调 ----------
 
   async onWorkerSettled(run, cardId, _text, err) {
@@ -1347,7 +1356,9 @@ export class Orchestrator {
       // **但 ② 与本处并非天然互斥**（R2 rule 审查严重发现项）：本处把卡回挪回 open 并清 alive 后，
       // 段 6 的判死前置闸会全部放行，若照样 +1 就是对同一次失败再扣一次预算——生产默认
       // maxRetries=1 下只失败 1 次即 retries=2 > 1 直接转人工，本该保留的那次重派被白扣。
-      // 故本处落账时打 **mergeFailedAt 时间戳**，段 6 见该标记只做幂等收口（转人工）、不再计数重派。
+      // 故本处落账时打 **mergeFailedAt 时间戳**；段 6 见该标记**不再计数、不再重派**，改做
+      // 幂等终局（卡位超时仍未推进 ⇒ blocked 转人工，见段 6 注释）——既防双扣，也防「回挪失败时
+      // 卡被两面同时让位而永久滞留」（R3 rule 审查严重发现项 F1）。
       // 判超限一律用本处快照式读取（`(x||0) > maxRetries`），不要在 await 前后重复读同一计数。
       const mergeId = mergeIdOf(cardId)
       if (shadow) { shadow.alive = false; shadow.retries = (shadow.retries || 0) + 1; shadow.phase = 'open' }

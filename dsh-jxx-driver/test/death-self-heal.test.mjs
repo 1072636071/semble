@@ -270,7 +270,6 @@ function mkTeamHealCtx(root, { prd, silentMergerRounds = 0, devStatus = 'running
   const members = new Map()
   let deliver = null
   let lastMergerName = null // 合并专员名（判死面的存活探针按名查 status）
-  let devName = null // dev 队友名（同上）
   const SETTLED = /SETTLED:[ \t]*`?([A-Za-z0-9][A-Za-z0-9._-]*)`?/
   /** dev 队友领卡后挂住：物理挪到 .claimed.md + mtime 回拨（卡面看似僵死） */
   const devGrabAndHang = (card) => {
@@ -312,8 +311,8 @@ function mkTeamHealCtx(root, { prd, silentMergerRounds = 0, devStatus = 'running
           const past = new Date(Date.now() - 2 * 60 * 60 * 1000)
           utimesSync(claimed, past, past)
         }
-        // 队友「失联」：宿主侧如实报为 inactive（R2 spec 审查 High#1 要求判死面消费真存活信号——
-        // 若这里仍报 running，新存的 mergerAliveInTeam 存活闸会正确地把本轮判为健在而不自愈）
+        // 队友「失联」：宿主侧如实报为 inactive（R3 rule 审查 F4 要求判死面消费真存活信号——
+        // 若这里仍报 running，roundInFlight 存活闸会正确地把本轮判为健在而不自愈）
         if (lastMergerName) members.set(lastMergerName, { name: lastMergerName, status: 'inactive' })
         return
       }
@@ -331,7 +330,7 @@ function mkTeamHealCtx(root, { prd, silentMergerRounds = 0, devStatus = 'running
       // 名字由宿主名字池生成、不含 role 字样，按名字正则判会全部漏认（R2 实证）
       const isMerger = String(req.description || '').includes('merger')
       if (isMerger) lastMergerName = req.name
-      else { devName = req.name; calls.devDispatches += 1 }
+      else calls.devDispatches += 1
       const text = req.prompt.map((b) => b.text).join('\n')
       if (devHangs && !isMerger) { devGrabAndHang(devCardId); return { member: { name: req.name } } }
       handle(text)
@@ -371,7 +370,7 @@ test('死亡自愈：合并专员领卡后静默死亡（团队路径）→ 僵�
   // 本用例即该形态的判据，且用**生产默认形态**（ADR-0121 团队路径：dispatch 投递成功即清 alive，
   // 故「在飞闸已放 + 卡面零推进」= 队友失联的判定面成立，这正是原阻断项的实际 fixture）。
   const { root, cardId, mergeId } = mkRepo(91)
-  const { ctx, agent, calls, openDir, wireDeliver } = mkTeamHealCtx(root, { prd: 91, silentMergerRounds: 1 })
+  const { ctx, agent, calls, wireDeliver } = mkTeamHealCtx(root, { prd: 91, silentMergerRounds: 1 })
   const orch = new Orchestrator(ctx, CONFIG({ staleMinutes: 1 }), ctx.logger)
   t.after(async () => { await orch.dispose() })
 
@@ -604,6 +603,51 @@ test('预算不重复扣：卡滞留 claimed 时失败路与僵死面不得各�
   assert.equal(retriesNow, 1, `同一次失败只烧一格预算（实际 ${retriesNow}；无互斥闸时为 2 ⇒ 直接转人工）`)
   assert.ok(!run.blocked.some((b) => /僵死且重试超限/.test(b)),
     `不得因同一次失败判超限（实际 blocked=${JSON.stringify(run.blocked)}）`)
+})
+
+test('有界性：合并轮失败且回挪失败时不得闭死（卡位滞留 claimed 的幂等终局判据）', { timeout: 90_000 }, async (t) => {
+  if (!existsSync(BOARD)) { t.skip('本机未装 jxx-ticket-board'); return }
+  // R3 rule 审查严重发现项 F1：失败路落 mergeFailedAt 后若僵死面「完全让位」，而失败路的回挪又
+  // 失败（卡被人工动过/权限等，物理位仍在 .claimed.md），就再没有任何面接管——就绪前沿只扫物理
+  // open/ 面看不见它、僵死面被标记否决 ⇒ 卡永久滞留「处理中」（实测静置 10s/~200 tick 零动作、
+  // 零终局、零重派、零通知），正是本单要根治的静默死亡形态，比原「双扣预算」更隐蔽。
+  // 本用例即该形态的判据：回挪恒失败时必须有幂等终局（blocked 转人工 + needs-info）。
+  const { root, cardId, mergeId } = mkRepo(81)
+  const { ctx, agent, calls } = mkHealCtx(root, { prd: 81, mergerHangs: true })
+  const orch = new Orchestrator(ctx, CONFIG({ staleMinutes: 1, maxRetries: 1 }), ctx.logger)
+  t.after(async () => { await orch.dispose() })
+  const openDir = join(root, 'control', 'cards', 'open')
+
+  await orch.auto(agent, '81')
+  await waitFor(() => calls.mergerLabels.length >= 1, 40_000, 50, '合并轮已派出')
+  const run = orch.runs.get('sess-heal-81')
+  // ① 合并专员领卡 + 卡面 mtime 回拨
+  const claimed = join(openDir, `${mergeId}.claimed.md`)
+  if (!existsSync(claimed)) {
+    const at = join(openDir, `${mergeId}.md`)
+    if (existsSync(at)) renameSync(at, claimed)
+  }
+  assert.ok(existsSync(claimed), '前置：合并卡停在领卡位')
+  const past = new Date(Date.now() - 2 * 60 * 60 * 1000)
+  utimesSync(claimed, past, past)
+  // ② 回挪恒失败：卡物理位留在 claimed（F1 形态）
+  const realMove = run.board.cardMove.bind(run.board)
+  run.board.cardMove = async (r, opts) => {
+    if (opts.id === mergeId) throw new Error('模拟回挪持续失败')
+    return realMove(r, opts)
+  }
+  // ③ 失败路落账（同一次失败，打 mergeFailedAt）
+  await orch.onMergerSettled(run, cardId, '', new Error('模拟合并轮次失败'))
+  assert.ok(run.cards.get(cardId)?.mergeFailedAt !== undefined, '失败路留下 mergeFailedAt 标记')
+  assert.equal(run.cards.get(mergeId)?.retries, 1, '预算只烧一格')
+  // ④ 幂等终局必须落下：既有终局（blocked/回挪留痕），又有预算不被重复扣
+  await waitFor(() => run.blocked.some((b) => /合并专员失败后卡位未推进|僵死且重试超限/.test(b)),
+    40_000, 50, `失败且回挪失败时必须有界收敛（实际 blocked=${JSON.stringify(run.blocked)} retries=${run.cards.get(mergeId)?.retries}）`)
+  assert.equal(run.cards.get(mergeId)?.retries, 1, `终局不得再烧预算（实际 ${run.cards.get(mergeId)?.retries}）`)
+  // ⑤ 幂等：静置一段不得重复落账（每 tick 重复转人工 = 有界性破）
+  const blockedBefore = run.blocked.length
+  await new Promise((r) => setTimeout(r, 2000))
+  assert.equal(run.blocked.length, blockedBefore, `终局必须幂等，不得每 tick 重复落账（${blockedBefore} → ${run.blocked.length}）`)
 })
 
 test('D6 不变量：仍在飞的合并轮次（卡面静默）不得被误判死重复派发', { timeout: 60_000 }, async (t) => {
