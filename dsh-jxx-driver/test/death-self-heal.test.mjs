@@ -14,8 +14,12 @@ import { execFileSync } from 'node:child_process'
 import { Orchestrator } from '../src/orchestrator.mjs'
 import { normalizeConfig } from '../src/config.mjs'
 
+// BOARD 定位：env 显式 → 仓内相对兜底（同仓 jxx-ticket-board 副本，不依赖宿主安装面——std 审查发现项 6）→
+// 宿主安装面（外置技能目录）。两处都不存在时用例 t.skip 兜底。
 const BOARD = process.env.JXX_BOARD
-  || join(process.env.USERPROFILE || process.env.HOME || '', '.agents', 'skills', 'jxx-ticket-board', 'scripts', 'board.mjs')
+  || (existsSync(new URL('../../jxx-ticket-board/scripts/board.mjs', import.meta.url))
+    ? new URL('../../jxx-ticket-board/scripts/board.mjs', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
+    : join(process.env.USERPROFILE || process.env.HOME || '', '.agents', 'skills', 'jxx-ticket-board', 'scripts', 'board.mjs'))
 
 function mkRepo(prdNum) {
   const root = mkdtempSync(join(tmpdir(), `jxx-heal-${prdNum}-`))

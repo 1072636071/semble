@@ -558,7 +558,6 @@ export class Orchestrator {
         this.persist(run)
         continue
       }
-      if (rec.alive === true) continue // 上轮重派还在飞（onMergerSettled 未回）——防同轮重复派（R3 实录：done 竞速窗口内 alive 已清但回调未跑完时不得再派）
       this.spawnMerger(run, devId, c.id)
       break // 本 tick 最多重派一张合并卡（重派是异步的，防止同 tick 内重复入队）
     }
@@ -943,10 +942,11 @@ export class Orchestrator {
       // 但必须显式排除韧性链已释放（failures=0）的真前沿卡（PRD 111 R3 回归补丁）。
       const st = run.resilience.byCard.get(cardId)
       if (rec.phase === 'open' && (!st || (!st.waiting && !st.failures))) return
+      const prevPhase = rec.phase // 先存原相位再置 claimed——留痕要如实记录「从哪来」（R2 审查死代码发现项修）
       rec.phase = 'claimed'
       try {
         await run.board?.cardMove(run.root, { id: cardId, to: 'claimed', reason: 'jxx-driver: 用户已恢复，队友唤醒续跑' })
-        run.history.push({ t: nowIso(), event: `${cardId} 卡位 ${rec.phase === 'claimed' ? 'blocked/open' : rec.phase} → claimed（唤醒恢复）` })
+        run.history.push({ t: nowIso(), event: `${cardId} 卡位 ${prevPhase} → claimed（唤醒恢复）` })
       } catch (e) {
         this.log.warn(`[jxx-driver] ${cardId} 卡位回 claimed 失败：${e.message}`)
       }
@@ -1220,10 +1220,12 @@ export class Orchestrator {
       // 物理位置始终在待领位，无需回挪；且异步 cardMove 与重派成功路竞速会把已收口（done/）
       // 的合并卡搬回 open/（R3 调试实录），非必要不动物理位。
       const mergeOpen = existsSync(join(run.root, 'control', 'cards', 'open', `${mergeId}.md`))
+      let healNote = '合并卡待领位自动重派' // keepInbox 投卡物理位本就在待领位：不动物理位只落账
       if (!mergeOpen) {
-        await this.selfHealReturnToInbox(run, mergeId, { to: 'inbox', reason: `jxx-driver: 合并专员中止（${err.message}），回挪重派` })
+        const moved = await this.selfHealReturnToInbox(run, mergeId, { to: 'inbox', reason: `jxx-driver: 合并专员中止（${err.message}），回挪重派` })
+        healNote = moved ? '合并卡已回挪待领位自动重派' : '合并卡回挪未执行（交前沿/人工面兜底）'
       }
-      this.notify(run, `卡 ${cardId} 合并专员中止：${err.message}。合并卡已回挪待领位自动重派；若连续中止转人工。${HUMAN_TAKEOVER_HINT}`)
+      this.notify(run, `卡 ${cardId} 合并专员中止：${err.message}。${healNote}；若连续中止转人工。${HUMAN_TAKEOVER_HINT}`)
       return
     }
     rec.mergeSettledAt = nowIso()

@@ -59,7 +59,14 @@ export function normalizeConfig(raw) {
     parallel: intField(raw, 'parallel', 3),
     /** claimed 卡无存活 worker 且 mtime 超过该分钟数 → 判僵死重 spawn。 */
     staleMinutes: intField(raw, 'staleMinutes', 30),
-    /** worker 失败重试次数（超过 → blocked 转人工）。 */
+    /** 重试预算上限（单源语义定义，三消费面同口径引用——PRD 111-01 rule 审查发现项）：
+     * ① worker 路（onWorkerSettled 失败分支）：retries > maxRetries → blocked；maxRetries=1 时
+     *    worker 共 2 次机会（首派 + 1 重试）；
+     * ② 合并卡路（onMergerSettled 失败路 +1 / 前沿重派只读）：同式 `retries > maxRetries` 判超限，
+     *    但 retries 只在失败路计数（前沿不重复计数，R3 实录）→ maxRetries=1 时合并卡失败 1 次后
+     *    重派 1 次、再失败即 blocked（比 worker 路少 1 次机会——合并卡失败成本低重派风险高，收紧）；
+     * ③ 僵死路（worker/合并卡同构）：同 worker 口径。
+     * 三处消费面改语义前先读本注释对齐，防分裂漂移。 */
     maxRetries: intField(raw, 'maxRetries', 1, { min: 0 }),
     /** 三维审查全过后是否自动 spawn 合并专员（ADR-011 默认回合 main）。 */
     autoMerge: boolField(raw, 'autoMerge', true),
