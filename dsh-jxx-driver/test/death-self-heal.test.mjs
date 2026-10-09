@@ -74,7 +74,11 @@ function mkHealCtx(root, behavior = {}) {
           counters.dev += 1
           calls.devLabels.push(req.label)
           if (counters.dev <= (behavior.failWorker ?? 0)) {
-            return { result: Promise.resolve({ stopReason: 'error', diagnostic: '模拟 worker 轮次失败', output: [] }), dispose: async () => {} }
+            // 失败前**先领卡**（claimed.md）：复现 #106-A 真死锁形态——卡滞留 claimed 面且
+            // alive 未清，无回挪时前沿扫不到（清扫只处理卡账 open 面）→ spec 发现项 1 修正
+            const fid = dev[1]
+            if (existsSync(join(openDir, `${fid}.md`))) renameSync(join(openDir, `${fid}.md`), join(openDir, `${fid}.claimed.md`))
+            return { result: Promise.resolve({ stopReason: 'error', diagnostic: '模拟领卡后轮次失败', output: [] }), dispose: async () => {} }
           }
           const id = dev[1]
           if (existsSync(join(openDir, `${id}.md`))) renameSync(join(openDir, `${id}.md`), join(openDir, `${id}.claimed.md`))
@@ -117,7 +121,7 @@ test('死亡自愈：worker 失败 → 卡位自动回 inbox → 前沿重派成
   assert.ok(calls.devLabels.length >= 2, `失败 1 次 + 重派 ≥1 次（卡位自动回挪，前沿看得见；实次 ${calls.devLabels.length}）`)
   const hist = orch.status(agent).history.map((h) => h.event).join('\n')
   assert.match(hist, new RegExp(`死亡自愈：${cardId} 卡位已回挪 inbox`), '回挪留痕（#106-A）')
-  assert.match(hist, new RegExp(`${cardId} worker 失败（stopReason=error：模拟 worker 轮次失败），重试 1（卡位已回挪）`), '失败计数留痕')
+  assert.match(hist, new RegExp(`${cardId} worker 失败（stopReason=error：模拟领卡后轮次失败），重试 1（卡位已回挪）`), '失败计数留痕')
   const followups = agent.followups.map((m) => m.content?.[0]?.text || '').join('\n')
   assert.match(followups, /worker 第 1 次失败.*已回挪待领位自动重派/, '死亡事件在 followup 面有记录（构建内容 3）')
   assert.match(followups, /card-read/, 'notify 带机读引导（构建内容 4）')
@@ -137,7 +141,10 @@ test('死亡自愈：合并专员中止 → 即时 notify（不等 10 分钟）+
   assert.ok(doneNames.includes(`${mergeId}.md`), `合并卡回挪后重派成功（done 目录：${doneNames.join(',')}；followups：${agent.followups.map((m) => (m.content?.[0]?.text || '').slice(0, 80)).join(' | ')}）`)
   assert.ok(calls.mergerLabels.length >= 2, `merger 中止 1 次 + 重派 ≥1 次（合并卡可重派，验收 2；实次 ${calls.mergerLabels.length}）`)
   // 回挪留痕：合并卡在 open/（keepInbox 语义）时只落账不动物理位——history 无「死亡自愈」行，
-  // 自愈证据落在 shadow 簿记 retries ≥1 + 重派成功（上两断言已实证），history 不强断言留痕
+  // 自愈证据落在 shadow 簿记 retries ≥1 + 重派成功（上两断言已实证）；failure 留痕在 run.blocked.push
+  // （spec 审查发现项 4 补验：中止落账面有记录）
+  const stBlocked = orch.status(agent)
+  assert.ok(stBlocked.blocked.some((b) => b.includes('合并专员失败')), '合并中止在 run.blocked 落账留痕')
   const followups = agent.followups.map((m) => m.content?.[0]?.text || '').join('\n')
   assert.match(followups, /合并专员中止/, '中止即报（不等 10 分钟超时面）')
   // 合并卡影子账进入受管簿记（构建内容 2）

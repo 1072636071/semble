@@ -1185,7 +1185,9 @@ export class Orchestrator {
         // 死亡自愈（#106-A 根治）：卡账回 open 后必须物理回挪卡位，否则前沿看不到、重派死锁（110-03 实况 9h56m）
         const moved = await this.selfHealReturnToInbox(run, cardId, { to: 'inbox', reason: `jxx-driver: worker 失败（${err.message}），回挪待重派` })
         run.history.push({ t: nowIso(), event: `${cardId} worker 失败（${err.message}），重试 ${rec.retries}${moved ? '（卡位已回挪）' : '（回挪失败，见上）'}` })
-        this.notify(run, `卡 ${cardId} worker 第 ${rec.retries} 次失败（${err.message}），已回挪待领位自动重派；若连续失败将转人工。${HUMAN_TAKEOVER_HINT}`)
+        // notify 如实按 moved 分支（spec 审查发现项 3：回挪失败时文案与实况不符）
+        const healNote = moved ? '已回挪待领位自动重派' : '回挪未执行（交前沿/人工面兜底）'
+        this.notify(run, `卡 ${cardId} worker 第 ${rec.retries} 次失败（${err.message}），${healNote}；若连续失败将转人工。${HUMAN_TAKEOVER_HINT}`)
       }
     }
     // 成功时不改 phase——卡位才是真信号，下一个 tick 扫到 .review.md 才起审查
