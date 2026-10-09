@@ -378,7 +378,7 @@ export class Orchestrator {
     const board = run.board
     const b = scanBoard(run.root)
     const managed = (id) => run.cards.has(id)
-    const mergeIdOf = (id) => `merge-${id}`
+    // （原局部 lambda mergeIdOf 已删——它曾遮蔽导入的 mergeIdOf，R2 重审发现项；直接用模块级归一助手）
 
     // 0) 清扫：worker 已 settle 但卡面仍停在 inbox（没领成）→ 回 open 等下一圈重派
     for (const c of b.inbox.filter((x) => managed(x.id) && !x.id.startsWith('merge-'))) {
@@ -808,7 +808,7 @@ export class Orchestrator {
     if (oldName === undefined) {
       this.log.warn(`[jxx-driver] team 换名重建定位不到旧队友名（${cardId}），回退一次性路径`)
       run.history.push({ t: nowIso(), event: `team: 换名重建定位不到旧队友名（${cardId}），回退一次性路径` })
-      this.spawnFallback(cardId, role, run)
+      this.spawnFallback(run, cardId, role)
       return
     }
     if (state.timer) { clearTimeout(state.timer); state.timer = undefined }
@@ -939,7 +939,7 @@ export class Orchestrator {
       if (!st.waiting) continue
       const rec = run.cards.get(cardId)
       const merging = cardId.startsWith('merge-')
-      const mainRec = merging ? run.cards.get(cardId.slice('merge-'.length)) : rec
+      const mainRec = merging ? run.cards.get(devIdOf(cardId)) : rec
       // 卡位判定：等待窗内卡可能已被 fail 落成 blocked（worker 卡）或停在 merging（合并卡）
       const cardOk = merging ? mainRec?.phase === 'merging' : (rec?.phase === 'claimed' || rec?.phase === 'blocked')
       if (!mainRec || !cardOk) continue
@@ -1055,7 +1055,7 @@ export class Orchestrator {
         }
         // 合并卡（merge-<id>）：主卡 phase=merging 且合并专员 settle 未置位——
         // merge 卡不在 run.cards（编排卡账只录开发卡），闸看主卡（审查发现项②修复）。
-        if (cardId.startsWith('merge-')) return run.cards.get(cardId.slice('merge-'.length))?.phase === 'merging'
+        if (cardId.startsWith('merge-')) return run.cards.get(devIdOf(cardId))?.phase === 'merging'
         return false
       }
       const settled = run.channel.harvest({

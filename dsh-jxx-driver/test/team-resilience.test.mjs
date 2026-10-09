@@ -391,6 +391,34 @@ test('韧性：jxx_flow action="resumed" 显式恢复 + go「继续」未命中 
   assert.match(steered[0], /- 注：本会话没有进行中的编排/, 'steer 材料应带 flowResumed 未命中说明（- 注：前缀）')
 })
 
+test('韧性：换名重建定位不到旧队友名 → 一次性路径兜底不炸（R2 重审 spawnFallback 参数错位回归）', async (t) => {
+  const { root, cardId } = mkRepo(81)
+  const spawned = []
+  const agent = { id: 'sess-fb', session: { id: 'sess-fb' }, followups: [], followup(m) { this.followups.push(m) } }
+  const orch = new Orchestrator({
+    agents: { get: () => undefined },
+    get: () => undefined, // 无 agentTeams：本测试直接驱动 respawnTeammate，不经通道
+    subagents: { start: async (_p, req) => { spawned.push(req.label); return { result: Promise.resolve({ stopReason: 'completed', output: [{ type: 'text', text: '一次性兜底完成' }] }), dispose: async () => {} } } },
+    logger: { info() {}, warn() {}, error() {} },
+  }, CONFIG(), { info() {}, warn() {}, error() {} })
+  test.after(async () => { await orch.dispose() })
+  // 最小 run：卡在办、通道 cardOwners 无痕（nameOf → undefined）、无等待账
+  const run = {
+    id: 'r-fb', root, sessionId: agent.id, agent,
+    stage: 'implement', stopped: false,
+    cards: new Map([[cardId, { id: cardId, phase: 'claimed', alive: true, retries: 0 }]]),
+    channel: { nameOf: () => undefined },
+    controllers: new Set(),
+    resilience: { byCard: new Map(), revived: [] },
+    history: [], blocked: [], board: undefined,
+  }
+  // 修复前：spawnFallback(cardId, role, run) 实参错位 → this.spawn(run=字符串).cards TypeError 当场炸
+  orch.respawnTeammate(run, cardId, 'dev', { memberName: undefined, failures: 1 }, '测试注入：定位不到旧名')
+  await waitFor(() => spawned.includes(`jxx-dev-${cardId}`))
+  assert.match(run.history.map((h) => h.event).join('\n'), /定位不到旧队友名/, '定位不到旧名的留痕在案')
+  assert.ok(spawned.every((l) => !l.includes('undefined')), 'spawn label 无 undefined 污染（参数未错位）')
+})
+
 // ---- 一次性路径不受影响（回归判据） ----
 
 test('韧性：一次性路径（无 channel）worker 失败走既有 onWorkerSettled 重试语义（逐字节不动）', async (t) => {
