@@ -228,9 +228,9 @@ test('韧性 E2E：worker 轮次失败 → 同名重发（不新开成员）→ 
   assert.ok(existsSync(join(root, 'control', 'cards', 'done', `${mergeId}.md`)))
   assert.equal(calls.spawned.filter((s) => s.req.name?.startsWith('dev-')).length, 1, 'worker 队友只建一个（失败不弃会话）')
   assert.equal(calls.sendTargets.filter((n) => n === 'dev-a').length, 2, '返工派发失败一次 + 同名重发成功一次')
-  const hist = orch.status(agent).history.map((h) => h.event).join('\n')
-  assert.match(hist, /同名重发/, '应有同名重发留痕')
-  assert.doesNotMatch(hist, /换名重建/, '一次失败不该触发换名重建')
+  const fullHist = orch.runs.get(agent.session.id).history.map((h) => h.event).join('\n') // status() 已瘦身（≤10 条），早期事件断言走全量史
+  assert.match(fullHist, /同名重发/, '应有同名重发留痕')
+  assert.doesNotMatch(fullHist, /换名重建/, '一次失败不该触发换名重建')
 })
 
 test('韧性 E2E：连续失败超限 → notify 含「切换模型后唤醒」语义且卡位 blocked；恢复后唤醒同一队友收口', async (t) => {
@@ -264,8 +264,8 @@ test('韧性 E2E：连续失败超限 → notify 含「切换模型后唤醒」�
   assert.ok(existsSync(join(root, 'control', 'cards', 'done', `${mergeId}.md`)))
   assert.equal(calls.spawned.filter((s) => s.req.name?.startsWith('dev-')).length, 1, '全程只建一个 worker 队友')
   assert.ok(calls.sendTargets.filter((n) => n === 'dev-a').length >= 5, '唤醒后仍发同名队友（4 败 + 1 成功）')
-  const hist = orch.status(agent).history.map((h) => h.event).join('\n')
-  assert.match(hist, /用户恢复，唤醒同一队友/)
+  const fullHist = orch.runs.get(agent.session.id).history.map((h) => h.event).join('\n') // status() 已瘦身（≤10 条），早期事件断言走全量史
+  assert.match(fullHist, /用户恢复，唤醒同一队友/)
 })
 
 test('韧性 E2E：队友 failed（探针实证）→ 换名重建 + 交接简报来自卡面流转段（≤2000）', async (t) => {
@@ -292,9 +292,9 @@ test('韧性 E2E：队友 failed（探针实证）→ 换名重建 + 交接简�
   assert.equal(devSpawns[1].req.name, 'dev-b', '重建走名字池下一名（旧名不复用）')
   assert.ok(devSpawns[1].req.prompt[0].text.includes('交接简报'), '重建首条指令带交接简报段')
   assert.ok(devSpawns[1].req.prompt[0].text.includes('dev-a 领卡施工'), '简报内容来自卡面流转段')
-  const hist = orch.status(agent).history.map((h) => h.event).join('\n')
-  assert.match(hist, /换名重建 dev-a → dev-b/)
-  assert.match(hist, /交接简报 \d+ 字符/)
+  const fullHist = orch.runs.get(agent.session.id).history.map((h) => h.event).join('\n') // status() 已瘦身（≤10 条），早期事件断言走全量史
+  assert.match(fullHist, /换名重建 dev-a → dev-b/)
+  assert.match(fullHist, /交接简报 \d+ 字符/)
 })
 
 test('韧性：退避计时不阻塞 watcher tick（异步 setTimeout，tick 照常轮询）', async (t) => {

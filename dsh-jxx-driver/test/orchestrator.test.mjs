@@ -142,8 +142,8 @@ test('E2E：审查 FAIL → 返工一次 → 全过 → done', async (t) => {
   await waitFor(() => orch.status(agent).stage === 'ops')
   assert.ok(specCalls >= 2, 'spec 审查应至少跑两次（第一次 FAIL 返工后重审）')
   assert.ok(existsSync(join(root, 'control', 'cards', 'done', '98-01-solo.md')))
-  const hist = orch.status(agent).history.map((h) => h.event).join('\n')
-  assert.match(hist, /返工/)
+  const fullHist = orch.runs.get(agent.session.id).history.map((h) => h.event).join('\n') // status() 已瘦身（≤10 条），早期事件断言走全量史
+  assert.match(fullHist, /返工/)
 })
 
 test('E2E：worker 持续失败 → 重试一次 → blocked 转人工', async (t) => {

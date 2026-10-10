@@ -403,6 +403,16 @@ export function createMemberProbe({ teams, agent, log } = {}) {
     memberStatus(name) {
       return findMember(name)?.status
     },
+    /**
+     * 点名成员当前**无回合在执行**（status === 'inactive'；running/provisioning/failed/未知/查无
+     * → false）。39-02 僵死看门狗判死侧的第二信号：mtime 超时的 claimed 卡，还须 roster 反证
+     * 「该成员当前无回合在执行」才判僵死——正常长跑 worker 回合执行中 status='running'，不会被
+     * 误杀；探针缺失/异常/查无此人一律 false（宁可漏杀留给下轮，不误杀）。failed 不在此判——
+     * 它走 memberFailed/换名重建面（会话已死是另一种失败语义）。
+     */
+    memberInactive(name) {
+      return findMember(name)?.status === 'inactive'
+    },
   }
 }
 

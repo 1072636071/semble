@@ -35,8 +35,10 @@ test('assertNoForeignRun：无锁目录 → 放行', (t) => {
 test('assertNoForeignRun：他方活跃锁 → 抛错且消息含 run id 与清理指引', (t) => {
   const { orch } = mkOrch()
   const root = mkRoot(t)
+  // updatedAt 取「现在」：陈旧锁（>24h 未更新）被防御性放行（宿主崩溃残留），互斥闸只对活跃锁兑现
+  const fresh = new Date().toISOString()
   writeFileSync(join(root, 'control', 'jxx-driver-runs', 'run-b.lock.json'), JSON.stringify({
-    id: 'run-b', sessionId: 'session-b', stage: 'implement', startedAt: '2026-10-09T00:00:00Z', updatedAt: '2026-10-09T01:00:00Z',
+    id: 'run-b', sessionId: 'session-b', stage: 'implement', startedAt: fresh, updatedAt: fresh,
   }))
   assert.throws(() => orch.assertNoForeignRun(root, 'session-a'), (e) => {
     return /run-b/.test(e.message) && /lock\.json/.test(e.message) && /互踩/.test(e.message)
@@ -110,8 +112,9 @@ test('failRun 摘锁（run 终结路径）', (t) => {
 test('start 遇他方活跃锁 → 响亮拒绝（互斥入口真闸）', async (t) => {
   const { orch } = mkOrch()
   const root = mkRoot(t)
+  const fresh = new Date().toISOString()
   writeFileSync(join(root, 'control', 'jxx-driver-runs', 'run-b.lock.json'), JSON.stringify({
-    id: 'run-b', sessionId: 'session-b', stage: 'implement', startedAt: '2026-10-09T00:00:00Z', updatedAt: '2026-10-09T01:00:00Z',
+    id: 'run-b', sessionId: 'session-b', stage: 'implement', startedAt: fresh, updatedAt: fresh,
   }))
   assert.throws(() => orch.start(fakeAgent(root, 'session-a'), '测试想法'), /另一编排会话在跑/)
 })

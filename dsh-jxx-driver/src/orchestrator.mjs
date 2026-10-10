@@ -211,20 +211,31 @@ export class Orchestrator {
     if (!run) return { active: false, hint: '本会话没有进行中的编排' }
     const board = run.stage === 'implement' ? this.safeScan(run) : undefined
     return {
-      active: true, stage: run.stage, idea: run.idea, featureDir: run.featureDir,
+      active: true, stage: run.stage, idea: run.idea,
+      // 39-02 lossless 面修复（实测「value is not lossless JSON」第二根因）：宿主 lossless JSON
+      // walker 对 **undefined 属性值**也判非 lossless（board 缺失 / featureDir 未定 / 无 lastError
+      // 的 run 都会踩——implement 之外的 stage 必现），JSON.stringify 会静默丢弃这些键所以测不出；
+      // 一律 null 兜底，返回体键集合保持稳定。
+      featureDir: run.featureDir ?? null,
       stageHint: this.hints[run.stage],
       createdAt: run.createdAt, updatedAt: run.updatedAt,
-      cards: run.cards.size ? [...run.cards.entries()].map(([id, c]) => ({ id, phase: c.phase, retries: c.retries })) : [],
+      cards: run.cards.size ? [...run.cards.entries()].map(([id, c]) => ({ id, phase: c.phase, retries: c.retries ?? 0 })) : [],
       blocked: run.blocked,
-      lastError: run.lastError,
+      lastError: run.lastError ?? null,
+      // board 只回各泳道卡 id 数组（已是 id 就保留），不回卡对象全文——监控面够用即止
       board: board ? {
         inbox: board.inbox.map((c) => c.id),
         claimed: board.claimed.map((c) => c.id),
         review: board.review.map((c) => c.id),
         held: board.held,
         done: [...board.done],
-      } : undefined,
-      history: run.history.slice(-20),
+      } : null,
+      // 39-02 监控面瘦身：宿主 MCP 对工具返回体做 lossless JSON 校验（snapshotJsonValue），
+      // slice(-20) 全文 history 曾触发「value is not lossless JSON」监控面全瞎——history 截最近
+      // 10 条且 event 截 120 字符。undefined 属性值同样会被宿主 walker 拒绝（board 缺失/
+      // featureDir 未定/无 lastError 的 run 都会踩），统一 null 兜底；序列化全量史在 run json
+      // （control/jxx-driver-runs/）落盘可查，监控面无需重复承载。
+      history: run.history.slice(-10).map((h) => ({ t: h.t, event: String(h.event ?? '').slice(0, 120) })),
     }
   }
 
@@ -666,12 +677,20 @@ export class Orchestrator {
       this.notify(run, `卡 ${c.id} 的合并专员领卡后超 ${this.config.staleMinutes} 分钟无回传（第 ${staleAttempt} 次失败），${moved ? '合并卡已回挪待领位自动重派' : '回挪未执行（交前沿/人工面兜底）'}；若连续僵死将转人工。${HUMAN_TAKEOVER_HINT}`)
       this.persist(run)
     }
-    for (const c of b.claimed.filter((x) => managed(x.id) && !x.id.startsWith('merge-'))) {
+    // 39-02 首派型僵死扫描位补全：卡仍在 inbox 但卡账已 claimed 的形态（团队路径 dispatch 成功
+    // 而 worker 从不领卡——39-01 实测 run 冻结 40+ 分钟的原始形态）此前零覆盖：本段只扫物理
+    // claimed 面，首派型僵死卡永远进不了僵死面。并入扫描位；一次性路径不受影响（其卡账 claim
+    // 只在 worker 真领卡后发生，无此形态）。
+    const claimedStaleCandidates = [
+      ...b.claimed.filter((x) => managed(x.id) && !x.id.startsWith('merge-')),
+      ...(run.channel ? b.inbox.filter((x) => managed(x.id) && !x.id.startsWith('merge-')) : []),
+    ]
+    for (const c of claimedStaleCandidates) {
       const rec = run.cards.get(c.id)
       if (!rec || rec.phase !== 'claimed') continue
       // 在飞判据（R2 spec 审查 High#2）：团队路径看成员 status（队友领卡后静默挂死 ⇒ inactive ⇒
       // 本段接管自愈）；一次性路径退回 alive 位（与 HEAD 同语义，零行为漂移）
-      if (this.devRoundInFlight(run, rec)) continue
+      if (this.devRoundInFlight(run, c.id, rec)) continue
       if (now - c.mtime < this.config.staleMinutes * 60_000) continue
       rec.retries = (rec.retries || 0) + 1
       if (rec.retries > this.config.maxRetries) {
@@ -754,6 +773,10 @@ export class Orchestrator {
     rec.alive = true
     rec.spawnedAt = nowIso()
     if (run.channel) {
+      // 39-02 取舍留痕（派发成功 ≠ worker 在跑）：此处不采用「派发后置 alive=false」——
+      // 清扫段（tick 0）与就绪前沿都以 alive 挡在飞派发，清位须另引第三种在飞标记（与通道
+      // inFlight 语义重复）；僵死兑付改由看门狗在飞判据承担：团队路径轮次存活问宿主
+      // roster（devRoundInFlight → roundInFlight），alive=true 不再是免死金牌。
       // 团队路径（PRD 110 工单 02）：worker 走持久队友——点名队友（返工/重试）→ sendMessage 复用，
       // 无点名 → 通道自派（复用同角色未超预算者或取新名 spawnTeammate）。
       // 失败不弃编排：通道抛错 → 响亮记录后回退一次性路径（D3 的重试/唤醒语义是工单 03）。
@@ -1262,7 +1285,12 @@ export class Orchestrator {
       } catch (e) {
         this.log.warn(`[jxx-driver] agentTeams 服务解析失败，探针降级恒 false：${e.message}`)
       }
-      run._probe = createMemberProbe({ teams, agent: run.agent, log: (msg) => this.log.warn(`[jxx-driver] ${msg}`) })
+      // teams 缺失（服务下线/解析失败）→ 降级「恒 false」探针而非抛错：createMemberProbe 对
+      // teams 缺省是响亮 throw，而调用面（僵死在飞判据/失败韧性）都按「无反证」处理——宁可漏杀
+      // 不误杀，tick 不因探针炸（39-02 顺手加固）
+      run._probe = teams
+        ? createMemberProbe({ teams, agent: run.agent, log: (msg) => this.log.warn(`[jxx-driver] ${msg}`) })
+        : { canObserve: () => false, memberStatus: () => undefined, memberFailed: () => false, memberInactive: () => false }
     }
     return run._probe
   }
@@ -1309,10 +1337,20 @@ export class Orchestrator {
     return this.roundInFlight(run, { memberName: devRec?.mergeMemberName, alive: shadow?.alive })
   }
 
-  /** 开发轮的成员名记在自身 memberName（团队路径 dispatch .then 记名）。 */
-  devRoundInFlight(run, rec) {
+  /**
+   * 开发轮的在飞判据（R2 spec 审查 High#2）：团队路径看成员 status（队友领卡后静默挂死 ⇒
+   * inactive ⇒ 僵死面接管自愈）；一次性路径退回 alive 位（与既有语义一致，零行为漂移）。
+   * cardId 入参取卡 id：merge- 卡（影子账重派）成员名在**主卡** mergeMemberName、在飞位在影子账，
+   * 普通开发卡成员名在自身 memberName——按 id 归一后统一走 roundInFlight，不猜不混。
+   */
+  devRoundInFlight(run, cardId, rec) {
     if (!run.channel) return rec?.alive === true
-    return this.roundInFlight(run, rec)
+    const merging = cardId.startsWith('merge-')
+    const devRec = run.cards.get(devIdOf(cardId))
+    return this.roundInFlight(run, {
+      memberName: merging ? devRec?.mergeMemberName : rec?.memberName,
+      alive: rec?.alive,
+    })
   }
 
   // ---------- 子会话收口回调 ----------

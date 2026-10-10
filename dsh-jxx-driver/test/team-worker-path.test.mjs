@@ -133,10 +133,10 @@ test('团队 E2E：投卡 → worker 队友领卡 → SETTLED 回传 → 三审�
   assert.match(merger.req.prompt[0].text, new RegExp(`SETTLED: ${mergeId}`), 'merger 首条指令应带 SETTLED 机读行要求')
   assert.equal(calls.reviewerSpawns.length, 3, '三维审查者=一次性 spawn（ADR-0121 D1）')
   // 消息路收割留痕
-  const hist = orch.status(agent).history.map((h) => h.event).join('\n')
-  assert.match(hist, new RegExp(`team: ${cardId} SETTLED 回传`))
-  assert.match(hist, new RegExp(`team: ${mergeId} SETTLED 回传`), '合并专员 SETTLED 也应走消息路（merge 卡看主卡 phase=merging 的闸）')
-  assert.match(hist, /团队模式：agentTeams 就绪/)
+  const fullHist = orch.runs.get(agent.session.id).history.map((h) => h.event).join('\n') // status() 已瘦身（≤10 条），早期事件断言走全量史
+  assert.match(fullHist, new RegExp(`team: ${cardId} SETTLED 回传`))
+  assert.match(fullHist, new RegExp(`team: ${mergeId} SETTLED 回传`), '合并专员 SETTLED 也应走消息路（merge 卡看主卡 phase=merging 的闸）')
+  assert.match(fullHist, /团队模式：agentTeams 就绪/)
   assert.equal(calls.sent.length, 0, '无返工时不应有复用消息')
   // merger 消息路真实置位证据：终审发现项②回归钉——onMergerSettled 确实跑过
   // （run 卡账里主卡 mergeSettledAt 已置位，而非只靠卡位兜底）
@@ -196,8 +196,8 @@ test('双路去重：SETTLED 消息与卡位信号同时到达，不重复收口
   await waitFor(() => orch.status(agent).stage === 'ops')
   assert.ok(existsSync(join(root, 'control', 'cards', 'done', `${cardId}.md`)))
   assert.equal(calls.reviewerSpawns.length, 3, '三维审查者恰好一轮三个（消息重复不重复起审查）')
-  const hist = orch.status(agent).history.map((h) => h.event).join('\n')
-  assert.equal((hist.match(new RegExp(`team: ${cardId} SETTLED 回传`, 'g')) || []).length, 1, '同一卡 settle 只记一次账')
+  const fullHist = orch.runs.get(agent.session.id).history.map((h) => h.event).join('\n') // status() 已瘦身（≤10 条），早期事件断言走全量史
+  assert.equal((fullHist.match(new RegExp(`team: ${cardId} SETTLED 回传`, 'g')) || []).length, 1, '同一卡 settle 只记一次账')
 })
 
 test('消息丢失兜底：队友干活但不回 SETTLED → 卡位扫描照常推进（watcher 不动）', async (t) => {
@@ -213,8 +213,8 @@ test('消息丢失兜底：队友干活但不回 SETTLED → 卡位扫描照常�
   assert.ok(existsSync(join(root, 'control', 'cards', 'done', `${cardId}.md`)), '卡位兜底：开发卡仍应 done')
   assert.ok(existsSync(join(root, 'control', 'cards', 'done', `${mergeId}.md`)))
   assert.equal(calls.spawned.length, 2)
-  const hist = orch.status(agent).history.map((h) => h.event).join('\n')
-  assert.doesNotMatch(hist, /SETTLED 回传/, '无消息路收口留痕')
+  const fullHist = orch.runs.get(agent.session.id).history.map((h) => h.event).join('\n') // status() 已瘦身（≤10 条），早期事件断言走全量史
+  assert.doesNotMatch(fullHist, /SETTLED 回传/, '无消息路收口留痕')
 })
 
 test('teamMode=off：宿主有 agentTeams 也全走一次性路径（回归判据：既有行为零变化）', async (t) => {
@@ -273,7 +273,7 @@ test('teamMode=off：宿主有 agentTeams 也全走一次性路径（回归判�
   assert.ok(existsSync(join(root, 'control', 'cards', 'done', `${cardId}.md`)))
   assert.equal(calls.spawned.length, 0, 'off 档不建队友')
   assert.equal(calls.sent.length, 0, 'off 档不发队友消息')
-  const hist = orch.status(agent).history.map((h) => h.event).join('\n')
-  assert.doesNotMatch(hist, /团队模式：agentTeams 就绪/)
-  assert.match(hist, /spawn worker/, 'off 档仍走一次性 spawn worker')
+  const fullHist = orch.runs.get(agent.session.id).history.map((h) => h.event).join('\n') // status() 已瘦身（≤10 条），早期事件断言走全量史
+  assert.doesNotMatch(fullHist, /团队模式：agentTeams 就绪/)
+  assert.match(fullHist, /spawn worker/, 'off 档仍走一次性 spawn worker')
 })

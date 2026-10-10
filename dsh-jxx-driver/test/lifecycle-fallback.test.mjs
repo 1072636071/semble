@@ -229,8 +229,8 @@ test('run 收口不解散：ops 后 stop，同会话下一个 run 复用通道�
   assert.ok(sentTargets.includes('merger-a'), '第二 run merger 走 merger-a 复用')
   const devMsg = calls.sent.find((s) => s.req.target === 'dev-a')
   assert.match(devMsg.req.content[0].text, new RegExp(`SETTLED: ${cards['80'].cardId}`), '复用指令点名第二张卡')
-  const hist2 = orch.status(agent).history.map((h) => h.event).join('\n')
-  assert.match(hist2, /复用会话既有通道/, '通道按会话续接留痕')
+  const fullHist2 = orch.runs.get(agent.session.id).history.map((h) => h.event).join('\n') // status() 已瘦身（≤10 条），早期事件断言走全量史
+  assert.match(fullHist2, /复用会话既有通道/, '通道按会话续接留痕')
   assert.ok(existsSync(join(root, 'control', 'cards', 'done', `${cards['80'].cardId}.md`)))
   assert.ok(existsSync(join(root, 'control', 'cards', 'done', `${cards['80'].mergeId}.md`)))
 })
@@ -287,9 +287,9 @@ test('会话释放：onAgentDisposed 失效该会话通道缓存（新 run 建�
   const agent2 = { id: agent.id, session: agent.session, followups: [], followup(msg) { agent.followups.push(msg) } }
   await orch.auto(agent2, '76')
   await waitFor(() => orch.status(agent2).stage === 'ops')
-  const hist3 = orch.status(agent2).history.map((h) => h.event).join('\n')
-  assert.doesNotMatch(hist3, /复用会话既有通道/, '缓存已失效：新 run 不得复用旧通道')
-  assert.match(hist3, /团队模式：agentTeams 就绪/, '新 run 应新建通道')
+  const fullHist3 = orch.runs.get(agent2.session.id).history.map((h) => h.event).join('\n') // status() 已瘦身（≤10 条），早期事件断言走全量史
+  assert.doesNotMatch(fullHist3, /复用会话既有通道/, '缓存已失效：新 run 不得复用旧通道')
+  assert.match(fullHist3, /团队模式：agentTeams 就绪/, '新 run 应新建通道')
   assert.ok(existsSync(join(root, 'control', 'cards', 'done', `${cards['76'].cardId}.md`)), '新 run 仍应正常收口')
 })
 
