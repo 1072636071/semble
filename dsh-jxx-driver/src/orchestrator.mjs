@@ -935,10 +935,19 @@ export class Orchestrator {
       }).catch(async (e) => {
         run.controllers.delete(controller)
         if (shadow) shadow.alive = false
-        // 失败路也要记名（工单 05 返工 r2）：`dispatch` 把名字写进 `cardOwners` 后**才**投递，
-        // 故投递失败时通道侧已知道这个名字（`nameOf` 可读）——而 `.then` 不执行 ⇒ `mergeMemberName`
-        // 会留在 undefined。下游三处判据都读它：① 段 6 存活探针（`mergerRoundInFlight`）② 重发点名
-        // ③ 前沿在飞闸。r2 实测：不补记名 ⇒ 前沿判「轮次不在跑」⇒ 每 tick 抢派被闸拒 ⇒ 烧预算转人工。
+        // 失败路也记名（工单 05 返工 r2；r3 复核后按实况措辞）：`dispatch` 把名字写进 `cardOwners`
+        // 后**才**投递，故投递失败时通道侧已知该名（`nameOf` 可读），而 `.then` 不执行 ⇒
+        // `mergeMemberName` 会留在 undefined。下游三处判据都读它，但**实效面只有第 ① 处**：
+        //   ① 段 6 存活探针（`mergerRoundInFlight`）——**有实效**：名字缺失 ⇒ 探针查不到成员
+        //      ⇒ 判「轮次不在跑」⇒ 段 6 可接管（这正是本处要保证的可观测性）；
+        //   ② 重发点名（`resendTeamDirective`）——**已有兜底**：`|| run.channel.nameOf(mergeId)`
+        //      在名字缺失时从通道取同一值，故本处非必要；
+        //   ③ 前沿在飞闸——**已有掩蔽**：在飞判据与 `allowInFlight` 逃生口共同覆盖，名字缺失
+        //      不改变其结论。
+        // 即：本块是**纵深防御**（保证 ① 的判据输入完整），不是 ②③ 的必要条件。
+        // r3 实证：删掉本块后本单 4 个韧性/幂等测试文件 + 全部回归用例**同结果全绿**（31/31），
+        // 故不声称「不补记名 ⇒ 前沿每 tick 抢派烧预算」——那是 r2 修复的**整体**效果（含前沿
+        // 在飞闸与退避态守卫两处），不能单归因于本块。
         if (rec.mergeMemberName === undefined) {
           const known = run.channel.nameOf?.(mergeId)
           if (known !== undefined) rec.mergeMemberName = known
