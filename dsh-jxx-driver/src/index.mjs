@@ -206,24 +206,59 @@ export function apply(ctx, rawConfig) {
 
 // ---------- 内部 ----------
 
-async function dispatch(orch, args, agent) {
+/**
+ * dispatch 出口的统一序列化兜底（PRD 111 工单 03 / ADR-0122 D3）。
+ *
+ * 背景：宿主对工具返回体做 lossless JSON 校验，Map/Set/undefined 属性值/函数只要有一个
+ * 溜进返回体，jxx_flow 监控面就整体报「value is not lossless JSON」全瞎——status 是编排期
+ * 唯一监控通道，静默故障直接放大「死亡无感知」。历史故障三连发：PRD 97（STAGE_HINTS.adr
+ * 缺失）、PRD 102（run.cards Map）、PRD 110 再现；每次点状修无闸防复发，本兜底 + 遍历闸
+ * （test/serialization.test.mjs）把这一类问题收口成单点。
+ *
+ * 语义：返回值先过 JSON.parse(JSON.stringify(value))——undefined 属性值被丢弃、Map/Set
+ * 降级为 {}、**顶层**函数与顶层 undefined 经 stringify→undefined 转 null（**属性级**函数值
+ * 与 undefined 属性值同为整键丢弃），宿主 lossless 序列化之前先行降级为 plain JSON；
+ * 兜底自身失败（环形引用、getter 中毒等 stringify 直接抛）降级为 { error: 'non-serializable' }
+ * 并 warn 留痕（std 审查发现项：降级即「返回体带毒」实证，静默吞掉就重演本单要消灭的形态），
+ * 不炸工具面（编排功能不受影响，status 可继续用）。export 供遍历闸测试直接驱动。
+ * @param {unknown} value dispatch 各 action 的返回值（已 await）
+ * @param {{warn?: (msg: string) => void}} [log] 可选 logger（dispatch 传 orch.log；直驱测试可不传）
+ * @param {string} [label] 留痕用调用标签（如 `jxx_flow(status)`）
+ */
+export function serializeValue(value, log, label = 'jxx_flow') {
+  try {
+    const text = JSON.stringify(value)
+    return text === undefined ? null : JSON.parse(text)
+  } catch (e) {
+    log?.warn?.(`[jxx-driver] ${label} 返回值无法无损序列化（${e.message}），已降级为 { error: 'non-serializable' }——编排功能不受影响，但该次返回体带非 plain 值，建议排查来源（历史先例：PRD 102 run.cards Map）`)
+    return { error: 'non-serializable' }
+  }
+}
+
+/** dispatch 导出（test/serialization.test.mjs 遍历闸按同一路径驱动全 action 返回值）。 */
+export async function dispatch(orch, args, agent) {
+  // 每 action 返回值过 serializeValue 兜底（PRD 111 工单 03 / ADR-0122 D3）——
+  // 先 await 再兜底：serializeValue 是同步的，包住 Promise 会把 awaitable 降级成 {}。
+  // 八分支逐条包裹是**有意取舍**（rule 审查复核）：test ③ 的静态防退化闸按「case 级必须有
+  // return serializeValue(」把关——单点包一层会让静态闸失义，新增分支漏包兜底只有运行时才暴露。
+  const log = typeof orch?.log === 'object' ? orch.log : undefined
   switch (args.action) {
     case 'go':
-      return goDispatch(orch, args, agent)
+      return serializeValue(await goDispatch(orch, args, agent), log, `jxx_flow(${args.action})`)
     case 'start': // 旧入口别名 = standard 轨道
-      return goDispatch(orch, { ...args, action: 'go', track: args.track ?? 'standard' }, agent)
+      return serializeValue(await goDispatch(orch, { ...args, action: 'go', track: args.track ?? 'standard' }, agent), log, `jxx_flow(${args.action})`)
     case 'quick': // 旧入口别名 = quick 轨道
-      return goDispatch(orch, { ...args, action: 'go', track: args.track ?? 'quick' }, agent)
+      return serializeValue(await goDispatch(orch, { ...args, action: 'go', track: args.track ?? 'quick' }, agent), log, `jxx_flow(${args.action})`)
     case 'auto': // 旧入口别名 = go（显式 PRD 编号编排是 auto 内建路径）
-      return goDispatch(orch, { ...args, action: 'go', idea: args.idea ?? args.prd, track: args.track ?? 'auto' }, agent)
+      return serializeValue(await goDispatch(orch, { ...args, action: 'go', idea: args.idea ?? args.prd, track: args.track ?? 'auto' }, agent), log, `jxx_flow(${args.action})`)
     case 'advance':
-      return orch.advance(agent)
+      return serializeValue(await orch.advance(agent), log, `jxx_flow(${args.action})`)
     case 'status':
-      return orch.status(agent)
+      return serializeValue(await orch.status(agent), log, `jxx_flow(${args.action})`)
     case 'resumed':
-      return orch.flowResumed(agent, 'jxx_flow 显式恢复')
+      return serializeValue(await orch.flowResumed(agent, 'jxx_flow 显式恢复'), log, `jxx_flow(${args.action})`)
     case 'stop':
-      return orch.stop(agent)
+      return serializeValue(await orch.stop(agent), log, `jxx_flow(${args.action})`)
     default:
       throw new Error(`未知 action：${args.action}（合法：go/advance/status/stop/resumed；start/quick/auto 仍作为别名可用）`)
   }
