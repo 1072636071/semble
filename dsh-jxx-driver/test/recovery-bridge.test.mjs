@@ -411,22 +411,59 @@ test('审查发现项 H（rule）：history 非数组不抛、且不吞掉其余
   assert.ok(warns.some((w) => /上次编排中断于宿主重启/.test(w)), '正常 run 照常响亮告警')
 })
 
-test('审查发现项 M（rule）：他方活 run（新鲜锁）不报也不改写；陈旧锁仍判中断', () => {
+test('审查发现项 M（rule）+ r2 纠错：锁在位仍上报（崩溃现场不得被自己吞掉），但不改写其文件', () => {
   const root = mkRoot()
-  const id = 'foreign-id'
+  const id = 'locked-id'
   writeRun(root, `${id}.json`, interruptedRec(id, join(root, '.scratch', '111-x')))
-  // 新鲜锁 = 另一台 dsh 正在跑这个 run（锁是活跃证据，与 assertNoForeignRun 同一权威面）
-  writeRun(root, `${id}.lock.json`, { id, sessionId: 'other-sess', stage: 'implement', updatedAt: new Date().toISOString() })
-  const { orch } = mkOrch()
+  // 崩溃 run 的锁恰好是**新鲜的**（最后一次 persist 就在崩溃前几秒、5s 轮询）——
+  // 所以「新鲜锁 ⇒ 不是中断」会把重启现场静默吞掉（r2 复审实测 reported: 0）。
+  const fresh = new Date().toISOString()
+  writeRun(root, `${id}.lock.json`, { id, sessionId: 'other-sess', stage: 'implement', updatedAt: fresh })
+  const { orch, warns } = mkOrch()
 
   const found = orch.recoverInterruptedRuns(root)
 
-  assert.deepEqual(found, [], '他方活 run 不该被报成中断')
-  assert.equal(readRun(root, `${id}.json`).interruptedAt, undefined, '更不该改写它方 run 的观测文件')
+  assert.deepEqual(found.map((f) => f.id), [id], '锁在位仍必须上报（宁多报不藏现场）')
+  assert.equal(found[0].lockHeld, true, '标记「仍持锁」供人工先确认')
+  assert.equal(found[0].marked, false, '持锁时不改写他方可能仍在用的观测文件')
+  assert.equal(readRun(root, `${id}.json`).interruptedAt, undefined, '持锁 ⇒ 不写标记')
+  assert.match(warns.find((w) => /locked-id/.test(w) && /中断于宿主重启/.test(w)), /仍持有互斥锁|可能另有编排进程在跑/,
+    '持锁现场须提示「可能另有进程在跑」')
+  assert.match(warns.find((w) => /共识别/.test(w)), /下次装载会重复上报/, '汇总行如实说明未写标记 ⇒ 会重复报')
 
-  // 陈旧锁（>24h，宿主崩溃残留）⇒ 崩溃现场仍须报出来，否则永远藏住
+  // 陈旧锁（>24h，崩溃残留）⇒ 可安全写标记；且**已写标记的第二次不再重报**
   writeRun(root, `${id}.lock.json`, { id, sessionId: 'other-sess', updatedAt: new Date(Date.now() - 25 * 3600_000).toISOString() })
-  assert.deepEqual(orch.recoverInterruptedRuns(root).map((f) => f.id), [id], '陈旧锁不妨碍上报崩溃现场')
+  const again = orch.recoverInterruptedRuns(root)
+  assert.deepEqual(again.map((f) => f.id), [id], '陈旧锁现场仍上报（首次未写标记 ⇒ 再报一次）')
+  assert.equal(again[0].marked, true, '陈旧锁 ⇒ 写标记')
+  assert.ok(readRun(root, `${id}.json`).interruptedAt, '陈旧锁现场的标记已落盘')
+  assert.deepEqual(orch.recoverInterruptedRuns(root), [], '标记落盘后第三次不再重报')
+})
+
+test('审查发现项 F8（r2 复审）：合并卡影子账不得把「开发卡已全转人工」判成可续接', () => {
+  const root = mkRoot()
+  // 真路径实测形态：开发卡 blocked + 影子账 merge-<id> phase=open（persist 不落 mergeShadow 标记）
+  writeRun(root, 'shadow.json', interruptedRec('shadow-id', join(root, '.scratch', '93-x'), {
+    cards: { '93-01-solo': { phase: 'blocked' }, 'merge-93-01-solo': { phase: 'open' } },
+  }))
+  // 对照：开发卡仍非终态 ⇒ 真可续接
+  writeRun(root, 'live.json', interruptedRec('live-id', join(root, '.scratch', '94-y'), {
+    cards: { '94-01-solo': { phase: 'claimed' }, 'merge-94-01-solo': { phase: 'open' } },
+  }))
+  // 对照：开发卡已 done ⇒ 同样不可续接（旧记录无影子账）
+  writeRun(root, 'doneonly.json', interruptedRec('doneonly-id', join(root, '.scratch', '95-z'), {
+    cards: { '95-01-solo': { phase: 'done' } },
+  }))
+  const { orch, warns } = mkOrch()
+
+  const found = orch.recoverInterruptedRuns(root)
+  const by = (id) => found.find((f) => f.id === id)
+
+  assert.equal(by('shadow-id').resumable, false, '影子账 open 不得把 blocked 开发卡抬成可续接（F8 核心）')
+  assert.equal(by('live-id').resumable, true, '开发卡 claimed ⇒ 可续接')
+  assert.equal(by('doneonly-id').resumable, false, '开发卡 done ⇒ 不可续接')
+  assert.doesNotMatch(warns.find((w) => /shadow-id/.test(w)), /续接请执行/, '不可续接的不得给续接指令')
+  assert.match(warns.find((w) => /shadow-id/.test(w)), /重烧人工搁置的卡/, '文案须说清续接的后果')
 })
 
 test('审查发现项 H2（spec/std）：failRun 真落盘 ⇒ 受控失败不被误报成中断（走真 failRun，不手写 fixture）', () => {
@@ -455,13 +492,14 @@ test('审查发现项 H2（spec/std）：failRun 真落盘 ⇒ 受控失败不�
 
 // ---------- 可续接性（三维审查追加发现项）----------
 
-test('审查发现项 R：全部卡 blocked/done 的现场标为「待人工裁决」，不再劝「请续接」', () => {
+test('审查发现项 R（r2 复审订正措辞）：开发卡全终态 ⇒ 报「会重烧人工搁置的卡」，不直接劝续接', () => {
   const root = mkRoot()
-  // 卡已全终态：续接不会推进 ⇒ 该报「待人工裁决」而非「请续接」
+  // 开发卡全终态（blocked/done）：续接会把人工搁置的卡重新 arm 成 open（r2 复核实测全 blocked
+  // 现场续接会推进），故不能笼统说「续接不会推进」——准确说法是「会重烧人工搁置的卡」。
   writeRun(root, 'parked.json', interruptedRec('parked-id', join(root, '.scratch', '111-x'), {
     cards: { 'c-1': { phase: 'blocked' }, 'c-2': { phase: 'done' } },
   }))
-  // 还有非终态卡：续接真能推进
+  // 还有非终态开发卡：续接真能推进
   writeRun(root, 'live.json', interruptedRec('live-id', join(root, '.scratch', '112-y'), {
     cards: { 'c-1': { phase: 'blocked' }, 'c-2': { phase: 'claimed' } },
   }))
@@ -472,11 +510,11 @@ test('审查发现项 R：全部卡 blocked/done 的现场标为「待人工裁�
   const live = found.find((f) => f.id === 'live-id')
 
   assert.equal(found.length, 2, '两者都算中断（都该被看见）')
-  assert.equal(parked.resumable, false, '全终态卡 ⇒ 不可续接')
-  assert.equal(live.resumable, true, '有非终态卡 ⇒ 可续接')
+  assert.equal(parked.resumable, false, '开发卡全终态 ⇒ 不可续接')
+  assert.equal(live.resumable, true, '有非终态开发卡 ⇒ 可续接')
 
   const parkedAlarm = warns.find((w) => /parked-id/.test(w) && /中断于宿主重启/.test(w))
-  assert.match(parkedAlarm, /续接不会推进|待人工裁决/, '静置现场不得劝「请续接」')
+  assert.match(parkedAlarm, /重烧人工搁置的卡/, '须说清续接的真实后果')
   assert.doesNotMatch(parkedAlarm, /续接请执行/, '不得对不可续接的现场给出续接指令')
   assert.match(warns.find((w) => /live-id/.test(w)), /续接请执行/, '可续接的仍给续接指令')
 

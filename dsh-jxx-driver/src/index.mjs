@@ -135,25 +135,56 @@ export function apply(ctx, rawConfig) {
   // 静默空跑（而本方法曾是唯一调用点 ⇒ 磁盘标记永不落、告警永不响）。宿主自身的插件
   // （schedule / agent-team）都是「apply 时遍历 roots() **且**订阅 `agent/created`」的同款配对，
   // 这里对齐：apply 扫当前可达 root，之后每个新建 agent 再补扫它的 cwd（去重保证仍是一次）。
+  //
+  // **残余风险（spec 审查 F1，如实声明不假称已消）**：若 apply 那刻 roots() 为空、且此后**不再
+  // 新建 agent**（如热重载附着到一个既有会话），两条腿都不触发 ⇒ 该 cwd 永不被扫描。
+  // 未加兜底的理由：插件拿不到「会话已存在但我没收到事件」的可靠信号，任何补扫都得靠轮询/定时器，
+  // 那是 ADR-0122 D2 明确不要的面（且会把告警刷成噪声）。此时用户敲一次 `jxx_flow(status)`
+  // 即经只读面看到中断清单——这是该场景的既定出口。
   const scannedRoots = new Set()
-  const scanRootOnce = (cwd) => {
+  const scanRootOnce = (cwd, hostAgent) => {
     if (typeof cwd !== 'string' || cwd === '' || scannedRoots.has(cwd)) return
     scannedRoots.add(cwd)
     try {
-      const n = orch.recoverInterruptedRuns(cwd).length
+      const hits = orch.recoverInterruptedRuns(cwd)
       // 扫过就留痕（含「零中断」）：这条 info 是「装载面确实跑了」的机器可读证据——
       // 没有它，F1 那种「空跑」在观测面上与「没有中断」无法区分。
-      ctx.logger.info(n > 0
-        ? `[jxx-driver] 恢复桥：${cwd} 识别 ${n} 个中断 run`
+      ctx.logger.info(hits.length > 0
+        ? `[jxx-driver] 恢复桥：${cwd} 识别 ${hits.length} 个中断 run`
         : `[jxx-driver] 恢复桥：${cwd} 无中断 run`)
+      // notify 腿（工单构建内容 4「检测到中断 run 时**如该会话可达** → notify」）：
+      // 跨进程的 `notify(run, …)` 结构上不可达（它要求内存 run 且 `agents.get(id) === run.agent`，
+      // 见 orchestrator.notify 的守卫）——但本补扫腿手里**就有一个 live agent**，直接用
+      // `followup` 投一条同风格指引即可，无需重建 run。这与 01 的死亡自愈 notify 同形式
+      // （都是「往 Lead 会话投一条带机读续接串的用户消息」）。
+      if (hostAgent && typeof hostAgent.followup === 'function' && hits.length > 0) {
+        const lines = hits.map((h) => `· run ${h.id}（${h.featureDir || '未知目录'}）→ ${h.resumeHint}`
+          + (h.resumable ? '' : '（注：该 run 开发卡已全部 blocked/done，续接会重烧人工搁置的卡，请先人工裁决）')
+          + (h.lockHeld ? '（注：仍持互斥锁，可能另有编排进程在跑——续接前先确认/清锁）' : ''))
+        try {
+          hostAgent.followup({
+            id: globalThis.crypto?.randomUUID?.() ?? `rb-${Date.now()}`,
+            role: 'user',
+            content: [{
+              type: 'text',
+              text: `[jxx-driver] 检测到 ${hits.length} 个上次中断的编排 run（宿主重启残留）。`
+                + `本插件不自动重建；续接：jxx_flow(action="go", track="auto", idea="<PRD号>")\n${lines.join('\n')}`,
+            }],
+            source: { kind: 'user' },
+          })
+        } catch (e) {
+          ctx.logger.warn(`[jxx-driver] 恢复桥 notify 失败（会话可能已释放）：${e.message}`)
+        }
+      }
     } catch (e) {
       // 单个 root 失败不阻断装载，也不影响其他 root（逐 root 隔离）。
       ctx.logger.warn(`[jxx-driver] 恢复桥跳过 ${cwd}（${e.message}）`)
     }
   }
   try {
-    const roots = typeof ctx.get === 'function' ? ctx.get('agents') : undefined
-    for (const a of (typeof roots?.roots === 'function' ? roots.roots() : [])) scanRootOnce(a?.session?.header?.cwd)
+    // apply 腿：只有 roots() 可达时才有 live agent 可投递（据此决定是否走 notify 腿）。
+    const rootsSvc = typeof ctx.get === 'function' ? ctx.get('agents') : undefined
+    for (const a of (typeof rootsSvc?.roots === 'function' ? rootsSvc.roots() : [])) scanRootOnce(a?.session?.header?.cwd, a)
   } catch (e) {
     // 装载面绝不因恢复桥失败而失败（无 agents 服务等）。注意 `agent/created` 那条腿仍在，
     // 所以这里吞掉不构成「桥整体失效」。
@@ -161,7 +192,7 @@ export function apply(ctx, rawConfig) {
   }
   // 补扫腿：会话/队友 agent 建立时，按它的 cwd 再试一次（去重后仍是「每 cwd 一次」）。
   ctx.on('agent/created', ({ agent }) => {
-    try { scanRootOnce(agent?.session?.header?.cwd) } catch (e) {
+    try { scanRootOnce(agent?.session?.header?.cwd, agent) } catch (e) {
       ctx.logger.warn(`[jxx-driver] 恢复桥补扫失败：${e.message}`)
     }
   })
