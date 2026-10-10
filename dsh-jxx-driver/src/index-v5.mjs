@@ -14,6 +14,7 @@ import { normalizeConfig } from './config.mjs'
 import { Orchestrator, STAGES } from './orchestrator.mjs'
 import { listPrds } from './cards.mjs'
 import { randomUUID as cryptoUUID } from 'node:crypto'
+import { PLUGIN_SOURCE } from './plugin-source.mjs'
 
 export const name = 'jxx-driver'
 export const inject = ['subagents', 'systemPrompt', 'agents', 'tools']
@@ -167,7 +168,7 @@ async function goDispatch(orch, args, agent) {
       id: cryptoUUID(),
       role: 'user',
       content: [{ type: 'text', text: steerMsg }],
-      source: { kind: 'user' },
+      source: { ...PLUGIN_SOURCE },
     })
   }
   return {
@@ -208,7 +209,7 @@ async function runAuto(orch, agent, idea) {
           id: cryptoUUID(),
           role: 'user',
           content: [{ type: 'text', text: `[jxx-driver] 「${idea}」命中多份 PRD，请选出用户意图对应的一份（必要时问用户），然后 jxx_flow(action="go", track="auto", idea="<编号>")：\n${e.message.split('：').slice(1).join('：')}` }],
-          source: { kind: 'user' },
+          source: { ...PLUGIN_SOURCE },
         })
       }
       return {

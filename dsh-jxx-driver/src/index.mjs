@@ -12,6 +12,7 @@
 
 import { normalizeConfig } from './config.mjs'
 import { Orchestrator, STAGES, SESSION_ROLE } from './orchestrator.mjs'
+import { PLUGIN_SOURCE } from './plugin-source.mjs'
 import { randomUUID as cryptoUUID } from 'node:crypto'
 
 export const name = 'jxx-driver'
@@ -157,6 +158,10 @@ export function apply(ctx, rawConfig) {
       // 见 orchestrator.notify 的守卫）——但本补扫腿手里**就有一个 live agent**，直接用
       // `followup` 投一条同风格指引即可，无需重建 run。这与 01 的死亡自愈 notify 同形式
       // （都是「往 Lead 会话投一条带机读续接串的用户消息」）。
+      // 来源去伪造（工单 05 B3 合并树收口）：本腿 source 与死亡自愈 notify 同走 PLUGIN_SOURCE
+      // 单一真源——111-02 合入时 111-05 尚未落地、当时写 `{ kind: 'user' }` 合规；合并树上被
+      // B3 全 src 扫描判据命中（合并树全量测试抓红），机械并集解 = 保留投递意图、来源对齐
+      // 插件统一 kind（宿主契约 tool-goal README:72）。
       if (hostAgent && typeof hostAgent.followup === 'function' && hits.length > 0) {
         const lines = hits.map((h) => `· run ${h.id}（${h.featureDir || '未知目录'}）→ ${h.resumeHint}`
           + (h.resumable ? '' : '（注：该 run 开发卡已全部 blocked/done，续接会重烧人工搁置的卡，请先人工裁决）')
@@ -172,7 +177,7 @@ export function apply(ctx, rawConfig) {
               text: `[jxx-driver] 检测到 ${hits.length} 个上次中断的编排 run（宿主重启残留）。`
                 + `本插件不自动重建；续接：jxx_flow(action="go", track="auto", idea="<PRD号>")\n${lines.join('\n')}`,
             }],
-            source: { kind: 'user' },
+            source: { ...PLUGIN_SOURCE },
           })
         } catch (e) {
           ctx.logger.warn(`[jxx-driver] 恢复桥 notify 失败（会话可能已释放）：${e.message}`)
@@ -323,11 +328,14 @@ async function goDispatch(orch, args, agent) {
     SESSION_ROLE,
   ].filter(Boolean).join('\n')
   if (agent && typeof agent.steer === 'function') {
+    // B3 来源去伪造（R1 spec 审查发现项 1）：分流材料是**插件**投给会话的，不是真人输入——
+    // 必须用插件自有 kind，不得继承人类权限（宿主契约 tool-goal README:72；坐标见 plugin-source.mjs）。
+    // 旧代码此处写 `{ kind: 'user' }`，与 notify 面同罪；已收敛到单一真源 PLUGIN_SOURCE。
     agent.steer({
       id: cryptoUUID(),
       role: 'user',
       content: [{ type: 'text', text: steerMsg }],
-      source: { kind: 'user' },
+      source: { ...PLUGIN_SOURCE },
     })
   }
   return {
