@@ -5,7 +5,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync, renameSync, rmSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { Board } from './board.mjs'
 import { scanBoard, listTickets, findFeatureDir, ticketCardId, ticketNum, cardDeps } from './cards.mjs'
 import { adrGate, prdGate, ticketsGate, opsGate } from './gates.mjs'
@@ -76,6 +76,174 @@ export const AUTO_CONFIRM_HINTS = {
 
 function nowIso() {
   return new Date().toISOString()
+}
+
+/**
+ * 落盘 run 的 history 是否带**用户意图的受控终结**标记（PRD 111 工单 02）。
+ *
+ * `halt()` 会推 `停止：<原因>`、`failRun()` 会推 `失败：<原因>`，但**两者的语义不同**：
+ *  - `停止：用户主动停止`（用户显式 `/jxx stop`）⇒ 用户已经处理过了，**不该再报**（报了就是噪声）；
+ *  - `失败：<原因>`（进 implement 失败等受控失败）⇒ 已由 failRun 收口，也不该再报；
+ *  - **`停止：插件卸载` / `停止：宿主会话已释放` ⇒ 这是「宿主关停」而不是用户意图**——进程正要
+ *    退出，run 里的卡还在半空（实测本仓两个这种 run，卡分别停在 `reviewing`/`merging`，
+ *    对应工单至今仍在 `control/cards/open/`）。**这种必须报**，否则就是本单要消灭的静默死亡：
+ *    用户重启宿主后，恢复桥恰恰把它应当报的那一类（宿主重启中断）当成「已收口」静默跳过。
+ *
+ * 故判据按**原因白名单**取「用户已处理」而非「出现过停止标记」（r4 复审纠错：初版对任何
+ * `停止：` 都放行，把插件卸载这条最典型的宿主重启路径整类漏掉了）。原因文本是 `halt()` 的
+ * 第三参，本文件内共三处调用点，取值见 `stop`/`onAgentDisposed`/`dispose`。
+ */
+const USER_RESOLVED_STOP_REASONS = /^停止：(用户主动停止)/
+function hasTerminalMarker(history) {
+  if (!Array.isArray(history)) return false // 非数组一律当无标记（调用方 lastEventOf 同口径）
+  return history.some((e) => {
+    const ev = String(e?.event ?? '')
+    if (/^失败：/.test(ev)) return true                              // failRun 收口 = 受控失败
+    if (USER_RESOLVED_STOP_REASONS.test(ev)) return true             // 用户显式停止 = 已处理
+    return false                                                     // 其余「停止：」= 宿主关停 ⇒ 仍算中断
+  })
+}
+
+/**
+ * 安全取落盘 history 的末条事件文本（rule 审查发现项）：`rec.history?.at(-1)` 只防了 null，
+ * **没防非数组**——落盘文件被手改/截断/别的写者留下 `"history": {}` 时 `.at` 不存在会抛
+ * TypeError。抛出点若在恢复桥的扫描循环里，会让**后面所有 run 都不再被检查**（一次坏文件
+ * ⇒ 0/N 上报，正是本单要消灭的静默死亡形态）；若在 `status()` 里则直接抛给用户。
+ * 故所有 history 读取都走这里：非数组一律当「无历史」（空串），不抛。
+ */
+function lastEventOf(history) {
+  if (!Array.isArray(history) || history.length === 0) return ''
+  return String(history.at(-1)?.event ?? '').slice(0, 120)
+}
+
+/**
+ * featureDir 目录名 → 续接用的 PRD 编号引用（`…/94-jxx-driver-plugin` → `94`；
+ * 取不到前导数字时回退整个目录名）。供恢复桥拼 `resumeHint`，与 ADR-0118「编号由给出」口径一致。
+ */
+function prdRefOf(featureDir) {
+  const name = String(featureDir ?? '').trim().replace(/[\\/]+$/, '')
+  if (!name) return ''
+  const base = name.split(/[\\/]/).pop() ?? ''
+  const m = base.match(/^(\d+)/)
+  return m ? m[1].replace(/^0+(?=\d)/, '') : base
+}
+
+/**
+ * 扫落盘 run 文件（恢复桥与工具面共用，**单源**——两处各写一份扫描必然漂移）。
+ * 只认 `<id>.json`：`.lock.json`（互斥锁）是**活跃证据**不是执行史，误收会把在跑的 run 报成中断。
+ * `writeJsonAtomic` 的临时名是 `<file>.json.tmp-<pid>-<uuid>`，已被 `endsWith('.json')` 挡掉；
+ * 保留 `.tmp-` 那半句是**纵深防御**（万一将来临时名改成 `<id>.json` 前缀形态），不是当前必需。
+ * 坏 JSON 跳过（残留损坏不该阻断装载）。
+ * @returns {Array<{ file, path, rec, id }>}
+ */
+function scanRunFiles(root) {
+  const out = []
+  if (!root) return out
+  const dir = join(root, 'control', 'jxx-driver-runs')
+  if (!existsSync(dir)) return out
+  let files = []
+  try { files = readdirSync(dir) } catch { return out } // 目录读不了 = 无现场，不阻断
+  for (const f of files) {
+    if (!f.endsWith('.json') || f.endsWith('.lock.json') || f.includes('.tmp-')) continue
+    const path = join(dir, f)
+    let rec
+    try { rec = JSON.parse(readFileSync(path, 'utf8')) } catch { continue }
+    if (!rec || typeof rec !== 'object' || Array.isArray(rec)) continue
+    out.push({ file: f, path, rec, id: String(rec.id ?? basename(f, '.json')) })
+  }
+  return out
+}
+
+/**
+ * 活 run 的 id 集合（恢复桥判据②用）：`this.runs` 按 sessionId 索引，值才是 run 对象——
+ * 落盘记录的 `id` 是 run.id（不是 sessionId），所以要把值里的 id 摘出来比对。
+ * 「活 run = 不该被报成中断」，这个换算是两处调用点共用的**单源**（写两遍必然漂移）。
+ */
+function liveRunIdSet(runs) {
+  return new Set([...runs.values()].map((r) => r?.id).filter((v) => typeof v === 'string' && v !== ''))
+}
+
+/**
+ * 落盘 run 是否带**未摘除**的互斥锁（`.lock.json`）。锁由 `persist()` 每次落、`halt`/`failRun` 摘除，
+ * 故**在位 = 持有者没有正常收尾**——要么另一台 dsh 此刻在跑，要么持有它的进程崩了。
+ *
+ * **锁只用来决定「要不要改写文件」，不用来过滤上报**（r2 复审纠错）：初版把「新鲜锁」当作
+ * 「不是中断」直接跳过，方向是错的——崩溃的 run 其锁恰好是**新鲜的**（最后一次 persist 就在崩溃
+ * 前几秒，5s 轮询），于是**重启现场被自己的过滤条件静默吞掉**，正是本单要消灭的形态。实测复现：
+ * 探针造真 run → 进程退出（锁留）→ 恢复桥 `reported: 0`。
+ * 现在的口径：
+ *  - **一律上报**（宁多报不藏现场）；锁在位时附 `lockHeld: true`，告警文案说明「另一编排可能仍在跑」。
+ *  - **锁在位 ⇒ 不写 `interruptedAt`/`resumeHint`**：不去改动可能仍属他方活 run 的观测文件
+ *    （他方下次 persist 会整文件重写，标记本就留不住；不写则更干净）。
+ *  - 陈旧锁（>24h，与 `assertNoForeignRun` 同一孤儿口径）视作崩溃残留 ⇒ 照常写入标记。
+ */
+function lockStateOf(root, id, lockStaleMs = 24 * 3600_000) {
+  const lockPath = join(root, 'control', 'jxx-driver-runs', `${id}.lock.json`)
+  if (!existsSync(lockPath)) return { held: false, stale: false }
+  try {
+    const lock = JSON.parse(readFileSync(lockPath, 'utf8'))
+    const age = Date.now() - Date.parse(lock.updatedAt ?? lock.startedAt ?? 0)
+    const stale = Number.isFinite(age) && age > lockStaleMs
+    return { held: true, stale }
+  } catch {
+    // 坏锁（解析不出）⇒ 当崩溃残留：仍报、仍写标记（不留坏文件挡住现场标记）
+    return { held: true, stale: true }
+  }
+}
+
+/**
+ * 中断 run 的**可续接性**（三维审查追加发现项）：落盘 `cards` 里是否还有非终态卡
+ * （phase 不是 `blocked`/`done`）。
+ *  - `true` ⇒ 还有活没跑完，`go track=auto <PRD>` 续接**真能推进**；
+ *  - `false` ⇒ 所有**开发卡**都已转人工/已完成，run 是被「转人工」终结的静置现场——此时给
+ *    「请续接」是**误导**，该报的是「卡已转人工，续接会重烧人工搁置的卡」。
+ *
+ * **必须排除合并卡影子账**（r2 复审 F8，r2 引入的硬缺陷）：`enterImplement` 给每张开发卡登记
+ * 一条 `merge-<id>` 影子账（`{phase:'open', mergeShadow:true}`），而 `persist()` 只落 phase 等
+ * 白名单字段、**不落 `mergeShadow` 标记** ⇒ 从落盘文件认不出影子，那条 `phase:'open'` 会让
+ * **每一个本代 run 恒判可续接**、`待人工裁决` 分支实际不可达。实测（真路径）：开发卡 blocked +
+ * 影子 open ⇒ `resumable:true`——正是该拆分要消灭的误导。
+ * 文件内既有单源先例：`allDone` 判定显式排除影子（`.every((c) => c.phase === 'done' || c.mergeShadow)`）。
+ * 故这里**按 `merge-` 前缀识别影子**（与 `devIdOf`/`mergeIdOf` 同一归一约定，落盘面唯一可判据）。
+ *
+ * 取不到 cards（老记录/坏形态）时按 `true` 处理：宁可按可续接提示（多给一条出路），
+ * 也不要因为读不到卡账把一个真·中断说成「已完成、无需处理」。
+ */
+function hasActionableCards(rec) {
+  const cards = rec?.cards
+  if (!cards || typeof cards !== 'object' || Array.isArray(cards)) return true
+  const devPhases = Object.entries(cards)
+    .filter(([id]) => !id.startsWith('merge-')) // 影子账不计（见上）
+    .map(([, c]) => c?.phase)
+  if (devPhases.length === 0) return true
+  return devPhases.some((p) => p !== 'blocked' && p !== 'done')
+}
+
+/**
+ * 单条落盘 run 是否**真·中断**（恢复桥判据①②③④；单源，`recoverInterruptedRuns` 与
+ * `listInterruptedRuns` 共用同一份判据——两处各判一次必然漂移）。逐条都必要：
+ *  ① `stage === 'implement'`——编排**进行中**的相位。`done`/`ops` 已走完或收尾中不报（ADR-0122 D2
+ *     明写只扫 implement）；`decide/adr/prd/tickets` 是等用户/等文档的静置相位，无队友在飞，
+ *     重启后按 `go` 重进即可，报出来只是噪声。
+ *  ② 内存里没有对应 run——本进程仍在跑的 run 不是中断。**比对的是 `run.id`**：`this.runs` 表按
+ *     **sessionId** 索引（`this.runs.set(sessionId, run)`），而落盘记录的 `id` 是 `newRun` 里另生的
+ *     randomUUID（也用于文件名）；两者**不同域**，拿 sessionId 去比 `rec.id` 或反之都恒不命中。
+ *     调用方须传「活 run 的 id 集合」（`[...this.runs.values()].map(r => r.id)`）。
+ *  ③ 落盘 history **无「用户已处理」终结标记**（见 `hasTerminalMarker`：只有
+ *     `停止：用户主动停止` 与 `失败：…` 算已处理；`停止：插件卸载`/`停止：宿主会话已释放`
+ *     **不算**——那是宿主关停、run 的卡仍在半空，正是本桥要报的那一类）。**这条是防误报的
+ *     关键**：没有它，每次装载都会把用户早已 stop 的历史 run 全报一遍（本仓实测 26 个落盘 run
+ *     里 23 个 stage=implement，其中 11 个带 `停止：用户主动停止` 标记）。
+ *
+ * **互斥锁刻意不在这里过滤**（r2 复审纠错）：崩溃 run 的锁恰好是新鲜的（最后一次 persist 就在
+ * 崩溃前几秒、5s 轮询），拿它当「不是中断」会**静默吞掉重启现场**——实测探针造真 run 后进程
+ * 退出，恢复桥 `reported: 0`。锁只决定「要不要改写文件」（见 `lockStateOf` 与调用点判断）。
+ */
+function isInterruptedRun(rec, id, liveRunIds, root) {
+  if (!rec || rec.stage !== 'implement') return false
+  if (liveRunIds.has(id)) return false
+  if (hasTerminalMarker(rec.history)) return false
+  return true
 }
 
 function writeJsonAtomic(path, value) {
@@ -208,7 +376,23 @@ export class Orchestrator {
   status(agent) {
     const sessionId = agent.session.id ?? agent.id
     const run = this.runs.get(sessionId)
-    if (!run) return { active: false, hint: '本会话没有进行中的编排' }
+    // 恢复桥只读面（PRD 111 工单 02 构建内容 3）：**无 run 时**附中断摘要——这正是宿主重启后
+    // 用户敲 `status` 看到的第一眼（内存 run 已随进程消失）。有 run 时不附（本会话在跑的不是中断）。
+    const root = agent.session?.header?.cwd
+    const interruptedRuns = run ? undefined : this.listInterruptedRuns(root)
+    if (!run) {
+      if (!interruptedRuns?.length) return { active: false, hint: '本会话没有进行中的编排' }
+      // 可续接数单列（三维审查追加发现项）：卡已全 blocked/done 的现场续接不推进，
+      // 把它们算进「待续接」会让用户白跑一次 go。
+      const resumable = interruptedRuns.filter((r) => r.resumable).length
+      const parked = interruptedRuns.length - resumable
+      return {
+        active: false,
+        hint: `本会话没有进行中的编排；检出上有 ${interruptedRuns.length} 个上次中断的 run`
+          + `（${resumable} 个可续接${parked > 0 ? `，${parked} 个待人工裁决（卡已全 blocked/done）` : ''}）`,
+        interruptedRuns,
+      }
+    }
     const board = run.stage === 'implement' ? this.safeScan(run) : undefined
     return {
       active: true, stage: run.stage, idea: run.idea,
@@ -1593,6 +1777,139 @@ export class Orchestrator {
   }
 
   /**
+   * 恢复桥（PRD 111 工单 02 / ADR-0122 D2）：宿主重启后扫落盘 run，把**真·中断**的 run 报出来
+   * 并给续接指引。**只检测上报，不自动重建**——run 内的 Lead agent 引用跨重启已死（工单 04
+   * 毒缓存同款），重建链路脆且不可测；续接路径天然存在（`enterImplement` 复用既有卡）。
+   *
+   * 判据（三条全部成立才算中断，逐条都必要；实现在 `isInterruptedRun` 单源）：
+   *  ① `stage === 'implement'`——编排**进行中**的相位。`done`/`ops` 等已走完或收尾中的 run 不报
+   *     （ADR-0122 D2 明写只扫 implement）；`decide/adr/prd/tickets` 是等用户/等文档的静置相位，
+   *     无队友在飞，重启后按 `go` 重新进入即可，报出来只会制造噪声。
+   *  ② **内存里没有对应 run**——本进程仍在跑的 run 不是中断。比对的是 `run.id` 本身；注意
+   *     `this.runs` 表按 **sessionId** 索引、而落盘 `id` 是另生的 randomUUID，两者**不同域**
+   *     （换算见 `liveRunIdSet`，勿改成拿 sessionId 比 `rec.id`）。
+   *  ③ **落盘 history 无「用户已处理」终结标记**（判据见 `hasTerminalMarker`）：只有
+   *     `停止：用户主动停止` 与 `失败：…` 算已处理；**`停止：插件卸载` / `停止：宿主会话已释放`
+   *     不算**——那是宿主关停路径（`dispose`/`onAgentDisposed`），run 的卡仍在半空，正是本桥
+   *     要报的那一类。**这条是防误报的关键**：没有它，每次装载都会把用户早已 stop 的历史 run
+   *     全报一遍（本仓实测 26 个落盘 run 里 23 个 stage=implement，其中 11 个带
+   *     `停止：用户主动停止` 标记），告警立刻变噪声。
+   *  **互斥锁不在判据里**（r3 复审纠错）：崩溃 run 的锁恰好新鲜（最后一次 persist 在崩溃前几秒、
+   *  5s 轮询），拿它当「不是中断」会静默吞掉重启现场。锁只决定「要不要改写文件」，见 `lockStateOf`。
+   *  ④ 另有**幂等**一层（不是判据）：已有 `interruptedAt` 的不重复报——恢复桥自己写过的标记即
+   *     「已上报」凭据。
+   *
+   * 副作用（幂等）：命中项在**其落盘 JSON 内**追加 `interruptedAt` + `resumeHint`（就地合并，
+   * 不改其他字段——这些文件是观测面，不是本方法的账本）；**持新鲜锁时不写**（他方可能仍在用），
+   * 此时 `marked:false` 且下次装载会如实重复上报。并 `log.warn` 响亮告警。
+   * **逐条 run 独立 try/catch**：一条坏记录不能吞掉其余 run 的上报（否则 1 个坏文件 = 0/N 上报，
+   * 正是本单要消灭的静默死亡形态）。
+   *
+   * @param {string} root 工作区根（含 `control/jxx-driver-runs/`）；空值直接返回空清单。
+   * @returns {Array<{ id, stage, idea, featureDir, updatedAt, lastEvent, interruptedAt, resumeHint, resumable, lockHeld, marked }>}
+   *   本次**新**识别出的中断 run（已标记过的不在其中；供 index 面汇总/工具面透出）。
+   *   `resumable` = 是否还有非终态**开发卡**（排除合并卡影子账）；`lockHeld` = 是否仍持互斥锁；
+   *   `marked` = 本次是否真的写入了标记（false ⇒ 下次装载会重复上报）。
+   */
+  recoverInterruptedRuns(root) {
+    const found = []
+    const liveIds = liveRunIdSet(this.runs)
+    for (const { file, path, rec, id } of scanRunFiles(root)) {
+      if (!isInterruptedRun(rec, id, liveIds)) continue
+      if (rec.interruptedAt) continue // ④ 幂等：恢复桥自己写过的标记 = 「已上报」凭据，不重复报
+      // 单条 run 的处置整段包 try/catch（rule 审查发现项「包含反转」）：读侧一处抛错不能让
+      // **后面所有 run 都不再被检查**——一次坏文件 = 0/N 上报，正是本单要消灭的静默死亡形态。
+      try {
+        const lastEvent = lastEventOf(rec.history)
+        const interruptedAt = nowIso()
+        const resumable = hasActionableCards(rec)
+        const lock = lockStateOf(root, id)
+        const resumeHint = `jxx_flow(action="go", track="auto", idea="${prdRefOf(rec.featureDir) || '<PRD号>'}")`
+        // 锁在位（且未陈旧）⇒ 可能还有另一个 dsh 持有它：照报，但**不写**它的文件
+        // （避免改动他方活 run 的观测面；他方下次 persist 也会整文件重写，标记留不住）。
+        const writable = !lock.held || lock.stale
+        let marked = false
+        if (writable) {
+          try {
+            writeJsonAtomic(path, { ...rec, interruptedAt, resumeHint })
+            marked = true
+          } catch (e) {
+            this.log.warn(`[jxx-driver] 恢复桥标记写入失败（${file}）：${e.message}`)
+          }
+        }
+        found.push({
+          id, stage: rec.stage, idea: rec.idea ?? '', featureDir: rec.featureDir ?? '',
+          updatedAt: rec.updatedAt ?? '', lastEvent, interruptedAt, resumeHint, resumable,
+          lockHeld: lock.held, marked,
+        })
+        // 响亮告警（ADR-0122 D2 构建内容 1①）：固定前缀（可 grep）+ 四项取证坐标 + 续接指引。
+        // **可续接性分开报**（三维审查追加发现项）：开发卡全 blocked/done 的现场续接会重烧
+        // 人工搁置的卡，对它说「请续接」是误导——该报「已转人工，人工先裁决」。
+        this.log.warn(
+          `[jxx-driver] 上次编排中断于宿主重启：run ${id}（implement 阶段，最后事件「${lastEvent || '(无)'}」，`
+          + `工作目录 ${rec.featureDir || '(未知)'}，落盘 ${rec.updatedAt || '(未知)'}）。`
+          + (lock.held && !lock.stale
+            ? '**该 run 仍持有互斥锁 ⇒ 可能另有编排进程在跑**：若确知对方已死，先删 control/jxx-driver-runs/<id>.lock.json 再续接；'
+            : '')
+          + (resumable
+            ? `本插件不自动重建该 run；续接请执行 ${resumeHint}（复用既有卡）。`
+            : `该 run 的开发卡已全部 blocked/done ⇒ **续接会重烧人工搁置的卡**（属转人工后的静置现场）；请人工裁决：看板 done/blocked 列或 card-read 各卡流转段。`),
+        )
+      } catch (e) {
+        this.log.warn(`[jxx-driver] 恢复桥检查 ${file} 失败（跳过该 run，继续查其余）：${e.message}`)
+      }
+    }
+    if (found.length > 0) {
+      const resumable = found.filter((f) => f.resumable).length
+      const unmarked = found.filter((f) => !f.marked).length
+      this.log.warn(
+        `[jxx-driver] 恢复桥：共识别 ${found.length} 个中断 run`
+        + `——${resumable} 个可续接（有非终态开发卡），${found.length - resumable} 个卡已转人工/完成（人工先裁决）。`
+        + (unmarked > 0
+          ? `其中 ${unmarked} 个**未写入标记**（仍持互斥锁，或写入失败）⇒ **下次装载会重复上报**。`
+          : '已全部落盘 interruptedAt + resumeHint（重复装载不重复报）。'),
+      )
+    }
+    return found
+  }
+
+  /**
+   * 恢复桥的**只读**面（工具面消费者）：与 `recoverInterruptedRuns` 同一判据（`isInterruptedRun`
+   * 单源），但**不写文件、不告警**——`jxx_flow(status)` 每次调用都跑，不能有副作用。
+   * 返回**当前现场仍算中断**的全量清单（含被恢复桥标记过的：标记只表示「报过」，这些 run 依旧
+   * 处于中断未续接状态，工具面持续可见才有意义）。
+   * @param {string} root 工作区根；空值返回空清单。
+   */
+  listInterruptedRuns(root) {
+    const out = []
+    const liveIds = liveRunIdSet(this.runs)
+    for (const { rec, id } of scanRunFiles(root)) {
+      try {
+        if (!isInterruptedRun(rec, id, liveIds)) continue
+        const lockHeld = lockStateOf(root, id).held
+        out.push({
+          id, stage: rec.stage, idea: rec.idea ?? '', featureDir: rec.featureDir ?? '',
+          updatedAt: rec.updatedAt ?? '', lastEvent: lastEventOf(rec.history),
+          interruptedAt: rec.interruptedAt ?? '', // 空串 = 尚未被恢复桥报过（工具面首次看到）
+          resumable: hasActionableCards(rec), // 有非终态**开发卡**才续得动（见 hasActionableCards）
+          lockHeld, // 仍持锁 ⇒ 可能另有进程在跑，续接前先确认
+          resumeHint: rec.resumeHint ?? `jxx_flow(action="go", track="auto", idea="${prdRefOf(rec.featureDir) || '<PRD号>'}")`,
+          // 可执行前置条件（r3 复审发现项 1）：崩现场的锁恰好新鲜（<24h），而
+          // `assertNoForeignRun` 对非本会话的**未陈旧**锁一律拒启动 ⇒ 直接照 resumeHint 敲
+          // 会撞「已有另一编排会话在跑」。指引必须带这条前置，否则用户按提示操作先撞墙。
+          preconditions: lockHeld
+            ? ['该 run 仍持有互斥锁 control/jxx-driver-runs/<id>.lock.json：若确知持有者已死，先删除它再续接；否则先与对方确认']
+            : [],
+        })
+      } catch {
+        // 只读面同样逐条隔离：坏记录不该让 status 抛给用户（rule 审查发现项）。
+        continue
+      }
+    }
+    return out
+  }
+
+  /**
    * 停止/清场（PRD 110 工单 04 / ADR-0121 D4 生命周期收口）：
    *  - 一次性路径：沿用 AbortController.abort()（在飞子会话被宿主中止）——语义不变；
    *  - 团队路径：对在飞队友逐个 `teams.interrupt(run.agent, name)`（中断当前轮次、保留会话与
@@ -1644,6 +1961,15 @@ export class Orchestrator {
     run.lastError = msg
     run.history.push({ t: nowIso(), event: `失败：${msg}` })
     this.notify(run, msg)
+    // persist 必须在这里（PRD 111 工单 02 三维审查发现项，三份报告独立同判）：本方法此前**不落盘**，
+    // 只推内存 history + notify + 摘锁 ⇒ `失败：` 标记永远到不了磁盘。后果：
+    //  恢复桥（工单 02）把「失败：」当受控终结标记用，而它读的正是落盘 history ⇒ 判据半边失效，
+    //  历史失败 run 会在每次装载被误报成「中断」（本仓实测 23 个 implement run 里 12 个会被误报，
+    //  其中 7 个正是「worker 失败…已达重试上限，转人工」）。
+    // 与 halt() 对称（那边同样 push 后立即 persist）。
+    // 注：`lastError` **不在** persist() 的白名单里（那是既有观测面口径，本单不扩面）——失败原因
+    // 经 `失败：<msg>` 事件落 history，取证面已足够。
+    this.persist(run)
     this.releaseLock(run) // failRun = run 终结（入口三条路径 catch 后 runs.delete），互斥锁随终结摘除
   }
 }
