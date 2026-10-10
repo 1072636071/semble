@@ -564,10 +564,24 @@ export class Orchestrator {
     for (const c of bNow.inbox.filter((x) => managed(x.id) && x.id.startsWith('merge-'))) {
       const rec = run.cards.get(c.id)
       if (!rec || rec.phase !== 'open' || rec.alive) continue
-      if (rec.resilienceOwned) continue // 韧性链在管（退避计时/等待窗）——前沿不抢（工单 03 语义）
+      // 韧性链在管 ⇒ 前沿不抢（工单 03 语义）。**判据含「退避计时中」，不只是等待窗**（工单 05 返工 r2）：
+      // 原式只看 `rec.resilienceOwned`，而该标志**只在超限的等待窗分支**才置位（见 handleTeamDispatchFailure）
+      // ⇒ 退避重发计时期间前沿会照常抢派。r1 加了在飞闸后这一抢变成**有害**：前沿的抢派被闸响亮拒绝，
+      // 而拒绝经 spawnMerger 的 catch 回流到韧性入口 ⇒ **每抢一次就烧一次失败预算** ⇒ 计数烧穿转人工
+      // （r2 实测：拒绝重复派发 ×2 → 连续失败 4 次超上限；基线无闸时该抢派恰好充当了重试，故看不出问题）。
+      const st = run.resilience?.byCard?.get(c.id)
+      if (rec.resilienceOwned || st?.waiting === true || st?.timer !== undefined) continue
       const devId = devIdOf(c.id)
       const devRec = run.cards.get(devId)
       if (!devRec || devRec.phase !== 'merging') continue // 主卡不在合并窗（已被回挪降级/收口）→ 不派
+      // 在飞闸（工单 05 构建内容 2 明文要求「**前沿第 5 步**也加『已有在飞轮次则不派发』判据」；
+      // 返工 r2 补齐）：与 spawnWorker/spawnMerger 同一判据——「通道记名集合 ∩ 轮次仍健在」。
+      // 只靠 `rec.alive` 挡不住：合并轮在 dispatch **投递成功即清** alive（投递 ≠ 回合存活），
+      // 于是投递成功后前沿每 tick 重投 ⇒ 每条被在飞闸拒 ⇒ 经 spawnMerger 的 catch 回流韧性入口
+      // ⇒ **每抢一次烧一次失败预算**（r2 实测：拒绝重复派发 ×2 → 连续失败 4 次超上限；
+      // 基线无闸时该抢派恰好充当重试，故看不出问题）。
+      // 陈旧簿记（记名在册但轮次已不在跑）仍放行重派——那是清账动作，与 spawnMerger 同口径。
+      if (run.channel?.inFlightOf?.(c.id) === true && this.mergerRoundInFlight(run, devRec, rec)) continue
       if (devRec.mergeSettledAt !== undefined) continue // 首派 settle 成功后走段 4 收口/超时面，不经前沿重派（防 done 竞速窗口复活，R3 实录）
       if ((rec.retries || 0) > this.config.maxRetries) {
         // 重派预算 = 影子账 retries（写点仅本循环之外的 3 处：段 4 未收口超时面 / 段 6 僵死面 /
@@ -921,6 +935,14 @@ export class Orchestrator {
       }).catch(async (e) => {
         run.controllers.delete(controller)
         if (shadow) shadow.alive = false
+        // 失败路也要记名（工单 05 返工 r2）：`dispatch` 把名字写进 `cardOwners` 后**才**投递，
+        // 故投递失败时通道侧已知道这个名字（`nameOf` 可读）——而 `.then` 不执行 ⇒ `mergeMemberName`
+        // 会留在 undefined。下游三处判据都读它：① 段 6 存活探针（`mergerRoundInFlight`）② 重发点名
+        // ③ 前沿在飞闸。r2 实测：不补记名 ⇒ 前沿判「轮次不在跑」⇒ 每 tick 抢派被闸拒 ⇒ 烧预算转人工。
+        if (rec.mergeMemberName === undefined) {
+          const known = run.channel.nameOf?.(mergeId)
+          if (known !== undefined) rec.mergeMemberName = known
+        }
         if (run.dispatchFrozen) { this.persist(run); return } // stop 后不再走失败处置/回退派发（工单 04 生命周期收口）
         try {
           await this.safeHandleFailure(run, mergeId, e, {
@@ -1123,11 +1145,29 @@ export class Orchestrator {
    * 不在册响亮报错——绝不静默开新名（换名重建须走 respawnTeammate 明路）。
    */
   async resendTeamDirective(run, cardId, role, note) {
+    // 重发落法单源（工单 05 返工 r2）：**同名直发的前提是该名确实建成了（在册）**。
+    // 两种形态必须分开处理，混为一谈会死一边：
+    //  ① 在册 ⇒ `resend: true` + 显式点名——同会话唤醒、上下文零丢失，且**越过在飞闸**
+    //     （通道 inFlight 在派发前就记账，若不带 resend 会被自己的防重入闸拒掉：这正是 r1 的
+    //     merger 回归——退避重发被拒 ⇒ 计数烧穿转人工，基线 642d467b 可自愈）。
+    //  ② **不在册（首派即败）** ⇒ 交回**池路径**建 fresh 后继（`allowInFlight: true` 清陈旧簿记）。
+    //     `spawnTeammate` 抛错时 `members.set` 永不执行，此时硬走同名直发会撞通道的
+    //     「同名重发目标不在册」硬拒（r2 实测：a① 修好后立刻暴露的第二道坎）——而池路径正是
+    //     基线自愈语义（首个名字已被池占用 ⇒ 自然取新名建后继）。
+    const canResend = (name) => name !== undefined && run.channel.hasMember(name)
     if (role === 'merger') {
       const mergeId = mergeIdOf(cardId)
       const prompt = sendMergeDirective(run, mergeId, { member: true })
         + `\n上次派发失败（自动重发）：${note}\n`
-      await run.channel.dispatch({ role: 'merger', cardId: mergeId, prompt, signal: AbortSignal.any([AbortSignal.timeout(Orchestrator.RESEND_TIMEOUT_MS)]) })
+      const devRec = run.cards.get(devIdOf(mergeId))
+      const hintName = devRec?.mergeMemberName || run.channel.nameOf(mergeId)
+      if (canResend(hintName)) {
+        await run.channel.dispatch({ role: 'merger', name: hintName, resend: true, cardId: mergeId, prompt, signal: AbortSignal.any([AbortSignal.timeout(Orchestrator.RESEND_TIMEOUT_MS)]) })
+        run.history.push({ t: nowIso(), event: `team: ${mergeId} 同名重发 → ${hintName}（同会话唤醒，上下文零丢失）` })
+      } else {
+        await run.channel.dispatch({ role: 'merger', cardId: mergeId, prompt, signal: AbortSignal.any([AbortSignal.timeout(Orchestrator.RESEND_TIMEOUT_MS)]), allowInFlight: true, poolSize: 1 })
+        run.history.push({ t: nowIso(), event: `team: ${mergeId} 首派即败（${hintName ?? '无记名'} 未在册），池路径建 fresh 后继续跑` })
+      }
       return
     }
     const rec = run.cards.get(cardId)
@@ -1157,11 +1197,17 @@ export class Orchestrator {
     const prompt = rec.memberName
       ? memberDirective(cardId, retryNote)
       : workerPrompt(run.root, cardId, { member: true }) + `\n${retryNote}\n`
-    // 同名直发（resend）：目标 = 卡账记名 → 通道 cardOwners（首派即败时唯一痕迹）；不得落到名字池开新名
+    // 重发落法（与 merger 分支同源，见上）：在册 ⇒ 同名直发（带 resend 越过在飞闸）；
+    // **不在册（首派即败）** ⇒ 池路径建 fresh 后继（带 allowInFlight 清陈旧簿记）。
     const hintName = rec.memberName || run.channel.nameOf(cardId)
-    await run.channel.dispatch({ role: 'dev', name: hintName, resend: true, cardId, poolSize: this.config.parallel, prompt, signal: AbortSignal.any([AbortSignal.timeout(Orchestrator.RESEND_TIMEOUT_MS)]) })
+    if (canResend(hintName)) {
+      await run.channel.dispatch({ role: 'dev', name: hintName, resend: true, cardId, poolSize: this.config.parallel, prompt, signal: AbortSignal.any([AbortSignal.timeout(Orchestrator.RESEND_TIMEOUT_MS)]) })
+      run.history.push({ t: nowIso(), event: `team: ${cardId} 同名重发 → ${hintName}（同会话唤醒，上下文零丢失）` })
+    } else {
+      await run.channel.dispatch({ role: 'dev', cardId, poolSize: this.config.parallel, prompt, signal: AbortSignal.any([AbortSignal.timeout(Orchestrator.RESEND_TIMEOUT_MS)]), allowInFlight: true })
+      run.history.push({ t: nowIso(), event: `team: ${cardId} 首派即败（${hintName ?? '无记名'} 未在册），池路径建 fresh 后继续跑` })
+    }
     rec.alive = true
-    run.history.push({ t: nowIso(), event: `team: ${cardId} 同名重发 → ${hintName}（同会话唤醒，上下文零丢失）` })
   }
 
   /**

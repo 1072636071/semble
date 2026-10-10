@@ -366,6 +366,16 @@ export function createTeamChannel({ teams, agent, pool, ledger, provider = 'spaw
       return [...members.entries()].map(([name, m]) => ({ name, ...m }))
     },
 
+    /**
+     * 该名是否在册（生产面用）——与 `list()` 的「测试/诊断」口径分开，避免生产码依赖诊断视图。
+     * 用途（工单 05 返工 r2）：韧性重发要判「点名队友是否真实建成了」——**首派即败**时
+     * `spawnTeammate` 抛错、`members.set` 永不执行，此时同名直发会撞 `resend` 的「不在册」硬拒；
+     * 正确落法是交回池路径建 fresh 后继（= 基线自愈语义）。
+     */
+    hasMember(name) {
+      return members.has(name)
+    },
+
     /** 统计（测试/诊断用）。 */
     stats() {
       return { members: members.size, retiredTotal }
