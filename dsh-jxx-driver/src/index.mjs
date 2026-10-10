@@ -126,25 +126,45 @@ export function apply(ctx, rawConfig) {
   })
 
   // ---- 恢复桥（PRD 111 工单 02 / ADR-0122 D2）：装载时检测宿主重启留下的中断 run ----
-  // 只在**能判定根目录**时扫（`agents.roots()` 的会话 cwd）；判不出就静默跳过——不猜路径、
-  // 不阻塞装载（ADR-0122 D2 构建内容 2）。只扫一次（装载时），不上计时器：本桥是「开机报一次」
-  // 的告警面，反复扫会把同一条中断刷成噪声；跨会话持续可见由 `jxx_flow(status)` 的只读面承担。
+  // 只在**能判定根目录**时扫（会话 cwd）；判不出就静默跳过——不猜路径、不阻塞装载（ADR-0122 D2
+  // 构建内容 2）。本桥是「开机报一次」的告警面，故每个 cwd**只扫一次**（`scannedRoots` 去重）：
+  // 反复扫会把同一条中断刷成噪声；跨会话持续可见由 `jxx_flow(status)` 的只读面承担。
+  //
+  // **两条触发路径**（spec 审查发现项 F1）：`apply()` 时 `agents.roots()` 可能**还是空的**——
+  // loader 并发挂载，jxx-driver 的 apply 可能早于会话 agent 注册。此时只留一条同步扫就会
+  // 静默空跑（而本方法曾是唯一调用点 ⇒ 磁盘标记永不落、告警永不响）。宿主自身的插件
+  // （schedule / agent-team）都是「apply 时遍历 roots() **且**订阅 `agent/created`」的同款配对，
+  // 这里对齐：apply 扫当前可达 root，之后每个新建 agent 再补扫它的 cwd（去重保证仍是一次）。
+  const scannedRoots = new Set()
+  const scanRootOnce = (cwd) => {
+    if (typeof cwd !== 'string' || cwd === '' || scannedRoots.has(cwd)) return
+    scannedRoots.add(cwd)
+    try {
+      const n = orch.recoverInterruptedRuns(cwd).length
+      // 扫过就留痕（含「零中断」）：这条 info 是「装载面确实跑了」的机器可读证据——
+      // 没有它，F1 那种「空跑」在观测面上与「没有中断」无法区分。
+      ctx.logger.info(n > 0
+        ? `[jxx-driver] 恢复桥：${cwd} 识别 ${n} 个中断 run`
+        : `[jxx-driver] 恢复桥：${cwd} 无中断 run`)
+    } catch (e) {
+      // 单个 root 失败不阻断装载，也不影响其他 root（逐 root 隔离）。
+      ctx.logger.warn(`[jxx-driver] 恢复桥跳过 ${cwd}（${e.message}）`)
+    }
+  }
   try {
     const roots = typeof ctx.get === 'function' ? ctx.get('agents') : undefined
-    const dirs = new Set(
-      (typeof roots?.roots === 'function' ? roots.roots() : [])
-        .map((a) => a?.session?.header?.cwd)
-        .filter((cwd) => typeof cwd === 'string' && cwd !== ''),
-    )
-    let interrupted = 0
-    for (const dir of dirs) interrupted += orch.recoverInterruptedRuns(dir).length
-    if (interrupted === 0 && dirs.size > 0) {
-      ctx.logger.info(`[jxx-driver] 恢复桥：${dirs.size} 个可达工作目录无中断 run`)
-    }
+    for (const a of (typeof roots?.roots === 'function' ? roots.roots() : [])) scanRootOnce(a?.session?.header?.cwd)
   } catch (e) {
-    // 装载面绝不因恢复桥失败而失败（无会话上下文 / 无 agents 服务 / 目录不可读都走这里）。
-    ctx.logger.warn(`[jxx-driver] 恢复桥跳过（${e.message}）`)
+    // 装载面绝不因恢复桥失败而失败（无 agents 服务等）。注意 `agent/created` 那条腿仍在，
+    // 所以这里吞掉不构成「桥整体失效」。
+    ctx.logger.warn(`[jxx-driver] 恢复桥装载态枚举失败（将依赖 agent/created 补扫）：${e.message}`)
   }
+  // 补扫腿：会话/队友 agent 建立时，按它的 cwd 再试一次（去重后仍是「每 cwd 一次」）。
+  ctx.on('agent/created', ({ agent }) => {
+    try { scanRootOnce(agent?.session?.header?.cwd) } catch (e) {
+      ctx.logger.warn(`[jxx-driver] 恢复桥补扫失败：${e.message}`)
+    }
+  })
 
   ctx.effect(() => () => { void orch.dispose() }, 'jxx-driver dispose')
 

@@ -283,6 +283,65 @@ test('恢复桥④：幂等装载——同一现场二次 apply 不重复告警'
   assert.equal(second.warns.filter((w) => /上次编排中断于宿主重启/.test(w)).length, 0, '二次装载不重复报')
 })
 
+test('审查发现项 F1（spec）：apply 时 agents.roots() 尚空 ⇒ agent/created 补扫兜底（否则装载面恒空跑）', () => {
+  const root = mkRoot()
+  writeRun(root, 'x.json', interruptedRec('x-id', join(root, '.scratch', '111-foo')))
+  // 模拟 loader 并发：apply 那刻 roots() 还看不见任何会话
+  const { logger, warns } = mkLog()
+  const handlers = {}
+  const registry = { tool: undefined }
+  let rootsAvailable = false
+  const ctx = {
+    logger,
+    on(name, fn) { handlers[name] = fn },
+    effect(fn) { fn() },
+    get(name) {
+      if (name === 'agents') return { roots: () => (rootsAvailable ? [{ id: 's', session: { id: 's', header: { cwd: root } } }] : []) }
+      return undefined
+    },
+    tools: { register(t) { registry.tool = t } },
+    systemPrompt: { context() {} },
+    subagents: { start: async () => { throw new Error('不该 spawn') } },
+    agents: { get: () => undefined },
+  }
+
+  mod.apply(ctx, { verbose: false })
+  assert.equal(warns.filter((w) => /上次编排中断于宿主重启/.test(w)).length, 0, 'roots 为空时确实扫不到')
+  assert.ok(handlers['agent/created'], '必须订阅 agent/created 作为补扫腿（否则装载面可能恒空跑）')
+
+  // 会话随后建立 ⇒ 补扫腿应把中断报出来并落标记
+  rootsAvailable = true
+  handlers['agent/created']({ agent: { id: 's', session: { id: 's', header: { cwd: root } } } })
+
+  assert.ok(warns.some((w) => /上次编排中断于宿主重启/.test(w) && /x-id/.test(w)), 'agent/created 补扫后告警')
+  assert.ok(readRun(root, 'x.json').interruptedAt, 'agent/created 补扫后落标记')
+})
+
+test('恢复桥④：补扫腿按 cwd 去重（同一 cwd 只扫一次，不刷成噪声）', () => {
+  const root = mkRoot()
+  writeRun(root, 'x.json', interruptedRec('x-id', join(root, '.scratch', '111-foo')))
+  const { logger, warns } = mkLog()
+  const handlers = {}
+  const ctx = {
+    logger,
+    on(name, fn) { handlers[name] = fn },
+    effect(fn) { fn() },
+    get: () => undefined,
+    tools: { register() {} },
+    systemPrompt: { context() {} },
+    subagents: { start: async () => { throw new Error('不该 spawn') } },
+    agents: { get: () => undefined },
+  }
+  mod.apply(ctx, { verbose: false })
+
+  const mk = (id) => ({ agent: { id, session: { id, header: { cwd: root } } } })
+  handlers['agent/created'](mk('a'))
+  handlers['agent/created'](mk('b'))
+  handlers['agent/created'](mk('a'))
+
+  assert.equal(warns.filter((w) => /上次编排中断于宿主重启/.test(w)).length, 1, '同一 cwd 只报一次（去重生效）')
+})
+
 // ---------- ③ 工具面只读面 + status ----------
 
 test('恢复桥③：listInterruptedRuns 是只读面（含已标记项、不写文件、不告警）', () => {
@@ -330,6 +389,130 @@ test('恢复桥③：无中断 status 文案与既有口径一致（不制造新
   assert.equal(st.active, false)
   assert.equal(st.interruptedRuns, undefined)
   assert.equal(st.hint, '本会话没有进行中的编排', '无中断时保持既有 hint 原文')
+})
+
+// ---------- 审查发现项回归（三维审查首轮，逐条配反例）----------
+
+test('审查发现项 H（rule）：history 非数组不抛、且不吞掉其余 run 的上报', () => {
+  const root = mkRoot()
+  // 合法 JSON 但 history 是对象（手改/截断/异写入者都可能留下）
+  writeRun(root, 'bad.json', { id: 'bad-id', stage: 'implement', updatedAt: 'T', history: { not: 'array' } })
+  writeRun(root, 'good.json', interruptedRec('good-id', join(root, '.scratch', '111-x')))
+  const { orch, warns } = mkOrch()
+
+  // 关键：读侧一处坏记录不能抛穿整个扫描循环（否则 1 个坏文件 = 0/N 上报 = 静默死亡）
+  let found = []
+  assert.doesNotThrow(() => { found = orch.recoverInterruptedRuns(root) }, '非数组 history 不得抛')
+  assert.ok(found.some((f) => f.id === 'good-id'), '坏记录之后的正常 run 仍须被上报')
+
+  // status 面同样不得把异常抛给用户
+  const agent = { id: 'sess-bad', session: { id: 'sess-bad', header: { cwd: root } }, followup() {}, steer() {} }
+  assert.doesNotThrow(() => orch.status(agent), 'status 不得因坏记录抛给用户')
+  assert.ok(warns.some((w) => /上次编排中断于宿主重启/.test(w)), '正常 run 照常响亮告警')
+})
+
+test('审查发现项 M（rule）：他方活 run（新鲜锁）不报也不改写；陈旧锁仍判中断', () => {
+  const root = mkRoot()
+  const id = 'foreign-id'
+  writeRun(root, `${id}.json`, interruptedRec(id, join(root, '.scratch', '111-x')))
+  // 新鲜锁 = 另一台 dsh 正在跑这个 run（锁是活跃证据，与 assertNoForeignRun 同一权威面）
+  writeRun(root, `${id}.lock.json`, { id, sessionId: 'other-sess', stage: 'implement', updatedAt: new Date().toISOString() })
+  const { orch } = mkOrch()
+
+  const found = orch.recoverInterruptedRuns(root)
+
+  assert.deepEqual(found, [], '他方活 run 不该被报成中断')
+  assert.equal(readRun(root, `${id}.json`).interruptedAt, undefined, '更不该改写它方 run 的观测文件')
+
+  // 陈旧锁（>24h，宿主崩溃残留）⇒ 崩溃现场仍须报出来，否则永远藏住
+  writeRun(root, `${id}.lock.json`, { id, sessionId: 'other-sess', updatedAt: new Date(Date.now() - 25 * 3600_000).toISOString() })
+  assert.deepEqual(orch.recoverInterruptedRuns(root).map((f) => f.id), [id], '陈旧锁不妨碍上报崩溃现场')
+})
+
+test('审查发现项 H2（spec/std）：failRun 真落盘 ⇒ 受控失败不被误报成中断（走真 failRun，不手写 fixture）', () => {
+  const root = mkRoot()
+  const { orch } = mkOrch()
+  const agent = { id: 'sess-fail', session: { id: 'sess-fail', header: { cwd: root } }, followup() {}, steer() {} }
+  const run = orch.newRun(agent, 'sess-fail', root, 'idea', 'implement')
+  orch.runs.set('sess-fail', run)
+  orch.persist(run)
+
+  orch.failRun(run, '测试失败')
+
+  // ① failRun 必须把 `失败：` 落盘（此前不 persist ⇒ 标记到不了磁盘，判据半边失效）
+  // 注：断言 history 事件而非 lastError——后者不在 persist() 白名单内（既有观测面口径，本单不扩面）。
+  // 也**不能**只看 `.at(-1)`：failRun 里 notify() 会在标记之后再推一条 `通知：…`。
+  const onDisk = readRun(root, `${run.id}.json`)
+  const failEntry = onDisk.history.filter((h) => /^失败：/.test(String(h.event)))
+  assert.equal(failEntry.length, 1, 'failRun 的失败标记必须落盘（恰好一条）')
+  assert.equal(failEntry[0].event, '失败：测试失败', '失败原因随标记落盘（取证面）')
+
+  // ② 模拟进程退出后，新编排器不得把它报成中断
+  orch.runs.clear()
+  const fresh = mkOrch().orch
+  assert.deepEqual(fresh.recoverInterruptedRuns(root), [], '受控失败不是中断（不得产生幻影中断 run）')
+})
+
+// ---------- 可续接性（三维审查追加发现项）----------
+
+test('审查发现项 R：全部卡 blocked/done 的现场标为「待人工裁决」，不再劝「请续接」', () => {
+  const root = mkRoot()
+  // 卡已全终态：续接不会推进 ⇒ 该报「待人工裁决」而非「请续接」
+  writeRun(root, 'parked.json', interruptedRec('parked-id', join(root, '.scratch', '111-x'), {
+    cards: { 'c-1': { phase: 'blocked' }, 'c-2': { phase: 'done' } },
+  }))
+  // 还有非终态卡：续接真能推进
+  writeRun(root, 'live.json', interruptedRec('live-id', join(root, '.scratch', '112-y'), {
+    cards: { 'c-1': { phase: 'blocked' }, 'c-2': { phase: 'claimed' } },
+  }))
+  const { orch, warns } = mkOrch()
+
+  const found = orch.recoverInterruptedRuns(root)
+  const parked = found.find((f) => f.id === 'parked-id')
+  const live = found.find((f) => f.id === 'live-id')
+
+  assert.equal(found.length, 2, '两者都算中断（都该被看见）')
+  assert.equal(parked.resumable, false, '全终态卡 ⇒ 不可续接')
+  assert.equal(live.resumable, true, '有非终态卡 ⇒ 可续接')
+
+  const parkedAlarm = warns.find((w) => /parked-id/.test(w) && /中断于宿主重启/.test(w))
+  assert.match(parkedAlarm, /续接不会推进|待人工裁决/, '静置现场不得劝「请续接」')
+  assert.doesNotMatch(parkedAlarm, /续接请执行/, '不得对不可续接的现场给出续接指令')
+  assert.match(warns.find((w) => /live-id/.test(w)), /续接请执行/, '可续接的仍给续接指令')
+
+  assert.match(warns.find((w) => /恢复桥：共识别/.test(w)), /1 个可续接/, '汇总行分列可续接数')
+})
+
+test('审查发现项 R2：status 摘要分列可续接与待人工裁决', () => {
+  const root = mkRoot()
+  writeRun(root, 'parked.json', interruptedRec('parked-id', join(root, '.scratch', '111-x'), {
+    cards: { 'c-1': { phase: 'blocked' } },
+  }))
+  writeRun(root, 'live.json', interruptedRec('live-id', join(root, '.scratch', '112-y'), {
+    cards: { 'c-1': { phase: 'open' } },
+  }))
+  const { orch } = mkOrch()
+  const agent = { id: 'sess-split', session: { id: 'sess-split', header: { cwd: root } }, followup() {}, steer() {} }
+
+  const st = orch.status(agent)
+
+  assert.equal(st.interruptedRuns.length, 2)
+  assert.match(st.hint, /1 个可续接/, '可续接数单列')
+  assert.match(st.hint, /1 个待人工裁决/, '待人工裁决数单列')
+  assert.equal(st.interruptedRuns.find((r) => r.id === 'parked-id').resumable, false)
+  assert.equal(st.interruptedRuns.find((r) => r.id === 'live-id').resumable, true)
+})
+
+test('审查发现项 R3：cards 缺失/坏形态按「可续接」处理（不把真中断说成无需处理）', () => {
+  const root = mkRoot()
+  writeRun(root, 'nocards.json', interruptedRec('nocards-id', join(root, '.scratch', '111-x')))
+  writeRun(root, 'badcards.json', interruptedRec('badcards-id', join(root, '.scratch', '112-y'), { cards: 'not-an-object' }))
+  const { orch } = mkOrch()
+
+  const found = orch.recoverInterruptedRuns(root)
+
+  assert.equal(found.find((f) => f.id === 'nocards-id').resumable, true, '无 cards ⇒ 按可续接提示（多给一条出路）')
+  assert.equal(found.find((f) => f.id === 'badcards-id').resumable, true, '坏 cards ⇒ 同上')
 })
 
 // ---------- 续接指引推导 ----------
