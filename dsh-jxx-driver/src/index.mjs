@@ -160,7 +160,9 @@ export function apply(ctx, rawConfig) {
       if (hostAgent && typeof hostAgent.followup === 'function' && hits.length > 0) {
         const lines = hits.map((h) => `· run ${h.id}（${h.featureDir || '未知目录'}）→ ${h.resumeHint}`
           + (h.resumable ? '' : '（注：该 run 开发卡已全部 blocked/done，续接会重烧人工搁置的卡，请先人工裁决）')
-          + (h.lockHeld ? '（注：仍持互斥锁，可能另有编排进程在跑——续接前先确认/清锁）' : ''))
+          // 可执行前置（r3 复审发现项 1）：持锁 ⇒ `assertNoForeignRun` 会拒启动，
+          // 照 hint 直接敲会撞「已有另一编排会话在跑」。指引必须自带这条，否则引导用户撞墙。
+          + (h.lockHeld ? '（注：**仍持互斥锁**，直接续接会被拒；确知持有者已死则先删 control/jxx-driver-runs/<id>.lock.json，否则先与对方确认）' : ''))
         try {
           hostAgent.followup({
             id: globalThis.crypto?.randomUUID?.() ?? `rb-${Date.now()}`,

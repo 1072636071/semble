@@ -79,15 +79,29 @@ function nowIso() {
 }
 
 /**
- * 落盘 run 的 history 是否已带**受控终结**标记（PRD 111 工单 02）：`halt()` 收尾必推
- * `停止：<原因>`、`failRun()` 必推 `失败：<原因>`，二者都在推入后立即 `persist()`；
- * 宿主**崩溃/重启**则不经过它们 ⇒ 落盘 history 无这两个前缀。
- * 恢复桥据此把「上一次是被 stop/失败收口的 run」与「真·中断的 run」分开——前者不是中断，
- * 不该报（否则每台机器每次装载都会把历史受控收口的 run 全报一遍，告警立刻变噪声）。
- * 非数组 history 一律当无标记（调用方 `lastEventOf` 同口径，见其注释）。
+ * 落盘 run 的 history 是否带**用户意图的受控终结**标记（PRD 111 工单 02）。
+ *
+ * `halt()` 会推 `停止：<原因>`、`failRun()` 会推 `失败：<原因>`，但**两者的语义不同**：
+ *  - `停止：用户主动停止`（用户显式 `/jxx stop`）⇒ 用户已经处理过了，**不该再报**（报了就是噪声）；
+ *  - `失败：<原因>`（进 implement 失败等受控失败）⇒ 已由 failRun 收口，也不该再报；
+ *  - **`停止：插件卸载` / `停止：宿主会话已释放` ⇒ 这是「宿主关停」而不是用户意图**——进程正要
+ *    退出，run 里的卡还在半空（实测本仓两个这种 run，卡分别停在 `reviewing`/`merging`，
+ *    对应工单至今仍在 `control/cards/open/`）。**这种必须报**，否则就是本单要消灭的静默死亡：
+ *    用户重启宿主后，恢复桥恰恰把它应当报的那一类（宿主重启中断）当成「已收口」静默跳过。
+ *
+ * 故判据按**原因白名单**取「用户已处理」而非「出现过停止标记」（r4 复审纠错：初版对任何
+ * `停止：` 都放行，把插件卸载这条最典型的宿主重启路径整类漏掉了）。原因文本是 `halt()` 的
+ * 第三参，本文件内共三处调用点，取值见 `stop`/`onAgentDisposed`/`dispose`。
  */
+const USER_RESOLVED_STOP_REASONS = /^停止：(用户主动停止)/
 function hasTerminalMarker(history) {
-  return Array.isArray(history) && history.some((e) => /^(停止：|失败：)/.test(String(e?.event ?? '')))
+  if (!Array.isArray(history)) return false // 非数组一律当无标记（调用方 lastEventOf 同口径）
+  return history.some((e) => {
+    const ev = String(e?.event ?? '')
+    if (/^失败：/.test(ev)) return true                              // failRun 收口 = 受控失败
+    if (USER_RESOLVED_STOP_REASONS.test(ev)) return true             // 用户显式停止 = 已处理
+    return false                                                     // 其余「停止：」= 宿主关停 ⇒ 仍算中断
+  })
 }
 
 /**
@@ -215,10 +229,11 @@ function hasActionableCards(rec) {
  *     **sessionId** 索引（`this.runs.set(sessionId, run)`），而落盘记录的 `id` 是 `newRun` 里另生的
  *     randomUUID（也用于文件名）；两者**不同域**，拿 sessionId 去比 `rec.id` 或反之都恒不命中。
  *     调用方须传「活 run 的 id 集合」（`[...this.runs.values()].map(r => r.id)`）。
- *  ③ 落盘 history **无受控终结标记**。`halt()`（用户 stop / 会话释放 / 插件卸载）与 `failRun()`
- *     都会推 `停止：`/`失败：` 并 persist；宿主崩溃/断电不经过它们 ⇒ 无标记。**这条是防误报的
- *     关键**：没有它，每次装载都会把历史上所有受控收口的 run 全报一遍（本仓实测 26 个落盘 run
- *     里 23 个 stage=implement，其中 11 个带 `停止：` 标记）。
+ *  ③ 落盘 history **无「用户已处理」终结标记**（见 `hasTerminalMarker`：只有
+ *     `停止：用户主动停止` 与 `失败：…` 算已处理；`停止：插件卸载`/`停止：宿主会话已释放`
+ *     **不算**——那是宿主关停、run 的卡仍在半空，正是本桥要报的那一类）。**这条是防误报的
+ *     关键**：没有它，每次装载都会把用户早已 stop 的历史 run 全报一遍（本仓实测 26 个落盘 run
+ *     里 23 个 stage=implement，其中 11 个带 `停止：用户主动停止` 标记）。
  *
  * **互斥锁刻意不在这里过滤**（r2 复审纠错）：崩溃 run 的锁恰好是新鲜的（最后一次 persist 就在
  * 崩溃前几秒、5s 轮询），拿它当「不是中断」会**静默吞掉重启现场**——实测探针造真 run 后进程
@@ -1728,29 +1743,35 @@ export class Orchestrator {
    * 并给续接指引。**只检测上报，不自动重建**——run 内的 Lead agent 引用跨重启已死（工单 04
    * 毒缓存同款），重建链路脆且不可测；续接路径天然存在（`enterImplement` 复用既有卡）。
    *
-   * 判据（五条全部成立才算中断，逐条都必要；实现在 `isInterruptedRun` 单源）：
+   * 判据（三条全部成立才算中断，逐条都必要；实现在 `isInterruptedRun` 单源）：
    *  ① `stage === 'implement'`——编排**进行中**的相位。`done`/`ops` 等已走完或收尾中的 run 不报
    *     （ADR-0122 D2 明写只扫 implement）；`decide/adr/prd/tickets` 是等用户/等文档的静置相位，
    *     无队友在飞，重启后按 `go` 重新进入即可，报出来只会制造噪声。
    *  ② **内存里没有对应 run**——本进程仍在跑的 run 不是中断。比对的是 `run.id` 本身；注意
    *     `this.runs` 表按 **sessionId** 索引、而落盘 `id` 是另生的 randomUUID，两者**不同域**
    *     （换算见 `liveRunIdSet`，勿改成拿 sessionId 比 `rec.id`）。
-   *  ③ **无新鲜互斥锁**——`.lock.json` 是「该 run 此刻真有进程在跑」的证据，另一台 dsh 的活 run
-   *     不该被报成中断、更不该被改写 JSON；陈旧锁（>24h）视作崩溃残留，仍判中断。
-   *  ④ **落盘 history 无受控终结标记**（`停止：`/`失败：`）。`halt()` 与 `failRun()` 都会推标记
-   *     并立即 persist；宿主崩溃不经过它们 ⇒ 无标记。**这条是防误报的关键**：没有它，每次装载
-   *     都会把历史上受控收口的 run 全报一遍（本仓实测 26 个落盘 run 里 23 个 stage=implement，
-   *     其中 11 个带 `停止：` 标记），告警立刻变噪声。
-   *  ⑤ 已有 `interruptedAt` 的 run **不重复报**（幂等）：恢复桥自己写过的标记即「已上报」凭据。
+   *  ③ **落盘 history 无「用户已处理」终结标记**（判据见 `hasTerminalMarker`）：只有
+   *     `停止：用户主动停止` 与 `失败：…` 算已处理；**`停止：插件卸载` / `停止：宿主会话已释放`
+   *     不算**——那是宿主关停路径（`dispose`/`onAgentDisposed`），run 的卡仍在半空，正是本桥
+   *     要报的那一类。**这条是防误报的关键**：没有它，每次装载都会把用户早已 stop 的历史 run
+   *     全报一遍（本仓实测 26 个落盘 run 里 23 个 stage=implement，其中 11 个带
+   *     `停止：用户主动停止` 标记），告警立刻变噪声。
+   *  **互斥锁不在判据里**（r3 复审纠错）：崩溃 run 的锁恰好新鲜（最后一次 persist 在崩溃前几秒、
+   *  5s 轮询），拿它当「不是中断」会静默吞掉重启现场。锁只决定「要不要改写文件」，见 `lockStateOf`。
+   *  ④ 另有**幂等**一层（不是判据）：已有 `interruptedAt` 的不重复报——恢复桥自己写过的标记即
+   *     「已上报」凭据。
    *
    * 副作用（幂等）：命中项在**其落盘 JSON 内**追加 `interruptedAt` + `resumeHint`（就地合并，
-   * 不改其他字段——这些文件是观测面，不是本方法的账本），并 `log.warn` 响亮告警。
+   * 不改其他字段——这些文件是观测面，不是本方法的账本）；**持新鲜锁时不写**（他方可能仍在用），
+   * 此时 `marked:false` 且下次装载会如实重复上报。并 `log.warn` 响亮告警。
    * **逐条 run 独立 try/catch**：一条坏记录不能吞掉其余 run 的上报（否则 1 个坏文件 = 0/N 上报，
    * 正是本单要消灭的静默死亡形态）。
    *
    * @param {string} root 工作区根（含 `control/jxx-driver-runs/`）；空值直接返回空清单。
-   * @returns {Array<{ id, stage, idea, featureDir, updatedAt, lastEvent, interruptedAt, resumeHint }>}
+   * @returns {Array<{ id, stage, idea, featureDir, updatedAt, lastEvent, interruptedAt, resumeHint, resumable, lockHeld, marked }>}
    *   本次**新**识别出的中断 run（已标记过的不在其中；供 index 面汇总/工具面透出）。
+   *   `resumable` = 是否还有非终态**开发卡**（排除合并卡影子账）；`lockHeld` = 是否仍持互斥锁；
+   *   `marked` = 本次是否真的写入了标记（false ⇒ 下次装载会重复上报）。
    */
   recoverInterruptedRuns(root) {
     const found = []
@@ -1827,13 +1848,20 @@ export class Orchestrator {
     for (const { rec, id } of scanRunFiles(root)) {
       try {
         if (!isInterruptedRun(rec, id, liveIds)) continue
+        const lockHeld = lockStateOf(root, id).held
         out.push({
           id, stage: rec.stage, idea: rec.idea ?? '', featureDir: rec.featureDir ?? '',
           updatedAt: rec.updatedAt ?? '', lastEvent: lastEventOf(rec.history),
           interruptedAt: rec.interruptedAt ?? '', // 空串 = 尚未被恢复桥报过（工具面首次看到）
           resumable: hasActionableCards(rec), // 有非终态**开发卡**才续得动（见 hasActionableCards）
-          lockHeld: lockStateOf(root, id).held, // 仍持锁 ⇒ 可能另有进程在跑，续接前先确认
+          lockHeld, // 仍持锁 ⇒ 可能另有进程在跑，续接前先确认
           resumeHint: rec.resumeHint ?? `jxx_flow(action="go", track="auto", idea="${prdRefOf(rec.featureDir) || '<PRD号>'}")`,
+          // 可执行前置条件（r3 复审发现项 1）：崩现场的锁恰好新鲜（<24h），而
+          // `assertNoForeignRun` 对非本会话的**未陈旧**锁一律拒启动 ⇒ 直接照 resumeHint 敲
+          // 会撞「已有另一编排会话在跑」。指引必须带这条前置，否则用户按提示操作先撞墙。
+          preconditions: lockHeld
+            ? ['该 run 仍持有互斥锁 control/jxx-driver-runs/<id>.lock.json：若确知持有者已死，先删除它再续接；否则先与对方确认']
+            : [],
         })
       } catch {
         // 只读面同样逐条隔离：坏记录不该让 status 抛给用户（rule 审查发现项）。

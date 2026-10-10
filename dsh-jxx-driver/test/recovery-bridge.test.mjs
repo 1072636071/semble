@@ -174,12 +174,16 @@ test('恢复桥②：未收口的 run 若已在内存（本进程在跑）不报
   assert.equal(readRun(root, `${run.id}.json`).interruptedAt, undefined, '活 run 不被标记')
 })
 
-test('恢复桥②：落盘 history 带受控终结标记（停止/失败）不报——防历史 run 每次装载全报', () => {
+test('恢复桥②：受控终结白名单——用户停止/受控失败不报；宿主关停（插件卸载/会话释放）必须报', () => {
   const root = mkRoot()
-  for (const [name, event] of [
-    ['stopped.json', '停止：用户主动停止'],
-    ['halted.json', '停止：宿主会话已释放'],
-    ['failed.json', '失败：进 implement 失败：board.mjs new-card 失败'],
+  // r3 复审判据收窄（原因白名单）：`停止：用户主动停止` 是用户意图 ⇒ 不报；
+  // `停止：插件卸载` / `停止：宿主会话已释放` 是宿主关停 ⇒ 卡半空必须上报——
+  // 若放行它们，恢复桥恰恰把最典型的宿主重启中断整类静默跳过（本单要消灭的死亡形态）。
+  for (const [name, event, expectReport] of [
+    ['stopped.json', '停止：用户主动停止', false],
+    ['halted-unload.json', '停止：插件卸载', true],
+    ['halted-disposed.json', '停止：宿主会话已释放', true],
+    ['failed.json', '失败：进 implement 失败：board.mjs new-card 失败', false],
   ]) {
     writeRun(root, name, { id: name, stage: 'implement', updatedAt: 'T', history: [{ event: 'spawn worker' }, { event }] })
   }
@@ -187,10 +191,17 @@ test('恢复桥②：落盘 history 带受控终结标记（停止/失败）不�
 
   const found = orch.recoverInterruptedRuns(root)
 
-  assert.deepEqual(found, [], '受控收口的 run 不是中断')
-  assert.equal(warns.length, 0, '零告警')
-  for (const name of ['stopped.json', 'halted.json', 'failed.json']) {
+  assert.deepEqual(
+    found.map((f) => f.id).sort(),
+    ['halted-disposed.json', 'halted-unload.json'],
+    '宿主关停两类必须上报；用户停止与受控失败不报',
+  )
+  assert.equal(warns.filter((w) => /上次编排中断于宿主重启/.test(w)).length, 2, '恰两条响亮告警')
+  for (const name of ['stopped.json', 'failed.json']) {
     assert.equal(readRun(root, name).interruptedAt, undefined, `${name} 不被标记`)
+  }
+  for (const name of ['halted-unload.json', 'halted-disposed.json']) {
+    assert.ok(readRun(root, name).interruptedAt, `${name} 被标 interruptedAt（中断实锤）`)
   }
 })
 
@@ -553,6 +564,182 @@ test('审查发现项 R3：cards 缺失/坏形态按「可续接」处理（不�
   assert.equal(found.find((f) => f.id === 'badcards-id').resumable, true, '坏 cards ⇒ 同上')
 })
 
+test('审查发现项 N（r3 复审）：notify 腿——可达会话时投递同风格指引，含机读续接串与持锁前置', () => {
+  const root = mkRoot()
+  writeRun(root, 'a.json', interruptedRec('a-id', join(root, '.scratch', '111-foo')))
+  writeRun(root, 'locked.json', interruptedRec('locked-id', join(root, '.scratch', '112-bar'), {
+    cards: { '112-01-solo': { phase: 'blocked' } },
+  }))
+  // 锁文件名必须是 `<run.id>.lock.json`（这正是 lockStateOf/assertNoForeignRun 的查找约定）
+  writeRun(root, 'locked-id.lock.json', { id: 'locked-id', sessionId: 'other', updatedAt: new Date().toISOString() })
+  const { logger, warns, infos } = mkLog()
+  const handlers = {}
+  const registry = { tool: undefined }
+  const agent = { id: 'sess-n', session: { id: 'sess-n', header: { cwd: root } }, followups: [], followup(m) { this.followups.push(m) } }
+  const ctx = {
+    logger,
+    on(name, fn) { handlers[name] = fn },
+    effect(fn) { fn() },
+    get(name) { return name === 'agents' ? { roots: () => [agent] } : undefined },
+    tools: { register(t) { registry.tool = t } },
+    systemPrompt: { context() {} },
+    subagents: { start: async () => { throw new Error('不该 spawn') } },
+    agents: { get: (id) => (id === agent.id ? agent : undefined) },
+  }
+
+  mod.apply(ctx, { verbose: false })
+
+  assert.equal(agent.followups.length, 1, '装载即往可达会话投一条指引（工单构建内容 4「如该会话可达」）')
+  const text = agent.followups[0].content[0].text
+  assert.match(text, /jxx_flow\(action="go", track="auto", idea=/, '含机读续接串')
+  assert.match(text, /2 个上次中断的编排 run/, '报明条数')
+  assert.match(text, /a-id/, '逐 run 列 id')
+  assert.match(text, /locked-id/, '第二条也在列')
+  assert.match(text, /仍持互斥锁/, '持锁者带可执行前置（否则照指引敲会撞 assertNoForeignRun）')
+  assert.match(text, /先删 control\/jxx-driver-runs\/<id>\.lock\.json/, '前置写明怎么解')
+  assert.match(text, /重烧人工搁置的卡/, '不可续接者标注后果')
+  assert.ok(infos.some((m) => /恢复桥/.test(m)), '扫描留痕（空跑与无中断可区分）')
+  assert.ok(warns.length >= 2, '响亮告警仍在')
+  assert.equal(registry.tool !== undefined, true, '装载完成')
+})
+
+test('审查发现项 N2：notify 腿按 cwd 去重（同一会话重复触发不刷屏），且 followup 抛错被吞不阻断', () => {
+  const root = mkRoot()
+  writeRun(root, 'a.json', interruptedRec('a-id', join(root, '.scratch', '111-foo')))
+  const { logger } = mkLog()
+  const handlers = {}
+  let mode = 'ok'
+  const agent = {
+    id: 'sess-n2', session: { id: 'sess-n2', header: { cwd: root } },
+    followups: [],
+    followup(m) { if (mode === 'throw') throw new Error('会话已释放'); this.followups.push(m) },
+  }
+  const ctx = {
+    logger,
+    on(name, fn) { handlers[name] = fn },
+    effect(fn) { fn() },
+    get: () => undefined,
+    tools: { register() {} },
+    systemPrompt: { context() {} },
+    subagents: { start: async () => { throw new Error('不该 spawn') } },
+    agents: { get: () => undefined },
+  }
+
+  mod.apply(ctx, { verbose: false })
+  // 首次经补扫腿投递
+  handlers['agent/created']({ agent })
+  assert.equal(agent.followups.length, 1, '首次投递一条')
+  // 同 cwd 重复触发 ⇒ 去重，不再投
+  handlers['agent/created']({ agent })
+  handlers['agent/created']({ agent })
+  assert.equal(agent.followups.length, 1, '同 cwd 去重 ⇒ 不刷屏')
+
+  // followup 抛错不得冒泡（会话已释放是常态）
+  const root2 = mkRoot()
+  writeRun(root2, 'b.json', interruptedRec('b-id', join(root2, '.scratch', '113-baz')))
+  const agent2 = { id: 'sess-n2b', session: { id: 'sess-n2b', header: { cwd: root2 } }, followup() { throw new Error('boom') } }
+  mode = 'throw'
+  assert.doesNotThrow(() => handlers['agent/created']({ agent: agent2 }), 'notify 抛错必须被吞（不阻断 agent 注册）')
+})
+
+test('审查发现项 N3：无 followup / 无 cwd 的 agent 不炸（鸭子类型守卫）', () => {
+  const root = mkRoot()
+  writeRun(root, 'a.json', interruptedRec('a-id', join(root, '.scratch', '111-foo')))
+  const { logger } = mkLog()
+  const handlers = {}
+  const ctx = {
+    logger,
+    on(name, fn) { handlers[name] = fn },
+    effect(fn) { fn() },
+    get: () => undefined,
+    tools: { register() {} },
+    systemPrompt: { context() {} },
+    subagents: { start: async () => { throw new Error('不该 spawn') } },
+    agents: { get: () => undefined },
+  }
+  mod.apply(ctx, { verbose: false })
+
+  assert.doesNotThrow(() => handlers['agent/created']({ agent: { id: 'x', session: { header: {} } } }), '无 cwd ⇒ 跳过')
+  assert.doesNotThrow(() => handlers['agent/created']({ agent: { id: 'y', session: { header: { cwd: root } } } }), '无 followup ⇒ 只扫描不投递')
+})
+
+test('审查发现项 P（r3 复审）：status 面给持锁者的 resumeHint 附可执行前置', () => {
+  const root = mkRoot()
+  writeRun(root, 'locked.json', interruptedRec('locked-id', join(root, '.scratch', '111-x')))
+  // 锁文件名必须是 `<run.id>.lock.json`（这正是 lockStateOf/assertNoForeignRun 的查找约定）
+  writeRun(root, 'locked-id.lock.json', { id: 'locked-id', sessionId: 'other', updatedAt: new Date().toISOString() })
+  writeRun(root, 'free.json', interruptedRec('free-id', join(root, '.scratch', '112-y')))
+  const { orch } = mkOrch()
+  const agent = { id: 'sess-p', session: { id: 'sess-p', header: { cwd: root } }, followup() {}, steer() {} }
+
+  const listed = orch.listInterruptedRuns(root)
+
+  const locked = listed.find((r) => r.id === 'locked-id')
+  const free = listed.find((r) => r.id === 'free-id')
+  assert.equal(locked.lockHeld, true)
+  assert.equal(locked.preconditions.length, 1, '持锁者带一条可执行前置')
+  assert.match(locked.preconditions[0], /先删除它再续接/, '前置写明动作')
+  assert.deepEqual(free.preconditions, [], '无锁者零前置（不制造噪声）')
+})
+
+test('审查发现项 S（r4，本单最关键）：宿主关停标记（插件卸载/会话释放）**不得**当作已收口——那是本桥要报的那一类', () => {
+  const root = mkRoot()
+  // 宿主关停路径（dispose / onAgentDisposed）也走 halt()，故 history 里同样有 `停止：`；
+  // 但那是「进程正要退出」而非用户意图 ⇒ 必须仍判中断，否则重启后恢复桥静默跳过最该报的一类。
+  // 实测本仓有两个这种 run，卡分别停在 reviewing/merging、工单至今仍在 open/。
+  writeRun(root, 'unload.json', {
+    id: 'unload-id', stage: 'implement', featureDir: join(root, '.scratch', '113-x'), updatedAt: 'T',
+    cards: { '113-01-x': { phase: 'reviewing' } },
+    history: [{ event: '停止：插件卸载' }],
+  })
+  writeRun(root, 'disposed.json', {
+    id: 'disposed-id', stage: 'implement', featureDir: join(root, '.scratch', '110-y'), updatedAt: 'T',
+    cards: { '110-03-y': { phase: 'merging' } },
+    history: [{ event: '停止：宿主会话已释放' }],
+  })
+  // 对照：用户主动停止 ⇒ 用户已处理，不该再报
+  writeRun(root, 'userstop.json', {
+    id: 'userstop-id', stage: 'implement', featureDir: join(root, '.scratch', '111-z'), updatedAt: 'T',
+    history: [{ event: '停止：用户主动停止' }],
+  })
+  // 对照：failRun 收口 ⇒ 不该再报
+  writeRun(root, 'failed.json', {
+    id: 'failed-id', stage: 'implement', featureDir: join(root, '.scratch', '112-w'), updatedAt: 'T',
+    history: [{ event: '失败：进 implement 失败：xxx' }],
+  })
+  const { orch, warns } = mkOrch()
+
+  const found = orch.recoverInterruptedRuns(root)
+  const ids = found.map((f) => f.id).sort()
+
+  assert.deepEqual(ids, ['disposed-id', 'unload-id'], '宿主关停标记的两条**必须**被报（这是本桥的核心场景）')
+  assert.equal(found.find((f) => f.id === 'unload-id').resumable, true, '卡停在 reviewing ⇒ 可续接')
+  assert.ok(readRun(root, 'unload.json').interruptedAt, '宿主关停现场照常落标记')
+  assert.equal(readRun(root, 'userstop.json').interruptedAt, undefined, '用户主动停止 ⇒ 不报不写（防噪声）')
+  assert.equal(readRun(root, 'failed.json').interruptedAt, undefined, 'failRun 收口 ⇒ 不报不写')
+  assert.ok(warns.some((w) => /unload-id/.test(w) && /中断于宿主重启/.test(w)), '关停现场响亮告警')
+})
+
+test('审查发现项 S2：真实宿主关停路径（真 dispose()）产生的现场必须被报出来', async () => {
+  const root = mkRoot()
+  const { orch } = mkOrch()
+  const agent = { id: 'sess-s2', session: { id: 'sess-s2', header: { cwd: root } }, followup() {}, steer() {} }
+  const run = orch.newRun(agent, 'sess-s2', root, 'idea', 'implement')
+  orch.runs.set('sess-s2', run)
+  orch.persist(run)
+
+  // 走真 dispose()：它 halt(run,'插件卸载') → push `停止：插件卸载` + persist
+  await orch.dispose()
+
+  const disk = readRun(root, `${run.id}.json`)
+  assert.ok(disk.history.some((h) => /^停止：插件卸载$/.test(String(h.event))), '前提：dispose 确实写了关停标记')
+
+  // 新进程视角 ⇒ 必须报（初版会对任何 `停止：` 放行，把这条整类漏掉）
+  const fresh = mkOrch().orch
+  assert.deepEqual(fresh.recoverInterruptedRuns(root).map((f) => f.id), [run.id],
+    '宿主关停（重启路径）产生的现场必须被恢复桥报出——漏了它就是本单要消灭的静默死亡')
+})
+
 // ---------- 续接指引推导 ----------
 
 test('恢复桥：resumeHint 的 PRD 编号推导（去前导零 / 无数字前缀回退目录名）', () => {
@@ -666,8 +853,8 @@ test('恢复桥③续接 E2E：中断 run 存在 → go track=auto <PRD> → ent
   // 复用语义：不重复投卡（同 id 卡仍只有一张），watcher 接管并把流程推到底
   const openNames = existsSync(join(root, 'control', 'cards', 'open'))
     ? readdirSync(join(root, 'control', 'cards', 'open')) : []
-  assert.equal(openNames.filter((n) => n.startsWith(cardId)).length <= 1, true,
-    `复用既有卡：同 id 卡不应重复（open=${openNames.join(',')}）`)
+  assert.equal(openNames.filter((n) => n.startsWith(cardId)).length, 1,
+    `复用既有卡：同 id 卡恰好一张（0 = 卡被吞掉，>1 = 重复投卡；open=${openNames.join(',')}）`)
   const hist = orch.status(agent).history.map((h) => h.event).join('\n')
   assert.match(hist, /复用/, 'enterImplement 记录「复用」而非「新建」')
 
