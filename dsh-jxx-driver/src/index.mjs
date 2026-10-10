@@ -125,6 +125,27 @@ export function apply(ctx, rawConfig) {
     }
   })
 
+  // ---- 恢复桥（PRD 111 工单 02 / ADR-0122 D2）：装载时检测宿主重启留下的中断 run ----
+  // 只在**能判定根目录**时扫（`agents.roots()` 的会话 cwd）；判不出就静默跳过——不猜路径、
+  // 不阻塞装载（ADR-0122 D2 构建内容 2）。只扫一次（装载时），不上计时器：本桥是「开机报一次」
+  // 的告警面，反复扫会把同一条中断刷成噪声；跨会话持续可见由 `jxx_flow(status)` 的只读面承担。
+  try {
+    const roots = typeof ctx.get === 'function' ? ctx.get('agents') : undefined
+    const dirs = new Set(
+      (typeof roots?.roots === 'function' ? roots.roots() : [])
+        .map((a) => a?.session?.header?.cwd)
+        .filter((cwd) => typeof cwd === 'string' && cwd !== ''),
+    )
+    let interrupted = 0
+    for (const dir of dirs) interrupted += orch.recoverInterruptedRuns(dir).length
+    if (interrupted === 0 && dirs.size > 0) {
+      ctx.logger.info(`[jxx-driver] 恢复桥：${dirs.size} 个可达工作目录无中断 run`)
+    }
+  } catch (e) {
+    // 装载面绝不因恢复桥失败而失败（无会话上下文 / 无 agents 服务 / 目录不可读都走这里）。
+    ctx.logger.warn(`[jxx-driver] 恢复桥跳过（${e.message}）`)
+  }
+
   ctx.effect(() => () => { void orch.dispose() }, 'jxx-driver dispose')
 
   ctx.logger.info(`[jxx-driver] 已装载（board=${config.boardScript}，parallel=${config.parallel}，autoMerge=${config.autoMerge}）`)

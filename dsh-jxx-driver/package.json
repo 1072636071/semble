@@ -15,7 +15,7 @@
     }
   },
   "scripts": {
-    "test": "node --test test/cards.test.mjs test/gates.test.mjs test/quick.test.mjs test/go.test.mjs test/auto-parse.test.mjs test/auto-confirm.test.mjs test/orchestrator.test.mjs test/consistency.test.mjs test/default-starters.test.mjs test/session-role.test.mjs test/team-spawn.test.mjs test/team-worker-path.test.mjs test/lifecycle-fallback.test.mjs test/team-resilience.test.mjs test/board-idempotent.test.mjs test/death-self-heal.test.mjs"
+    "test": "node --test test/cards.test.mjs test/gates.test.mjs test/quick.test.mjs test/go.test.mjs test/auto-parse.test.mjs test/auto-confirm.test.mjs test/orchestrator.test.mjs test/consistency.test.mjs test/default-starters.test.mjs test/session-role.test.mjs test/team-spawn.test.mjs test/team-worker-path.test.mjs test/lifecycle-fallback.test.mjs test/team-resilience.test.mjs test/board-idempotent.test.mjs test/death-self-heal.test.mjs test/recovery-bridge.test.mjs"
   },
   "engines": {
     "node": ">=20.11"
