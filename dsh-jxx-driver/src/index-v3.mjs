@@ -13,6 +13,7 @@
 import { normalizeConfig } from './config.mjs'
 import { Orchestrator, STAGES } from './orchestrator.mjs'
 import { randomUUID as cryptoUUID } from 'node:crypto'
+import { PLUGIN_SOURCE } from './plugin-source.mjs'
 
 export const name = 'jxx-driver'
 export const inject = ['subagents', 'systemPrompt', 'agents', 'tools']
@@ -122,7 +123,7 @@ async function dispatch(orch, args, agent) {
               id: cryptoUUID(),
               role: 'user',
               content: [{ type: 'text', text: `[jxx-driver] /jxx auto 的参数「${prdArg}」匹配不到唯一 PRD。请从这些候选中选出用户意图对应的一份（必要时向用户确认），然后调用 jxx_flow(action="auto", prd="<编号>")：\n${e.message.split('：').slice(1).join('：')}` }],
-              source: { kind: 'user' },
+              source: { ...PLUGIN_SOURCE },
             })
           }
           return {

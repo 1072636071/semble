@@ -17,9 +17,10 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, renameSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, renameSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { Orchestrator } from '../src/orchestrator.mjs'
 import { normalizeConfig } from '../src/config.mjs'
@@ -368,18 +369,48 @@ test('B3·来源断言：notify 注入消息的 source.kind 不得为 user（防
   assert.ok(JSON.stringify(msg.source).includes('jxx-driver'), 'source 可序列化')
 })
 
-test('B3·steer 面无伪造：本插件不经 steer 注入（留痕防回退）', async (t) => {
-  // 工单构建内容 5 要求「steer 面若同样伪造则同单内一并改」。本插件**没有** steer 调用点
-  // （只有 followup），故无需改动；此用例把该事实钉住——将来若新增 steer，必须一并带 source。
-  // 注意：必须**剥掉注释**再扫，否则本文件/源码里的契约说明文本（含 `kind: 'user'` 字样）会假命中
-  //（本用例首跑即踩：把方法头注释里的契约原文当成了代码）。
-  const raw = readFileSync(new URL('../src/orchestrator.mjs', import.meta.url), 'utf8')
-  const code = raw
-    .replace(/\/\*[\s\S]*?\*\//g, '')   // 块注释
+test('B3·防回退（全 src 扫描）：任何入口都不得伪造人类来源，且注入面均走 PLUGIN_SOURCE', async (t) => {
+  // R1 spec 审查发现项 1/4：首版防回退用例只扫 `orchestrator.mjs` 单文件，漏掉了**现役入口
+  // `index.mjs`**（package.json `main`）的 `agent.steer({ …, source: { kind: 'user' } })` 伪造点，
+  // 以及 index-v3..v6 热更新载体的 6 处同型伪造。防回退语义必须覆盖 `src/` 全部入口，否则留窄缝。
+  // 本用例即该扩面判据：逐文件剥注释后扫描，**任何** （a）`kind: 'user'` 字面量、（b）`.steer(`/
+  // `.followup(` 注入点未用 PLUGIN_SOURCE，都会判红。
+  const srcDir = fileURLToPath(new URL('../src', import.meta.url))
+  const files = readdirSync(srcDir).filter((f) => f.endsWith('.mjs')).sort()
+  assert.ok(files.length >= 8, `扫描面应为整个 src/（实际 ${files.length} 个 .mjs）`)
+
+  /** 剥掉块注释与行注释（本仓注释为纯 //；contract 引文含 kind: 'user' 字样，必须剔除以免假命中）。 */
+  const stripComments = (code) => code
+    .replace(/\/\*[\s\S]*?\*\//g, '')
     .split('\n')
-    .map((l) => l.replace(/\/\/.*$/, '')) // 行注释（本仓注释一律纯 //，无 URL 场景）
+    .map((l) => l.replace(/\/\/.*$/, ''))
     .join('\n')
-  assert.ok(!/\.steer\(/.test(code), '当前实现不经 steer 注入（若新增须同单带自有 source）')
-  assert.ok(!/kind:\s*'user'/.test(code), '代码内不得再有伪造 user 来源')
-  assert.match(code, /kind:\s*'jxx-driver'/, 'notify 注入使用插件自有 kind')
+
+  const forged = []
+  const injectionSites = []
+  for (const f of files) {
+    const code = stripComments(readFileSync(join(srcDir, f), 'utf8'))
+    // (a) 代码面不得出现伪造的 user kind
+    if (/kind:\s*'user'/.test(code)) forged.push(f)
+    // (b) 每个注入点必须传 PLUGIN_SOURCE（不是别的来源对象）
+    const lines = code.split('\n')
+    lines.forEach((l, i) => {
+      if (!/\.(steer|followup)\(\{/.test(l)) return
+      // 注入对象可能跨行：取该调用后最多 12 行找 source 字段
+      const block = lines.slice(i, i + 12).join('\n')
+      const hasSource = /source:\s*\{/.test(block)
+      const usesPlugin = /source:\s*\{\s*\.\.\.PLUGIN_SOURCE\s*\}/.test(block)
+      injectionSites.push({ file: f, line: i + 1, hasSource, usesPlugin })
+    })
+  }
+
+  assert.deepEqual(forged, [], `以下文件的代码面仍在伪造人类来源（kind:'user'）：${forged.join(', ')}`)
+  assert.ok(injectionSites.length >= 8, `应扫到全部注入点（实际 ${injectionSites.length}：notify + 各入口 steer）`)
+  const missing = injectionSites.filter((s) => !s.usesPlugin)
+  assert.deepEqual(missing, [], `以下注入点未走 PLUGIN_SOURCE 单一真源：${missing.map((s) => `${s.file}:${s.line}`).join(', ')}`)
+
+  // 现役入口必须被这个扫描面覆盖（防止再退回「只扫 orchestrator」的窄缝）
+  assert.ok(files.includes('index.mjs'), '现役入口 index.mjs 在扫描面内')
+  const mainEntry = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).main
+  assert.equal(mainEntry, './src/index.mjs', 'package.json main 即被扫描的现役入口')
 })

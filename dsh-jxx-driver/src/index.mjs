@@ -12,6 +12,7 @@
 
 import { normalizeConfig } from './config.mjs'
 import { Orchestrator, STAGES, SESSION_ROLE } from './orchestrator.mjs'
+import { PLUGIN_SOURCE } from './plugin-source.mjs'
 import { randomUUID as cryptoUUID } from 'node:crypto'
 
 export const name = 'jxx-driver'
@@ -214,11 +215,14 @@ async function goDispatch(orch, args, agent) {
     SESSION_ROLE,
   ].filter(Boolean).join('\n')
   if (agent && typeof agent.steer === 'function') {
+    // B3 来源去伪造（R1 spec 审查发现项 1）：分流材料是**插件**投给会话的，不是真人输入——
+    // 必须用插件自有 kind，不得继承人类权限（宿主契约 tool-goal README:72；坐标见 plugin-source.mjs）。
+    // 旧代码此处写 `{ kind: 'user' }`，与 notify 面同罪；已收敛到单一真源 PLUGIN_SOURCE。
     agent.steer({
       id: cryptoUUID(),
       role: 'user',
       content: [{ type: 'text', text: steerMsg }],
-      source: { kind: 'user' },
+      source: { ...PLUGIN_SOURCE },
     })
   }
   return {

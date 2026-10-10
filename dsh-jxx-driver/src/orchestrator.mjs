@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync, renameSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { Board } from './board.mjs'
+import { PLUGIN_SOURCE } from './plugin-source.mjs'
 import { scanBoard, listTickets, findFeatureDir, ticketCardId, ticketNum, cardDeps } from './cards.mjs'
 import { adrGate, prdGate, ticketsGate, opsGate } from './gates.mjs'
 import { createQuickTicket } from './quick.mjs'
@@ -851,6 +852,14 @@ export class Orchestrator {
   }
 
   spawnReviewers(run, cardId) {
+    // 在飞闸的**reviewer 排除依据**（R1 spec 审查发现项 3，如实留痕）：
+    // 本函数不做「记名集合 ∩ 存活判据」式防重入，与 dev/merger 不对称——这是**架构自洽**而非疏漏：
+    //  ① 前沿对 reviewer 的防重入闸 = `rec.phase === 'reviewing'`（见 tickInner 审查段：置相位与
+    //     调用本函数**同步相邻**，中间无 await 窗口 ⇒ 不存在「已置 reviewing 又被再派」的交错）；
+    //  ② reviewer 在团队模式下也走**一次性 spawn**（不上通道 dispatch）⇒ 通道 `inFlight` 里
+    //     从来就没有 reviewer 键，「按卡记名集合」对它恒为空，故该判据对它**无定义**；
+    //  ③ 代际闸同样排除 reviewer（三维是**同卡并行扇出**，共享代际会互相判陈旧 —— 见 spawn() 注释）。
+    // 若将来 reviewer 改走通道派发，必须在此补对称判据（届时 ①②③ 三条前提需同步复核）。
     for (const dim of reviewerDims()) {
       const prompt = reviewerPrompt(run.root, cardId, dim)
       this.spawn(run, {
@@ -1610,7 +1619,7 @@ export class Orchestrator {
           role: 'user',
           content: [{ type: 'text', text: `[jxx-driver] ${text}` }],
           // B3：插件自有 kind，不冒充人类来源（坐标见本方法头注释）
-          source: { kind: 'jxx-driver' },
+          source: { ...PLUGIN_SOURCE },
         })
         // B2：记待领通知 id，供 halt/dispose 摘除（插件重载后不再重放过期问候）
         if (!run.noticeIds) run.noticeIds = new Set()
@@ -1777,7 +1786,10 @@ export class Orchestrator {
   failRun(run, msg) {
     run.lastError = msg
     run.history.push({ t: nowIso(), event: `失败：${msg}` })
-    this.notify(run, msg)
+    // 幂等键（R1 spec 审查发现项 2）：工单 B1 根因原文点名「failRun、阶段通知、唤醒通知等多条路径
+    // 都会调」，全文件唯此处曾无键。run 终结面本身触达有限（advance 对 implement 阶段拒绝手动重入、
+    // failRun 即摘除本 run），键面仍按语义补齐以收口「既有调用点按语义补键」的字面要求。
+    this.notify(run, msg, { key: 'run:fail' })
     this.releaseLock(run) // failRun = run 终结（入口三条路径 catch 后 runs.delete），互斥锁随终结摘除
   }
 }
