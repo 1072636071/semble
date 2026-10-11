@@ -267,14 +267,38 @@ test('通道：同名复用不新建（同卡重派只 sendMessage，spawnTeamma
   const { channel } = mkChannel(service)
   const first = await channel.dispatch({ role: 'dev', cardId: 'a1', prompt: '首派' })
   assert.equal(first.fresh, true)
-  // 同一卡重派（返工/重试场景）：点名 first.memberName → 必须复用，绝不新建
-  const again = await channel.dispatch({ role: 'dev', name: first.memberName, cardId: 'a1', prompt: '重派续推' })
+  // 同一卡重派（返工/重试场景）：点名 first.memberName → 必须复用，绝不新建。
+  // 合并注（111 冲突收口）：远端 PRD 111 工单 05 在飞闸（a5b7ef92..4f98bae3，时间上早于本地本测试）
+  // 规定「同卡在飞 + 非 resend 重投」非法；其闸测试原话「resend 不受在飞闸限制（走同名 sendMessage）」
+  // ——显式点名重派走 resend 协议即为双方共识的合法路径，重派复用语义零改变（下方断言逐字保留）。
+  const again = await channel.dispatch({ role: 'dev', name: first.memberName, cardId: 'a1', prompt: '重派续推', resend: true })
   assert.equal(again.fresh, false, '同名复用 fresh=false')
   assert.equal(again.keep, true, '同名复用 keep=true')
   assert.equal(again.memberName, first.memberName, '承接队友不变')
   assert.equal(calls.spawned.length, 1, '同名复用不新建：spawnTeammate 全程恰好一次')
   assert.equal(calls.sent.length, 1, '续推走 sendMessage')
   assert.equal(calls.sent[0].req.target, first.memberName)
+})
+
+test('通道：在飞闸×同名复用共存（合并 111-05）：同卡在飞非 resend 重投响亮拒绝，点名重派走 resend 复用不新建', async () => {
+  const { service, calls } = mockTeamsChannel()
+  const { channel } = mkChannel(service)
+  await channel.dispatch({ role: 'dev', cardId: 'a1', prompt: '首派' })
+  // 在飞闸面（工单 05 语义，与 dispatch-notify-idempotency 闸测试同口径）：非 resend 重投必须拒绝
+  await assert.rejects(
+    () => channel.dispatch({ role: 'dev', cardId: 'a1', prompt: '重投' }),
+    /已有在飞轮次.*拒绝重复派发/,
+    '同卡非 resend 重投必须响亮抛错（不静默吞）',
+  )
+  assert.equal(calls.sent.length, 0, '被拒的重投不得下发到信箱')
+  // 复用面（可续接化 5ad27d10 语义）：合法重派 = 显式点名在册队友 + resend → 只 sendMessage 不新建
+  const again = await channel.dispatch({ role: 'dev', name: channel.nameOf('a1'), cardId: 'a1', prompt: '重派续推', resend: true })
+  assert.equal(again.fresh, false, 'resend 点名重派 fresh=false')
+  assert.equal(again.keep, true, 'resend 点名重派 keep=true')
+  assert.equal(again.memberName, channel.nameOf('a1'), '承接队友不变')
+  assert.equal(calls.spawned.length, 1, '重派不新建：spawnTeammate 全程恰好一次')
+  assert.equal(calls.sent.length, 1, '重派走 sendMessage')
+  assert.equal(calls.sent[0].req.target, channel.nameOf('a1'))
 })
 
 test('通道：memberOf 出册不删（harvest 后仍按名可续接）+ members 簿记观测面', async () => {

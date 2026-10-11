@@ -183,12 +183,25 @@ export function createTeamChannel({ teams, agent, pool, ledger, provider = 'spaw
      * ③ 在册同角色数 < poolSize → 名字池取新名 spawnTeammate（并发卡各得一个队友）；
      * ④ 池满且全员忙 → 取在飞最少者复用（宿主信箱按序投递 = 该队友串行领卡）。
      */
-    async dispatch({ role, name: hintName, cardId, prompt, description, signal, poolSize = 1, resend = false }) {
+    async dispatch({ role, name: hintName, cardId, prompt, description, signal, poolSize = 1, resend = false, allowInFlight = false }) {
       if (typeof role !== 'string' || role === '') {
         throw new Error(`jxx-driver: dispatch 缺角色前缀，收到 ${JSON.stringify(role)}`)
       }
       if (!Number.isSafeInteger(poolSize) || poolSize < 1) {
         throw new Error(`jxx-driver: dispatch poolSize 必须是 ≥1 的整数，收到 ${JSON.stringify(poolSize)}`)
+      }
+      // 在飞闸（工单 05 构建内容 2 / A 防重入，ADR-0122 D6）：同卡已有在飞轮次时**非显式 resend**
+      // 一律拒绝重投。根因实证：宿主信箱按序投递，同一卡的第二条指令会被同一/另一队友**并行**执行
+      // ⇒ 同卡两轮改同一 worktree（写冲突、重复劳动、卡面流转互相覆盖）。旧口径只靠 `rec.alive`
+      // 挡，而它是单轮布尔（陈旧 done 会误清，见 A 根因），挡不住「派发成功但 alive 被上一轮清掉」
+      // 的窗口。**响亮抛错**交上层既有失败处置链（`spawnWorker` 的 .catch / 前沿的 try），不静默吞。
+      //
+      // `allowInFlight` 逃生口（**唯一**合法用途 = 僵死看门狗清账）：39-02 实测形态是「dispatch 成功
+      // 但队友恒 inactive」——该卡的 inFlight 簿记**永不自行出册**，若在此硬拒，看门狗的重派（本意
+      // 就是清这笔陈旧账）会被自己的防重入闸锁死，run 冻结。故由调用方在**轮次已被判死**时显式
+      // 传 `allowInFlight: true`（`spawnWorker` 只在 `devRoundInFlight` 为假、即轮次确实不在跑时传）。
+      if (cardId !== undefined && inFlight.has(cardId) && !resend && allowInFlight !== true) {
+        throw new Error(`jxx-driver: 卡 ${cardId} 已有在飞轮次（队友 ${cardOwners.get(cardId) ?? '未知'}），拒绝重复派发（同卡不得并发两轮）`)
       }
       const retires = []
       let name = hintName
@@ -329,6 +342,17 @@ export function createTeamChannel({ teams, agent, pool, ledger, provider = 'spaw
     },
 
     /**
+     * 该卡是否已有在飞轮次（工单 05 构建内容 2 / A 防重入）。
+     * 语义 = 本通道已对该卡下发过指令且尚未出册（出册面：harvest 收口 / interruptInFlight /
+     * rebuild 摘名）。编排层用它做「同卡不并发两轮」的判据——**不能**只看 `rec.alive`：
+     * alive 是单轮布尔（陈旧 done 会误清，见工单 05 A 根因），而这里是「按卡记名 + 显式出册」的
+     * 集合语义。
+     */
+    inFlightOf(cardId) {
+      return inFlight.has(cardId)
+    },
+
+    /**
      * 换名重建（PRD 110 工单 03 构建内容 4，最后手段）：宿主探针确认旧队友 failed 后调用——
      * 从名册摘除旧名（退租，名字池永不再发它）并把其名下在飞卡出册；同通道复用
      * （dispatch 无点名时池自然给出新名 fresh 后继）。旧名不存在于名册（如首派即败，spawnTeammate
@@ -356,6 +380,16 @@ export function createTeamChannel({ teams, agent, pool, ledger, provider = 'spaw
     /** 名册视图（测试/诊断用）。 */
     list() {
       return [...members.entries()].map(([name, m]) => ({ name, ...m }))
+    },
+
+    /**
+     * 该名是否在册（生产面用）——与 `list()` 的「测试/诊断」口径分开，避免生产码依赖诊断视图。
+     * 用途（工单 05 返工 r2）：韧性重发要判「点名队友是否真实建成了」——**首派即败**时
+     * `spawnTeammate` 抛错、`members.set` 永不执行，此时同名直发会撞 `resend` 的「不在册」硬拒；
+     * 正确落法是交回池路径建 fresh 后继（= 基线自愈语义）。
+     */
+    hasMember(name) {
+      return members.has(name)
     },
 
     /** 统计（测试/诊断用）。 */

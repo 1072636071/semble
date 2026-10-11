@@ -12,6 +12,7 @@
 
 import { normalizeConfig } from './config.mjs'
 import { Orchestrator, STAGES, SESSION_ROLE } from './orchestrator.mjs'
+import { PLUGIN_SOURCE } from './plugin-source.mjs'
 import { randomUUID as cryptoUUID } from 'node:crypto'
 
 export const name = 'jxx-driver'
@@ -131,6 +132,84 @@ export function apply(ctx, rawConfig) {
     }
   })
 
+  // ---- 恢复桥（PRD 111 工单 02 / ADR-0122 D2）：装载时检测宿主重启留下的中断 run ----
+  // 只在**能判定根目录**时扫（会话 cwd）；判不出就静默跳过——不猜路径、不阻塞装载（ADR-0122 D2
+  // 构建内容 2）。本桥是「开机报一次」的告警面，故每个 cwd**只扫一次**（`scannedRoots` 去重）：
+  // 反复扫会把同一条中断刷成噪声；跨会话持续可见由 `jxx_flow(status)` 的只读面承担。
+  //
+  // **两条触发路径**（spec 审查发现项 F1）：`apply()` 时 `agents.roots()` 可能**还是空的**——
+  // loader 并发挂载，jxx-driver 的 apply 可能早于会话 agent 注册。此时只留一条同步扫就会
+  // 静默空跑（而本方法曾是唯一调用点 ⇒ 磁盘标记永不落、告警永不响）。宿主自身的插件
+  // （schedule / agent-team）都是「apply 时遍历 roots() **且**订阅 `agent/created`」的同款配对，
+  // 这里对齐：apply 扫当前可达 root，之后每个新建 agent 再补扫它的 cwd（去重保证仍是一次）。
+  //
+  // **残余风险（spec 审查 F1，如实声明不假称已消）**：若 apply 那刻 roots() 为空、且此后**不再
+  // 新建 agent**（如热重载附着到一个既有会话），两条腿都不触发 ⇒ 该 cwd 永不被扫描。
+  // 未加兜底的理由：插件拿不到「会话已存在但我没收到事件」的可靠信号，任何补扫都得靠轮询/定时器，
+  // 那是 ADR-0122 D2 明确不要的面（且会把告警刷成噪声）。此时用户敲一次 `jxx_flow(status)`
+  // 即经只读面看到中断清单——这是该场景的既定出口。
+  const scannedRoots = new Set()
+  const scanRootOnce = (cwd, hostAgent) => {
+    if (typeof cwd !== 'string' || cwd === '' || scannedRoots.has(cwd)) return
+    scannedRoots.add(cwd)
+    try {
+      const hits = orch.recoverInterruptedRuns(cwd)
+      // 扫过就留痕（含「零中断」）：这条 info 是「装载面确实跑了」的机器可读证据——
+      // 没有它，F1 那种「空跑」在观测面上与「没有中断」无法区分。
+      ctx.logger.info(hits.length > 0
+        ? `[jxx-driver] 恢复桥：${cwd} 识别 ${hits.length} 个中断 run`
+        : `[jxx-driver] 恢复桥：${cwd} 无中断 run`)
+      // notify 腿（工单构建内容 4「检测到中断 run 时**如该会话可达** → notify」）：
+      // 跨进程的 `notify(run, …)` 结构上不可达（它要求内存 run 且 `agents.get(id) === run.agent`，
+      // 见 orchestrator.notify 的守卫）——但本补扫腿手里**就有一个 live agent**，直接用
+      // `followup` 投一条同风格指引即可，无需重建 run。这与 01 的死亡自愈 notify 同形式
+      // （都是「往 Lead 会话投一条带机读续接串的用户消息」）。
+      // 来源去伪造（工单 05 B3 合并树收口）：本腿 source 与死亡自愈 notify 同走 PLUGIN_SOURCE
+      // 单一真源——111-02 合入时 111-05 尚未落地、当时写 `{ kind: 'user' }` 合规；合并树上被
+      // B3 全 src 扫描判据命中（合并树全量测试抓红），机械并集解 = 保留投递意图、来源对齐
+      // 插件统一 kind（宿主契约 tool-goal README:72）。
+      if (hostAgent && typeof hostAgent.followup === 'function' && hits.length > 0) {
+        const lines = hits.map((h) => `· run ${h.id}（${h.featureDir || '未知目录'}）→ ${h.resumeHint}`
+          + (h.resumable ? '' : '（注：该 run 开发卡已全部 blocked/done，续接会重烧人工搁置的卡，请先人工裁决）')
+          // 可执行前置（r3 复审发现项 1）：持锁 ⇒ `assertNoForeignRun` 会拒启动，
+          // 照 hint 直接敲会撞「已有另一编排会话在跑」。指引必须自带这条，否则引导用户撞墙。
+          + (h.lockHeld ? '（注：**仍持互斥锁**，直接续接会被拒；确知持有者已死则先删 control/jxx-driver-runs/<id>.lock.json，否则先与对方确认）' : ''))
+        try {
+          hostAgent.followup({
+            id: globalThis.crypto?.randomUUID?.() ?? `rb-${Date.now()}`,
+            role: 'user',
+            content: [{
+              type: 'text',
+              text: `[jxx-driver] 检测到 ${hits.length} 个上次中断的编排 run（宿主重启残留）。`
+                + `本插件不自动重建；续接：jxx_flow(action="go", track="auto", idea="<PRD号>")\n${lines.join('\n')}`,
+            }],
+            source: { ...PLUGIN_SOURCE },
+          })
+        } catch (e) {
+          ctx.logger.warn(`[jxx-driver] 恢复桥 notify 失败（会话可能已释放）：${e.message}`)
+        }
+      }
+    } catch (e) {
+      // 单个 root 失败不阻断装载，也不影响其他 root（逐 root 隔离）。
+      ctx.logger.warn(`[jxx-driver] 恢复桥跳过 ${cwd}（${e.message}）`)
+    }
+  }
+  try {
+    // apply 腿：只有 roots() 可达时才有 live agent 可投递（据此决定是否走 notify 腿）。
+    const rootsSvc = typeof ctx.get === 'function' ? ctx.get('agents') : undefined
+    for (const a of (typeof rootsSvc?.roots === 'function' ? rootsSvc.roots() : [])) scanRootOnce(a?.session?.header?.cwd, a)
+  } catch (e) {
+    // 装载面绝不因恢复桥失败而失败（无 agents 服务等）。注意 `agent/created` 那条腿仍在，
+    // 所以这里吞掉不构成「桥整体失效」。
+    ctx.logger.warn(`[jxx-driver] 恢复桥装载态枚举失败（将依赖 agent/created 补扫）：${e.message}`)
+  }
+  // 补扫腿：会话/队友 agent 建立时，按它的 cwd 再试一次（去重后仍是「每 cwd 一次」）。
+  ctx.on('agent/created', ({ agent }) => {
+    try { scanRootOnce(agent?.session?.header?.cwd, agent) } catch (e) {
+      ctx.logger.warn(`[jxx-driver] 恢复桥补扫失败：${e.message}`)
+    }
+  })
+
   ctx.effect(() => () => { void orch.dispose() }, 'jxx-driver dispose')
 
   ctx.logger.info(`[jxx-driver] 已装载（board=${config.boardScript}，parallel=${config.parallel}，autoMerge=${config.autoMerge}）`)
@@ -138,24 +217,59 @@ export function apply(ctx, rawConfig) {
 
 // ---------- 内部 ----------
 
-async function dispatch(orch, args, agent) {
+/**
+ * dispatch 出口的统一序列化兜底（PRD 111 工单 03 / ADR-0122 D3）。
+ *
+ * 背景：宿主对工具返回体做 lossless JSON 校验，Map/Set/undefined 属性值/函数只要有一个
+ * 溜进返回体，jxx_flow 监控面就整体报「value is not lossless JSON」全瞎——status 是编排期
+ * 唯一监控通道，静默故障直接放大「死亡无感知」。历史故障三连发：PRD 97（STAGE_HINTS.adr
+ * 缺失）、PRD 102（run.cards Map）、PRD 110 再现；每次点状修无闸防复发，本兜底 + 遍历闸
+ * （test/serialization.test.mjs）把这一类问题收口成单点。
+ *
+ * 语义：返回值先过 JSON.parse(JSON.stringify(value))——undefined 属性值被丢弃、Map/Set
+ * 降级为 {}、**顶层**函数与顶层 undefined 经 stringify→undefined 转 null（**属性级**函数值
+ * 与 undefined 属性值同为整键丢弃），宿主 lossless 序列化之前先行降级为 plain JSON；
+ * 兜底自身失败（环形引用、getter 中毒等 stringify 直接抛）降级为 { error: 'non-serializable' }
+ * 并 warn 留痕（std 审查发现项：降级即「返回体带毒」实证，静默吞掉就重演本单要消灭的形态），
+ * 不炸工具面（编排功能不受影响，status 可继续用）。export 供遍历闸测试直接驱动。
+ * @param {unknown} value dispatch 各 action 的返回值（已 await）
+ * @param {{warn?: (msg: string) => void}} [log] 可选 logger（dispatch 传 orch.log；直驱测试可不传）
+ * @param {string} [label] 留痕用调用标签（如 `jxx_flow(status)`）
+ */
+export function serializeValue(value, log, label = 'jxx_flow') {
+  try {
+    const text = JSON.stringify(value)
+    return text === undefined ? null : JSON.parse(text)
+  } catch (e) {
+    log?.warn?.(`[jxx-driver] ${label} 返回值无法无损序列化（${e.message}），已降级为 { error: 'non-serializable' }——编排功能不受影响，但该次返回体带非 plain 值，建议排查来源（历史先例：PRD 102 run.cards Map）`)
+    return { error: 'non-serializable' }
+  }
+}
+
+/** dispatch 导出（test/serialization.test.mjs 遍历闸按同一路径驱动全 action 返回值）。 */
+export async function dispatch(orch, args, agent) {
+  // 每 action 返回值过 serializeValue 兜底（PRD 111 工单 03 / ADR-0122 D3）——
+  // 先 await 再兜底：serializeValue 是同步的，包住 Promise 会把 awaitable 降级成 {}。
+  // 八分支逐条包裹是**有意取舍**（rule 审查复核）：test ③ 的静态防退化闸按「case 级必须有
+  // return serializeValue(」把关——单点包一层会让静态闸失义，新增分支漏包兜底只有运行时才暴露。
+  const log = typeof orch?.log === 'object' ? orch.log : undefined
   switch (args.action) {
     case 'go':
-      return goDispatch(orch, args, agent)
+      return serializeValue(await goDispatch(orch, args, agent), log, `jxx_flow(${args.action})`)
     case 'start': // 旧入口别名 = standard 轨道
-      return goDispatch(orch, { ...args, action: 'go', track: args.track ?? 'standard' }, agent)
+      return serializeValue(await goDispatch(orch, { ...args, action: 'go', track: args.track ?? 'standard' }, agent), log, `jxx_flow(${args.action})`)
     case 'quick': // 旧入口别名 = quick 轨道
-      return goDispatch(orch, { ...args, action: 'go', track: args.track ?? 'quick' }, agent)
+      return serializeValue(await goDispatch(orch, { ...args, action: 'go', track: args.track ?? 'quick' }, agent), log, `jxx_flow(${args.action})`)
     case 'auto': // 旧入口别名 = go（显式 PRD 编号编排是 auto 内建路径）
-      return goDispatch(orch, { ...args, action: 'go', idea: args.idea ?? args.prd, track: args.track ?? 'auto' }, agent)
+      return serializeValue(await goDispatch(orch, { ...args, action: 'go', idea: args.idea ?? args.prd, track: args.track ?? 'auto' }, agent), log, `jxx_flow(${args.action})`)
     case 'advance':
-      return orch.advance(agent)
+      return serializeValue(await orch.advance(agent), log, `jxx_flow(${args.action})`)
     case 'status':
-      return orch.status(agent)
+      return serializeValue(await orch.status(agent), log, `jxx_flow(${args.action})`)
     case 'resumed':
-      return orch.flowResumed(agent, 'jxx_flow 显式恢复')
+      return serializeValue(await orch.flowResumed(agent, 'jxx_flow 显式恢复'), log, `jxx_flow(${args.action})`)
     case 'stop':
-      return orch.stop(agent)
+      return serializeValue(await orch.stop(agent), log, `jxx_flow(${args.action})`)
     default:
       throw new Error(`未知 action：${args.action}（合法：go/advance/status/stop/resumed；start/quick/auto 仍作为别名可用）`)
   }
@@ -220,11 +334,14 @@ async function goDispatch(orch, args, agent) {
     SESSION_ROLE,
   ].filter(Boolean).join('\n')
   if (agent && typeof agent.steer === 'function') {
+    // B3 来源去伪造（R1 spec 审查发现项 1）：分流材料是**插件**投给会话的，不是真人输入——
+    // 必须用插件自有 kind，不得继承人类权限（宿主契约 tool-goal README:72；坐标见 plugin-source.mjs）。
+    // 旧代码此处写 `{ kind: 'user' }`，与 notify 面同罪；已收敛到单一真源 PLUGIN_SOURCE。
     agent.steer({
       id: cryptoUUID(),
       role: 'user',
       content: [{ type: 'text', text: steerMsg }],
-      source: { kind: 'user' },
+      source: { ...PLUGIN_SOURCE },
     })
   }
   return {
