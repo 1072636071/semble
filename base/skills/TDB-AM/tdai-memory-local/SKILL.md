@@ -4,6 +4,12 @@ description: 本地守护记忆面（离线兜底 + 项目记忆统一写入门�
 version: 0.2.0
 ---
 
+> 🗄️ **2026-10-02 物理退役（PRD 85 工单 02/08）**：本技能的 MCP 载体已随本地守护形态一并删除——`tools/memory-mcp.mjs`（MCP server 本体）、`tools/lib/memory-register-core.mjs`（注册腿）、`tdai-codegraph-local/scripts/memory-mcp.mjs`（注册/拉起脚本）**均不存在**，`npm run daemon -- register-mcp` 入口也已从本仓 `package.json` 移除。本技能赖以工作的「五个工具 MCP 面」**已无可用实现，勿据此挂载或调用**。
+>
+> 文档中仍被引用的 `tools/memory-uplink.mjs`（批量上行 CLI）是**现役**工具，不受影响；但它在本文里的语义是「兜底补传」，不是本技能的在线入口。
+>
+> **现役替代**：记忆读写/召回走**灵枢 `lingshu`**（`server/`）；离线兜底 = **直读 `.agents/memory/` 文件**（`.md` 三件套，见 `docs/agents/agent-memory.md`）；本地守护只剩 **mzg**（代码检索，端口 7999）。详见 `agents/skills/memory-gateway/SKILL.md` 与 AGENTS.md「本地守护」节。
+
 ## 目的与适用
 
 本地守护记忆面（ADR-0065 三层架构的第三层：**离线兜底**）。远端记忆服务不可达时，它保证「agent 面对重复问题自己找经验解决」这条北极星判据**不因断网失效**。
@@ -170,7 +176,7 @@ node tools/memory-mcp.mjs register --all --force        # 写进探测到的各�
 ```
 
 `--target <mcp.json>` 指到探测表之外的路径时同样要 `--force`——防的是「一条命令改坏他人 MCP 配置」。
-守护进程入口 `npm run daemon -- register-mcp` 现在就是把上面这条命令转出去（codegraph 腿与记忆腿各自独立，不再互相抹掉）。
+守护进程入口 `npm run daemon -- register-mcp`（本仓 `package.json` 已于 2026-10-02 退役移除，连同 `tdai-daemon.mjs` 的该分支一道作废）原本就是把上面这条命令转出去（codegraph 腿与记忆腿各自独立，不再互相抹掉）。该入口现已不可达——需要注册请走 `memory-gateway` 等现役面的注册脚本，或按上段 `tools/memory-mcp.mjs register` 文档（⚠️ 该文件亦已随 PRD 85 删除）。
 
 ---
 

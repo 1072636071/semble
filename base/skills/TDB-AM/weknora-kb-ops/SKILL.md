@@ -1,7 +1,7 @@
 ---
 name: weknora-kb-ops
 description: WeKnora 知识库运营面（全局技能）——对指定知识库直接上传 / 查询 / 管理：图片 SHA256 去重上传、重复命中合并标签、标签 CRUD、去重审计、解析失败排查、批量改名与双语描述。适用于任何本地工作空间维护团队知识库/图片资产。当用户要操作某个具体知识库、批量灌图/灌文档、问图片是否重复上传、改条目标签、查图找素材时使用。触发词：指定知识库、长兴博客、上传知识库、图片去重、重复上传、改标签、查图、kb ops。
-version: 2.1.0
+version: 2.2.0
 x-install: true
 ---
 
@@ -25,6 +25,7 @@ x-install: true
 ## 在册知识库（多库登记）
 
 每库一段档案；**新工作区/新库接入**：档案表加行 + 坚果云建该库的 key 文件 + `references/tag-registry-<slug>.md` 建标签台账。
+**从零建库的完整流程（模板复制 → 改名改描述 → 配置对齐 → 补来源标 → 接入工作区）见下节「## 新建库（新项目 / 新库接入）」，可跑片段见 cookbook §11。**
 
 ### BPM 知识库（2026-10-04 接入）
 
@@ -35,6 +36,18 @@ x-install: true
 | 消费方 | `E:\work\work-sp\BPM问题处理`、`E:\work\work-sp\BPM需求开发`（知识链第 2 级，两仓 AGENTS.md 的知识库段均由 `scripts/kb-install.ps1` 生成） |
 | 标签台账 | [references/tag-registry-bpm.md](references/tag-registry-bpm.md)（主题八标，无 category 前缀体系） |
 | 内容 | 8 份 knora 蒸馏文档 + 存量 1 条（REST manual 腿首批入库） |
+
+### 设备管理知识库（2026-10-11 接入）
+
+| 项 | 值 |
+|---|---|
+| kb_id | `ff4696b2-606b-4abe-aa51-79ca82a16675` |
+| UI | `http://123.206.125.149:8127/platform/knowledge-bases/ff4696b2-606b-4abe-aa51-79ca82a16675` |
+| REST | `http://123.206.125.149:8127/api/v1`，头 `X-API-Key`（凭据腿 `项目机密\Secret\WeKnora-知识库-API密钥.md`，key 只现取现用、不回显） |
+| 定位 | **项目知识库**：依模板库 `b2d1f93b-725a-4ee5-98bb-b77d57e646e2` 内《知识库 (Knowledge Base) 与 记忆 (Memory) 的设计划分指南》的「**客观 / 共享 / 相对静态**」定位——只放项目客观结论，不放主体经历（经历归灵枢记忆）。建库走 settings-only 模板复制，流程见「## 新建库（新项目 / 新库接入）」 |
+| 消费方 | `E:\work\work-sp\设备管理`（AGENTS.md / CODEBUDDY.md 知识库段 + `docs/agents/knowledge-base.md` + `scripts/kb-check.ps1` 转发壳均由 `scripts/kb-install.ps1` 生成；文件内已含 `<!-- project-kb-id: ff4696b2-… -->` 标记行） |
+| 标签台账 | [references/tag-registry-shebei.md](references/tag-registry-shebei.md)（来源两标，**暂无领域主题标**） |
+| 内容 | 1 条 manual：`e51d9424-8144-4dd0-970e-ee40a298e8e9`「设备管理 项目知识库接入记录（2026-10-11）」，`parse_status=completed` |
 
 ### 长兴博客资源知识库（主库，2026-10-04 实测）
 
@@ -65,6 +78,137 @@ tag id 全表见 [references/tag-registry.md](references/tag-registry.md)：cate
 - 图片 `title` = 中文短句（句号结尾，与条目名一致）；description = **中文优先**：
   `中文摘要（含品牌缩写开头亦可，如 SGS 报告：…）。\n\n[EN] 原英文`——英文保留为附录供英文检索。
 
+## 新建库（新项目 / 新库接入）
+
+> 2026-10-11 设备管理库建库实证。下文标「源码」者为读 `TencentDB-Agent-Memory\MyWeKnora` 源码所得（含行号），
+> 标「实测」者为当日对 `http://123.206.125.149:8127` 的 REST 回读所得；可跑片段见 [references/rest-cookbook.md](references/rest-cookbook.md) §11。
+> 五步：**复制模板 → 改名改描述 → 与模板对齐配置 → 补来源标 + 回读核验 → 接入本地工作区**。
+> 模板源库 = `b2d1f93b-725a-4ee5-98bb-b77d57e646e2`（`TencentDB-Agent-Memory-1646ck3g`，内含 1 条 manual
+> `d399ea07-bd14-4045-8fce-28f278f0f2f1` =《知识库 (Knowledge Base) 与 记忆 (Memory) 的设计划分指南》）。
+
+### 1. 首选：settings-only 模板复制（`POST /knowledge-bases/{id}/duplicate`）
+
+> ⚠️ **本节（与 cookbook §11b）经源码核实但本次未实跑**：2026-10-11 设备管理库实际走的是
+> 手搓 `POST /knowledge-bases` + `PUT /knowledge-bases/{id}` 的 `config` 整段对齐（见下方「### 建库实测记录」）。
+> 首次真实走 duplicate 建库时，请对照实际响应体修正本节与 cookbook §11b 的片段。
+
+服务端 = `DuplicateKnowledgeBase`（`MyWeKnora/internal/application/service/knowledgebase.go:1269-1333`）
++ `cloneKnowledgeBaseConfiguration`（同文件 `:1402-1415`）：源库**整份 JSON 深拷贝**后重设
+id / tenant / name / 时间戳 / 计数器（`KnowledgeCount`·`ChunkCount`·`ShareCount` 归零，`IsPinned`·`IsTemporary` 复位，
+`GeneratedProfile` 置 nil），再落库。源码注释原文：**`A duplicate copies settings, not content`**——
+**只复制配置，不带任何条目 / 分块 / FAQ / 索引 / wiki 页 / 分享**。
+
+自动命名 = `buildDuplicateKnowledgeBaseName`（`:1363-1400`）：`<源名>` + 语言后缀，zh locale 的后缀见
+`duplicateKBCopySuffix`（`:1335-1347`）= **` 副本`**；重名则 `… 副本 2`、`… 副本 3` 递增。
+→ **建完必须再 PUT 改名 + 改描述**。响应 = HTTP **201** `{success, data:{source_id, target_id, message, knowledge_base}}`
+（`DuplicateKnowledgeBaseResponse`，`internal/handler/knowledgebase.go:901-906`、`:1115-1123`），新库 id 取 `data.target_id`。
+
+### 2. 别拿 `POST /knowledge-bases/copy` 建空库
+
+`copy` 是**异步、连条目一起复制**（`internal/handler/knowledgebase.go:920` 的 swagger 注释
+「将一个知识库的内容复制到另一个知识库（异步任务）」；body `{source_id, target_id}`，返回 `task_id`，
+进度 `GET /knowledge-bases/copy/progress/{task_id}`，客户端 `client/knowledgebase.go:483,528`）。
+拿它做「模板建空库」会把模板库的条目一并搬进新库——**模板库里的指南类文档要保持单一权威源**，不做多库副本。
+
+### 3. 手搓 `POST /knowledge-bases` 的硬要求（否则建出半成品库）
+
+`POST /knowledge-bases` 的 body 就是 `types.KnowledgeBase` 本身（`internal/handler/knowledgebase.go:389,401`），
+服务端 `CreateKnowledgeBase`（`service/knowledgebase.go:121-180`）**只填 id / 时间戳 / tenant 就落库**，
+不校验模型与分块字段；`EnsureDefaults()`（`internal/types/knowledgebase.go:737-782`）**只补**
+`type`（document）与 `indexing_strategy`（vector+keyword），**不补 embedding 模型、不补 chunk 尺寸**（源码）。
+
+只传 `name` / `description` 会**当成功返回（201 + `{success:true}`，没有任何告警）**，但建成的是**半成品库**：
+`embedding_model_id` 空、`chunking_config` 全零（`chunk_size=0`）、wiki 关。后果（2026-10-11 实测）：
+之后入库的条目**永卡 processing**，且 **PUT 改不回来**——`UpdateKnowledgeBaseRequest` 只有
+name / description / config 三个字段（`internal/handler/knowledgebase.go:714-719`），config 里也没有 embedding；
+服务层虽有 `SetEmbeddingModel`（`service/knowledgebase.go:1121`）但**未挂路由**（全仓仅该处定义，无 handler / 路由引用）。
+→ 只能删库重建。
+
+要手搓就必须带齐 **`embedding_model_id` + `summary_model_id` + `chunking_config` + `indexing_strategy`**
+（模型 id 从 `GET /models` **现取**，别抄旧库——同一模型在不同库 / 部署里 id 会变）。
+**优先仍走 §1 的 duplicate**：整份配置复制，不会漏字段。
+
+### 4. `PUT /knowledge-bases/{id}` 的 `config` 是整段覆盖
+
+body = `{ "name": <必填>, "description": …, "config": {…} }`（`UpdateKnowledgeBaseRequest`，
+`internal/handler/knowledgebase.go:714-719`，`name` 是 `binding:"required"`）。服务层**不做字段级合并**
+（`service/knowledgebase.go:532-567`，源码）：
+
+| config 字段 | 语义 | 漏传 / 传 null 的后果 |
+|---|---|---|
+| `chunking_config` | value（`kb.ChunkingConfig = config.ChunkingConfig`） | **清零**（chunk_size 归 0） |
+| `image_processing_config` | value（`kb.ImageProcessingConfig = …`） | **清零**（模型绑定归空） |
+| `faq_config` / `wiki_config` / `auto_tag_config` / `profile_config` | 指针（`!= nil` 才覆盖） | 保留原值 |
+| `indexing_strategy` | 指针，且**传了就必须至少开一路** | 传了但全关 → 400 `at least one indexing strategy must be enabled` |
+
+所以「把已建库对齐成模板」的正确姿势 = 先从模板库 `GET /knowledge-bases/{模板id}` **现取全量**
+`chunking_config / wiki_config / indexing_strategy / image_processing_config / auto_tag_config / profile_config`，
+再整段 PUT 回去（片段见 cookbook §11c）。
+
+- `extract_config` / `question_generation_config` **不在 PUT 可写集**——`types.KnowledgeBaseConfig`
+  （`internal/types/knowledgebase.go:159-176`）只有 chunking / image_processing / faq / wiki / auto_tag / profile / indexing 七项。
+  它们的 nil 与模板里的显式 `{enabled:false}` **行为等价**（`defaultQuestionGenerationConfig(nil)`、
+  `derefExtractConfig(nil)` 均返零值，`internal/application/service/knowledge_process_config.go:239-251`），
+  **不必追平，也别硬塞**（PUT 塞不进去）。
+
+### 5. 建库后基线（不补就体检 FAIL）
+
+1. **补来源标** `文档上传`、`灵枢记忆`，`color=#9aa0a6`、`sort_order=900`（与既有库口径一致）。
+   `POST /knowledge-bases/{kb}/tags` 的 body 收 `{name, color, sort_order}`（`internal/handler/tag.go:113-117`、
+   `service/tag.go:133-183`）——一次传全，别只传 name 再补 PUT。
+   **不补则 `scripts/kb-check.ps1` 直接 FAIL「标签 0 个」。**
+2. **GET 回读核验**：`wiki_enabled` / `chunk_size` / `embedding_model_id` 三项与模板一致才算建成（cookbook §11c 尾段）。
+3. **登记台账**：标签 id / color / sort_order / 引用数写进 `references/tag-registry-<slug>.md`。
+
+### 6. 接入本地工作区（顺序有坑）
+
+```powershell
+pwsh -File kb-install.ps1 -Kb <kb_id> -KbName "<库名>" -Workspace . -Anchor "Agent skills"
+```
+
+随后把 `<!-- project-kb-id: <uuid> -->` 标记行放在**知识库段之前**（通常紧跟文件顶部，即
+`## Agent skills` 块**之外**）。**别图省事放文件末尾**：jxx-setup-skills 提取「## Agent skills」块的口径是
+**自该标题取到下一个 `## ` 标题，没有就到文件末尾**（`base/skills/engineering/jxx-setup-skills/scripts/setup.mjs:54-64`
+的 `extractAgentSkillsBlock`）——放在末尾的标记行会被算进块内，与规范块不等，
+于是**每次重跑 setup 都报 `conflict`**（exit 3），幂等性当场破功。
+
+### 建库实测记录（2026-10-11 · 设备管理库）
+
+实际**没走 §1 的 duplicate**（§1 标注：源码核实、本次未实跑），走的是手搓 create + PUT `config` 对齐：
+
+1. **手搓 `POST /knowledge-bases` 建库**——body 一次带齐 `embedding_model_id` + `summary_model_id` +
+   `chunking_config`（380 / 40）+ `indexing_strategy`（vector + keyword + wiki），库名「设备管理」与描述
+   **建库时一次给对**：**没有走 rename，也没有调用过 duplicate**（§3 的硬要求就是这次首建踩出来的，见下）。
+2. **对齐模板配置**——`GET` 模板库 `b2d1f93b` 现取全量 `chunking_config / wiki_config / indexing_strategy /
+   image_processing_config / auto_tag_config / profile_config`，用 `PUT /knowledge-bases/{id}` 的 `config` 段
+   **整段覆盖**（§4）。
+3. **补两枚来源标**（`文档上传` / `灵枢记忆`，§5）。
+4. **核验与接入**——`kb-check.ps1 -Kb ff4696b2-…` **FAIL=0 / WARN=0** →
+   `kb-install.ps1 -Anchor "Agent skills"` 接入 `E:\work\work-sp\设备管理`。
+
+**本次两处踩坑（都真实发生）**：
+
+- **首建的教训**：第一次 `POST /knowledge-bases` 只传 `name` / `description`，服务端返回 200 但建出的是
+  **半成品库**（`embedding_model_id` 空、`chunk_size=0`、wiki 关），之后入库的条目**永卡 processing**；
+  `PUT` 改不回来 → **只能删库重建**。这就是上文 §3 的实测来源。
+- **PUT 的第二个坑**：把 `chunking_config` / `embedding_model_id` 等**平铺在 body 顶层**（不放进 `config`）提交时，
+  服务端**静默忽略**——name / description 与现值相同时，整次 PUT 相当于 no-op，且**不报任何错**。
+  配置必须整体放进 `config` 段（§4）。
+
+建库后 REST 回读与模板**逐字段一致**（实测）：
+
+| 字段 | 值（新库 = 模板，逐字可比） |
+|---|---|
+| `embedding_model_id` | `7b0be267-40b3-4752-811f-d9ad171024a4`（GTE-Qwen2） |
+| `summary_model_id` | `9da32b0f-3bc4-4fb7-9573-24e33a0dffce`（agnes-3.0-flash） |
+| `chunking_config` | `chunk_size` 380 / `chunk_overlap` 40 / `parent_chunk_size` 4096 / `child_chunk_size` 384 / `separators` `["\n\n","\n"]` / `parser_engine_rules`：pdf·docx·doc·pptx·ppt → `mineru_cloud`，csv·md·markdown·txt·json·图片·音频 → `simple` |
+| `indexing_strategy` | `{vector:true, keyword:true, wiki:true, graph:false}` |
+| `wiki_config` | `{extraction_granularity:"standard", synthesis_model_id:9da32b0f-…, max_pages_per_ingest:0}` |
+
+⚠️ **`enable_parent_child` 是 `omitempty` 的 bool：新库与模板的 GET 响应里都不出现该键 = false**（2026-10-11 实测），
+但 `parent_chunk_size` / `child_chunk_size` 已预置 4096 / 384。要真开父子分块，得在 PUT 的 `chunking_config`
+里**显式传 `"enable_parent_child": true`**——光有尺寸不算开。
+
 ## 上传（按内容形态选腿）
 
 1. **图片 → 灵枢 `memory_remember`（推荐）**：`content` 传图片绝对路径、`kb_id` 传库 id 或库名。
@@ -75,7 +219,7 @@ tag id 全表见 [references/tag-registry.md](references/tag-registry.md)：cate
    本地路径由 MCP 进程读；`file_name` 可带目录（`docs/spec/x.pdf`）落知识文件夹。图片必开 `enable_multimodel`（默认开），否则 VLM 描述不进索引。
 3. **Markdown 文本 → `create_knowledge_from_text(kb_id, title, content[, tag_ids, status="publish"])`**；
    网页 → `create_knowledge_from_url(kb_id, url)`。改已有手工条目 → `update_knowledge_from_text`。
-   **⚠️ MCP 未挂载时的降级（必读）**：文本/知识条目改走 **REST 创建手工知识**（cookbook §10，
+   **⚠️ MCP 未挂载时的降级（必读）**：文本/知识条目改走 **REST 创建手工知识**（cookbook §6b，
    `POST /knowledge-bases/{kb}/knowledge/manual`，不依赖任何 MCP，任何 harness 都能走）。
    **严禁**拿灵枢 `memory_remember` 顶替——它只收**图片**（图片腿才进 WeKnora），文本会写进灵枢记忆
    而不是知识库（真实事故：2026-10-04 外贸站会话因此假完成）。
@@ -182,7 +326,8 @@ pwsh -File kb-install.ps1 -Kb <kb_id> -KbName "X" -Workspace . -ExtraRules "**�
 
 ## 深入
 
-- **references/rest-cookbook.md** — REST 补强面全部菜谱：取 key 范式、去重审计、标签 CRUD、批量改标、failed 排查、manual 更新、存量改名 SQL 腿、双语描述批量写回。要动手跑 REST 时读。
+- **references/rest-cookbook.md** — REST 补强面全部菜谱：取 key 范式、去重审计、标签 CRUD、批量改标、failed 排查、manual 更新、存量改名 SQL 腿、双语描述批量写回、**新建库与配置对齐（§11）**。要动手跑 REST 时读。
 - **references/tag-registry.md** — 长兴库 tag id 全表与挂标范式。新库接入时另建 `tag-registry-<slug>.md`。
 - **references/tag-registry-bpm.md** — BPM 库 tag id 全表。
+- **references/tag-registry-shebei.md** — 设备管理库 tag id 全表（来源两标，暂无主题标）。
 - **scripts/kb-check.ps1** / **scripts/kb-install.ps1** — 体检与安装两条全局流程（见上节）。

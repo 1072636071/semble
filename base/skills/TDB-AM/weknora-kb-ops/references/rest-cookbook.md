@@ -175,3 +175,84 @@ curl.exe -s -H "X-API-Key: $key" "$base/knowledge/<id>"
 正确顺序：`POST knowledge/file` → 轮询 `GET /knowledge/:id` 直到 `parse_status ∈ {completed, failed}`
 → 再 `PUT title/description` → 睡 20–30 s 复查是否仍是你写的值（不要 PUT 完立刻读就收工）。
 存量 203 张能保持 203/203 双语描述，正是因为它们都是处理完成后才回写的。
+
+## 11. 新建库与配置对齐（2026-10-11 设备管理库实证）
+
+> 流程口径与源码依据见 SKILL.md「## 新建库（新项目 / 新库接入）」。模板源库 = `b2d1f93b-725a-4ee5-98bb-b77d57e646e2`
+> （TencentDB-Agent-Memory-1646ck3g）。三段可跑：11a 取 key → 11b duplicate 建库 + 改名改描述 → 11c 全量 config 对齐 + 回读核验；11d 补来源标。
+
+### 11a. 取 key（同 §0，不回显）
+
+```powershell
+$md   = Get-Content -Raw "C:\Users\jxc123\Nutstore\1\我的坚果云\项目机密\Secret\WeKnora-知识库-API密钥.md"
+$key  = [regex]::Match($md, 'sk-[A-Za-z0-9_\-]+').Value
+$base = "http://123.206.125.149:8127/api/v1"
+$tpl  = "b2d1f93b-725a-4ee5-98bb-b77d57e646e2"   # 模板源库：只复制设置，不复制条目
+```
+
+### 11b. duplicate 建库 → PUT 改名 + 改描述
+
+> ⚠️ **本片段经源码核实但本次未实跑**（2026-10-11 设备管理库实际走手搓 `POST /knowledge-bases` + `PUT config`
+> 对齐，见 SKILL.md「### 建库实测记录」）；首次真实走 duplicate 建库时，请对照响应体修正本片段。
+
+```powershell
+# ① settings-only 复制（HTTP 201；data 信封见 SKILL.md「新建库」§1）
+$resp = curl.exe -s -X POST -H "X-API-Key: $key" "$base/knowledge-bases/$tpl/duplicate" | ConvertFrom-Json
+$kb   = $resp.data.target_id
+"NEW KB: $kb  NAME: $($resp.data.knowledge_base.name)"   # 自动名形如 "<源名> 副本"
+
+# ② 改名 + 改描述（name 必填；不带 config = 本次不动配置，保留从模板复制来的整份设置）
+$body = @{ name = "设备管理"; description = "<库定位：客观 / 共享 / 相对静态>" } | ConvertTo-Json
+[IO.File]::WriteAllText("$pwd\_kbput.json", $body, (New-Object Text.UTF8Encoding($false)))
+curl.exe -s -X PUT -H "X-API-Key: $key" -H "Content-Type: application/json" --data-binary "@_kbput.json" "$base/knowledge-bases/$kb"
+```
+
+### 11c. 配置对齐（从模板 GET 现取全量 config，再整段 PUT）
+
+```powershell
+# ① 现取模板全量 config：chunking / image_processing 是 value 语义，漏传即清零 → 六个字段一个都别省
+$t = (curl.exe -s -H "X-API-Key: $key" "$base/knowledge-bases/$tpl" | ConvertFrom-Json).data
+$cfg = @{
+  chunking_config         = $t.chunking_config
+  image_processing_config = $t.image_processing_config
+  wiki_config             = $t.wiki_config
+  indexing_strategy       = $t.indexing_strategy
+  auto_tag_config         = $t.auto_tag_config
+  profile_config          = $t.profile_config
+}
+$body = @{ name = "设备管理"; description = "<与 11b 一致>"; config = $cfg } | ConvertTo-Json -Depth 12
+[IO.File]::WriteAllText("$pwd\_kbcfg.json", $body, (New-Object Text.UTF8Encoding($false)))
+curl.exe -s -X PUT -H "X-API-Key: $key" -H "Content-Type: application/json" --data-binary "@_kbcfg.json" "$base/knowledge-bases/$kb"
+
+# ② 回读核验：三项绑定对齐 + 三份配置逐字段比对（应与模板逐字一致）
+$n = (curl.exe -s -H "X-API-Key: $key" "$base/knowledge-bases/$kb" | ConvertFrom-Json).data
+$n | Select-Object name,embedding_model_id,summary_model_id | Format-List
+$n.chunking_config   | ConvertTo-Json -Depth 6
+$n.indexing_strategy | ConvertTo-Json -Depth 6
+$n.wiki_config       | ConvertTo-Json -Depth 6
+```
+
+判红点两条：`indexing_strategy` 传了但 vector / keyword / wiki / graph 全关 → 400
+`at least one indexing strategy must be enabled`；`chunking_config` 忘了带 → `chunk_size` 直接归 0
+（PUT 是整段覆盖，不做字段级合并）。另：`extract_config` / `question_generation_config` **PUT 写不进去**
+（不在 `types.KnowledgeBaseConfig` 里），与模板的差异行为等价，别硬塞。
+
+### 11d. 补来源标（不补则体检报 FAIL「标签 0 个」）
+
+```powershell
+$tags = @(
+  @{ name = "文档上传"; color = "#9aa0a6"; sort_order = 900 },
+  @{ name = "灵枢记忆"; color = "#9aa0a6"; sort_order = 900 }
+)
+foreach ($t in $tags) {
+  [IO.File]::WriteAllText("$pwd\_tag.json", ($t | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
+  curl.exe -s -X POST -H "X-API-Key: $key" -H "Content-Type: application/json" --data-binary "@_tag.json" "$base/knowledge-bases/$kb/tags"
+}
+# 回读核验（分页信封：data.data 才是数组）
+(curl.exe -s -H "X-API-Key: $key" "$base/knowledge-bases/$kb/tags" | ConvertFrom-Json).data.data |
+  Select-Object id,name,color,sort_order,knowledge_count
+```
+
+幂等：标签名同库内唯一，重复 POST 同名返 409（`标签名称已存在`）——重跑前先按 §3 查一遍，别盲发。
+建完账落到 `references/tag-registry-<slug>.md`（设备管理库见 [tag-registry-shebei.md](tag-registry-shebei.md)）。
+
