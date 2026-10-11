@@ -1,6 +1,6 @@
 ---
 name: jxx-setup-pre-commit
-description: 在当前仓库设置 Husky pre-commit hooks，配合 lint-staged（Prettier）、type checking 与 tests；当用户想添加 pre-commit hooks、配置 Husky/lint-staged，或在 commit 时做格式化/类型检查/测试时使用。
+description: 在仓库设置 Husky pre-commit hooks：lint-staged/Prettier、typecheck、tests。触发词：pre-commit、husky。
 metadata:
   version: 1.0.0
 ---

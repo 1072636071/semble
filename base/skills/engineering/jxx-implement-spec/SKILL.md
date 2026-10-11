@@ -1,6 +1,6 @@
 ---
 name: jxx-implement-spec
-description: "按 spec/PRD 与其关联 ticket（任务图）整轨实现：统一看板投卡、按 auto 模式编排 worker/审查者/合并专员完成开发-审查-合并-回收；每张工单审查通过后默认直接合入 main（合入前 merge-check 预演冲突面并分诊，受阻暂存 PRD 分支），合入后回收工作空间，全部工单收口后清暂存并置 PRD done。触发词：实现 spec、implement the spec、按工单实现、PRD 整轨。"
+description: "按 spec/PRD 整轨实现：投卡→auto 编排开发/审查/合并/回收，工单默认合 main。触发词：实现 spec、implement the spec。"
 disable-model-invocation: false
 metadata:
   version: 1.4.0

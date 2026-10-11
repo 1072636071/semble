@@ -1,6 +1,6 @@
 ---
 name: jxx-wayfinder
-description: 规划超出单个 agent 会话承载范围的大型工作——在 issue tracker 上建立共享调查地图（map），逐个解决 ticket 直到通往目的地（destination）的路径清晰。
+description: 规划超过单会话承载的大型工作：在 issue tracker 上建共享调查地图，逐个解决工单直到路径清晰。触发词：wayfinder、寻路、迷雾。
 disable-model-invocation: false
 metadata:
   version: 1.0.0

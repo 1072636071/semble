@@ -1,6 +1,6 @@
 ---
 name: jxx-skill-init
-description: 在本仓库中新增一个 SKILL。
+description: 在本仓库新增一个 SKILL：ship init 生成骨架并按仓库约定填充。触发词：新建技能、新增 SKILL、写个 skill、add skill。
 disable-model-invocation: false
 x-install: true
 x-vendors:
@@ -9,7 +9,7 @@ x-vendors:
     tags: [jxx-skill-init, codebuddy]
     description-en: |-
       1. Scaffold a new skill in this repo with ship init + repo conventions.
-      2. Triggered by: new skill, add skill, create SKILL.
+      2. Triggered by: new skill, add skill, write a skill.
       3. Ensures one-pass creation passing check gate.
       4. Usage: collect name/bucket → ship init → fill frontmatter → write body → verify check.
       5. Requires: node, base/scripts/ship.mjs.

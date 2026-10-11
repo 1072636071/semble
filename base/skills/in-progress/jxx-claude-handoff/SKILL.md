@@ -1,6 +1,6 @@
 ---
 name: jxx-claude-handoff
-description: 将当前对话交接（handoff）给一个新的后台 agent，使其立即接手工作。
+description: 将当前对话交接给新的后台 claude agent 立即接手。触发词：交接、handoff、后台 agent。
 argument-hint: "下一个会话将用于什么？"
 disable-model-invocation: false
 metadata:

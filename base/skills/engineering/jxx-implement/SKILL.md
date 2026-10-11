@@ -1,6 +1,6 @@
 ---
 name: jxx-implement
-description: 基于 spec 或一组 ticket 实现（implement）用户描述的工作。统一开发面：必须在项目内的工单 worktree（wt/<卡id>）里开发、走统一看板（jxx-ticket-board）的卡位流转，三段硬出口不变；交付后收口是四段闭环（复核 → 合并预演处理冲突 → 合入 main → 回收工作空间），冲突解完必须重审。
+description: 按 spec 或工单实现：在工单 worktree 开发、走统一看板流转，收口四段（复核→预演冲突→合 main→回收）。触发词：实现、implement、工单实现。
 disable-model-invocation: false
 metadata:
   version: 1.4.0

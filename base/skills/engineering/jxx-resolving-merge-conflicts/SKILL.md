@@ -1,6 +1,6 @@
 ---
 name: jxx-resolving-merge-conflicts
-description: 解决进行中的 git merge/rebase 冲突——查看状态、追溯每个冲突的原始来源（commit/PR/issue）、保留双方意图逐 hunk 解决而非发明新行为；当合并或变基被冲突阻塞、用户报告冲突文件、或需要澄清冲突的意图时使用。绝不 --abort。在工单看板流里另有一条硬约定：解完 diff 已变 ⇒ 原审查失效，必须重跑 /jxx-code-review。
+description: 解决进行中的 git merge/rebase 冲突：追溯每个冲突的来源（commit/PR/issue），保留双方意图逐 hunk 解决而非发明新行为，绝不 --abort。当合并或变基被冲突阻塞、用户报告冲突文件时使用；工单看板流里解完 diff 已变 ⇒ 必须重跑 /jxx-code-review。触发词：合并冲突、解冲突。
 metadata:
   version: 1.1.0
 ---

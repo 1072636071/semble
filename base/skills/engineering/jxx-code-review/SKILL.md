@@ -1,6 +1,6 @@
 ---
 name: jxx-code-review
-description: 审查自固定点（commit、branch、tag 或 merge-base）以来的变更，维度数由执行模式决定 — 检测到 ocr CLI 时启用委托模式做 3 维度审查（标准：是否遵循仓库编码标准；spec：是否匹配原始 issue/PRD；规则：是否违反 OCR 解析出的文件级规则组；OCR 负责文件筛选与规则解析，宿主 Agent 用自身 LLM 审查，OCR 端无需配置 LLM）；未安装 ocr 时自动降级为内置 2 维度审查（标准 + spec）。各维度以并行子 agent 运行并并排报告。当用户想审查 branch、PR、进行中的变更，或要求"review since X"/"review 自 X 以来"时使用。
+description: 审查自固定点（commit、branch、tag 或 merge-base）以来的变更；检测到 ocr CLI 走委托模式 3 维度（标准+spec+规则），未装则降级 2 维度（标准+spec），各维度并行子 agent 并排报告。当用户想审查 branch、PR、进行中的变更，或要求“review since X”/“review 自 X 以来”时使用。触发词：code review、审查代码。
 metadata:
   version: 1.1.3
 ---

@@ -1,6 +1,6 @@
 ---
 name: jxx-ticket-board
-description: 工单公告板工作区——把任意 git 仓库开辟为多 worktree 并行工单协作场。加载本会话即领导者（只分解投卡、记账汇总，不干预开发组），worker 由用户拉起自发领卡，卡片目录即状态机、文件原子 move 防抢，领导者每个行为即时落盘账本，断线可重连自检。支持 auto 模式——指定一组工单后自动 spawn worker/审查者/合并专员完成全流程。收口是**四段闭环**：复核 → 合入前预演冲突面（merge-check）→ 合入 main → 回收工作空间（rm-wt 连带已合入分支），verify 对账兜底漏回收；合并冲突分「机械候选」（逐 hunk 保留双方意图，解后必须重审）与「非机械」（binary/modify-delete/rename，交回开发组）。当用户想搭建工单公告板/开多个工单工作区/以领导者身份派发任务/自动完成一组工单/合并工单分支并回收工作空间/解决合并冲突/恢复领导者会话/看板对账时使用。触发词：公告板, 领卡, 投卡, 工单看板, worktree工作区, 领导者, auto, 自动编排, 合并, 回收工作空间, 清理worktree, 合并冲突, reconnect, 服务器工单, bootstrap。
+description: 工单公告板：把 git 仓库开成多 worktree 并行协作场，本会话即领导者。触发词：公告板、领卡、投卡、工单看板、auto、自动编排、合并、回收工作空间。
 disable-model-invocation: false
 metadata:
   version: 0.15.0

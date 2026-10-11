@@ -1,6 +1,6 @@
 ---
 name: jxx-to-milestones
-description: 把一批已发布的工单归组为可独立上线的里程碑，生成 MILESTONES.md，并按里程碑逐个交付（实现 → 上线门禁 → 验收 → 续接）。当工单多、改动大、涉及广泛重构或破坏性变更、需要分批发布、要求每批都能单独回滚、或需要中断后续传时使用。通常在 /jxx-to-tickets 之后运行，也可直接对任意已存在的工单目录运行。
+description: 把已发布工单归组为可独立上线、可单独回滚的里程碑（MILESTONES.md），按里程碑逐个交付。触发词：里程碑、分批发布、milestones。
 disable-model-invocation: false
 metadata:
   version: 1.0.0

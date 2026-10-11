@@ -1,6 +1,6 @@
 ---
 name: jxx-architecture
-description: AI 友好架构（AI-friendly architecture）的设计与审查 — 以 AI agent 为第一读者的代码结构准则。当用户想做架构设计（新系统、模块拆分、目录结构、技术选型）、架构审查（评估现有结构是否利于 AI 协作），或提到上帝文件、深层嵌套、全局状态、AI 可读性、Spec-First、ADR、DDAD 时使用。触发词：架构设计、架构审查、AI 友好。
+description: AI 友好架构的设计与审查——以 AI agent 为第一读者的代码结构准则（小文件、显式签名、Schema 驱动、DDAD）。当用户要做架构设计、架构审查，或提到上帝文件、深层嵌套、AI 可读性时使用。触发词：架构设计、架构审查、AI 友好、ADR。
 metadata:
   version: 1.3.0
 ---
