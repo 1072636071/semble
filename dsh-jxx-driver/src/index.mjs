@@ -116,6 +116,12 @@ export function apply(ctx, rawConfig) {
   ctx.on('session/event', (session, event) => {
     try {
       if (!event || event.type !== 'user/message') return
+      // 可续接子代理结算通知（宿主 subagent-settled · subagent/end 结算回投）：按 childId 反查
+      // run.subagents 登记簿走该轮 onSettled 收口——continuable 后台子代理的收割路。
+      if (event.data?.source?.kind === 'subagent-settled') {
+        orch.onSubagentSettledMessage(session?.id !== undefined ? { session } : undefined, event.data)
+        return
+      }
       if (event.data?.source?.kind !== 'team-message') return
       const blocks = Array.isArray(event.data.content) ? event.data.content : []
       const text = blocks.filter((b) => b && b.type === 'text').map((b) => b.text).join('\n')

@@ -21,14 +21,21 @@ function renderPlaceholders(text, root) {
     .replaceAll('{{BASE_BRANCH}}', 'origin/main')
 }
 
-function starter(root, role) {
+function starter(root, role, { member } = {}) {
   const file = join(root, 'control', 'starter', `${role}.md`)
   if (existsSync(file)) return readFileSync(file, 'utf8')
   const builtin = join(DEFAULT_STARTER_DIR, `${role}.md`)
   if (!existsSync(builtin)) {
     throw new Error(`jxx-driver: 内置默认提示词缺失（default-starters/${role}.md）——插件安装不完整，请重装`)
   }
-  return renderPlaceholders(readFileSync(builtin, 'utf8'), root)
+  // member 模式（团队/可续接路径）剔除模板首行的「拉起新会话」残留：这些 starter 是
+  // 「人手拉起新会话时整段粘贴」的历史产物；编排 spawn 的持久队友/可续接子代理不是新会话，
+  // 由本插件经 send_message 续接（subagentId/memberName 在编排账上，粘给谁由编排器管）。
+  const raw = readFileSync(builtin, 'utf8')
+  return renderPlaceholders(
+    member ? raw.replace(/^# .*\n/, '') : raw,
+    root,
+  )
 }
 
 /**
@@ -37,7 +44,7 @@ function starter(root, role) {
  * 交付物（报告/簿记/patch 文本）**完成即落盘**，回报只引用路径与机读行。
  * 单源常量：worker/审查者/合并专员三处尾注共用，防措辞漂移。
  */
-const DISK_FIRST_NOTE = '\n\n---\n落盘纪律：每个交付物（报告、簿记、patch 文本）**完成一份就落盘一份**（写入文件），回报只引用已落盘的路径——会话可能被随时中断，先落盘的东西才保得住；「回报完再写文件」等于没写。\n'
+const DISK_FIRST_NOTE = '\n\n---\n落盘与回报纪律：每个交付物（报告、簿记、patch 文本）**完成一份就落盘一份**（写入文件），回报只引用已落盘的路径——会话可能被随时中断，先落盘的东西才保得住。完工（或受阻停手）经 send_message 向 lead 回报；lead 的续接指令也会经 send_message 发给你——你是可续接的后台会话，收到新指令接着干，不需要也不应该新建会话。\n'
 
 /** 团队路径 worker 尾注（PRD 110 工单 02）：完工回报末行机读行，供编排器收割 settle；一次性路径不追加（现行为逐字节不变）。 */
 const SETTLED_WORKER_NOTE = (cardId) => `\n\n---\n机读要求（团队模式）：完工（或受阻停手）后用 send_message 向 lead 回报一句话进展，回报文本的最后一行必须单独一行写 \`SETTLED: ${cardId}\`（卡 id 原样，不带其他字符）。`
@@ -65,7 +72,7 @@ const MERGER_MEMBER_NOTE = (mergeId, cardId) => MERGER_ASSIGN(mergeId, cardId)
   + `机读要求（团队模式）：本轮收口（或受阻停手）后用 send_message 向 lead 回报一句话结果，回报文本的最后一行必须单独一行写 \`SETTLED: ${mergeId}\`（卡 id 原样，不带其他字符）。`
 
 export function mergerPrompt(root, mergeId, cardId, { member } = {}) {
-  return starter(root, 'merger') + DISK_FIRST_NOTE + (member ? MERGER_MEMBER_NOTE(mergeId, cardId) : MERGER_ASSIGN(mergeId, cardId))
+  return starter(root, 'merger', { member }) + DISK_FIRST_NOTE + (member ? MERGER_MEMBER_NOTE(mergeId, cardId) : MERGER_ASSIGN(mergeId, cardId))
 }
 
 /**
@@ -75,7 +82,7 @@ export function mergerPrompt(root, mergeId, cardId, { member } = {}) {
  */
 export function memberDirective(cardId, note = '') {
   return [
-    `[jxx-driver] 领卡施工：\`${cardId}\`。`,
+    `[jxx-driver] 领卡施工：\`${cardId}\`。你是持久队友/可续接子代理：lead 经 send_message 给你续接指令——按最新一条指令干活即可，不要新建会话或重复领卡。`,
     note ? note.trim() : '',
     `本轮完工（或受阻停手）后用 send_message 向 lead 回报一句话进展，回报文本的最后一行必须单独一行写 \`SETTLED: ${cardId}\`（卡 id 原样，不带其他字符）。`,
   ].filter(Boolean).join('\n') + '\n'

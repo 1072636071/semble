@@ -156,6 +156,10 @@ export function createTeamChannel({ teams, agent, pool, ledger, provider = 'spaw
   const members = new Map()
   /** cardId -> 最近一次派发的队友名（settle 时计预算用）。 */
   const cardOwners = new Map()
+  /** cardId -> 承接队友名的**结构化**复面（复用面记，出册不删）：与 cardOwners 的差别只在
+   *  harvest/interruptInFlight 的出册路径——预算/在飞账要清位，而「该卡由哪个持久队友承接」
+   *  是登记事实，出册后仍按名可续接（list_agents/send_message 面与编排器回查用）。 */
+  const cardMembers = new Map()
   /** 在飞卡集合（dispatch 入册、harvest 出册）——「队友空闲」= 名下无在飞卡。 */
   const inFlight = new Set()
   let retiredTotal = 0
@@ -228,8 +232,9 @@ export function createTeamChannel({ teams, agent, pool, ledger, provider = 'spaw
           content: [{ type: 'text', text: prompt }],
           signal,
         })
+        if (cardId !== undefined) cardMembers.set(cardId, name) // 结构化复面：卡 → 承接队友（复用面）
         log(`team: 指令下发 ${name}（复用，角色 ${role}${cardId ? `，卡 ${cardId}` : ''}）`)
-        return { name, fresh: false, retired: retires.length }
+        return { name, fresh: false, retired: retires.length, memberName: name, keep: true }
       }
       await teams.spawnTeammate(agent, {
         name,
@@ -240,8 +245,9 @@ export function createTeamChannel({ teams, agent, pool, ledger, provider = 'spaw
         signal,
       })
       members.set(name, { role, completed: 0 })
+      if (cardId !== undefined) cardMembers.set(cardId, name) // 结构化登记：卡 → 承接队友（首建面）
       log(`team: 队友新建 ${name}（角色 ${role}${retires.length ? `；到预算退役 ${retires.join('/')}` : ''}）`)
-      return { name, fresh: true, retired: retires.length }
+      return { name, fresh: true, retired: retires.length, memberName: name }
     },
 
     /**
@@ -310,6 +316,16 @@ export function createTeamChannel({ teams, agent, pool, ledger, provider = 'spaw
     /** 卡 → 最近派发的队友名（测试/诊断用）。 */
     nameOf(cardId) {
       return cardOwners.get(cardId)
+    },
+
+    /** 卡 → 承接队友名（结构化复面，出册不删；无登记返回 undefined）。 */
+    memberOf(cardId) {
+      return cardMembers.get(cardId)
+    },
+
+    /** 结构化成员簿记（观测/测试用）：members 全量 + 卡→成员复面。 */
+    members() {
+      return [...members.entries()].map(([name, m]) => ({ name, ...m }))
     },
 
     /**

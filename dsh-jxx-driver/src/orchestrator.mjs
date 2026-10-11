@@ -41,6 +41,9 @@ export const SESSION_ROLE = [
   '② 你的主业是理解用户需求——拿不准就用 ask_user_question 问，把意图聊清再推进；宁多问一句，不自作主张。',
   '③ 关键节点等用户指令——决策定稿前与用户确认；blocked/异常如实上报，不擅自扩大范围。',
   '④ 编排期你只监控——jxx_flow(action=status) 看进度，编排器通知如实转告用户。',
+  '⑤ 续接纪律（禁止重复 spawn）：开工先 studio_list_subagents 看名册（各角色后台策略见其 note）；编排拉起的子代理用 list_agents 看名册与状态，运行中的队友也在其中。可续接的子代理/队友一律 send_message 续接——同一角色/卡只 spawn 一次，重发消息续推永远优先于再 spawn 一次。',
+  '⑥ 一次性子代理不可续接：对它发消息会报 not-resumable——别对话，结果看账本/看板；要继续交互就新建可续接的后台子代理（studio 派活 run_in_background）或用派活方提供的队友 id。',
+  '⑦ 续推入口：jxx_flow(action=start/go) 对已有 run 的会话会报「本会话已有进行中的编排」——续推编排用 action=resumed（唤醒同一队友）/ go(idea="继续") / action=status 看进度，不要重新 go 一遍。',
 ].join('\n')
 
 const ADR_HINT = '读 ADR，用 jxx-to-spec 把决策写成 PRD（.scratch/<NN>-<slug>/PRD.md，H1 `# PRD <NN> · <标题>`，固定小节顺序：问题陈述→用户故事→解决方案→实现决策→测试决策），写完调用 jxx_flow(action=advance)。'
@@ -51,7 +54,7 @@ export const STAGE_HINTS = {
   adr: 'ADR 已产出（decide 段闸门已验）。确认 docs/adr/ 下 ADR 就位后调用 jxx_flow(action=advance) 进入 PRD 段。',
   prd: ADR_HINT,
   tickets: '读 PRD，用 jxx-to-tickets 拆成追踪弹工单（issues/<NN>-<slug>.md，每单含 **Status:** ready-for-agent 与 **Blocked by:** 行），写完调用 jxx_flow(action=advance)。',
-  implement: '编排进行中：插件自动 spawn worker/审查者/合并专员推进工单。你只需监控；出现异常我会上报。',
+  implement: '编排进行中：插件自动 spawn worker/审查者/合并专员推进工单（均为可续接的后台子代理——list_agents 可见，续推 send_message，同角色/卡不重复 spawn）。你只需监控；出现异常我会上报。',
   ops: '全部工单已收口。请做运维收尾：把本次经验写进 docs/retro/<YYYY-MM-DD>-<slug>.md（回顾：哪里顺、哪里卡、环境改进建议），然后调用 jxx_flow(action=advance)。PRD 分支收口与 worktree 回收由人决定，插件不做。',
   done: '流程已完成。',
 }
@@ -169,6 +172,13 @@ export class Orchestrator {
       settledSeen: new Set(), messageHarvestBusy: false,
       // onTeamMessage 的 canSettle/onSettledFor 闭包引用 run 本体（method 定义于类、run 后挂），
       // 由 onTeamMessage 在调用时现场构造——无循环引用问题。
+      // 可续接子代理登记簿（修「领导者重复创建子代理」）：key = `role:cardId` → childId。
+      // 进 run = tick/advance 重入时按 role/card 回查复用（同 key 禁二次 spawn，续推一律
+      // sendMessage）；随 persist 落 run json（childId 镜像进卡账 rec.subagentId 供观测）。
+      subagents: new Map(),
+      // 同簿记的瞬态半边：key → onSettled 回调（spawn 调用方接线）。回调闭包不可序列化，
+      // 只随 run 存续；宿主 subagent-settled 结算通知按 childId 反查后走它收口。
+      subagentCallbacks: new Map(),
     }
   }
 
@@ -902,52 +912,156 @@ export class Orchestrator {
     this.persist(run)
   }
 
+  /**
+   * 一次性 spawn → 可续接后台子代理（修「领导者重复创建子代理」）：
+   *  - 显式走 continuable 后台通道：宿主有 startContinuable 即用之（返回持久 childId，进程/回合
+   *    结束不销毁，宿主以 subagent-settled 结算通知回投父会话——续接/收割都由此展开）；
+   *    无该 API 的宿主回退既有一次性 start()（语义与旧版逐字节一致，回调在 result 上收口）。
+   *  - 句柄持久化：childId 记 run.subagents（key=role:cardId）+ 卡账 rec.subagentId，随 persist 落
+   *    run json——tick/advance 重入时 spawn() 按 key 回查：已登记即不二次 spawn，改 sendMessage 续推
+   *    同一子代理；onSettled 回调刷新到最新接线（registerSubagentCallback）。
+   *  - 结算收割：宿主 subagent-settled 结算消息（或一次性回退的 result）都汇入 settleOneChild 收口，
+   *    alive 闸/onSettled/persist 语义不变；结算即出册（run.subagents 摘 key、subagentId 镜像清位）
+   *    ——复用面只在未结算前生效，结算后重派同卡走新 spawn（旧 child 已终局，宿主对其 sendMessage
+   *    会静默冷恢复跨轮续跑，不得复用）。
+   * 在飞闸归属（R1 三维审查 std#2，历史口径留痕）：按**角色**判——worker 的 rec 是在飞闸本体；
+   * merger 的生存周期记在影子账（mergeId），spawn 层不得代清开发卡 alive。合并卡 label 仍拼
+   * `jxx-merger-<devId>`（既有 fixture/账面口径，不带 merge- 前缀）。
+   */
   spawn(run, { role, cardId, prompt, onSettled }) {
-    const controller = new AbortController()
     const rec = run.cards.get(cardId)
-    // 在飞闸归属（R1 三维审查 std#2：旧注释宣称「recOfLabel 置 undefined」，代码却按 `cardId` 前缀
-    // 判——一次性路径的合并派发传的是**开发卡 id**（spawnMerger 尾部的 this.spawn），不带 merge- 前缀，于是该 rec
-    // 取到开发卡并在 done() 里代清了它的 alive，与注释相反）。真实归属按**角色**判：
-    //  - worker：rec 就是在飞闸本体（失败时清 alive，清扫/僵死面才能接管）；
-    //  - merger：合并轮的生存周期记在**影子账**（mergeId）上，由 spawnMerger 置位、onMergerSettled
-    //    与团队路 dispatch 回调清位管理（段 6 僵死面不写 alive，只读作否决闸），spawn 层不得代清
-    //    开发卡 alive（跨卡写，且与影子账双重清位竞速）。
-    // 合并卡 label 仍拼 `jxx-merger-<devId>`（既有 fixture/账面口径，不带 merge- 前缀）。
     const recOfLabel = role === 'merger' ? undefined : rec
+    const key = `${role}:${cardId}`
+    const controller = new AbortController()
+    run.subagents ??= new Map()
+    run.subagentCallbacks ??= new Map()
     run.controllers.add(controller)
-    const start = async () => {
-      let handle
-      try {
-        handle = await this.ctx.subagents.start('spawn', {
-          label: `jxx-${role}-${cardId}`,
-          prompt: [{ type: 'text', text: prompt }],
-          parent: run.agent,
-          signal: controller.signal,
-        })
-        const result = await handle.result
-        const text = Array.isArray(result?.output)
-          ? result.output.filter((b) => b && b.type === 'text').map((b) => b.text).join('\n')
-          : String(result?.output ?? '')
-        if (result?.stopReason && result.stopReason !== 'completed') {
-          done(text, new Error(`stopReason=${result.stopReason}${result.diagnostic ? `：${result.diagnostic}` : ''}`))
-        } else {
-          done(text, undefined)
-        }
-      } catch (e) {
-        done('', e)
-      } finally {
-        run.controllers.delete(controller)
-        if (handle && typeof handle.dispose === 'function') await handle.dispose().catch(() => {})
-      }
-    }
     const done = (text, err) => {
       if (recOfLabel) recOfLabel.alive = false
+      run.subagentCallbacks.delete(key) // 本轮回调已兑现：结算路收口，避免 stale 闭包二次触发
       // onSettled 可能 async（PRD 111 死亡自愈回挪是 await 面）：同步异常照吞，Promise 拒绝落 warn——
       // 都不能逃出回调（Node ≥15 unhandledRejection 崩进程）
       try { const r = onSettled(text, err); if (r && typeof r.catch === 'function') r.catch((e) => this.log.warn(`[jxx-driver] onSettled 异常：${e.message}`)) } catch (e) { this.log.warn(`[jxx-driver] onSettled 异常：${e.message}`) }
       this.persist(run)
     }
+    const prevId = run.subagents?.get(key)
+    if (prevId !== undefined) {
+      // 复用面（防重复 spawn 的核心闸）：同一 role/card 已有可续接子代理 → 只续推不重建。
+      // 回调刷新到本轮接线（重派/重审语义不变——结算仍走本轮的 onSettled 收口）。
+      this.registerSubagentCallback(run, key, onSettled)
+      run.history.push({ t: nowIso(), event: `continuable: ${role} ${cardId} 已有子代理（${prevId}），sendMessage 续推不重建` })
+      void this.sendToSubagent(run, prevId, prompt).catch((e) => {
+        run.controllers.delete(controller)
+        this.log.warn(`[jxx-driver] 续推子代理 ${prevId} 失败：${e.message}`)
+        done('', e)
+      }).finally(() => { run.controllers.delete(controller) })
+      return
+    }
+    const start = async () => {
+      let childId
+      try {
+        const subagents = this.ctx.subagents
+        if (typeof subagents?.startContinuable === 'function') {
+          const started = await subagents.startContinuable({
+            provider: 'spawn',
+            label: `jxx-${role}-${cardId}`,
+            request: { prompt: [{ type: 'text', text: prompt }], parent: run.agent },
+            signal: controller.signal,
+          })
+          childId = started.childId
+        } else {
+          // 回退（旧宿主）：一次性 start()。句柄只活在本轮——result 即收口（旧语义）。
+          const handle = await subagents.start('spawn', {
+            label: `jxx-${role}-${cardId}`,
+            prompt: [{ type: 'text', text: prompt }],
+            parent: run.agent,
+            signal: controller.signal,
+          })
+          const result = await handle.result
+          const text = Array.isArray(result?.output)
+            ? result.output.filter((b) => b && b.type === 'text').map((b) => b.text).join('\n')
+            : String(result?.output ?? '')
+          if (result?.stopReason && result.stopReason !== 'completed') {
+            done(text, new Error(`stopReason=${result.stopReason}${result.diagnostic ? `：${result.diagnostic}` : ''}`))
+          } else {
+            done(text, undefined)
+          }
+          return
+        }
+        // 可续接路：登记持久句柄（幂等——同一轮内重复登记取首个，防并发 spawn 双写），
+        // 收割交给宿主 subagent-settled 结算通知（本进程内登记的走回调簿记，跨重启的经 run json 人工/续推面兜底）。
+        if (!run.subagents.has(key)) {
+          run.subagents.set(key, childId)
+          this.registerSubagentCallback(run, key, onSettled)
+          // 观测镜像只对单实例角色（dev/merger）落卡账：reviewer-<dim> 三维共用同一 rec，互相覆盖无意义
+          if (role === 'dev' || role === 'merger') rec.subagentId = childId
+          run.history.push({ t: nowIso(), event: `continuable: spawn ${role} ${cardId}（${childId}，后台可续接，settle 由结算通知收割）` })
+          this.persist(run)
+        } else {
+          // 并发窗口撞簿记（另一路已 spawn 同 key）：本轮只续推，不重复建
+          run.history.push({ t: nowIso(), event: `continuable: ${key} 并发窗口命中已有子代理，改续推` })
+          await this.sendToSubagent(run, run.subagents.get(key), prompt)
+        }
+      } catch (e) {
+        done('', e)
+      } finally {
+        run.controllers.delete(controller)
+      }
+    }
     void start()
+  }
+
+  /** 本轮回调簿记登记（spawn 调用方接线）：结算收割按 key 反查走它——重派/复用时刷新到最新接线。 */
+  registerSubagentCallback(run, key, onSettled) {
+    run.subagentCallbacks ??= new Map()
+    run.subagentCallbacks.set(key, onSettled)
+  }
+
+  /** 结算收割单源：按 childId 反查登记簿 → 走该 key 本轮的 onSettled 收口（alive 闸/持久化语义不变）。 */
+  settleOneChild(run, childId, text, err) {
+    if (!run.subagents) return false
+    for (const [key, id] of run.subagents) {
+      if (id !== childId) continue
+      const onSettled = run.subagentCallbacks.get(key)
+      if (onSettled === undefined) return false
+      run.subagentCallbacks.delete(key)
+      // 结算即出册：登记簿同 key 摘除——复用面（同 key 回查 sendMessage 续推）只在**未结算前**生效。
+      // 否则重投入口（返工重派 / 重审起三维 / 合并卡回挪重派 / 段0 清扫回 open）会对已结算 child
+      // send_message，宿主侧会**静默冷恢复**旧 child（deliverToChild→coldResume，continuation.ts）
+      // 带着上一轮上下文跨轮续跑——既不是「一次性每轮新子会话」的旧语义，也破「同卡同刻单轮次」。
+      // 结算后再派同卡 = 走新 spawn（新 childId 顶替登记），与一次性路径每轮新会话对齐。
+      run.subagents.delete(key)
+      // 清在飞闸与 done() 同口径：按角色判（merger 轮的 alive 在影子账、由派发面管理，spawn 层不代清）
+      const sep = key.indexOf(':')
+      const settleRole = key.slice(0, sep)
+      const settleRec = run.cards.get(key.slice(sep + 1))
+      if (settleRole !== 'merger' && settleRec) settleRec.alive = false
+      // 观测镜像（subagentId）随结算同步出册；仅当镜像仍指向本 child 才清（迟到结算晚于后续
+      // 派发改写镜像时不许误清新 childId——dev 与 merger 共用同一开发卡 rec）
+      if (settleRec && settleRec.subagentId === id) settleRec.subagentId = undefined
+      try { const r = onSettled(text, err); if (r && typeof r.catch === 'function') r.catch((e) => this.log.warn(`[jxx-driver] onSettled 异常：${e.message}`)) } catch (e) { this.log.warn(`[jxx-driver] onSettled 异常：${e.message}`) }
+      this.persist(run)
+      return true
+    }
+    return false
+  }
+
+  /** 结算消息收割（宿主 subagent-settled）：文本从 content blocks 提取，转 settleOneChild。 */
+  onSubagentSettledMessage(agent, content) {
+    const sessionId = agent?.session?.id ?? agent?.id
+    const run = sessionId ? this.runs.get(sessionId) : undefined
+    if (!run || run.stopped || run.stage !== 'implement') return
+    const childId = content?.source?.senderSessionId
+    const blocks = Array.isArray(content?.content) ? content.content : []
+    const text = blocks.filter((b) => b && b.type === 'text').map((b) => b.text).join('\n')
+    this.settleOneChild(run, childId, text, undefined)
+  }
+
+  /** 向已登记的可续接子代理续推指令（send_message；失败 = 本轮结算按错误收口）。 */
+  async sendToSubagent(run, childId, text) {
+    const blocks = [{ type: 'text', text }]
+    await this.ctx.subagents.sendMessage(run.agent, childId, blocks, { signal: AbortSignal.timeout(Orchestrator.RESEND_TIMEOUT_MS) })
+    run.history.push({ t: nowIso(), event: `continuable: send_message → ${childId}` })
   }
 
   // ---------- 团队路径失败韧性（PRD 110 工单 03 / ADR-0121 D3：LLM 失败不弃会话） ----------
@@ -1533,6 +1647,8 @@ export class Orchestrator {
         resilience: Object.fromEntries([...(run.resilience?.byCard?.entries() || [])].map(([id, st]) => [id, {
           failures: st.failures, waiting: st.waiting, waitingSince: st.waitingSince, memberName: st.memberName, lastError: st.lastError,
         }])),
+        // 可续接子代理登记簿（持久面）：run json 可查 childId；编排器崩溃重启后按 role/card 回查复用
+        subagents: Object.fromEntries([...(run.subagents?.entries() || [])]),
         // R1 审查发现项（std High / rule Medium，已修）：曾误写 `run.revived`——字段从未初始化，
         // 序列化恒 undefined，换名重建账本在 run json 观测面静默丢失；真账本在 run.resilience.revived
         revived: run.resilience?.revived ?? [],

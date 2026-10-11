@@ -255,6 +255,38 @@ test('通道：同角色二次 dispatch 走 sendMessage 复用（不重开队友
   assert.equal(calls.sent.length, 1)
   assert.equal(calls.sent[0].req.target, 'dev-a')
   assert.equal(calls.sent[0].req.content[0].text, '第二轮')
+  // 结构化复面（修「领导者重复创建子代理」）：复用返回 memberName + keep=true，卡→成员登记可回查
+  assert.equal(r.memberName, 'dev-a', '复用返回 memberName（结构化登记面）')
+  assert.equal(r.keep, true, '复用返回 keep=true（不重建信号）')
+  assert.equal(channel.memberOf('a2'), 'dev-a', 'memberOf 按卡回查承接队友')
+  assert.equal(channel.memberOf('a1'), 'dev-a', '首建卡的成员登记同样在册')
+})
+
+test('通道：同名复用不新建（同卡重派只 sendMessage，spawnTeammate 恰好一次）', async () => {
+  const { service, calls } = mockTeamsChannel()
+  const { channel } = mkChannel(service)
+  const first = await channel.dispatch({ role: 'dev', cardId: 'a1', prompt: '首派' })
+  assert.equal(first.fresh, true)
+  // 同一卡重派（返工/重试场景）：点名 first.memberName → 必须复用，绝不新建
+  const again = await channel.dispatch({ role: 'dev', name: first.memberName, cardId: 'a1', prompt: '重派续推' })
+  assert.equal(again.fresh, false, '同名复用 fresh=false')
+  assert.equal(again.keep, true, '同名复用 keep=true')
+  assert.equal(again.memberName, first.memberName, '承接队友不变')
+  assert.equal(calls.spawned.length, 1, '同名复用不新建：spawnTeammate 全程恰好一次')
+  assert.equal(calls.sent.length, 1, '续推走 sendMessage')
+  assert.equal(calls.sent[0].req.target, first.memberName)
+})
+
+test('通道：memberOf 出册不删（harvest 后仍按名可续接）+ members 簿记观测面', async () => {
+  const { service } = mockTeamsChannel()
+  const { channel } = mkChannel(service)
+  await channel.dispatch({ role: 'dev', cardId: 'a1', prompt: 'p' })
+  const cards = new Map([['a1', { phase: 'claimed', alive: true }]])
+  const h = channel.harvest({ canSettle: () => true, onSettledFor: () => () => {}, persist: () => {} })
+  h('SETTLED: a1')
+  assert.equal(channel.nameOf('a1'), 'dev-a', 'cardOwners 保留（重发/兜底定位口径，既有语义）')
+  assert.equal(channel.memberOf('a1'), 'dev-a', '结构化成员登记同样在册——续接语义的簿记基础')
+  assert.deepEqual(channel.members(), [{ name: 'dev-a', role: 'dev', completed: 1 }])
 })
 
 test('通道：merger 与 dev 各自独立名池（角色前缀区分）', async () => {
