@@ -1,18 +1,79 @@
 #!/usr/bin/env node
 // resolve-token.mjs — 解析令牌源，输出平台凭据。零依赖。
 // 默认输出掩码，明文只在显式 flag 下输出。
-import { readFileSync, existsSync } from 'node:fs';
+//
+// 令牌源定位已升级（2026-10-12）：与主仓 resolveSecretDir / 灵枢 resolve_secret_dir
+// 同款四级链——env TDAI_SECRET_DIR > ~/.tdai/secret-dir.json 指针 > 默认布局 > 扫描兜底。
+// 跨机器不写死用户名（原先只认默认布局，换机器/改同步路径即 exit 2）。
+import { readFileSync, existsSync, readdirSync, statSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { spawnSync } from 'node:child_process';
 
-const REL = ['Nutstore', '1', '我的坚果云', '项目机密', 'Secret', 'git-tools.md'];
+const REL = ['Secret', 'git-tools.md']; // 机密根下的相对路径
+const SECRET_DIR_ENV = 'TDAI_SECRET_DIR';
+const SECRET_DIR_CACHE = path.join('.tdai', 'secret-dir.json');
+const DEFAULT_LAYOUT = ['Nutstore', '1', '我的坚果云', '项目机密'];
+
+function isDir(p) {
+  try { return statSync(p).isDirectory(); } catch { return false; }
+}
+function exists(p) {
+  try { return existsSync(p); } catch { return false; }
+}
+
+/** 四级解析链定位机密根（与主仓/灵枢同款口径）。 */
+function resolveSecretRoot() {
+  const fromEnv = String(process.env[SECRET_DIR_ENV] ?? '').trim();
+  if (fromEnv) {
+    if (isDir(fromEnv)) return fromEnv;
+    console.error(`${SECRET_DIR_ENV} 指向的目录不存在：${fromEnv}`);
+    process.exit(2);
+  }
+  const home = process.env.USERPROFILE || process.env.HOME || os.homedir();
+  const cachePath = path.join(home, SECRET_DIR_CACHE);
+  try {
+    const cached = JSON.parse(readFileSync(cachePath, 'utf8'));
+    const dir = String(cached?.secretDir ?? '').trim();
+    if (dir && isDir(dir)) return dir;
+  } catch { /* 缓存缺失/损坏 ⇒ 继续 */ }
+  const fast = path.join(home, ...DEFAULT_LAYOUT);
+  if (isDir(fast)) {
+    try {
+      mkdirSync(path.dirname(cachePath), { recursive: true });
+      writeFileSync(cachePath, JSON.stringify({ secretDir: fast, resolvedAt: new Date().toISOString() }, null, 2) + '\n', 'utf8');
+    } catch { /* 缓存只是加速腿 */ }
+    return fast;
+  }
+  // 扫描兜底：深度 3，只收「下面真有 registry.yaml」的根（过滤「坚果云同步冲突」假命中）
+  const SKIP = new Set(['node_modules', '.git', '.svn', '$RECYCLE.BIN', 'System Volume Information']);
+  let found = '';
+  const walk = (dir, depth) => {
+    if (found) return;
+    let entries; try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (found) return;
+      if (e.name.startsWith('.') || SKIP.has(e.name)) continue;
+      const full = path.join(dir, e.name);
+      let ok = e.isDirectory(); if (!ok) { try { ok = statSync(full).isDirectory(); } catch { ok = false; } }
+      if (!ok) continue;
+      const cand = path.join(full, '项目机密');
+      if (isDir(cand) && exists(path.join(cand, 'registry.yaml'))) { found = cand; return; }
+      if (depth < 3) walk(full, depth + 1);
+    }
+  };
+  walk(home, 1);
+  if (found) return found;
+  console.error(`未找到坚果云机密根（含 registry.yaml 的「项目机密」目录）。`);
+  console.error(`解析序：${SECRET_DIR_ENV} env > ${cachePath} 指针 > 默认布局 > 全目录扫描兜底。`);
+  process.exit(2);
+}
 
 function resolveSource() {
-  const home = process.env.USERPROFILE || process.env.HOME || os.homedir();
-  const p = path.join(home, ...REL);
-  if (!existsSync(p)) {
+  const p = path.join(resolveSecretRoot(), ...REL);
+  if (!exists(p)) {
     console.error(`令牌源不存在: ${p}`);
-    console.error('检查用户名解析（USERPROFILE / HOME）或坚果云同步状态。');
+    console.error('检查坚果云同步状态，或用 secret-store MCP 的 secret_store_list 查该条目登记路径。');
     process.exit(2);
   }
   return p;

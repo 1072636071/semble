@@ -3,7 +3,7 @@ name: jxx-git-auth
 description: 加载 Git 平台访问令牌（cnb / GitHub / Gitee），供 push、clone 私有仓库、调用平台 API 或 gh CLI 等需要凭据的操作使用。当遇到 push/clone 报 401/403、认证失败、需要 token / 密钥 / 凭据 / 访问令牌，或要操作私有仓库时使用。
 x-install: true
 metadata:
-  version: 1.3.1
+  version: 1.4.0
 ---
 
 # Git 凭据加载
@@ -25,13 +25,20 @@ metadata:
 
 ## 令牌源
 
-仓库外，永不入库。用户名不硬编码：
+仓库外，永不入库。用户名不硬编码。**定位与主仓 `resolveSecretDir` / 灵枢 `resolve_secret_dir` 同款四级链**：
 
 ```
-%USERPROFILE%\Nutstore\1\我的坚果云\项目机密\Secret\git-tools.md
+env TDAI_SECRET_DIR  >  ~/.tdai/secret-dir.json 指针  >  默认布局 <home>/Nutstore/1/我的坚果云/项目机密  >  全目录扫描兜底
 ```
 
-解析顺序：`USERPROFILE` / `HOME` → 运行时 homedir API → 按当前用户名拼 `C:\Users\<用户名>`。禁止在任何技能文件里写具体用户名。
+扫描兜底只收「下面真有 `registry.yaml`」的根（过滤 `坚果云同步冲突` 假命中）；命中即写指针缓存，后续零扫描。本技能脚本把这套解析内联了一份（技能仓跨仓零依赖，与主仓/灵枢**同款口径**而非同一份实现——主仓那份在 `tools/lib/memory-mcp-core.mjs#resolveSecretDir`，本仓不可 import）。
+
+源文件是机密根下的 `Secret/git-tools.md`，registry 条目 id = `secret-git-tools`。
+
+**读源文件的两条路**（都可用，脚本走第 ① 条）：
+
+1. **脚本**（推荐，掩码默认）：`node scripts/resolve-token.mjs [--host <host> | --token <host> | --remote <host> <owner/repo>]`。
+2. **`secret-store` MCP 工具面**（harness 内已挂载 `secret-store` 时）：`mcp__secret-store__secret_store_get { ref: "secret-git-tools" }` 取内容，返回带 `sha256` 可自证；查条目元信息用 `mcp__secret-store__secret_store_list { query: "git" }`（**永不返回密钥值**）。缺该 MCP 时回落裸文件读（路径按上面四级链解析）。
 
 源文件是结构化凭据清单（YAML 块），字段：
 

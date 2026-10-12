@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.0 — 2026-10-12
+
+令牌源定位升级到**四级解析链**，并接入 `secret-store` MCP 工具面（与主仓 resolveSecretDir / 灵枢 resolve_secret_dir 双向同步，JwikisSkills 是该项目的子项目）：
+
+- **跨机器**：原先只认默认布局 `<home>/Nutstore/1/我的坚果云/项目机密`，换机器用户��不同 / 用户改过坚果云同步路径即 exit 2。
+  现与主仓 `resolveSecretDir` 同款：`env TDAI_SECRET_DIR` > `~/.tdai/secret-dir.json` 指针缓存 > 默认布局 > 全目录扫描兜底（深度 3，
+  只收「下面真有 `registry.yaml`」的根，过滤 `坚果云同步冲突` 假命中；命中即写缓存）。env 误配 → 响亮失败不猜。
+- **接 MCP**：新增「读源文件的两条路」——脚本（掩码默认）+ `mcp__secret-store__secret_store_get { ref: "secret-git-tools" }`
+  （harness 内已挂载 `secret-store` 时）；条目元信息用 `secret_store_list { query: "git" }`（永不返回密钥值），缺 MCP 回落裸文件读。
+- 脚本 `resolve-token.mjs` 内联一份解析（技能仓跨仓零依赖，与主仓同款口径而非同一份实现——主仓那份在 `tools/lib/memory-mcp-core.mjs#resolveSecretDir`，本仓不可 import）。
+
 ## 1.3.1 — 2026-09-16
 
 修 `--remote` 生成的 HTTPS 凭据 URL 无法用于 gitee：
