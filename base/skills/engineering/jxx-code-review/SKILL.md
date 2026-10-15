@@ -2,7 +2,7 @@
 name: jxx-code-review
 description: 审查自固定点（commit、branch、tag 或 merge-base）以来的变更；检测到 ocr CLI 走委托模式 3 维度（标准+spec+规则），未装则降级 2 维度（标准+spec），各维度并行子 agent 并排报告。当用户想审查 branch、PR、进行中的变更，或要求“review since X”/“review 自 X 以来”时使用。触发词：code review、审查代码。
 metadata:
-  version: 1.1.3
+  version: 1.2.0
 ---
 
 审查 `HEAD` 与用户指定固定点（fixed point）之间的 diff。**审查维度数由执行模式决定**：
@@ -226,6 +226,8 @@ ocr delegate rule <path1> <path2> ...
 
 - 审查**无发现项**，或用户明确确认无视发现项时，将该工单 `Status:` 置为 `done`（结束）。
 - 审查**有发现项且用户选择修复**时，工单保持在 `pending-review`，待修复并重新审查通过后置 `done`。
+
+**服务器对齐（v1.2.0 起默认纪律）**：项目已接入服务器工单（repo_key 在 `jxx_tickets` 中出现）时，状态置变在改本地 md 的同时以服务器最新 `version` 作 `base_version` 双写服务器（`jxx_ticket_call update`，工具面见 `jxx-ticket-router` 技能）；服务器不可达时只写本地（离线降级），回连后 `jxx_ticket_sync` 收口。
 
 工单状态流转见 `docs/agents/issue-tracker.md` 的「工单状态与生命周期」节。
 

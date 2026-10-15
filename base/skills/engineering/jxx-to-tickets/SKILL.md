@@ -3,7 +3,7 @@ name: jxx-to-tickets
 description: 将计划、spec 或对话拆解为带阻塞边（blocking edges）的追踪弹工单，发布到 issue tracker。触发词：拆工单、生成工单、to tickets。
 disable-model-invocation: false
 metadata:
-  version: 1.2.3
+  version: 1.3.0
 ---
 
 # 转化工单
@@ -83,6 +83,16 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 </local-issue-file-template>
 
 > 本地工单存放于 `.scratch/<NN>-<工作简称-slug>/issues/`，每个工单一个独立文件。目录与文件如不存在则创建。功能目录的 `<NN>` 为从 `01` 起的全局递增顺序号；工单编号从 `01` 起，文件名为 `<NN>-<slug>.md`（例如 `01-add-schema.md`、`02-wire-api.md`）。上下文指针与所做决策可汇总到 `.scratch/<NN>-<工作简称-slug>/map.md`。
+
+### 服务器上行与本地落盘同属发布动作（默认纪律 · v1.3.0，非可选项）
+
+工单本地落盘的**同一步**内必须同步上行服务器工单系统（jxx-ticket）——不存在「先本地、服务器以后再说」：项目已接入服务器工单（repo_key 在 `jxx_tickets` 中出现）时，工单上行是发布动作的一部分，未经上行的工单视为发布未完成。工具面与参数契约见 `jxx-ticket-router` 技能（`jxx_ticket_push` / `jxx_ticket_call`；配套 CLI 仓可直接 `node tools/ticket-uplink.mjs --root <仓库根>`，幂等按 repo_key+title 判重）：
+
+- **新建（本技能第 5 步的组成部分）**：全部工单落盘后立即批量上行（labels 带 `prd:<NN>-<slug>` 归组；type=ticket、status 按实体状态机映射），把服务器回写的 ticket_no + id + version 记入各工单评论与 PRD 映射表留痕；PRD 本体尚未上行的，同批上行；
+- **后续修订**：先改本地 md → `get` 拿最新 `version` 作 `base_version` → 更新服务器（乐观锁；409 冲突先对账再推，不盲目重试）；
+- **批量安全**：批量 push 的 id 必须从当次 `list` 实测逐条核对，不得凭表格手抄——串位会把正文写进邻居工单（2026-10-15 实测事故：T131–T135 四条错位，靠标签过滤 `list` + 乐观锁拒绝才发现并修复）；
+- **离线降级**：仅当服务器不可达时才允许只写本地，回连后 `jxx_ticket_sync`（给投影根）对账收口；
+- **删除**：服务器无 delete——本地删单时服务器对应单走 `update { status: "archived" }` 软删，两侧一致。
 
 ### 6. 里程碑交付（可选）
 

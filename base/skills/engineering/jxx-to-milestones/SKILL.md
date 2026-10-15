@@ -3,7 +3,7 @@ name: jxx-to-milestones
 description: 把已发布工单归组为可独立上线、可单独回滚的里程碑（MILESTONES.md），按里程碑逐个交付。触发词：里程碑、分批发布、milestones。
 disable-model-invocation: false
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # 里程碑交付
@@ -89,7 +89,7 @@ node <本技能目录>/scripts/milestones.mjs render --dir <dir> --groups "01,02
 
 1. 取当前里程碑：`node <本技能目录>/scripts/milestones.mjs status --dir <dir>`
 2. 置 `in-progress`，逐工单调用 `/jxx-implement`，工单之间清理上下文
-3. 全部工单走完 `pending-review` → `/jxx-code-review` → `done`
+3. 全部工单走完 `pending-review` → `/jxx-code-review` → `done`（项目已接入服务器工单时，状态置变与 `MILESTONES.md` 内的状态行同步双写服务器——见 `/jxx-implement` 的「服务器对齐」节）
 4. 跑**上线门禁**（见 `references/delivery-loop.md`）：全员工单 `done` + 验收信号全勾选 + CI 绿 + 回滚方式已验证
 5. 门禁通过：勾选验收信号、置 `shipped`、提交代码，再进入下一里程碑
 6. 门禁未过：就地修复；若发现分组有误（出现跨里程碑依赖），回到步骤 2 重新划分，而不是硬上

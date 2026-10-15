@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.0 — 2026-10-15
+
+**服务器上行与本地落盘同属发布动作（默认纪律）**：项目已接入服务器工单时，PRD 落盘必须立即上行 jxx-ticket（labels 带 `prd:<NN>-<slug>` 归组，回写 ticket_no/id/version 留痕），未经上行的 PRD 视为发布未完成；后续修订乐观锁双写、批量 push 的 id 必须实测核对（2026-10-15 T131–T135 串位事故教训）、离线 `sync` 收口。
+
 ## 1.1.2 — 2026-09-18
 
 根因补充与二次加固：1.1.1 改对了本源，但**已安装副本不会自动更新**——`~/.workbuddy/skills/jxx-to-spec/scripts/issue-flow.mjs` 仍留着旧的 `__dirname` 锚定版，实际执行时依旧写错目录。本次：

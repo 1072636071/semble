@@ -3,7 +3,7 @@ name: jxx-to-spec
 description: 将当前对话转化为 spec（规格文档）并发布到 issue tracker——不访谈，仅综合已有讨论。触发词：写 spec、to spec。
 disable-model-invocation: false
 metadata:
-  version: 1.1.2
+  version: 1.2.0
 ---
 
 本技能将当前对话上下文和代码库理解转化为规格文档（你可能称之为 PRD）。不要访谈用户——仅综合你已知的内容。
@@ -21,6 +21,15 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 3. 使用下面的模板编写规格文档，然后发布到项目 issue tracker。应用 `ready-for-agent` triage 标签——无需额外 triage。
 
 发布路径：在仓库根目录的 `.scratch/` 下创建功能目录 `<NN>-<feature-slug>/`，将规格文档写入 `.scratch/<NN>-<feature-slug>/PRD.md`。`<NN>` 为从 `01` 起的全局递增顺序号，按创建先后排列（如第一个功能为 `01-login/`）。具体目录与文件约定见 issue tracker 定义（`/jxx-setup-skills`）。
+
+### 服务器上行与本地落盘同属发布动作（默认纪律 · v1.2.0，非可选项）
+
+PRD 本地落盘的**同一步**内必须同步上行服务器工单系统（jxx-ticket）——不存在「先本地、服务器以后再说」：项目已接入服务器工单（repo_key 在 `jxx_tickets` 中出现）时，PRD 上行是发布动作的一部分，未经上行的 PRD 视为发布未完成。工具面与参数契约见 `jxx-ticket-router` 技能（`jxx_ticket_push` / `jxx_ticket_call`；配套 CLI 仓可直接 `node tools/ticket-uplink.mjs --root <仓库根>`，幂等按 repo_key+title 判重）：
+
+- **新建**：PRD 落盘后立即上行（labels 带 `prd:<NN>-<slug>` 归组），把服务器回写的 ticket_no + id + version 记入 PRD 正文或本地评论留痕；
+- **后续修订**：先改本地 md → `get` 拿最新 `version` 作 `base_version` → 更新服务器（乐观锁；409 冲突先对账再推，不盲目重试）；
+- **批量安全**：批量 push 的 id 必须从当次 `list` 实测逐条核对，不得凭表格手抄——串位会把正文写进邻居工单（2026-10-15 实测事故）；
+- **离线降级**：仅当服务器不可达时才允许只写本地，回连后 `jxx_ticket_sync`（给投影根）对账收口。
 
 > 确定性环节可调用脚本（零依赖）：`node <本技能目录>/scripts/issue-flow.mjs to-spec --slug <name> --root "<仓库绝对路径>/.scratch"`。
 >

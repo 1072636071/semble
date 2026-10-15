@@ -3,7 +3,7 @@ name: jxx-implement
 description: 按 spec 或工单实现：在工单 worktree 开发、走统一看板流转，收口四段（复核→预演冲突→合 main→回收）。触发词：实现、implement、工单实现。
 disable-model-invocation: false
 metadata:
-  version: 1.4.0
+  version: 1.5.0
 ---
 
 实现用户在 spec 或工单中描述的工作。
@@ -32,6 +32,8 @@ node tools/jxx-bootstrap.mjs --root <项目根>        # 缺则创建（种子�
 - 项目已接入 ⇒ `already-bootstrapped`，继续正常流程；
 - **新项目（线上无该 repo_key 工单）⇒ 自动先创建**：种子工单（`【bootstrap】<项目名> 工作区开通`）+ 本地投影基准，然后才进行后续操作；
 - 之后的状态流转（pending-review / done / labels）在改本地 md 的同时用 `jxx_ticket_call update` 双写服务器（`jxx-ticket-router` 技能）；服务不可达时照常直写本地 md（离线降级），回连后 `jxx_ticket_sync` 收口。
+- **正文与评论同样双写（v1.5.0 起默认纪律）**：实现过程中往工单文件追加的评论、修订的验收点/正文，先改本地 md，再以服务器最新 `version` 作 `base_version` 推服务器副本——服务器是真源，只改本地等于没记录。
+- **批量 push 的 id 必须实测核对**：从当次 `list`/`get` 结果逐条取 id，不得凭表格或记忆手抄——串位会把正文写进邻居工单（2026-10-15 实测事故：T131–T135 四条错位，靠乐观锁 409 + 标签过滤 `list` 对账才发现）。
 - 本仓无 `tools/jxx-bootstrap.mjs` 的项目（未接此套工具）：以「`jxx_ticket_call list` 按 repo_key 查询 + 无则 `create` 种子工单」同语义手动执行（口径见 `references/ADR-010-server-first-tickets.md`）。
 
 ## 完成步骤（不可跳过）

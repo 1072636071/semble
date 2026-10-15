@@ -3,7 +3,7 @@ name: jxx-triage
 description: 将 issue 与外部 PR 推过 triage 状态机：分类、验证、必要时 grill，产出 agent 可执行简报。触发词：triage、分类。
 disable-model-invocation: false
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # Triage
@@ -74,6 +74,9 @@ triage 期间写入 issue 文件的每条评论**必须**以此免责声明开�
 4. **grill（如需要）。** 如果请求需要充实，同时运行 `/jxx-grilling` 和 `/jxx-domain-modeling` 技能——逐一 grill 使之成型，锐化领域术语，并在决策落定时内联更新 `CONTEXT.md`/ADR。
 
 5. **应用结果：**
+
+   **服务器对齐（v1.1.0 起默认纪律）**：项目已接入服务器工单（repo_key 在 `jxx_tickets` 中出现）时，triage 结果（状态变更、标签、agent 简报评论）在写本地 issue 文件的同一步内用 `jxx_ticket_call update` 双写服务器（工具面见 `jxx-ticket-router` 技能）——先 `get` 拿最新 `version` 作 `base_version`；服务器不可达时只写本地（离线降级），回连后 `jxx_ticket_sync` 收口。
+
    - `ready-for-agent` — 发布 agent 简报评论（[AGENT-BRIEF.md](AGENT-BRIEF.md)）。
    - `ready-for-human`——与 agent 简报相同结构，但注明为何不能委托（判断决策、外部访问、设计决策、手动测试）。
    - `needs-info`——发布 triage 备注（模板如下）。
