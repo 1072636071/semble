@@ -118,8 +118,6 @@
 
 - **[weknora-kb-ops](./TDB-AM/weknora-kb-ops/SKILL.md)** — WeKnora 知识库运营面（全局技能）：对指定库上传 / 查询 / 管理——图片 SHA256 去重上传、重复命中合并标签、标签 CRUD、去重审计、解析失败排查、批量改名与双语描述。内置 `scripts/kb-check.ps1`（体检：凭据→能力→条目→去重→标签→检索冒烟）与 `scripts/kb-install.ps1`（把知识库接入任意工作区：幂等 upsert 规则段 + 规范骨架 + 转发壳）。触发词：指定知识库、上传知识库、图片去重、改标签、查图、kb ops。
 - **[lingshu-console](./TDB-AM/lingshu-console/SKILL.md)** — 灵枢资源管理台：把自然语言管理诉求翻译成对灵枢 7 工具面的调用编排。
-- **[tdai-memory-capture](./TDB-AM/tdai-memory-capture/SKILL.md)** — 记忆写入通道（对话上传 / 技能管理 / 任务通道回传）。
-- **[tdai-memory-local](./TDB-AM/tdai-memory-local/SKILL.md)** — 本地守护记忆面：离线兜底 + 项目记忆统一写入门面。
 - **[tdai-codegraph-local](./TDB-AM/tdai-codegraph-local/SKILL.md)** — 本地代码图谱面。
 
 ---
