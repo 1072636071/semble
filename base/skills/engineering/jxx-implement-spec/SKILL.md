@@ -3,7 +3,7 @@ name: jxx-implement-spec
 description: "按 spec/PRD 整轨实现：投卡→auto 编排开发/审查/合并/回收，工单默认合 main。触发词：实现 spec、implement the spec。"
 disable-model-invocation: false
 metadata:
-  version: 1.5.0
+  version: 1.6.0
 ---
 
 你拿到了一份 spec/PRD（`.scratch/<NN>-<slug>/PRD.md` + `issues/*.md`）。目标：把这份 PRD 的**全部工单**经统一流水线（开发 → 审查 → 合并 → **回收**）交付到 **main**——每张工单审查通过后默认直合 main（v0.14.0 起，ADR-011）；技术受阻的暂存 PRD 分支 `ticket/<NN>-<slug>`，收口时清入 main。**收口是四段闭环**（v0.15.0，ADR-012）：复核 → 合入前 `merge-check` 预演冲突面 → 合入 main → `rm-wt` 回收工作空间（工作树 + 已合入分支）；第四段以前没有判据，实测积下大量孤儿分支与挂着的 worktree。
@@ -26,7 +26,7 @@ metadata:
    投卡自动完成三件事：状态闸门（非 ready-for-agent 拒投）、依赖闸门（Blocked by 未归档的卡自动进 held/ 暂缓道）、**合入目标**（卡面 `- 合入目标: main`——v0.14.0 起默认回合主分支）。
 
 3. **按 auto 模式编排**（编排者职责即 `control/PROTOCOL.md` §5；worker/审查者/合并专员的启动提示词在 `control/starter/`）：
-   - 对每张无阻塞的待领卡（`open/<卡id>.md` 无后缀）spawn **worker 子 agent**（`control/starter/dev.md` 全文 + 指定卡 id）。worker 全程走 `/jxx-implement`：领卡 → `add-wt`（一律从 origin/main 拉工单分支）→ 开发 → 三段硬出口 → 交付移卡到 review 位。
+   - 对每张无阻塞的待领卡（`open/<卡id>.md` 无后缀）spawn **worker 子 agent**（`control/starter/dev.md` 全文 + 指定卡 id）。worker 全程走 `/jxx-implement`：领卡 → `add-wt`（一律从 origin/main 拉工单分支）→ 开发 → 三段硬出口 → 交付移卡到 review 位。**worker 必须遵守 `/jxx-implement` 的「步骤打卡与断线续接」纪律**（v1.6.0）：动手前列 `**处理步骤：**` 清单进工单文件，每完成一步就地打卡并双写服务器——编排者自身中断后，worker 现场（打卡区 + 卡面）就是续接依据，不重做已完成步骤。
    - 卡到 `open/<卡id>.review.md` → spawn **3 个审查者**（`control/starter/reviewer.md`，std/spec/rule 三维度并行，`--base` = origin/main）。全过 → spawn **合并专员**（`control/starter/merger.md`）；任一审查者有发现项 → 汇总写回卡 → 卡回 claimed 位返工 → 重新 spawn worker。
    - **合并专员默认把工单分支回合 main**（rebase/diff 基准 = origin/main；受阻暂存 PRD 分支或 blocked，且必须向用户汇报不能回合的原因——PROTOCOL §3）。合入是**四段闭环**：① 定点复核 ② **`board.mjs merge-check --root <项目根> --id <卡id>` 预演冲突面**（内存三方合并、不落现场）③ 合入 main ④ **`board.mjs rm-wt --root <项目根> --ticket <卡id>` 回收工作空间（工作树 + 已合入分支）** → 双卡移 done/。
      - **冲突分诊**（merge-check 的输出直接决定去向）：`·机械候选`（内容类）逐 hunk 保留双方意图自解（`jxx-resolving-merge-conflicts`，绝不 `--abort`），**解完 diff 已变 ⇒ 必须重跑 `/jxx-code-review` 再合**；`✗非机械`（binary / modify-delete / rename）不许合并专员拍板 ⇒ 交回开发组。
