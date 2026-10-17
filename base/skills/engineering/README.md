@@ -1,4 +1,4 @@
-﻿# 工程技能
+# 工程技能
 
 日常代码工作所用的技能。
 
@@ -8,7 +8,7 @@
 
 - **[ask-matt](./jxx-ask-matt/SKILL.md)** — 询问哪个技能或流程适合你的场景。本仓库中用户调用技能的路由器。
 - **[grill-with-docs](./jxx-grill-with-docs/SKILL.md)** — grill 会话，同时构建项目的领域模型，锐化术语并内联更新 `CONTEXT.md` 和 ADR。
-- **[grill-with-memorial](./jxx-grill-with-memorial/SKILL.md)** — memorial 奏报持久化 grill，支持中断续接、调查委派、收尾审核。复杂/跨会话方案优先使用。
+- **[grill-with-memorial](./jxx-grill-with-memorial/SKILL.md)** — memorial 奏报持久化 grill，证据先行（有疑问先查一手资料，不用世界知识冒充事实），支持中断续接、调查委派、收尾审核。复杂/跨会话方案优先使用。
 - **[triage](./jxx-triage/SKILL.md)** — 通过triage 角色的状态机流转 issue。
 - **[improve-codebase-architecture](./jxx-improve-codebase-architecture/SKILL.md)** — 扫描代码库寻找深化机会，以可视化 HTML 报告呈现，然后对你选择的项目进行 grill。
 - **[setup-skills](./jxx-setup-skills/SKILL.md)** — 为本仓库配置工程技能（issue 跟踪器、triage 标签、领域文档布局）。每个仓库运行一次。

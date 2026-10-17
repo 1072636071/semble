@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // scaffold.mjs — 脚手架类技能的确定性流程 CLI（零第三方依赖，ESM）。
 // 子命令：
-//   memorial-init     grill-with-memorial 初始化：NNN 递增编号 + slug 目录脚手架 + context.md 模板 + C1–C5 checklist
+//   memorial-init     grill-with-memorial 初始化：NNN 递增编号 + slug 目录脚手架 + context.md 模板 + C1–C6 checklist
 //   memorial-archive  grill-with-memorial 归档：把已「已完成」的 memorial 目录移动到 archived/
 //   scaffold-exercises / setup-precommit 见 usage()
 // 注：jxx-setup-skills 的 detect/sync-doc 已迁移至该技能目录的 scripts/setup.mjs（自包含）。
@@ -32,7 +32,8 @@ export const CONTEXT_TEMPLATE = `# {{id}}
 ## 待澄清
 `;
 
-// grill-with-memorial：C1–C5 checklist 模板（阶段 3 收尾检查项，实例化后由模型逐项核对）。
+// grill-with-memorial：C1–C6 checklist 模板（阶段 3 收尾检查项，实例化后由模型逐项核对）。
+// C6 = 证据可复核（1.2.0 新增）：事实性论据必须带来源坐标，无来源的降级为「假设」。
 export const CHECKLIST_TEMPLATE = `# Checklist {{id}}
 
 | # | 检查项 | 通过条件 | 状态 |
@@ -42,6 +43,7 @@ export const CHECKLIST_TEMPLATE = `# Checklist {{id}}
 | C3 | 待澄清清零 | 段落为空 | ☐ |
 | C4 | 调查闭环 | 所有 sub-task 状态「已完成」 | ☐ |
 | C5 | ADR 齐全 | 满足三条件的决策均有 ADR | ☐ |
+| C6 | 证据可复核 | 决策汇总与 ADR 的事实性论据均带来源坐标；无来源的降级为「假设」 | ☐ |
 `;
 
 // ------------------------------------------------------------------ 工具
@@ -92,7 +94,7 @@ export function nextMemorialSeq(memorialRoot) {
  *   1. NNN = 全局递增最大 +1（补零三位，含 archived/ 计数）；slug 从诉求提取 kebab-case（中文剥离，纯中文回落 untitled）。
  *   2. 创建 docs/memorial/NNN-slug/{context.md,adr/,sub-task/} 完整目录结构。
  *   3. context.md：状态「进行中」，诉求段保留用户原话，其余三段置空。
- *   4. 额外实例化 checklist.md（C1–C5 待核项，供收尾阶段核对）。
+ *   4. 额外实例化 checklist.md（C1–C6 待核项，供收尾阶段核对）。
  * 留模型：「这个编号是否该继续」的数字本身由脚本给，是否沿用由模型判断；slug 为纯中文时回落
  *   untitled，如需更贴切名称由模型在创建前自行决定。
  */
@@ -232,7 +234,7 @@ function usage() {
   return `用法: scaffold.mjs <子命令> [选项]
 
 子命令：
-  memorial-init      grill-with-memorial 初始化（NNN + slug 目录 + context.md + C1–C5 checklist）
+  memorial-init      grill-with-memorial 初始化（NNN + slug 目录 + context.md + C1–C6 checklist）
   memorial-archive   grill-with-memorial 归档（将「已完成」memorial 移到 archived/）
   scaffold-exercises jxx-scaffold-exercises 练习目录骨架（exercises/XX-section/XX.YY-exercise/...）
   setup-precommit    jxx-setup-pre-commit：检测包管理器 + 生成 .husky/pre-commit/.lintstagedrc/.prettierrc

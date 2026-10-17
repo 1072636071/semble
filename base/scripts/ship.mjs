@@ -766,7 +766,7 @@ function runInstall(config, { dryRun, project }) {
               continue;
             }
           }
-          installed.push({ dest: destFile, expectedHash: expected });
+          installed.push({ dest: destFile, expectedHash: expected, vendor: vendor.id, skillsTarget });
         } else {
           const destDir = path.join(skillsTarget, skill.name);
           // Kimi Work 风格适配：普通 SKILL.md 也把 frontmatter 归一化为 name + description；
@@ -798,7 +798,7 @@ function runInstall(config, { dryRun, project }) {
           const expectedHash = kimiContent !== null
             ? crypto.createHash('sha256').update(kimiContent, 'utf-8').digest('hex')
             : sha256(skill.srcPath);
-          installed.push({ dest: path.join(destDir, 'SKILL.md'), expectedHash });
+          installed.push({ dest: path.join(destDir, 'SKILL.md'), expectedHash, vendor: vendor.id, skillsTarget });
         }
       }
     }
@@ -882,22 +882,45 @@ const skipVendorMap = new Map(allAgents.map((a) => [a.name, getSkipVendors(a.fil
 
 // ---------------------------------------------------------------- verify
 
+// 共享目标目录的最终写入者判定：同一 dest 可能被多家 vendor 先后写入
+// （如 opencode 与 kimi 都指向 ~/.agents/skills，kimi 后写并归一化 frontmatter），
+// 后写者覆盖先写者。此时只有「最后写入者」的派生基准与磁盘一致，
+// 若按每家各自基准校验，先写者永远误报 MISMATCH——那是覆盖噪音，不是真实失配。
+// 因此：共目录场景只让最后写入者的基准参与校验，先写者的条目跳过（其结果已被覆盖，无校验意义）。
+function lastWriterByDest(installed) {
+  const last = new Map();
+  for (const item of installed) {
+    if (!item || !item.dest) continue;
+    last.set(item.dest, item);
+  }
+  return last;
+}
+
 function runVerify(config, installed) {
   const results = [];
+  const lastWriters = lastWriterByDest(installed);
   for (const item of installed) {
     if (!item || !item.dest || !item.expectedHash) continue;
+    if (item !== lastWriters.get(item.dest)) {
+      // 该 dest 还有后写者；其结果由后写者代表，避免重复/误导
+      continue;
+    }
     if (!fs.existsSync(item.dest)) {
-      results.push({ dest: item.dest, status: 'MISSING' });
+      results.push({ dest: item.dest, status: 'MISSING', vendor: item.vendor });
       continue;
     }
     let actual;
     try {
       actual = sha256(item.dest);
     } catch (e) {
-      results.push({ dest: item.dest, status: 'ERROR', detail: e.message });
+      results.push({ dest: item.dest, status: 'ERROR', detail: e.message, vendor: item.vendor });
       continue;
     }
-    results.push({ dest: item.dest, status: actual === item.expectedHash ? 'OK' : 'MISMATCH' });
+    results.push({
+      dest: item.dest,
+      status: actual === item.expectedHash ? 'OK' : 'MISMATCH',
+      vendor: item.vendor,
+    });
   }
   return results;
 }

@@ -1,5 +1,16 @@
 # mattpocock-skills
 
+## 共享安装目录的校验噪音修复 2026-10-17
+
+### 修复（install 每次误报 45 项 MISMATCH）
+
+- **根因**：`vendors.json` 中 opencode 与 kimi 的 `user.skills` 同指 `~/.agents/skills`（该指向由 commit `71e87261` 引入，原 kimi 路径为 `D:\aiData\kimiData\...`）。两家 `derive` 规则不同——kimi 会把 frontmatter 归一化为 `name + description`，opencode 保留完整 frontmatter。install 按 vendors 遍历顺序执行，kimi 排第 8 位后写覆盖，最终磁盘是 kimi 归一化版。
+- **现象**：`runVerify` 让每家 vendor 各按自己的派生基准校验同一份磁盘文件，opencode 的基准永远对不上，于是每次 `ship install` 都稳定输出 45 项 MISMATCH。这是**覆盖噪音，不是真实失配**——长期下来会让「MISMATCH」失去信号价值（狼来了）。
+- **修法**：`runVerify` 增加共享目标识别——同一 `dest` 被多家写入时，只保留**最后写入者**的基准参与校验，先写者的条目跳过（其结果已被覆盖，无校验意义）。`installed` 项补记 `vendor` / `skillsTarget` 以支撑该判定。真实失配仍会被捕获（最后写入者基准与磁盘不符即报 MISMATCH）。
+- **附带修正**：`ship.test.mjs` 中「vendors 声明 4 家有派生规则」的断言与实际（5 家）脱节，改为 5。
+- **回归测试**：新增 2 条用例——① 共目录场景只报一条校验结果且为 OK、不出现 MISMATCH；② 磁盘被污染时仍报 MISMATCH（确保不因跳过逻辑漏报）。
+- **效果**：`ship install` 从「45 MISMATCH + 335 OK」变为「335 OK、0 问题行」。
+
 ## 目录锚定与副本一致性治理 2026-09-16
 
 ### 修复（「生成文件的技能」写错目录）

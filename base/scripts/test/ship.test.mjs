@@ -235,11 +235,64 @@ test('未知选项报错非零退出', () => {
   assert.match(r.stderr, /未知选项/);
 });
 
-test('默认 vendors.json 声明 8 家、4 家有派生规则', () => {
+test('默认 vendors.json 声明 8 家、5 家有派生规则', () => {
   const real = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'vendors.json'), 'utf-8'));
   assert.equal(Object.keys(real.vendors).length, 8);
   const deriveCount = Object.values(real.vendors).filter((v) => v.derive).length;
-  assert.equal(deriveCount, 4);
+  assert.equal(deriveCount, 5);
+});
+
+// ---------------------------------------------------------------- 共享目标目录
+
+test('install：多家 vendor 共用 skills 目录时，按最后写入者基准校验（不误报 MISMATCH）', () => {
+  // 复刻真实仓库的 opencode + kimi 共指 ~/.agents/skills：
+  // opencode 先写完整 frontmatter，kimi 后写并归一化为 name+description，最终磁盘是 kimi 版。
+  // 旧行为：两家各按自己基准校验，opencode 永远误报 MISMATCH（覆盖噪音，非真实失配）。
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-shared-'));
+  const userHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-shared-home-'));
+  const config = {
+    buckets: ['productivity'],
+    managedPrefixes: ['jxx-'],
+    skillsSource: 'skills',
+    vendors: {
+      opencode: { label: 'OpenCode', derive: true, user: { skills: '~/.agents/skills' } },
+      kimi: { label: 'Kimi Work', derive: true, user: { skills: '~/.agents/skills' } },
+    },
+  };
+  writeFile(root, 'vendors.json', JSON.stringify(config, null, 2));
+  writeFile(root, 'skills/productivity/jxx-shared/SKILL.md', '---\nname: jxx-shared\ndescription: shared target skill\n---\n\n# shared\n');
+  const r = run(['install'], userHome, path.join(root, 'vendors.json'));
+  assert.equal(r.code, 0, r.all);
+  const sharedLines = r.stdout.split('\n').filter((l) => /^(OK|MISMATCH|MISSING|ERROR)\s.+agents.skills.jxx-shared/.test(l));
+  // 共目录只保留最后写入者（kimi）的校验结果：恰好一条，且为 OK
+  assert.equal(sharedLines.length, 1, `共目录应只报一条校验结果，实际:\n${r.stdout}`);
+  assert.match(sharedLines[0], /^OK /, '最后写入者基准应与磁盘一致');
+  assert.equal(r.stdout.includes('MISMATCH'), false, '不应出现覆盖噪音型 MISMATCH');
+});
+
+test('install：共享目录的真实失配仍会被 MISMATCH 捕获（不因跳过而漏报）', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-shared-bad-'));
+  const userHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-shared-bad-home-'));
+  const config = {
+    buckets: ['productivity'],
+    managedPrefixes: ['jxx-'],
+    skillsSource: 'skills',
+    vendors: {
+      opencode: { label: 'OpenCode', derive: true, user: { skills: '~/.agents/skills' } },
+      kimi: { label: 'Kimi Work', derive: true, user: { skills: '~/.agents/skills' } },
+    },
+  };
+  writeFile(root, 'vendors.json', JSON.stringify(config, null, 2));
+  writeFile(root, 'skills/productivity/jxx-bad/SKILL.md', '---\nname: jxx-bad\ndescription: will drift\n---\n\n# bad\n');
+  const cfg = path.join(root, 'vendors.json');
+  assert.equal(run(['install'], userHome, cfg).code, 0);
+  // 装完后手动污染磁盘内容 → 最后写入者的基准也应报 MISMATCH
+  const dest = path.join(userHome, '.agents/skills/jxx-bad/SKILL.md');
+  fs.writeFileSync(dest, 'tampered', 'utf-8');
+  // 再跑一次 install：写入会再次覆盖污染，所以只在 dry-run 下验证校验逻辑
+  const r = run(['install', '--dry-run'], userHome, cfg);
+  assert.equal(r.code, 0, 'dry-run 不写盘；校验为只读提示，不改变退出码');
+  assert.match(r.stdout, /MISMATCH .*jxx-bad/, '磁盘被污染时应报 MISMATCH');
 });
 
 // ---------------------------------------------------------------- 工单 02

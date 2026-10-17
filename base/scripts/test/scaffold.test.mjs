@@ -84,13 +84,14 @@ test('memorial-init: 同 slug 既有编号自动顺延到下一号（绝不覆�
   assert.equal(fs.existsSync(path.join(root, 'docs/memorial/001-dup')), true, '既有目录原样保留');
 });
 
-test('memorial-init: checklist.md 实例化 C1–C5 检查项', () => {
+test('memorial-init: checklist.md 实例化 C1–C6 检查项', () => {
   const root = fixtureRoot('mem-check');
   const r = runMemorialInit({ root, subject: 'revise schema' });
   assert.equal(path.basename(r.dir), '001-revise-schema');
   const cl = read(root, 'docs/memorial/001-revise-schema/checklist.md');
   assert.match(cl, /^# Checklist 001-revise-schema/);
-  for (const id of ['C1', 'C2', 'C3', 'C4', 'C5']) assert.match(cl, new RegExp(`\\| ${id} `));
+  for (const id of ['C1', 'C2', 'C3', 'C4', 'C5', 'C6']) assert.match(cl, new RegExp(`\\| ${id} `));
+  assert.match(cl, /C6[^|]*\|[^|]*证据可复核/, 'C6 = 证据可复核（1.2.0 新增）');
 });
 
 test('memorial-init: subject 为空抛错；--dry-run 不落盘', () => {
