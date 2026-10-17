@@ -1474,6 +1474,7 @@ function cmdAddWt(argv) {
     } else {
       console.log(`add-wt: wt/${id} 已存在（重入），持有者锁原样保留（不覆盖——锁记录最初开辟者）。`);
     }
+    probeSubmodules(wtPath, repoDir);
     autoHtml(root);
     return;
   }
@@ -1495,6 +1496,33 @@ function cmdAddWt(argv) {
   }
   autoHtml(root);
   console.log(`add-wt: wt/${id}（分支 ${branch}，基 ${base}）就绪。进目录后记得装依赖。持有者锁：.board-lock.json（actor=${arg(argv, 'actor') || 'unknown'}）`);
+  probeSubmodules(wtPath, repoDir);
+}
+
+/**
+ * 子模块可用性探测 + **显式降级提示**（PRD 130 · 工单 130-07）。
+ *
+ * 为什么必须显式：工单 worktree 里子模块留空目录时，`npm run test:memory-tools` 会**恒红 23 条**
+ * （`check-tool-counts` / `mount-points` 报「真源文件缺失」），而现场看起来一切正常——静默留空
+ * 正是这个坑的根因。故这里只做两件事：探测 + 把降级状态说清楚；**绝不让 add-wt 因此失败**。
+ */
+function probeSubmodules(wtPath, repoDir) {
+  let list = '';
+  // 子模块状态是 **worktree 级**的：主检出里 mzg 已初始化（`git submodule status` 前导空格），
+  // 但新建 worktree 里同一条命令给出 `-<sha> mzg`（未初始化）。故必须在 worktree 内探测，
+  // 在 repoDir 探测会永远看到「已就绪」——这是本修复第一次实现时的真实误判。
+  try { list = git(wtPath, 'submodule', 'status').trim(); } catch { return; }
+  if (!list) return;
+  const missing = list.split('\n').map((l) => l.trim()).filter(Boolean)
+    .map((l) => ({ flag: l[0], name: l.replace(/^[+-U]?\s*[0-9a-f]*\s*/, '').trim() }))
+    .filter((s) => s.flag === '-');
+  if (missing.length === 0) return;
+  const names = missing.map((m) => m.name).join(', ');
+  const hintCmd = 'git -C "' + wtPath + '" submodule update --init ' + names;
+  console.log('add-wt: ⚠ 子模块未初始化（' + names + '）——本 worktree 里带子模块依赖的闸门会报「真源文件缺失」'
+    + '（实测 npm run test:memory-tools 恒红 23 条，来自 check-tool-counts / mount-points），rm-wt 也会因 submodule 报 fatal。');
+  console.log('add-wt:   补救：' + hintCmd + '（子模块仓需平台凭据；拉不到时请在主检出跑全量闸，并以目标测试文件替代）。');
+
 }
 
 // ---------- wt-check（PRD 100-02：持有者锁查询） ----------
@@ -1534,7 +1562,23 @@ function cmdRmWt(argv) {
   const target = path.resolve(wtBase, id);
   if (path.dirname(target) !== wtBase) die(`拒绝回收：解析出的路径越出 wt/（${target}）`);
   if (!fs.existsSync(target)) die(`拒绝回收：目录不存在 ${target}`);
-  git(repoDir, 'worktree', 'remove', target, ...(flag(argv, 'force') ? ['--force'] : []));
+  // 带子模块的 worktree 无法被 `worktree remove` 移除（git 报 "working trees containing
+  // submodules cannot be moved or removed"，2026-10 实测）。此处**自动降级**为「物理删除 + prune」，
+  // 使收口第四段不再需要人工绕过；失败才把原始错误抛出去。
+  let removed = true;
+  try { git(repoDir, 'worktree', 'remove', target, ...(flag(argv, 'force') ? ['--force'] : [])); }
+  catch (err) {
+    removed = false;
+    try {
+      fs.rmSync(target, { recursive: true, force: true });
+      let pruneOk = true;
+      try { git(repoDir, 'worktree', 'prune'); } catch { pruneOk = false; }
+      if (!pruneOk) throw err;
+      console.log('rm-wt: ⚠ ' + path.basename(target) + ' 含子模块、worktree remove 不可用 ⇒ 已降级为物理删除 + worktree prune（收口第四段无需人工绕过）。');
+      removed = true;
+    } catch { removed = false; }
+    if (!removed) throw err;
+  }
   // 回收 = 工作树 + 分支两件（「回收工作空间」的完整语义）。分支是否可删由**合入实况**裁定，不靠纪律：
   // 分支已全部进基准分支（零领先）才自动删；零领先不成立 = 还有未合入的活，默认留分支并报明原因
   // （2026-10 实测：某项目 105 个 ticket/* 分支对 13 个 worktree，回收只做了一半）。

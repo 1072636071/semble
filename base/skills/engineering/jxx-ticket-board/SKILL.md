@@ -35,6 +35,8 @@ argument-hint: init [--in-project] [--repo <git-url>] | board | verify | ledger 
 
 **默认回合 main（v0.14.0 修订，ADR-011）**：所有工单（含 PRD 工单）完成审查后**默认直接合入 main**——rebase 到最新 `origin/main`、确认没影响后合入。仅技术受阻才降级：冲突不可解交回开发组；门禁红 / 本分支携带未上 main 的兄弟工单提交时，属 PRD 的暂存进 PRD 分支 `ticket/<NN>-<slug>`（惰性创建，等 §3.1 收口清入 main），散工单 blocked 等人工。**每次未能回合 main 必须向用户显式汇报原因**，并落 merge 卡流转段与账本。工单分支一律从 `origin/main` 拉出（`add-wt` 默认基）。详见 PROTOCOL §3 / §3.1 与 `references/ADR-011-main-first-merge.md`。
 
+> **子模块可见性（0.15.3）**：`add-wt` 建完会**在 worktree 内**探测子模块——缺子模块时打印降级提示 + 补救命令（`git -C <wt> submodule update --init <name>`），**但开卡本身照常成功**。原因：子模块状态是 **worktree 级**（主检出已初始化 ≠ 新 worktree 已初始化），空目录会让 worktree 内带子模块依赖的闸门（如 `check-tool-counts` / `mount-points`）报「真源文件缺失」而现场看起来正常；`rm-wt` 也可能因 submodule 报 fatal（0.15.3 起自动降级为物理删除 + prune）。
+
 **收口 = 四段闭环（v0.15.0）**：合并不是「合完就完」——`复核 → 预演冲突面 → 合入 main → 回收工作空间`，四段缺一不算收口。v0.14.0 只把第四段写成散文，结果实测积下 **105 个 `ticket/*` 分支对 13 个 worktree、11 张 `done` 卡里 6 张仍挂 worktree**；v0.15.0 把第四段变成确定性判据与命令：
 
 - `board.mjs merge-check --id <卡id>` — 合入前**内存三方预演**（`git merge-tree --write-tree`，不动 index/HEAD/工作树），输出 `already-merged` / `merge-clean` / `conflict` / `merge-failed`，并把冲突逐文件分成 **`·机械候选`（content，可逐 hunk 保留双方意图）** 与 **`✗非机械`（binary / modify-delete / rename，收场必然要发明行为 ⇒ 交回开发组）**。机械冲突解决后 diff 已变 ⇒ **必须重跑审查**（ADR-005）。

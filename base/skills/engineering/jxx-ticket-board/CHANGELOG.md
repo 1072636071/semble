@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.15.3 — 2026-10-18
+
+**worktree 子模块可见性 + 回收降级**（PRD 130 · 工单 130-07 / 服务器 T192；三次实测立项）：
+
+- `add-wt` 建完 worktree 后**探测子模块可用性并在 worktree 内判定**（子模块状态是 worktree 级的：主检出 `git submodule status` 前导空格 = 已初始化，新建 worktree 里给出 `-<sha> <name>` = 未初始化）。缺子模块 ⇒ 打印**可判读的降级提示**（说明本 worktree 内带子模块依赖的闸门会报「真源文件缺失」、`rm-wt` 亦会受 submodule 影响）**并给出可直接执行的补救命令**；**绝不让 `add-wt` 因拉不到子模块而失败**。重入路径同样探测。
+- `rm-wt` 遇 `fatal: working trees containing submodules cannot be moved or removed` 时**自动降级**为「物理删除 + `worktree prune`」，使收口第四段不再需要人工绕过；降级成功会打印说明，失败才抛原始错误。
+- 实测证据：新开 worktree 得到降级提示（含 `mzg`）；`rm-wt --delete-branch` 在含子模块的 worktree 上返回 `exit=0` 且 `wt/` 目录已消失、分支已删。
+
 ## 0.15.2 — 2026-10-15
 
 **步骤打卡与断线续接**（与服务器对齐纪律配套）：处理工单时在工单 md 列 `**处理步骤：**` 清单，每完成一步就地打卡并同步服务器副本；续接从打卡现场恢复，不重做已完成步骤。打卡现场以工单 md 为真源，卡面只带状态与指针（不双写两套）。
