@@ -217,14 +217,35 @@ foreach ($t in $targets) {
   }
 
   # ---- 4. 去重审计 ----
-  $dupHash = @($entries | Where-Object { $_.file_hash } | Group-Object file_hash | Where-Object { $_.Count -gt 1 })
-  $dupName = @($entries | Where-Object { $_.file_name } | Group-Object file_name | Where-Object { $_.Count -gt 1 })
-  $dupTtl  = @($entries | Where-Object { $_.title }   | Group-Object title   | Where-Object { $_.Count -gt 1 })
+  # 按条目类型分流（2026-10-18 修，memorial 057 第 8 问）：
+  #   file 类型（图片/文件）：同名不同内容是正常形态（国内站与外贸站各一张同名图、批量命名），
+  #     只有「同名 + 同 file_hash」才是真重复；同名不同 hash 仅 INFO 不判红。
+  #   manual 类型（文本）：重名/重题照旧判——文本库重名通常是真重复或漏改。
+  # 原一刀切判据对图站库误报（长兴库实测：7 组同名不同内容被误判 FAIL）。
+  # 带 deprecated 标的条目是已登记弃用，不参与去重判红（2026-10-18 修，memorial 057 第 8 问）：
+  # 处置策略是「打标弃用」而非物理删，判据若不含豁免会对自己促成的处置永远报红。
+  $live = @($entries | Where-Object { @($_.tags | ForEach-Object { $_.name }) -notcontains 'deprecated' })
+  $dupHash = @($live | Where-Object { $_.file_hash } | Group-Object file_hash | Where-Object { $_.Count -gt 1 })
+  $dupNameAll = @($live | Where-Object { $_.file_name } | Group-Object file_name | Where-Object { $_.Count -gt 1 })
+  $dupTtlAll  = @($live | Where-Object { $_.title }   | Group-Object title   | Where-Object { $_.Count -gt 1 })
+  # 真重复 = 同名且同 hash（内容相同）
+  $dupName = @($dupNameAll | Where-Object { @($_.Group | ForEach-Object { $_.file_hash } | Select-Object -Unique).Count -eq 1 })
+  $dupNameDiff = @($dupNameAll | Where-Object { @($_.Group | ForEach-Object { $_.file_hash } | Select-Object -Unique).Count -gt 1 })
+  # manual 文本条目才判重题（图片批量命名所致重题不判）
+  $dupTtl = @($dupTtlAll | Where-Object { @($_.Group | Where-Object { $_.type -ne 'file' }).Count -gt 0 })
+  $dupTtlImgOnly = @($dupTtlAll | Where-Object { @($_.Group | Where-Object { $_.type -ne 'file' }).Count -eq 0 })
   Say ($dupHash.Count -eq 0) ("去重：hash 重复 {0} 组" -f $dupHash.Count)
-  Say ($dupName.Count -eq 0) ("去重：文件名重复 {0} 组" -f $dupName.Count)
-  Say ($dupTtl.Count  -eq 0) ("去重：标题重复 {0} 组" -f $dupTtl.Count)
+  Say ($dupName.Count -eq 0) ("去重：同名同内容重复 {0} 组" -f $dupName.Count)
+  Say ($dupTtl.Count  -eq 0) ("去重：文本条目重题 {0} 组" -f $dupTtl.Count)
   $dupHash | ForEach-Object { Head ("       DUP hash={0} x{1}" -f $_.Name.Substring(0, [Math]::Min(12, $_.Name.Length)), $_.Count) }
-  $dupTtl  | ForEach-Object { Head ("       DUP title={0} x{1}" -f $_.Name, $_.Count) }
+  $dupName | ForEach-Object { Head ("       DUP name(same-hash)={0} x{1}" -f $_.Name, $_.Count) }
+  $dupTtl  | ForEach-Object { Head ("       DUP title(text)={0} x{1}" -f $_.Name, $_.Count) }
+  if ($dupNameDiff.Count -gt 0) {
+    Note ("同名不同内容 {0} 组（图片库正常形态，仅记录不判红）：{1}" -f $dupNameDiff.Count, (($dupNameDiff | ForEach-Object { $_.Name }) -join ", "))
+  }
+  if ($dupTtlImgOnly.Count -gt 0) {
+    Note ("图片批量命名所致重题 {0} 组（正常形态，仅记录不判红）：{1}" -f $dupTtlImgOnly.Count, (($dupTtlImgOnly | ForEach-Object { $_.Name }) -join ", "))
+  }
 
   # ---- 5. 标签台账 ----
   $tagResp = curl.exe -s -H "X-API-Key: $key" "$Base/knowledge-bases/$kbId/tags" | ConvertFrom-Json
@@ -296,6 +317,8 @@ foreach ($t in $targets) {
     dupHash = $dupHash.Count
     dupName = $dupName.Count
     dupTitle = $dupTtl.Count
+    dupNameDiffHash = $dupNameDiff.Count
+    dupTitleImageOnly = $dupTtlImgOnly.Count
     tagCount = $tags.Count
     typeTagCoverage = $typeCoverage
     tags = @($tags | Sort-Object -Property knowledge_count -Descending | ForEach-Object { [ordered]@{ name = $_.name; id = $_.id; count = $_.knowledge_count } })
