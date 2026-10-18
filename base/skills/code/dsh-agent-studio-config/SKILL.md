@@ -2,6 +2,7 @@
 name: dsh-agent-studio-config
 description: 统一维护 dsh-agent-studio（DeepSeek Harness Agent Studio 插件）的运行配置：备份/读取现状、新建代理并复刻三面（提示词集/工具集/技能集）、改提示词段/工具集/技能集、绑定/解绑预设、回滚、POST 后验证。走插件 HTTP 配置通道（GET/POST /api/dsh-agent-studio/config），把一次真实工单（115-01）踩过的坑固化成「照着做就不会错」的操作手册与零依赖脚本。当需要配置或修改 dsh-agent-studio、配代理 agent、建/改提示词集（promptSets）或工具集（toolSets）或技能集（skillSets）、绑定预设（bindings）、studio 配置回滚、配子代理花名册（children）、理解或规避「绑定即接管」语义时使用。触发词：配置/修改 dsh-agent-studio、配代理 agent、提示词集、工具集、技能集、绑定预设、studio 回滚、子代理花名册、绑定即接管。
 x-install: true
+x-scope: global
 metadata:
   version: 1.0.0
 ---
@@ -58,6 +59,7 @@ metadata:
 | [references/data-model.md](references/data-model.md) | 四池+bindings schema、字段表、装载重叠规则、数组整体替换 |
 | [references/pitfalls.md](references/pitfalls.md) | 14 条坑（现象→根因→预防/修法），动手前过一遍 |
 | [references/workflows.md](references/workflows.md) | 四个端到端流程 + 新会话验证清单 |
+| [references/config-recipe.md](references/config-recipe.md) | 115-01 实录层：十条坑逐条展开 + 实操坑 A–H + 33 项自检方法论 + 提交前 checklist（数字为 2026-10-10/11 时点实测，复刻以当次为准） |
 | [scripts/studio-config-get.mjs](scripts/studio-config-get.mjs) | GET /config 落盘备份（只读） |
 | [scripts/studio-config-validate.mjs](scripts/studio-config-validate.mjs) | POST 前本地校验（只读） |
 | [scripts/studio-config-post.mjs](scripts/studio-config-post.mjs) | 安全 POST（默认 dry-run） |
