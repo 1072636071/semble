@@ -36,6 +36,29 @@
     },
     {
       "id": 4,
+      "prompt": "我在 docs/agents/skills/ 下加了一个 deploy-hostinger 技能，AGENTS.md 里的技能清单没更新",
+      "should_trigger": true,
+      "expected_output": "运行 sync-skills 刷新 AGENTS.md 与 CODEBUDDY.md 里的技能清单",
+      "expectations": [
+        "运行 node scripts/setup.mjs sync-skills --root <目标仓库>，不重新 init、不手写改 AGENTS.md",
+        "说明它扫描技能目录 → 重写受管标记之间的技能表 → 刷新目录 README → 把 AGENTS.md 逐字节同步到 CODEBUDDY.md",
+        "不擅自加 --force；脚本默认幂等，标记之外的手写内容不会被覆盖",
+        "报告输出的 created/updated/unchanged 动作，据实说明清单里新增了哪个技能"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "这个仓库的 AGENTS.md 里已经自己写了一份技能表格，还要再生成一份吗",
+      "should_trigger": true,
+      "expected_output": "不插第二份；读冲突文件后给出接管或保留的处置",
+      "expectations": [
+        "先跑 detect 或直接跑 sync-skills 看到 conflict 与点名的手写技能清单标题",
+        "不覆盖、不插第二份清单；给出两条路：给既有清单加 skills:start/skills:end 标记由脚本接管，或保留现状",
+        "把处置结果说清楚：接管后重跑 sync-skills 即按目录刷新，保留现状则本技能不再加清单小节"
+      ]
+    },
+    {
+      "id": 6,
       "prompt": "帮我部署一个网站",
       "should_trigger": false,
       "expected_output": "不应触发setup技能",

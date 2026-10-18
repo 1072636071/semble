@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.5.0 — 2026-10-13
+
+### Added
+
+- **项目技能目录（新增能力）**：`init` 现在会在目标仓库建立项目技能目录（默认 `docs/agents/skills/`，可 `--skills-dir <rel>` 改，或 `--no-skills` 关闭），布局为「一个技能一个子目录 + `SKILL.md`」，并生成目录内的 `README.md`（布局约定 + 当前技能表 + 同步命令，空目录也因此可被 git 跟踪）。
+- **AGENTS.md 里的受管技能清单**：`## Agent skills` 块新增 `### 项目技能` 小节，表格由**扫描目录**生成（技能名取 frontmatter `name`，「何时加载」取 `description` 第一个句读前的子句），夹在 `<!-- jxx-setup-skills:skills:start -->` / `<!-- jxx-setup-skills:skills:end -->` 之间。
+- **新子命令 `sync-skills`**（`node scripts/setup.mjs sync-skills --root <仓库根>`）：项目技能**增删改后必跑**的一条命令——扫描技能目录 → 重写受管标记之间的技能表 → 刷新目录 `README.md` 的生成部分 → 把 `AGENTS.md` 逐字节同步到 `CODEBUDDY.md`。不带 `--skills-dir` 时从仓库已有小节标题读回目录；重复运行幂等（`unchanged`）。
+- 新增函数：`scanProjectSkills` / `buildProjectSkillsSection` / `buildSkillsTable` / `buildSkillsReadme` / `upsertProjectSkillsSection` / `extractManagedRegion` / `replaceManagedRegion` / `findForeignSkillsHeadings` / `isManagedOnlyDelta` / `inferSkillsDir` / `normalizeSkillsDir` / `parseFrontmatter` / `summarizeDescription` / `syncCodebuddyFile` / `ensureSkillsDir` / `runSyncSkills` / `buildBlockForRepo`。
+- `detect` 报告新增 `skillsDir` / `skillsDirExists` / `projectSkills` / `skillsSection`（`present`/`missing`/`foreign`/`disabled`）/ `foreignSkillsHeadings` / `skillsTableInSync`。
+- `template` 子命令输出 6 份文件（新增 `docs/agents/skills/README.md`）。
+- 测试从 34 例扩到 51 例，覆盖扫描/受管小节/接管/自定义目录/`--no-skills`/v1.4 升级/`sync-skills` 幂等与 README 手写补充保留。
+
+### Changed
+
+- **冲突保护增加一类「受管例外」**：差异**只**落在受管技能小节（标题 + 说明段 + 标记之间的表格）内时，`init`/`sync-doc` 直接落盘并报 `updated`，不再报 `conflict`——技能增删改属机器生成内容刷新，不是覆盖定制约定。标记之外逐字不动，其它差异仍照旧报冲突。
+- 仓库若已有**手写**技能清单（标题含「技能/skills」的 `##`～`####` 小节）且未加受管标记：`init` 不再插第二份清单（改为整节略去并在动作详情里说明），`sync-skills` 直接报 `conflict` 并提示「在既有清单前后加一对 `skills:start`/`skills:end` 即可接管」。
+- `CODEBUDDY.md` 镜像跟写范围收窄到「本次仅刷新受管技能清单」且写入前两份本来一致的情形（`sync-skills` 全程适用）；整块替换等其它改动仍照 v1.3.0 的规则报冲突，避免悄悄吃掉 `CODEBUDDY.md` 的独有内容。
+- v1.4 的仓库重跑 `init` 时不再必然冲突：缺「项目技能」小节会被自动补上，退出码仍是 `0`。
+- SKILL.md 流程新增「3. 项目技能目录」与「4. 维护技能清单（增删改项目技能后必跑）」，原「冲突处置 / 检查 OCR / 完成」顺延为 5/6/7。
+
 ## 1.4.0 — 2026-09-17
 
 ### Changed

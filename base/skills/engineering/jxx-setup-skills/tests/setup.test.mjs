@@ -12,13 +12,27 @@ import {
   MULTI_AGENT_BLOCK,
   DOC_TEMPLATES,
   DEFAULT_AGENTS_CONTENT,
+  DEFAULT_SKILLS_DIR,
+  SKILLS_MARK_START,
+  SKILLS_MARK_END,
   buildAgentSkillsBlock,
   buildTemplateOutput,
+  buildProjectSkillsSection,
+  extractManagedBody,
   ensureMultiAgentBlock,
   upsertAgentSkillsBlock,
+  upsertProjectSkillsSection,
   extractAgentSkillsBlock,
+  findForeignSkillsHeadings,
+  isManagedOnlyDelta,
+  inferSkillsDir,
+  normalizeSkillsDir,
+  parseFrontmatter,
+  summarizeDescription,
+  scanProjectSkills,
   runDetect,
   runSyncDoc,
+  runSyncSkills,
   runInit,
   filesIdentical,
   findOnPath,
@@ -135,7 +149,7 @@ test('ensureMultiAgentBlock: 缺失时插入首个 H1 之后；已存在则不�
 });
 
 test('upsertAgentSkillsBlock: 缺失追加 / 已存在整段替换且保留周围与后续小节', () => {
-  const block = buildAgentSkillsBlock();
+  const block = buildAgentSkillsBlock({ scan: null }); // scan=null=不含受管「项目技能」小节（本用例只考结构）
   // 缺失 → 追加
   const appended = upsertAgentSkillsBlock('# P\n\n前面内容\n', block);
   assert.match(appended, /^# P\n\n前面内容\n\n## Agent skills\n/);
@@ -332,7 +346,7 @@ test('init: --dry-run 不落盘', () => {
 
 // ================================================================ template（步骤 4：输出文件内容，不落盘）
 
-test('buildTemplateOutput: 默认输出 5 份文件，CODEBUDDY 与 AGENTS 逐字节一致', () => {
+test('buildTemplateOutput: 默认输出 6 份文件（含项目技能目录 README），CODEBUDDY 与 AGENTS 逐字节一致', () => {
   const seeds = mkSeeds('tpl');
   const out = buildTemplateOutput({ seedsDir: seeds });
   assert.deepEqual(out.map((f) => f.file), [
@@ -341,10 +355,19 @@ test('buildTemplateOutput: 默认输出 5 份文件，CODEBUDDY 与 AGENTS 逐�
     'docs/agents/issue-tracker.md',
     'docs/agents/triage-labels.md',
     'docs/agents/domain.md',
+    'docs/agents/skills/README.md',
   ]);
   assert.equal(out[1].content, out[0].content, 'CODEBUDDY.md 与 AGENTS.md 逐字节一致');
   assert.equal(out[0].content, DEFAULT_AGENTS_CONTENT, '默认 AGENTS.md 等于 DEFAULT_AGENTS_CONTENT');
   assert.equal(out[2].content, 'seed:issue-tracker-local.md\n', 'docs/agents 来自种子模板');
+  assert.match(out[5].content, /# 项目技能目录/);
+  assert.match(out[5].content, /sync-skills/);
+});
+
+test('buildTemplateOutput: --no-skills（技能另放它处的仓库）不产出技能目录 README', () => {
+  const out = buildTemplateOutput({ seedsDir: mkSeeds('tpl-noskills'), noSkills: true });
+  assert.equal(out.length, 5);
+  assert.ok(!out[0].content.includes('### 项目技能'), '整节略去，不留半截清单');
 });
 
 test('buildTemplateOutput: layout/labels 定制渲染进 AGENTS.md，不落盘', () => {
@@ -451,7 +474,7 @@ test('e2e: CLI 有冲突时退出码 3、原文件保留并提示 --overwrite；
   assert.match(out2, /初始化完成/);
 });
 
-test('e2e: CLI template 输出 5 份文件内容到 stdout 且不落盘', () => {
+test('e2e: CLI template 输出 6 份文件内容到 stdout 且不落盘', () => {
   const root = fixtureRoot('cli-tpl');
   const out = execFileSync(process.execPath, [SETUP_MJS, 'template', '--root', root], { encoding: 'utf-8' });
   assert.match(out, /=== FILE: AGENTS\.md ===/);
@@ -459,6 +482,7 @@ test('e2e: CLI template 输出 5 份文件内容到 stdout 且不落盘', () => 
   assert.match(out, /=== FILE: docs\/agents\/issue-tracker\.md ===/);
   assert.match(out, /=== FILE: docs\/agents\/triage-labels\.md ===/);
   assert.match(out, /=== FILE: docs\/agents\/domain\.md ===/);
+  assert.match(out, /=== FILE: docs\/agents\/skills\/README\.md ===/);
   assert.match(out, /## 多代理要求/);
   // 不落盘：目标仓库根不产生任何文件
   assert.equal(fs.existsSync(path.join(root, 'AGENTS.md')), false);
@@ -496,4 +520,208 @@ test('e2e: CLI ocr 子命令输出含 installed 字段的 JSON', () => {
   const out = execFileSync(process.execPath, [SETUP_MJS, 'ocr'], { encoding: 'utf-8' });
   assert.match(out, /"installed":\s*(true|false)/);
   assert.match(out, /"path":/);
+});
+
+// ================================================================ 项目技能目录（docs/agents/skills）
+
+/** 造一个项目技能：<dir>/<name>/SKILL.md（frontmatter name + description） */
+function mkSkill(root, dir, name, description) {
+  write(root, `${dir}/${name}/SKILL.md`, `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n`);
+}
+
+test('parseFrontmatter: 取顶层 name/description，去引号，忽略缩进嵌套', () => {
+  const fm = parseFrontmatter('---\nname: demo\ndescription: "带引号的描述"\nmetadata:\n  version: 1.0\n---\n\n# 正文\n');
+  assert.equal(fm.name, 'demo');
+  assert.equal(fm.description, '带引号的描述');
+  assert.deepEqual(parseFrontmatter('# 没有 frontmatter\n'), {});
+});
+
+test('summarizeDescription: 取首个句读前的子句并限长；缺失时给占位说明', () => {
+  assert.equal(summarizeDescription('本项目命令参考——dev/build/lint。当要跑命令时加载。'), '本项目命令参考——dev/build/lint');
+  assert.ok(summarizeDescription('x'.repeat(100)).endsWith('…'));
+  assert.match(summarizeDescription(''), /未写 description/);
+});
+
+test('scanProjectSkills: 只认「顶层子目录 + 有 SKILL.md」，名字取 frontmatter 并排序', () => {
+  const root = fixtureRoot('scan-skills');
+  mkSkill(root, DEFAULT_SKILLS_DIR, 'commands', '跑命令时加载。');
+  mkSkill(root, DEFAULT_SKILLS_DIR, 'blog-review', '审博客时加载。');
+  write(root, `${DEFAULT_SKILLS_DIR}/_shared/references/x.md`, '不是技能\n'); // 没有 SKILL.md → 忽略
+  write(root, `${DEFAULT_SKILLS_DIR}/blog-review/references/y.md`, '子目录 → 忽略\n');
+  const scan = scanProjectSkills(root);
+  assert.equal(scan.dir, DEFAULT_SKILLS_DIR);
+  assert.equal(scan.exists, true);
+  assert.deepEqual(scan.skills.map((s) => s.name), ['blog-review', 'commands']);
+  assert.equal(scan.skills[0].skillMd, 'docs/agents/skills/blog-review/SKILL.md');
+  assert.equal(scan.skills[0].summary, '审博客时加载');
+});
+
+test('normalizeSkillsDir / inferSkillsDir: 自定义目录与从受管小节标题回推', () => {
+  assert.equal(normalizeSkillsDir('./.agent/skills/'), '.agent/skills');
+  assert.equal(normalizeSkillsDir(''), DEFAULT_SKILLS_DIR);
+  const scan = { dir: '.agent/skills', skills: [] };
+  const section = buildProjectSkillsSection(scan);
+  assert.equal(inferSkillsDir(section), '.agent/skills', 'sync-skills 不带参数也能认出仓库自己的目录');
+});
+
+test('buildProjectSkillsSection: 表格按名字排序夹在标记之间；空目录给占位行', () => {
+  const empty = buildProjectSkillsSection({ dir: DEFAULT_SKILLS_DIR, skills: [] });
+  assert.match(empty, /暂无项目技能/);
+  assert.ok(empty.indexOf(SKILLS_MARK_START) < empty.indexOf(SKILLS_MARK_END));
+  const section = buildProjectSkillsSection({
+    dir: DEFAULT_SKILLS_DIR,
+    skills: [{ name: 'b', summary: 'B 技能' }, { name: 'a', summary: 'A 技能' }],
+  });
+  assert.match(extractManagedBody(section), /\| `a` \| A 技能 \|\n\| `b` \| B 技能 \|/);
+});
+
+test('upsertProjectSkillsSection: 只改标记之间；标记外的手写内容逐字保留', () => {
+  const doc = ['# P', '', '## Agent skills', '', '### 临时文件', '', '约定正文。', '', '## 其他小节', '', '别动我。', ''].join('\n');
+  const ins = upsertProjectSkillsSection(doc, buildProjectSkillsSection({ dir: DEFAULT_SKILLS_DIR, skills: [] }));
+  assert.equal(ins.action, 'inserted');
+  assert.match(ins.content, /### 临时文件\n\n约定正文。/, '小节插在工程块内');
+  assert.match(ins.content, /## 其他小节\n\n别动我。/, '后续小节保留');
+  // 再刷一次：表体变了，标记外一字不动
+  const more = upsertProjectSkillsSection(ins.content, buildProjectSkillsSection({ dir: DEFAULT_SKILLS_DIR, skills: [{ name: 'a', summary: 'A 技能' }] }));
+  assert.equal(more.action, 'updated');
+  assert.match(more.content, /\| `a` \| A 技能 \|/);
+  assert.match(more.content, /别动我。/);
+  // 幂等
+  assert.equal(upsertProjectSkillsSection(more.content, buildProjectSkillsSection({ dir: DEFAULT_SKILLS_DIR, skills: [{ name: 'a', summary: 'A 技能' }] })).action, 'unchanged');
+});
+
+test('findForeignSkillsHeadings: 识别手写技能清单；不误报 ## Agent skills、受管小节与「怎么新建技能」小节', () => {
+  assert.deepEqual(findForeignSkillsHeadings('# P\n\n## Agent skills\n\nx\n'), []);
+  assert.deepEqual(findForeignSkillsHeadings(buildProjectSkillsSection({ dir: DEFAULT_SKILLS_DIR, skills: [] })), []);
+  assert.equal(findForeignSkillsHeadings('## 技能（固定流程都在这里）\n\n| 技能 | 什么时候加载 |\n| --- | --- |\n| `a` | A |\n').length, 1);
+  assert.equal(
+    findForeignSkillsHeadings('## 技能清单\n\n| 技能 | 何时加载 |\n| --- | --- |\n| `a` | A |\n').length,
+    1,
+    '带技能表格的小节也算清单',
+  );
+  assert.deepEqual(findForeignSkillsHeadings('### 新增 SKILL\n\n用 jxx-skill-init 新建技能。\n'), [], '约定小节不算清单');
+  assert.deepEqual(findForeignSkillsHeadings('### 项目技能目录\n\n目录约定与同步命令。\n'), []);
+});
+
+test('isManagedOnlyDelta: 差异只落在受管小节 → 真；改了别的段 → 假', () => {
+  const scan = { dir: DEFAULT_SKILLS_DIR, skills: [{ name: 'a', summary: 'A 技能' }] };
+  const withSection = buildAgentSkillsBlock({ scan });
+  const noSection = withSection.slice(0, withSection.indexOf('\n### 项目技能') + 1);
+  assert.equal(isManagedOnlyDelta(noSection, withSection), true, '新增受管小节算受管内差异');
+  assert.equal(isManagedOnlyDelta(`${noSection}\n## 其他\n\n改过了\n`, withSection), false);
+});
+
+test('init: 创建项目技能目录 + README，并在 AGENTS.md 写入受管清单小节', () => {
+  const root = fixtureRoot('init-skills');
+  const seeds = mkSeeds('init-skills');
+  mkSkill(root, DEFAULT_SKILLS_DIR, 'commands', '跑命令时加载。');
+  const r = runInit({ root, seedsDir: seeds });
+  const content = read(root, 'AGENTS.md');
+  assert.match(content, /### 项目技能（`docs\/agents\/skills\/`）/);
+  assert.match(content, /\| `commands` \| 跑命令时加载 \|/);
+  assert.match(content, /jxx-setup-skills:skills:start/);
+  assert.match(read(root, 'docs/agents/skills/README.md'), /# 项目技能目录/);
+  assert.equal(read(root, 'CODEBUDDY.md'), content, '两份规范文件逐字节一致');
+  assert.equal(r.sync.projectSkills[0], 'commands');
+  // runInit 先 detect 后写入，故这里对写入后的现状再 detect 一次
+  const after = runDetect({ root });
+  assert.equal(after.skillsSection, 'present');
+  assert.equal(after.skillsTableInSync, true);
+});
+
+test('init: --skills-dir 自定义目录；--no-skills 完全不碰技能目录', () => {
+  const root = fixtureRoot('init-skills-dir');
+  const seeds = mkSeeds('init-skills-dir');
+  mkSkill(root, '.agent/skills', 'demo', '演示技能。');
+  const r = runInit({ root, seedsDir: seeds, skillsDir: '.agent/skills' });
+  assert.match(read(root, 'AGENTS.md'), /### 项目技能（`.agent\/skills\/`）/);
+  assert.ok(fs.existsSync(path.join(root, '.agent/skills/README.md')));
+  const root2 = fixtureRoot('init-no-skills');
+  const r2 = runInit({ root: root2, seedsDir: seeds, noSkills: true });
+  assert.ok(!read(root2, 'AGENTS.md').includes('### 项目技能'));
+  assert.equal(fs.existsSync(path.join(root2, DEFAULT_SKILLS_DIR)), false);
+  assert.equal(r2.sync.skillsDir, null);
+});
+
+test('init: v1.4 仓库（工程块里还没有项目技能小节）→ 只补受管小节，不报冲突', () => {
+  const root = fixtureRoot('init-upgrade');
+  const seeds = mkSeeds('init-upgrade');
+  const block = buildAgentSkillsBlock({ scan: null });
+  write(root, 'AGENTS.md', `${MULTI_AGENT_BLOCK}\n\n${block}`);
+  write(root, 'CODEBUDDY.md', read(root, 'AGENTS.md'));
+  mkSkill(root, DEFAULT_SKILLS_DIR, 'commands', '跑命令时加载。');
+  const r = runInit({ root, seedsDir: seeds });
+  assert.equal(r.sync.conflicts.length, 0, '只补受管小节不算冲突');
+  const action = Object.fromEntries(r.sync.actions.map((a) => [a.file, a.action]))['AGENTS.md'];
+  assert.equal(action, 'updated');
+  assert.match(read(root, 'AGENTS.md'), /### 项目技能（`docs\/agents\/skills\/`）/);
+  assert.equal(read(root, 'CODEBUDDY.md'), read(root, 'AGENTS.md'), '镜像跟写，两份仍一致');
+});
+
+test('sync-skills: 增/删技能后一条命令刷新清单与 README，并保持两份规范文件一致', () => {
+  const root = fixtureRoot('sync-skills');
+  const seeds = mkSeeds('sync-skills');
+  runInit({ root, seedsDir: seeds });
+  mkSkill(root, DEFAULT_SKILLS_DIR, 'commands', '跑命令时加载。');
+  const r1 = runSyncSkills({ root });
+  assert.deepEqual(r1.projectSkills, ['commands']);
+  assert.equal(r1.conflicts.length, 0);
+  assert.match(read(root, 'AGENTS.md'), /\| `commands` \| 跑命令时加载 \|/);
+  assert.match(read(root, 'docs/agents/skills/README.md'), /\| `commands` \|/);
+  assert.equal(read(root, 'CODEBUDDY.md'), read(root, 'AGENTS.md'));
+  // 幂等
+  assert.equal(runSyncSkills({ root }).actions.find((a) => a.file === 'AGENTS.md').action, 'unchanged');
+  // 删除技能后清单同步移除
+  fs.rmSync(path.join(root, DEFAULT_SKILLS_DIR, 'commands'), { recursive: true, force: true });
+  assert.deepEqual(runSyncSkills({ root }).projectSkills, []);
+  assert.ok(!read(root, 'AGENTS.md').includes('| `commands` |'));
+  assert.ok(!read(root, 'docs/agents/skills/README.md').includes('| `commands` |'));
+});
+
+test('sync-skills: README 的手写补充（分界标记之后）刷新时保留', () => {
+  const root = fixtureRoot('sync-skills-readme');
+  const seeds = mkSeeds('sync-skills-readme');
+  runInit({ root, seedsDir: seeds });
+  write(root, 'docs/agents/skills/README.md', `${read(root, 'docs/agents/skills/README.md')}\n## 我自己的约定\n\n不许乱动。\n`);
+  mkSkill(root, DEFAULT_SKILLS_DIR, 'a', 'A 技能。');
+  runSyncSkills({ root });
+  const readme = read(root, 'docs/agents/skills/README.md');
+  assert.match(readme, /## 我自己的约定\n\n不许乱动。/, '手写补充保留');
+  assert.match(readme, /\| `a` \| A 技能 \|/, '生成部分已刷新');
+});
+
+test('sync-skills: 已有手写技能清单且未接管 → 报冲突且不插第二份；加标记后接管', () => {
+  const root = fixtureRoot('sync-skills-foreign');
+  const seeds = mkSeeds('sync-skills-foreign');
+  write(root, 'AGENTS.md', '# P\n\n## 技能（固定流程都在这里）\n\n| 技能 | 什么时候加载 |\n| --- | --- |\n| `commands` | 跑命令 |\n');
+  write(root, 'CODEBUDDY.md', read(root, 'AGENTS.md'));
+  mkSkill(root, DEFAULT_SKILLS_DIR, 'commands', '跑命令时加载。');
+  const r = runSyncSkills({ root });
+  assert.deepEqual(r.conflicts.map((c) => c.file), ['AGENTS.md']);
+  assert.ok(!read(root, 'AGENTS.md').includes('jxx-setup-skills:skills:start'), '不插第二份清单');
+  // 模型把既有清单纳入受管：加标记后重跑即接管
+  const adopted = read(root, 'AGENTS.md')
+    .replace('| --- | --- |', `| --- | --- |\n${SKILLS_MARK_START}`)
+    .replace('| `commands` | 跑命令 |', `| \`commands\` | 跑命令 |\n${SKILLS_MARK_END}`);
+  write(root, 'AGENTS.md', adopted);
+  write(root, 'CODEBUDDY.md', adopted);
+  const r2 = runSyncSkills({ root });
+  assert.equal(r2.conflicts.length, 0);
+  assert.match(read(root, 'AGENTS.md'), /\| `commands` \| 跑命令时加载 \|/, '既有清单已被接管刷新');
+});
+
+test('sync-skills: 既无 CLAUDE.md 也无 AGENTS.md → 明确报错要求先 init', () => {
+  const r = runSyncSkills({ root: fixtureRoot('sync-skills-empty') });
+  assert.match(r.error, /先跑 init/);
+  assert.equal(r.canonical, null);
+});
+
+test('e2e: CLI sync-skills 输出清单摘要，幂等退出码 0', () => {
+  const root = fixtureRoot('cli-sync-skills');
+  execFileSync(process.execPath, [SETUP_MJS, 'init', '--root', root], { encoding: 'utf-8' });
+  mkSkill(root, DEFAULT_SKILLS_DIR, 'commands', '跑命令时加载。');
+  const out = execFileSync(process.execPath, [SETUP_MJS, 'sync-skills', '--root', root], { encoding: 'utf-8' });
+  assert.match(out, /\[updated\] AGENTS\.md/);
+  assert.match(out, /技能清单已与目录一致/);
+  assert.match(execFileSync(process.execPath, [SETUP_MJS, 'sync-skills', '--root', root], { encoding: 'utf-8' }), /\[unchanged\] AGENTS\.md/);
 });

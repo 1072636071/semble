@@ -1,9 +1,9 @@
 ---
 name: jxx-setup-skills
-description: 为仓库配置工程技能环境：issue tracker、triage 标签、领域文档，并检测/询问安装 OCR。首次使用前运行一次。触发词：setup skills、初始化环境。
+description: 为仓库配置工程技能环境：issue tracker、triage 标签、领域文档、项目技能目录（docs/agents/skills/ 与 AGENTS.md 技能清单），并检测/询问安装 OCR。首次使用前运行一次；项目技能增删改后用它同步清单。触发词：setup skills、初始化环境、同步技能清单。
 disable-model-invocation: false
 metadata:
-  version: 1.4.0
+  version: 1.5.0
 ---
 
 # 设置工程技能环境
@@ -13,6 +13,7 @@ metadata:
 - **Issue tracker** — issue 存放位置（仅**本地 markdown**，存放在仓库 `.scratch/` 下）
 - **triage 标签** — 五个标准 triage 角色所使用的标签字符串
 - **领域文档** — `CONTEXT.md` 和 ADR 的存放位置，以及读取它们的消费者规则（`jxx-grill-with-docs`、`jxx-domain-modeling` 等技能也会读写它们）
+- **项目技能目录** — 本仓自己写的技能统一放 `docs/agents/skills/<name>/SKILL.md`，并在 `AGENTS.md` 里生成「技能 / 何时加载」清单；**技能增删改后重跑 `sync-skills` 刷新清单**
 - **OCR（可选）** — 检测 `ocr` CLI 是否可用；未安装时**询问用户**是否安装。装上后 `jxx-code-review` 自动启用委托模式（3 维度审查），没装则降级为 2 维度
 
 这是一个脚本驱动的技能：初始化所需的所有文件内容与合并逻辑均由 `scripts/setup.mjs` 确定性完成。模型负责决定目标仓库、传入布局/标签偏好（若有），并运行脚本把配置**写入**目标仓库；**不需要用户手动复制任何文件**。
@@ -21,17 +22,19 @@ metadata:
 
 1. 运行 `scripts/setup.mjs init --root <目标仓库>`，脚本会先**只读扫描**仓库现状（哪些文件已存在、以哪个为通用规范源、已有内容与将写入内容的漂移），再**写入**配置到目标仓库对应位置。
 2. 脚本**读取目标仓库已有文件并自行处理**：
-   - 已有 `CLAUDE.md` 或 `AGENTS.md` → 以它作为通用规范源，在其上做「## Agent skills」块 upsert（**仅当块缺失或与将写入内容一致时**写；已有块内容不同则保留并报 `conflict`）并注入「## 多代理要求」块，再同步到 `CODEBUDDY.md`。
+   - 已有 `CLAUDE.md` 或 `AGENTS.md` → 以它作为通用规范源，在其上做「## Agent skills」块 upsert（**仅当块缺失、与将写入内容一致、或差异只在受管的「项目技能」小节内时**写；已有块内容不同则保留并报 `conflict`）并注入「## 多代理要求」块，再同步到 `CODEBUDDY.md`。
    - 都不存在 → 默认创建 `AGENTS.md` 与 `CODEBUDDY.md`（两者内容一致）。
    - 三份 `docs/agents/*.md` 模板**只克隆缺失的**；已存在且与种子内容不同则保留并报 `conflict`。
-   - `CODEBUDDY.md` 已存在且与源文件不一致时同样**保留并报 `conflict`**（它可能含独有定制内容）。
+   - **项目技能目录** `docs/agents/skills/`（可用 `--skills-dir` 改）连同其 `README.md` 一并创建/刷新，`AGENTS.md` 里写入受管清单小节。
+   - `CODEBUDDY.md` 已存在且与源文件不一致时同样**保留并报 `conflict`**（它可能含独有定制内容）；仅当本次只刷了受管技能清单且写入前两份本来一致时，才按「两份必须一致」的镜像语义自动跟写。
    - 操作**幂等**：重复运行不会破坏已有内容，只会补齐缺失的工程块与文件。
 3. 脚本把每份文件的动作（`created`/`updated`/`unchanged`/`conflict`）打印出来；存在冲突时**退出码为 3**，并列出冲突文件与处置提示。
 4. **不静默覆盖**：凡是已存在且内容不同的文件，脚本一律不落盘、原样保留，由模型**读取该文件后**决定怎么写入。决断路径见「冲突处置」一节。默认**不要**加 `--force`。
+5. **受管例外（唯一一类可直接落盘的差异）**：`## Agent skills` 块内 `### 项目技能` 小节里 `<!-- jxx-setup-skills:skills:start -->` 与 `<!-- jxx-setup-skills:skills:end -->` **之间**的表格，以及技能目录 `README.md` 里分界标记之前的生成部分——它们是脚本按目录扫描结果生成的，技能增删改后必须自动刷新，因此不算「覆盖定制内容」。标记**之外**的任何字符仍然逐字不动。
 
 **无输入快速通道**：当**用户没有提供任何配置输入**时——包括只说"全部默认"/"用默认"/"直接按默认来"，或者只是触发本技能而未回答任何问题、未表达任何偏好——一律按"全部默认"处理：**跳过询问与确认**，直接用默认参数运行 `init --root <目标仓库>`，一步完成写入，随后按「完成」汇报，**全程不再向用户提问，也不需要用户确认或复制**。
 
-> **唯一例外**：配置落盘不提问，但**步骤 4 的 OCR 未安装时仍需询问**是否安装 —— 安装会改动全局环境（全局 npm 包 / 系统目录），不属于"默认配置落盘"，不得擅自执行。
+> **唯一例外**：配置落盘不提问，但**步骤 6 的 OCR 未安装时仍需询问**是否安装 —— 安装会改动全局环境（全局 npm 包 / 系统目录），不属于"默认配置落盘"，不得擅自执行。
 
 ## 默认配置（"全部默认"）
 
@@ -40,6 +43,7 @@ metadata:
 - **Issue tracker** — 本地 markdown（`.scratch/` 下）。跳过"PR 作为请求渠道"的追问（本地无 PR）。
 - **triage 标签** — 每个角色字符串等于其名称（无覆盖，不传 `--labels`）。
 - **领域文档** — 单一上下文（根目录 `CONTEXT.md` + `docs/adr/`，不传 `--layout`）。
+- **项目技能目录** — `docs/agents/skills/`（不传 `--skills-dir`）。每个技能一个子目录、内含 `SKILL.md`；`AGENTS.md` 里生成「技能 / 何时加载」清单。
 - **临时文件** — 所有临时脚本统一放在 `.temp/scripts/` 下；其他临时文件（脚本输出、日志等）分类放在 `.temp/` 的子目录下，保证根目录干净。
 - **写入目标** — 通用规范源存在则在其上 upsert 并同步 `CODEBUDDY.md`；不存在则同时创建 `AGENTS.md` 与 `CODEBUDDY.md`，两者内容一致。
 
@@ -67,11 +71,50 @@ node <本技能目录>/scripts/setup.mjs init --root <目标仓库> --layout sin
 
 - `--layout` 对应领域文档布局选择（`single` 单一上下文 / `multi` 多上下文；默认 `single`）。
 - `--labels` 对应 triage 标签覆盖（JSON 对象：角色名 → 实际标签字符串；Windows PowerShell 下内层引号需写成 `\"`，如 `'{\"wontfix\":\"no-fix\"}'`）。
+- `--skills-dir <相对路径>` 对应项目技能目录（默认 `docs/agents/skills`；仓库已有清单时沿用其记录的目录）。
+- `--no-skills` 用于**项目技能另放它处**的仓库：既不建技能目录，也不写「### 项目技能」小节。
 - 不传任何参数即为"全部默认"。
 
 **预览（可选）**：如需先查看将产生的内容而不落盘，用 `--dry-run` 演练（只打印动作不写盘，冲突也会如实报出），或 `template` 输出全部文件内容到 stdout。但默认流程应直接 `init` 落盘，无需用户确认。
 
-### 3. 冲突处置（退出码 3）
+### 3. 项目技能目录（初始化时一并建好）
+
+`init` 会创建项目技能目录（默认 `docs/agents/skills/`，自定义路径用 `--skills-dir`），在其中写好 `README.md`（布局约定 + 当前技能表 + 同步命令；空目录也因此可被 git 跟踪），并在 `AGENTS.md` 的「## Agent skills」块里写一节受管的技能清单：
+
+```markdown
+### 项目技能（`docs/agents/skills/`）
+
+本仓项目技能的**唯一存放处**：一个技能一个目录 `docs/agents/skills/<name>/`，入口 `docs/agents/skills/<name>/SKILL.md`（frontmatter 写 `name` + `description`），可选 `references/`、`scripts/`。
+
+**新增、删除或改动任一技能后，必须重跑** `node <jxx-setup-skills 目录>/scripts/setup.mjs sync-skills --root <仓库根>`：……
+
+<!-- jxx-setup-skills:skills:start -->
+| 技能 | 何时加载 |
+| --- | --- |
+| `commands` | 本项目命令与环境参考——dev/build/lint |
+<!-- jxx-setup-skills:skills:end -->
+```
+
+- **目录约定**：一个技能一个子目录，目录名 = frontmatter 的 `name`；子目录里没有 `SKILL.md` 就不算技能（只放 `references/` 的辅助目录会被忽略）。
+- **清单内容**：技能名取 `SKILL.md` 的 `name`，「何时加载」取 `description` 第一个句读（`。；!`）之前的子句。**不要**在别处再手写第二份技能清单。
+- **手写补充**：`README.md` 末尾 `<!-- jxx-setup-skills:hand-written -->` 之后的内容、以及 AGENTS.md 里标记之外的任何内容，刷新时都不会被覆盖。
+
+### 4. 维护技能清单（增删改项目技能后必跑）
+
+**只要在项目技能目录里新增、删除或改动了任一技能（含只改 `description`），收工前必须重跑**：
+
+```bash
+node <本技能目录>/scripts/setup.mjs sync-skills --root <目标仓库>
+```
+
+它一条命令做完四件事：扫描技能目录 → 重写 `AGENTS.md` 受管标记**之间**的技能表 → 刷新技能目录 `README.md` 的生成部分 → 把 `AGENTS.md` 逐字节同步到 `CODEBUDDY.md`。
+
+- **不需要 `--force`，也不需要逐字手改 AGENTS.md**：它只动标记之间的表格，标记之外的内容逐字不动；重复运行是 `unchanged`（幂等）。
+- 不带 `--skills-dir` 时会从仓库已有的小节标题读回目录，所以参数通常可以省略。
+- 退出码与 `init` 相同：`0` 完成无冲突 / `3` 有冲突（原文件已保留）/ `2` 一致性 MISMATCH / `1` 参数错误。
+- 常见触发时机：新建项目技能、删掉不再用的技能、改技能的 `description`、把技能挪了目录。
+
+### 5. 冲突处置（退出码 3）
 
 当输出里出现 `conflict`（退出码 3）时，说明**目标文件已存在且内容与将写入的不同，脚本已原样保留**。此时不要重跑 `--force` 了事，按下面顺序处置：
 
@@ -85,8 +128,11 @@ node <本技能目录>/scripts/setup.mjs init --root <目标仓库> --layout sin
      ```
      `--overwrite` 可重复指定多个文件；仅在用户明确要求"全部按默认重置"时才用 `--force`。
 3. 覆盖源文件（`AGENTS.md`/`CLAUDE.md`）里的工程块后，`CODEBUDDY.md` 会随之漂移，脚本会**再次报它的冲突**——这属于预期：读取两者确认后，再 `--overwrite CODEBUDDY.md` 同步。
+4. **冲突里提到「已有手写技能清单」时**（`sync-skills` / `init` 报 `conflict` 并点名某个 `## 技能` 标题）：说明仓库已经自己维护了一份技能清单。**不要**插第二份、也不要覆盖——读那份清单，二选一：
+   - **让它接管**：在既有清单前后各加一行 `<!-- jxx-setup-skills:skills:start -->` / `<!-- jxx-setup-skills:skills:end -->`，之后 `sync-skills` 就会接管并按目录刷新它（推荐）。
+   - **保留现状**：什么都不做，向用户说明现有清单继续生效（此后不要在本技能里再加清单小节）。
 
-### 4. 检查 OCR（代码审查工具）
+### 6. 检查 OCR（代码审查工具）
 
 OCR（open-code-review CLI）是 `jxx-code-review` 委托模式的依赖：装上后代码审查自动启用 **3 维度**（标准 + spec + 规则），没装则降级为 **2 维度**（标准 + spec）。
 
@@ -139,20 +185,24 @@ ocr version     # 应输出版本，如 open-code-review v1.12.4
 
 **无需配置 LLM**：委托模式由宿主 Agent 用自身 LLM 审查，OCR 端不调用任何 LLM，因此不需要 `ocr config set` 或任何 LLM 环境变量。
 
-### 5. 完成
+### 7. 完成
 
-告知用户配置已写入目标仓库，列出每份文件的位置与动作（`created`/`updated`/`unchanged`）。提及他们之后可以直接编辑 `docs/agents/*.md`；仅在要切换 issue tracker 或从头重新开始时才需要重新运行本技能。说明 `AGENTS.md` 与 `CODEBUDDY.md` 两个文件需内容保持一致（参照 `## 多代理要求` 块），修改工程技能配置时需同时更新两者，或重新运行本技能自动同步。
+告知用户配置已写入目标仓库，列出每份文件的位置与动作（`created`/`updated`/`unchanged`），其中要包含**项目技能目录**（新建或已有、有几个技能）。提及他们之后可以直接编辑 `docs/agents/*.md`；仅在要切换 issue tracker 或从头重新开始时才需要重新运行本技能。说明 `AGENTS.md` 与 `CODEBUDDY.md` 两个文件需内容保持一致（参照 `## 多代理要求` 块），修改工程技能配置时需同时更新两者，或重新运行本技能自动同步。
+
+并明确交代后续义务：**项目技能增删改后跑 `sync-skills`**（本技能不需要重新初始化）。
 
 ## 子命令速查
 
 ```bash
-node <本技能目录>/scripts/setup.mjs init     --root <目标仓库> [--layout single|multi] [--labels <json>] [--overwrite <file>] [--force]  # 一键初始化（默认）
-node <本技能目录>/scripts/setup.mjs detect   --root <目标仓库>                                             # 只读探索（JSON 报告，含漂移）
-node <本技能目录>/scripts/setup.mjs sync-doc --root <目标仓库> [--layout single|multi] [--labels <json>] [--overwrite <file>] [--force]  # 仅写入（跳过扫描汇报）
-node <本技能目录>/scripts/setup.mjs template [--layout single|multi] [--labels <json>]                    # 输出文件内容到 stdout（不落盘）
-node <本技能目录>/scripts/setup.mjs ocr                                                                   # 只读检测 OCR 是否安装（JSON；未安装退出码 4）
+node <本技能目录>/scripts/setup.mjs init          --root <目标仓库> [--layout single|multi] [--labels <json>] [--skills-dir <rel>] [--no-skills] [--overwrite <file>] [--force]  # 一键初始化（默认）
+node <本技能目录>/scripts/setup.mjs detect        --root <目标仓库>                                                        # 只读探索（JSON 报告，含漂移与技能清单状态）
+node <本技能目录>/scripts/setup.mjs sync-doc      --root <目标仓库> [--layout single|multi] [--labels <json>] [--skills-dir <rel>] [--no-skills] [--overwrite <file>] [--force]  # 仅写入（跳过扫描汇报）
+node <本技能目录>/scripts/setup.mjs sync-skills   --root <目标仓库> [--skills-dir <rel>] [--overwrite <file>] [--force]  # 维护项目技能清单（技能增删改后跑）
+node <本技能目录>/scripts/setup.mjs template      [--layout single|multi] [--labels <json>] [--skills-dir <rel>] [--no-skills]  # 输出文件内容到 stdout（不落盘）
+node <本技能目录>/scripts/setup.mjs ocr                                                                                     # 只读检测 OCR 是否安装（JSON；未安装退出码 4）
 ```
 
+- `--skills-dir <rel>` 指定项目技能目录（默认 `docs/agents/skills`）；`sync-skills` 不给时会沿用仓库受管小节里记录的目录。`--no-skills` = 不建目录、不写清单小节。
 - `--overwrite <file>` 可重复，路径相对仓库根（如 `docs/agents/domain.md`、`CODEBUDDY.md`）；`--force` 覆盖全部冲突。默认两者都不给 → 冲突文件一律保留。
 - 退出码：`0` 完成无冲突；`3` 存在冲突且已保留原文件（需模型读取后处置）；`2` 一致性 MISMATCH；`1` 参数/运行错误；`4` OCR 未安装（需询问用户是否安装）。
 
