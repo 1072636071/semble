@@ -92,7 +92,7 @@ tag id 全表见 [references/tag-registry.md](references/tag-registry.md)：cate
 - 图片 `title` = 中文短句（句号结尾，与条目名一致）；description = **中文优先**：
   `中文摘要（含品牌缩写开头亦可，如 SGS 报告：…）。\n\n[EN] 原英文`——英文保留为附录供英文检索。
 
-### 通用类型标（跨库 · 2026-10-18 立 · memorial 057 / PRD 131）
+### 通用类型标（跨库 · 2026-10-18 立 · memorial 057 / PRD 132）
 
 **两个标，全库通用，各库不得再建同义标**（category 命名空间下）：
 
