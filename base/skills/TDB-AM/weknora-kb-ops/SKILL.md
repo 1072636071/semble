@@ -125,8 +125,12 @@ tag id 全表见 [references/tag-registry.md](references/tag-registry.md)：cate
 | 若依短信平台 | `9d4b9745-fbf7-412f-a680-8118f0e5bf02` | `fd20848b-e15c-478b-bbe0-005cccb732c8` | `a61aa490-1c13-405a-9266-96f6f63f451a` |
 | openCode | `55a314b1-c605-44bd-ad3a-a1dd0f446dd6` | `b73aec92-7ebf-4a47-891e-5bbbb2df397b` | `7fc7a1a0-a2f9-498c-a445-6f28dd7f56d2` |
 
-**反模式（2026-10-04 实证，勿重演）**：长兴库曾建好 8 个 category 标却 `knowledge_count` 全为 0——**建了标没人挂**。
-所以：① 建标后必须同步挂标；② `kb-check.ps1` 有「类型标覆盖率」判据（已建标的库 100% 无类型标 = FAIL、>50% = WARN、未建标 = SKIP）；③ **不做定时自动巡检**（无执行主体必然重演）。
+**反模式两条（均实证，勿重演）**：
+
+1. **建了标没人挂**（2026-10-04）：长兴库曾建好 8 个 category 标却 `knowledge_count` 全为 0。
+   对策：① 建标后必须同步挂标；② `kb-check.ps1` 有「类型标覆盖率」判据（已建标的库 100% 无类型标 = FAIL、>50% = WARN、未建标 = SKIP）；③ **不做定时自动巡检**（无执行主体必然重演）。
+2. **标题正则预分类会大面积误判**（2026-10-18）：长兴库 687 条用标题关键词预分类，把 28 条资料误挂成 `type:experience`（patent×9、企业使命、包装方式、出厂规格、术语清单、同行扫描、Prompt 模板——标题含「实测/扫描/清单/模板」等词就被判经验）。
+   对策：**大库首次挂类型标必须抽样读 `description` 复核**，不能只靠标题正则；条目量 >100 时逐条读，≤100 可全读。
 
 ## 多 tenant 库的 key 选择（2026-10-14 实证）
 
@@ -324,11 +328,41 @@ pwsh -File kb-install.ps1 -Kb <kb_id> -KbName "<库名>" -Workspace . -Anchor "A
 - 条目列举/详情/分块 → `list_knowledge`（可按 `folder_path`、tag 过滤）/ `get_knowledge` / `list_chunks`。
 - wiki 三件 → `wiki_search` / `wiki_read_page` / `wiki_index_view`。
 
+### 按类型标查经验 / 查资料（两步法 · 2026-10-18 立 · memorial 057 第 8 问 P3）
+
+**为什么是两步**：MCP 极简面两把工具都不收 tag 参数——`list_knowledge` 只有 `folder_path`/`folder_scope`，
+`hybrid_search` 无 tag 入参；REST `hybrid-search` body 加 `tag_ids` **不被支持**（实测命中 0 条）。
+唯一可按标签过滤的通道是 REST `GET /knowledge-bases/{kb}/knowledge?tag_ids=<tag_id>`。
+所以「只召回经验」要走**先过滤拿候选集、再语义读**两步，没有一步到位的 tag-scoped 语义检索。
+
+```powershell
+# ① 按类型标拿候选集（REST，先查后建拿到 tag_id，见 references/tag-registry*.md）
+$cands = @()
+for ($p = 1; $p -le 10; $p++) {
+  $resp = curl.exe -s -H "X-API-Key: $key" "$Base/knowledge-bases/$kb/knowledge?page=$p&page_size=100&tag_ids=$typeExperienceId" | ConvertFrom-Json
+  $items = if ($resp.data -is [array]) { @($resp.data) } else { @($resp.data.data) }
+  if ($items.Count -eq 0) { break }
+  $cands += $items; if ($items.Count -lt 100) { break }
+}
+# ② 在候选集内语义读（候选集小时直接读 description/title 即可，不必再调 hybrid_search）
+$cands | Where-Object { $_.title -match $关键词 -or $_.description -match $关键词 } | ForEach-Object { $_.title }
+```
+
+**实测效果（长兴库 687 条，2026-10-18）**：同一查询「网站开发 踩坑 根因 规范 修法 通配符 路径 图片不刷新」——
+全库 `hybrid_search` 返回 36 条（去重仅 6 个条目、15 条 `score=0` 空命中、只命中 1 条真经验，
+且漏掉排不进前 6 的「PowerShell 含 [slug] 路径须用 -LiteralPath」）；两步法返回 2 条、全命中、零噪声。
+→ **条目规模上百后，查经验/查资料一律走两步法**；全库语义检索留给「不知道存不存在、要探索」的场景。
+
+**已知残留**：`hybrid_search` 返回 chunk 级重复（`match_count=10` 可能拿回同一条目的多个 chunk）且含 `score=0` 空命中，
+消费时按 `knowledge_title` 去重、忽略 `score=0`。这是 WeKnora 官方 MCP 行为，本技能不改。
+
 ## 管理
 
-- **去重审计**：全量翻页按 `file_hash` / `file_name` / manual `title` 分组找 >1 组。长兴库 2026-10-04 实测三维零重复（329 条）。现成 pwsh 脚本见 [references/rest-cookbook.md](references/rest-cookbook.md)。
+- **去重审计**：全量翻页按 `file_hash` / `file_name` / manual `title` 分组找 >1 组。**注意图片库的两种正常形态不算欠账**（2026-10-18 修，memorial 057 第 8 问）：① 同名不同内容（国内站/外贸站各一张同名图，`file_hash` 不同）；② 图片批量命名所致重题（同页面多张图共用 title，靠 `file_name` 区分）。`kb-check.ps1` 已按此分流 + 对 `deprecated` 标条目豁免。现成 pwsh 脚本见 [references/rest-cookbook.md](references/rest-cookbook.md)。
 - **标签 CRUD**（REST 面）：`GET/POST /knowledge-bases/{kb}/tags`、`PUT/DELETE /knowledge-bases/{kb}/tags/{tag_id}`；批量改标 `PUT /knowledge/tags`（replace 语义，见上）。
-- **解析失败排查**：列表按 `parse_status=failed` 过滤。长兴库现存 4 条 failed，均为 2026-09 批次改过标题的 manual 条目。
+- **解析失败排查**：列表按 `parse_status=failed` 过滤。
+  **修复手法（2026-10-18 实证 4/4 成功）**：REST `PUT /knowledge/manual/{id}` 重推正文（内容不变、显式 `status:"publish"`）触发重解析；
+  `parse_status` 经 `finalizing` 转 `completed`，耗时数秒到约 2 分钟不等，需轮询确认。长兴库 2026-09 批次那 4 条（ADR-0022/0027/0032/README）已用此法全部修复。
 - **手工知识改内容/标题**：REST `PUT /knowledge/manual/{id}`，body `{"title","content","status"}`——**`status` 不可省略**，缺省被后端置 `draft`（凭据腿文档原话）；保留原状态显式传 `"publish"`。
 - **删除**：`delete_knowledge` / `delete_chunk` / `delete_knowledge_base`（高危，先备份确认）。
 
