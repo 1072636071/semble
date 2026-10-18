@@ -1,7 +1,7 @@
 ---
 name: weknora-kb-ops
 description: WeKnora 知识库运营面（全局技能）——对指定知识库直接上传 / 查询 / 管理：图片 SHA256 去重上传、重复命中合并标签、标签 CRUD、去重审计、解析失败排查、批量改名与双语描述。适用于任何本地工作空间维护团队知识库/图片资产。当用户要操作某个具体知识库、批量灌图/灌文档、问图片是否重复上传、改条目标签、查图找素材时使用。触发词：指定知识库、长兴博客、上传知识库、图片去重、重复上传、改标签、查图、kb ops。
-version: 2.2.0
+version: 2.3.0
 x-install: true
 ---
 
@@ -49,6 +49,20 @@ x-install: true
 | 标签台账 | [references/tag-registry-shebei.md](references/tag-registry-shebei.md)（来源两标，**暂无领域主题标**） |
 | 内容 | 1 条 manual：`e51d9424-8144-4dd0-970e-ee40a298e8e9`「设备管理 项目知识库接入记录（2026-10-11）」，`parse_status=completed` |
 
+### 儿童成长日记知识库（2026-10-14 登记）
+
+| 项 | 值 |
+|---|---|
+| kb_id | `af0160f1-fa7e-437e-bf14-3743107d5527` |
+| 定位 | 儿童成长日记（tenant 10006「大妞niu」空间，家庭个人向内容） |
+| 消费方 | 暂无本地工作区接入 |
+| 标签台账 | [references/tag-registry-children.md](references/tag-registry-children.md)（来源两标，暂无领域主题标） |
+| 内容 | 0 条（2026-10-14 建，空库） |
+
+⚠️ **本库跨 tenant**：必须用 **tenant 10006 的 key**（`tdai-children-10006`，明文在机密仓
+`TencentDB-Agent-Memory/weknora-credentials.md` §9，只此一份、只取不回显）；tenant 10001 的 key 访问它返 **403**
+（Permission denied，不是 404、不是 key 失效）。详见下方「多 tenant 库的 key 选择」。
+
 ### 长兴博客资源知识库（主库，2026-10-04 实测）
 
 | 项 | 值 |
@@ -77,6 +91,26 @@ tag id 全表见 [references/tag-registry.md](references/tag-registry.md)：cate
   MCP/REST 腿直接传 `fileName=中文名`；灵枢图片腿用本地文件名——先把文件复制为中文名副本再传。
 - 图片 `title` = 中文短句（句号结尾，与条目名一致）；description = **中文优先**：
   `中文摘要（含品牌缩写开头亦可，如 SGS 报告：…）。\n\n[EN] 原英文`——英文保留为附录供英文检索。
+
+## 多 tenant 库的 key 选择（2026-10-14 实证）
+
+WeKnora 按 **tenant 隔离**知识库：一把 key 只够得到自己 tenant 下的库，**跨 tenant 一律 403**
+（`Permission denied to access this knowledge base`）——**不是 404、不是 key 失效**。
+
+所以「从凭据腿取到第一把能连通（`GET /knowledge-bases` 返 200）的 key 就收工」是错的：连通只证明
+key 有效，不证明它够得到目标库。**换库先确认 tenant**：
+
+1. 目标库不在当前 key 可见的 `/knowledge-bases` 列表里 → 先按 tenant 找 key，别反复重试同一把。
+2. 有该 tenant 的 key（归档在机密仓 `TencentDB-Agent-Memory/weknora-credentials.md`，按 §号分空间）→ 直接用。
+3. 没有 → 走「JWT 登录（管理员账号）→ `POST /auth/switch-tenant {tenant_id}` →
+   `POST /tenants/{id}/api-keys`，body `{"scope_type":"tenant","name":"...","full_access":true}`（缺 `scope_type` 返 400）」新建，
+   明文只在创建响应 `data.token`；`data.api_key` 是 enc:v1 信封，别拿去归档。
+4. 归档与取用纪律同凭据腿总口径：**key 不回显 / 不落盘 / 不进产出物 / 不进 commit message**，
+   任何输出只出现 key 名称与末 4 位指纹。
+
+`scripts/kb-check.ps1` 已按此口径改为**按目标库选 key**：对每个 target 挑一把 ① 能连且 ② 其
+`/knowledge-bases` 列表里含该 kb_id 的 key（多个 target 可各用不同 key），并把报错区分为
+「无权访问（tenant 隔离）」/「不存在」/「未找到可用 key」三种，不再混为一谈。
 
 ## 新建库（新项目 / 新库接入）
 
@@ -330,4 +364,5 @@ pwsh -File kb-install.ps1 -Kb <kb_id> -KbName "X" -Workspace . -ExtraRules "**�
 - **references/tag-registry.md** — 长兴库 tag id 全表与挂标范式。新库接入时另建 `tag-registry-<slug>.md`。
 - **references/tag-registry-bpm.md** — BPM 库 tag id 全表。
 - **references/tag-registry-shebei.md** — 设备管理库 tag id 全表（来源两标，暂无主题标）。
+- **references/tag-registry-children.md** — 儿童成长日记库 tag id 全表（tenant 10006，来源两标，暂无主题标）。
 - **scripts/kb-check.ps1** / **scripts/kb-install.ps1** — 体检与安装两条全局流程（见上节）。

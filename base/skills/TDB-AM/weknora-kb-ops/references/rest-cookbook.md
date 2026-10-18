@@ -15,6 +15,35 @@ $base = "http://123.206.125.149:8127/api/v1"
 
 纪律：`$key` 只在进程内活，不 `echo`、不写文件、不进工单评论。
 
+### 0a. 换库先确认 tenant（2026-10-14 实证）
+
+WeKnora 按 **tenant 隔离**知识库：一把 key 只够得到自己 tenant 下的库，**跨 tenant 一律 403**
+（`Permission denied to access this knowledge base`）——**不是 404、不是 key 失效**。
+上面这段范式只从一个文件取一把 key，对**单 tenant 库**够用；换库前先确认目标库在不在当前 key
+可见的 `/knowledge-bases` 列表里：
+
+```powershell
+# 当前 key 能看到哪些库（含 tenant_id，一眼看出是不是同一个 tenant）
+(curl.exe -s -H "X-API-Key: $key" "$base/knowledge-bases" | ConvertFrom-Json).data |
+  Select-Object id, name, tenant_id | Format-Table -AutoSize
+```
+
+- 目标库在列表里 → 直接用当前 key。
+- 不在 → **403 是 tenant 隔离，不是 key 失效**，换该 tenant 的 key。
+  已归档的多 tenant key 见机密仓 `项目机密\TencentDB-Agent-Memory\weknora-credentials.md`（按 §号分空间，
+  如 §9 = tenant 10006「大妞niu」的 `tdai-children-10006`）。
+- 没有该 tenant 的 key → 新建：JWT 登录（§2 管理员账号）→ `POST /auth/switch-tenant {tenant_id}` →
+  `POST /tenants/{id}/api-keys`，body `{"scope_type":"tenant","name":"...","full_access":true}`
+  （缺 `scope_type` 返 400）。明文只在创建响应 `data.token`；`data.api_key` 是 enc:v1 信封，别拿去归档。
+- key 纪律不变：**只在进程内活，不 `echo`、不写文件、不进工单评论 / commit message**；
+  需要打印时只打 key 名称与末 4 位指纹。
+
+`scripts/kb-check.ps1` 已内置这套「按目标库选 key + 区分无权访问/不存在」逻辑，别在手搓脚本里
+重新实现一遍。
+
+**顺带对齐一个字段名**：hybrid-search 的 body 字段是 **`query_text`**（不是 `query`），
+端点 `POST /knowledge-bases/{kb}/hybrid-search`。
+
 ## 1. 全量翻页取条目（后面所有审计的底座）
 
 ```powershell
