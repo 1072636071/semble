@@ -234,6 +234,32 @@ foreach ($t in $targets) {
     Head ("       {0}  (id={1}, 引用 {2})" -f $_.name, $_.id, $_.knowledge_count)
   }
 
+  # ---- 5b. 类型标覆盖率（type:experience / type:material · 2026-10-18 加）----
+  # 判据（memorial 057 / PRD 131）：已建 type:* 标的库——无任何类型标的条目占比 100% = FAIL，
+  # > 50% = WARN；未建 type:* 标的库 = SKIP 不判红（避免对 BPM 等同义标库误报）。
+  $typeTagIds = @($tags | Where-Object { $_.name -eq 'type:experience' -or $_.name -eq 'type:material' } | ForEach-Object { $_.id })
+  $typeCoverage = [ordered]@{ built = ($typeTagIds.Count -gt 0); tagged = 0; total = $entries.Count; ratio = $null; status = 'skip' }
+  if ($typeTagIds.Count -gt 0 -and $entries.Count -gt 0) {
+    $taggedEntries = @($entries | Where-Object {
+      $names = @($_.tags | ForEach-Object { $_.id })
+      ($names -contains $typeTagIds[0]) -or ($typeTagIds.Count -gt 1 -and $names -contains $typeTagIds[1])
+    })
+    $typeCoverage.tagged = $taggedEntries.Count
+    $typeCoverage.ratio  = [math]::Round(100.0 * $taggedEntries.Count / $entries.Count, 1)
+    if ($typeCoverage.ratio -eq 100.0) { $typeCoverage.status = 'ok' }
+    elseif ($typeCoverage.ratio -ge 50.0) { $typeCoverage.status = 'warn' }
+    else { $typeCoverage.status = 'fail' }
+  }
+  if ($typeCoverage.status -eq 'ok') {
+    Say $true ("类型标覆盖率 {0}% ({1}/{2})" -f $typeCoverage.ratio, $typeCoverage.tagged, $typeCoverage.total)
+  } elseif ($typeCoverage.status -eq 'warn') {
+    Warn ("类型标覆盖率仅 {0}% ({1}/{2})——存在建了标没挂的条目，按需补挂" -f $typeCoverage.ratio, $typeCoverage.tagged, $typeCoverage.total)
+  } elseif ($typeCoverage.status -eq 'fail') {
+    Say $false ("类型标覆盖率 {0}% ({1}/{2})——已建 type:* 标却几乎没人挂，重演 2026-10-04 反模式" -f $typeCoverage.ratio, $typeCoverage.tagged, $typeCoverage.total)
+  } else {
+    Note "本库未建 type:experience / type:material 标，跳过覆盖率判据（SKIP）"
+  }
+
   # ---- 6. 混合检索冒烟 ----
   # 端点 POST /knowledge-bases/{kb}/hybrid-search，body 字段是 query_text（不是 query）。
   $hitCount = 0
@@ -266,6 +292,7 @@ foreach ($t in $targets) {
     dupName = $dupName.Count
     dupTitle = $dupTtl.Count
     tagCount = $tags.Count
+    typeTagCoverage = $typeCoverage
     tags = @($tags | Sort-Object -Property knowledge_count -Descending | ForEach-Object { [ordered]@{ name = $_.name; id = $_.id; count = $_.knowledge_count } })
     searchHits = $hitCount
   }

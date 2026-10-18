@@ -5,6 +5,9 @@
 
 ## 命名空间与 tag_id
 
+> **2026-10-18 新增 `type:` 命名空间（跨库通用类型标）**：`type:experience` / `type:material`，
+> 定义与全库 tag id 见主技能 SKILL.md「通用类型标（跨库）」节。本台账只登记**长兴库**的 tag id。
+
 ### category 领域
 
 | name | tag_id |
@@ -65,4 +68,9 @@ $body = @{ updates = @{ $kid = $union }; kb_id = $kb } | ConvertTo-Json -Depth 4
 curl.exe -s -X PUT -H "X-API-Key: $key" -H "Content-Type: application/json" -d $body "$base/knowledge/tags"
 ```
 
-新图上传的默认标组合：`灵枢记忆`（自动）+ `category 领域标` + `project 标` + `usage:<页面>`。
+新图上传的默认标组合：`灵枢记忆`（自动）+ `category 领域标` + `project 标` + `usage:<页面>` + **`type:material`（必传）**。
+
+文本条目（manual）上传的默认标组合：`type:experience` 或 `type:material`（**必传，二选一或多选**）+ `category 领域标` + `project 标` + `usage:<页面>`。
+
+> ⚠️ **只挂来源标不算挂标**：`灵枢记忆` / `文档上传` 由上传腿自动打，不构成类型分型。
+> 类型标定义、判据、各库 tag id 与同义标登记见主技能 SKILL.md「通用类型标（跨库）」节。

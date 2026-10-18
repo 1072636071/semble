@@ -71,7 +71,7 @@ x-install: true
 | UI | `http://123.206.125.149:8127/platform/knowledge-bases/<kb_id>` |
 | REST | `http://123.206.125.149:8127/api/v1`，头 `X-API-Key`（凭据腿 `项目机密\Secret\WeKnora-知识库-API密钥.md`） |
 | 内容 | 博客文章（manual，126 条）+ 图片（file，203 张，**条目名已全量中文化**，见下「文件名纪律」） |
-| 标签 | `灵枢记忆`（203，全部图片）· `文档上传`（126，全部文章）+ category/project 标（见 tag-registry）· `工厂` · `deprecated` |
+| 标签 | `灵枢记忆`（全部图片）· `文档上传`（全部文章）+ category/project 标（见 tag-registry）· `工厂` · `deprecated` · **`type:experience`/`type:material`（2026-10-18 起全量挂载：30/657）** |
 | 图片描述 | **双语**：首行中文摘要 + 空行 + `[EN]` 前缀原英文（203/203 已回写） |
 | 消费方 | 国内官网（official-domestic-website）、外贸站（ai-international-trade）的知识链第 2 级与图片资产管理 |
 
@@ -91,6 +91,42 @@ tag id 全表见 [references/tag-registry.md](references/tag-registry.md)：cate
   MCP/REST 腿直接传 `fileName=中文名`；灵枢图片腿用本地文件名——先把文件复制为中文名副本再传。
 - 图片 `title` = 中文短句（句号结尾，与条目名一致）；description = **中文优先**：
   `中文摘要（含品牌缩写开头亦可，如 SGS 报告：…）。\n\n[EN] 原英文`——英文保留为附录供英文检索。
+
+### 通用类型标（跨库 · 2026-10-18 立 · memorial 057 / PRD 131）
+
+**两个标，全库通用，各库不得再建同义标**（category 命名空间下）：
+
+| name | 定义 | 判据 |
+|---|---|---|
+| `type:experience` | 项目开发与维护经验 | 实践性/操作性知识：踩坑、根因、修复、规范、实录、被否决方案 |
+| `type:material` | 项目使用到的资料 | 参考资料/素材：官网公告、术语底稿、资质文件、图片素材、外部文档 |
+
+**规则**：
+
+1. **允许多标叠加，不设互斥**——一条内容可同时是经验与资料（例：踩坑记录既是经验、又是某篇博客的素材依据）。
+2. **与 category / project / usage 叠加而非替换**——`blog-image` 管「这是张图」，`type:material` 管「这是被项目使用的资料」，两条各管一面。
+3. **只挂来源标不算挂标**——`灵枢记忆` / `文档上传` 是上传腿自动打的来源标，**不构成类型分型**；新条目必须显式传 `type:*`。
+4. **用户常问的「国内外官网 / 写博客 / 博客素材」不独立成类**，归入既有三轴：官网 = 来源地（`project` 标 `domestic-site`/`trade-site`）、写博客 = 用途（`usage:blog/<slug>`）、素材 = 实体形态（`type` + `blog-image`，整体归 `type:material`）。
+
+**各库既有同义标（存量，不批量改名，登记待自然替换）**：
+
+| 库 | 同义标 | 状态 |
+|---|---|---|
+| BPM | `经验蒸馏` | 待自然替换 |
+| dsh | `项目姿势` + `插件使用经验`（一个库两个名字） | 待自然替换 |
+| 日常杂事 | `排错` | 待自然替换 |
+
+**已建标库与 tag id**（2026-10-18 REST 建，回读实测）：
+
+| 库 | kb_id | type:experience | type:material |
+|---|---|---|---|
+| TencentDB-Agent-Memory-1646ck3g | `b2d1f93b-725a-4ee5-98bb-b77d57e646e2` | `6803336e-7ba2-4f56-9df8-13a19e887021` | `84123b61-e916-4911-8d3a-6438f4b40d54` |
+| 长兴博客资源知识库 | `26ab29e0-e739-4232-b0e9-30088e760cf1` | `8476cf04-6bf5-4bc1-b697-5a829836bd9b` | `38258d2a-2591-48cb-bfef-004f457045ac` |
+| 若依短信平台 | `9d4b9745-fbf7-412f-a680-8118f0e5bf02` | `fd20848b-e15c-478b-bbe0-005cccb732c8` | `a61aa490-1c13-405a-9266-96f6f63f451a` |
+| openCode | `55a314b1-c605-44bd-ad3a-a1dd0f446dd6` | `b73aec92-7ebf-4a47-891e-5bbbb2df397b` | `7fc7a1a0-a2f9-498c-a445-6f28dd7f56d2` |
+
+**反模式（2026-10-04 实证，勿重演）**：长兴库曾建好 8 个 category 标却 `knowledge_count` 全为 0——**建了标没人挂**。
+所以：① 建标后必须同步挂标；② `kb-check.ps1` 有「类型标覆盖率」判据（已建标的库 100% 无类型标 = FAIL、>50% = WARN、未建标 = SKIP）；③ **不做定时自动巡检**（无执行主体必然重演）。
 
 ## 多 tenant 库的 key 选择（2026-10-14 实证）
 
@@ -249,10 +285,14 @@ pwsh -File kb-install.ps1 -Kb <kb_id> -KbName "<库名>" -Workspace . -Anchor "A
    链路 = 本地算 SHA256 → 库内预检去重（命中即返既有 `knowledge_id`，`deduped:true uploaded:false`，**零字节重传**）
    → 未命中才上传并打 `灵枢记忆` 来源标 + 另写 `image_desc` 记忆节点（以后 `memory_recall` 按图内容语义可召）。
    **注意**：灵枢腿用本地文件名当 file_name——先把文件重命名成语义名再传。
+   **类型标要补传**：灵枢腿只自动打 `灵枢记忆` 来源标，`type:material` / category 标由调用方
+   经 REST `PUT /knowledge/tags` 补（replace 语义，先读旧标取并集，cookbook §4）。
 2. **任意文件（不要记忆节点）→ 官方 `create_knowledge_from_file(kb_id, file_path, enable_multimodel, file_name)`**：
    本地路径由 MCP 进程读；`file_name` 可带目录（`docs/spec/x.pdf`）落知识文件夹。图片必开 `enable_multimodel`（默认开），否则 VLM 描述不进索引。
 3. **Markdown 文本 → `create_knowledge_from_text(kb_id, title, content[, tag_ids, status="publish"])`**；
    网页 → `create_knowledge_from_url(kb_id, url)`。改已有手工条目 → `update_knowledge_from_text`。
+   **⚠️ `tag_ids` 必须含 `type:experience` 或 `type:material`**（见上「通用类型标」节）——
+   只让上传腿自动打来源标（`灵枢记忆`/`文档上传`）**不算挂标**；该库未建类型标时先按 §3 建。
    **⚠️ MCP 未挂载时的降级（必读）**：文本/知识条目改走 **REST 创建手工知识**（cookbook §6b，
    `POST /knowledge-bases/{kb}/knowledge/manual`，不依赖任何 MCP，任何 harness 都能走）。
    **严禁**拿灵枢 `memory_remember` 顶替——它只收**图片**（图片腿才进 WeKnora），文本会写进灵枢记忆
