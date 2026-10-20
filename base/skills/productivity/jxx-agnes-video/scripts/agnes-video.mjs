@@ -34,7 +34,7 @@ const DEFAULT_ASPECT = '16:9';
 const DEFAULT_SECONDS = '5';
 const MAX_IMAGES = 5;   // Flash：reference 图片上限
 const MAX_AUDIOS = 3;   // Flash：reference 音频上限
-const POLL_INTERVAL_MS = 1500;  // 文档建议 1-2s
+const POLL_INTERVAL_MS = 2000;  // 文档建议 1-2s；轮询查询单独计限流，不宜太密
 const DEFAULT_TIMEOUT_MS = 120000;
 const DOWNLOAD_TIMEOUT_MS = 300000;
 const MAX_POLL_MS = 1800000;    // 轮询总预算 30 分钟
@@ -80,7 +80,7 @@ const USAGE = [
   '  --wait               阻塞轮询到 completed / failed',
   '  --download <路径>     完成后下载 mp4（默认 .temp/agnes-video/agnes-<时间戳>.mp4）',
   '  --no-download        只拿 URL 不下载',
-  '  --poll-ms <ms>       轮询间隔，默认 1500',
+  '  --poll-ms <ms>       轮询间隔，默认 2000（轮询查询单独计限流，别调太密）',
   '  --quiet              轮询过程不打日志',
   '',
   'Env: AGNES_API_KEY',
