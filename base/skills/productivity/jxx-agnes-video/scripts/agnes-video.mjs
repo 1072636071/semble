@@ -382,10 +382,12 @@ async function main() {
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') { console.log(USAGE); return EXIT.OK; }
 
   const o = parseArgs(argv.slice(1));
+
+  // 纯本地命令不要求 API key
+  if (cmd === 'ratios') { printRatios(); return EXIT.OK; }
+
   const apiKey = process.env.AGNES_API_KEY || (o.key === true ? undefined : o.key);
   if (!apiKey) die(EXIT.USAGE, '缺少 API key', { hint: '设置环境变量 AGNES_API_KEY，或传 --key <key>' });
-
-  if (cmd === 'ratios') { printRatios(); return EXIT.OK; }
 
   if (cmd === 'create' || cmd === 'run') {
     o.mode = argv[1];
