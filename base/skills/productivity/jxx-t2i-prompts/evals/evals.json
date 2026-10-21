@@ -24,6 +24,12 @@
       "prompt": "即梦上画国风美女，总出成 2D 怎么办",
       "expected_output": "读 platforms.md 的即梦段（自然语言整句），给出改写：加 3D CGI / Unreal Engine 5 / 3d anime style 权重说明，并说明该平台负面词支持情况；不套 Midjourney 参数。",
       "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "把这个提示词存下来，以后我在这个项目里还要用",
+      "expected_output": "走 harvest：写全局库 ~/.agents/t2i-prompts/<id>.md，add 后自动镜像到 <项目根>/.scratch/t2i-prompts/ 并重建项目 index.md；回报两处路径，说明项目副本随仓库提交、check 能验漂移。",
+      "files": []
     }
   ]
 }

@@ -31,7 +31,7 @@ Turn "write me an image prompt" into "load a template, fill the slots, save what
 2. **Check the library first** — `node <skill>/scripts/prompt-lib.mjs list`, then `show <id>`. A hit needs category and tags to match, not just a keyword.
 3. **No hit → search** — follow the channel recipes in `references/sourcing.md` (site-specific queries, not "just google it"), then screen candidates with its acceptance rules. Keep 1-3.
 4. **Assemble** — use the eight-slot skeleton in `references/framework.md`. Every slot filled with concrete words; at most one empty adjective per slot.
-5. **Harvest** — when the user approves a result or the same prompt yields 3+ usable images, save it: `new` → fill → `add`. Format and rules: `references/harvest-protocol.md`.
+5. **Harvest** — when the user approves a result or the same prompt yields 3+ usable images, save it: `new` → fill → `add`. Format and rules: `references/harvest-protocol.md`. Every write to the global library is auto-mirrored into `<project>/.scratch/t2i-prompts/` so the template travels with the repo; `check` reports drift.
 
 ## Hard rules
 
@@ -91,11 +91,14 @@ node <skill>/scripts/prompt-lib.mjs new portrait-xxx "名字"
 node <skill>/scripts/prompt-lib.mjs add ~/.agents/t2i-prompts/portrait-xxx.md
 ```
 
-agent 只写用户库（`~/.agents/t2i-prompts/`，`T2I_PROMPT_HOME` 可改），不改内置库。`add` 会拦缺字段、id 冲突、示例过短。
+agent 只写全局库（`~/.agents/t2i-prompts/`，`T2I_PROMPT_HOME` 可改），不改内置库。`add` 会拦缺字段、id 冲突、示例过短。
+
+**改完全局库必须在当前项目留一份**：`add` / `copy` 会自动把它镜像到 `<项目根>/.scratch/t2i-prompts/`（cwd 向上找 `.git` 或 `AGENTS.md` 定根），并重建项目 `index.md`。全局库不在仓库里，换机器、换人、review 都看不见；项目副本随代码提交，能评审能回滚。项目无 `.scratch` 约定就 `--project-home <dir>`；只补镜像用 `mirror`；`check` 会报两边不一致的文件。
 
 ## 底线
 
 - 示例必须能整段复制投喂，不留占位符。
+- 全局库改完必留项目副本（`add` 自动镜像，`check` 验一致）；只写全局库视为没落地。
 - 不写已经没人用的质量词（`masterpiece`、`8k` 一类）——先看平台段确认还吃不吃。
 - 每条模板带出处、`verified` 日期、模型 + 版本 + 关键参数；过期语法重写，不照抄。
 - 模型排不好文字：海报只要留白，文字后期。

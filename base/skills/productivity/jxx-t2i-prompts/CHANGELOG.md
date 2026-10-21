@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.0 — 2026-10-21
+
+全局库写完后自动在项目留一份副本：新增 `.scratch/t2i-prompts/` 项目镜像（`add` / `copy` 自动同步、`mirror` 子命令手动补、`check` 报两边漂移），支持 `--project-home` / `--no-mirror` 与 `T2I_PROJECT_HOME`。
+
 ## 1.0.0 — 2026-10-21
 
 初始版本：平台语法对照、八模块骨架、7 个内置模板、无模板时的检索配方、模板沉淀协议，以及零依赖库管理脚本 `prompt-lib.mjs`（list / search / show / new / copy / add / check / init）。

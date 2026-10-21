@@ -13,8 +13,8 @@
 - `references/templates/` — 7 个内置模板（国风 3D / 写实人像 / 游戏角色 / 产品 / 场景 / 二次元 / 海报）。
 - `references/sourcing.md` — 无模板时的渠道 + 查询配方 + 验收判据。
 - `references/harvest-protocol.md` — 好模板的收录条件与写法。
-- `scripts/prompt-lib.mjs` — 零依赖库管理：list / search / show / new / copy / add / check / init。
+- `scripts/prompt-lib.mjs` — 零依赖库管理：list / search / show / new / copy / add / mirror / check / init。
 
 ## 产物
 
-一段可直接复制投喂的提示词；以及用户库里新增的 `~/.agents/t2i-prompts/<id>.md` 模板条目 + 重建的 `index.md`。
+一段可直接复制投喂的提示词；以及全局库里新增的 `~/.agents/t2i-prompts/<id>.md` 模板条目 + 重建的 `index.md`，并自动镜像一份到当前项目的 `.scratch/t2i-prompts/`（随仓库提交，评审可见）。

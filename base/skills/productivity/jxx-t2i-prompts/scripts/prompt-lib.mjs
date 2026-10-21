@@ -15,6 +15,40 @@ function homeDir() {
   return path.join(os.homedir(), '.agents', 't2i-prompts');
 }
 
+// 项目副本：让「改过的模板」随所在仓库一起版本化，而不只在全局用户库里
+function findProjectRoot(start) {
+  let dir = path.resolve(start);
+  for (;;) {
+    if (existsSync(path.join(dir, '.git')) || existsSync(path.join(dir, 'AGENTS.md'))) return dir;
+    const up = path.dirname(dir);
+    if (up === dir) return null;
+    dir = up;
+  }
+}
+
+function projectDir() {
+  const i = process.argv.indexOf('--project-home');
+  if (i > -1 && process.argv[i + 1]) return path.resolve(process.argv[i + 1]);
+  if (process.env.T2I_PROJECT_HOME) return path.resolve(process.env.T2I_PROJECT_HOME);
+  const root = findProjectRoot(process.cwd());
+  return root ? path.join(root, '.scratch', 't2i-prompts') : null;
+}
+
+function mirrorTo(dir, home) {
+  if (!dir) return 0;
+  mkdirSync(dir, { recursive: true });
+  const userEntries = scan(home);
+  for (const e of userEntries) {
+    writeFileSync(path.join(dir, e.fileName), e.raw, 'utf8');
+  }
+  const rows = userEntries
+    .sort((a, b) => String(a.meta.category).localeCompare(String(b.meta.category)))
+    .map((e) => [e.meta.id ?? '?', e.meta.name ?? '?', e.meta.category ?? '?', e.meta.verified ?? '?']);
+  const body = ['# 项目提示词模板副本', '', '> 由 scripts/prompt-lib.mjs 从全局库同步，勿手改。全局库：' + home, '', table(rows, ['id', 'name', 'category', 'verified'])].join('\n');
+  writeFileSync(path.join(dir, 'index.md'), body + '\n', 'utf8');
+  return userEntries.length;
+}
+
 const REQUIRED_FM = ['id', 'name', 'category', 'tags', 'source', 'verified'];
 const REQUIRED_SECTIONS = ['## 骨架', '## 完整示例', '## 来源'];
 
@@ -151,6 +185,16 @@ function cmdNew(home, id, name) {
   console.log('填完跑：node prompt-lib.mjs add ' + file);
 }
 
+function syncProject(home) {
+  const pd = projectDir();
+  if (pd && !process.argv.includes('--no-mirror')) {
+    const n = mirrorTo(pd, home);
+    console.log('项目副本已同步：' + pd + '（' + n + ' 条，含 index.md）');
+  } else if (!pd) {
+    console.log('未检测到项目根（.git / AGENTS.md），跳过项目副本；需要时用 --project-home <dir>。');
+  }
+}
+
 function cmdAdd(home, src, force) {
   if (!src || !existsSync(src)) {
     console.log('用法：node prompt-lib.mjs add <file.md> [--force]');
@@ -184,6 +228,7 @@ function cmdAdd(home, src, force) {
   console.log('已入库：' + dest);
   renderIndex(home);
   console.log('索引已重建。');
+  syncProject(home);
 }
 
 function cmdCopy(home, srcId, newId, newName) {
@@ -211,7 +256,19 @@ function cmdCopy(home, srcId, newId, newName) {
   writeFileSync(dest, text, 'utf8');
   console.log('已复制：' + src.file + ' → ' + dest);
   renderIndex(home);
+  syncProject(home);
   console.log('下一步：改骨架/词库/示例，改完跑 node prompt-lib.mjs add ' + dest);
+}
+
+function cmdMirror(home) {
+  const pd = projectDir();
+  if (!pd) {
+    console.log('未检测到项目根；用 --project-home <dir> 指定。');
+    process.exitCode = 2;
+    return;
+  }
+  const n = mirrorTo(pd, home);
+  console.log('已同步 ' + n + ' 条到项目副本：' + pd);
 }
 
 function cmdCheck(home) {
@@ -228,6 +285,16 @@ function cmdCheck(home) {
   }
   renderIndex(home);
   console.log('\n共 ' + entries.length + ' 条，失败 ' + bad + ' 条。索引已重建：' + path.join(home, 'index.md'));
+  const pd = projectDir();
+  if (pd && existsSync(pd)) {
+    const drift = scan(pd).filter((e) => {
+      const g = path.join(home, e.fileName);
+      return !existsSync(g) || readFileSync(g, 'utf8') !== e.raw;
+    });
+    console.log(drift.length
+      ? '项目副本与全局库不一致 ' + drift.length + ' 条（' + drift.map((d) => d.fileName).join(', ') + '）→ node prompt-lib.mjs mirror'
+      : '项目副本与全局库一致：' + pd);
+  }
   if (bad) process.exitCode = 1;
 }
 
@@ -282,7 +349,8 @@ switch (cmd) {
   case 'new': cmdNew(home, rest[0], rest.slice(1).join(' ')); break;
   case 'add': cmdAdd(home, path.resolve(rest[0] || ''), force); break;
   case 'copy': cmdCopy(home, rest[0], rest[1], rest.slice(2).join(' ')); break;
+  case 'mirror': cmdMirror(home); break;
   case 'check': cmdCheck(home); break;
   default:
-    console.log('文生图提示词模板库\n\n用法：\n  node prompt-lib.mjs init                建用户库 + 索引\n  node prompt-lib.mjs list [keyword]      列模板（内置 + 用户）\n  node prompt-lib.mjs search <keyword>    同上，语义化别名\n  node prompt-lib.mjs show <id>           打印模板全文\n  node prompt-lib.mjs new <id> [name]     生成空白模板骨架\n  node prompt-lib.mjs add <file.md>       校验后入库并重建索引\n  node prompt-lib.mjs copy <id> <新id> [名字]  基于已有模板 fork 一个变体\n  node prompt-lib.mjs check               全库校验 + 重建索引\n\n用户库：' + home + '（T2I_PROMPT_HOME 或 --home 可改）\n内置库：' + BUILTIN_DIR);
+    console.log('文生图提示词模板库\n\n用法：\n  node prompt-lib.mjs init                建用户库 + 索引\n  node prompt-lib.mjs list [keyword]      列模板（内置 + 用户）\n  node prompt-lib.mjs search <keyword>    同上，语义化别名\n  node prompt-lib.mjs show <id>           打印模板全文\n  node prompt-lib.mjs new <id> [name]     生成空白模板骨架\n  node prompt-lib.mjs add <file.md>       校验后入库并重建索引\n  node prompt-lib.mjs copy <id> <新id> [名字]  基于已有模板 fork 一个变体\n  node prompt-lib.mjs mirror              把用户库同步成本项目副本（.scratch/t2i-prompts/）\n  node prompt-lib.mjs check               全库校验 + 重建索引\n\n用户库：' + home + '（T2I_PROMPT_HOME 或 --home 可改）\n内置库：' + BUILTIN_DIR);
 }

@@ -43,9 +43,15 @@ quality: 4                       # 1-5，自评
 | 库 | 路径 | 谁写 |
 | --- | --- | --- |
 | 内置库 | `<skill>/references/templates/` | 仅维护技能的人；随版本分发，装了会被覆盖 |
-| 用户库 | `~/.agents/t2i-prompts/`（`T2I_PROMPT_HOME` 可改） | agent 随时写，跨项目跨厂商保留 |
+| 全局用户库 | `~/.agents/t2i-prompts/`（`T2I_PROMPT_HOME` 可改） | agent 随时写，跨项目跨厂商保留 |
+| 项目副本 | `<项目根>/.scratch/t2i-prompts/`（随仓库提交） | agent 写全局库后自动镜像一份 |
 
-**agent 一律写用户库**，不要改内置库。
+**agent 一律写全局库，不改内置库。** 改完全局库**必须**在项目里留一份：全局库不在任何仓库里，换机器、换人、review 都看不到；项目副本随代码走，评审能看见、能回滚。
+
+- `add` / `copy` 默认自动镜像到项目副本（cwd 向上找 `.git` 或 `AGENTS.md` 定根），并重建项目的 `index.md`。
+- 项目没有 `.scratch` 约定时用 `--project-home <dir>`（例如 `docs/agents/prompts`）。
+- 不想镜像加 `--no-mirror`；只补镜像（不改全局库）用 `mirror` 子命令。
+- `check` 会比对项目副本与全局库，输出不一致的文件名——漂移了就重新 `mirror`。项目副本里多出来的、全局库没有的文件不会被删（可能是项目专属模板）。
 
 ## 命令
 
@@ -53,7 +59,8 @@ quality: 4                       # 1-5，自评
 node <skill>/scripts/prompt-lib.mjs new <id> "名字"     # 从零生成骨架
 node <skill>/scripts/prompt-lib.mjs copy <id> <新id> "名字"  # 拿内置模板 fork 一个变体
 node <skill>/scripts/prompt-lib.mjs add <file.md>       # 校验 → 入库 → 重建索引
-node <skill>/scripts/prompt-lib.mjs check               # 全库校验 + 重建索引
+node <skill>/scripts/prompt-lib.mjs mirror              # 全局库 → 项目副本
+node <skill>/scripts/prompt-lib.mjs check               # 全库校验 + 重建索引 + 项目副本漂移
 node <skill>/scripts/prompt-lib.mjs list 国风            # 检索
 ```
 
