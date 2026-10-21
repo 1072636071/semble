@@ -46,11 +46,23 @@ using the reference image as the identity authority, produce a chibi character s
 
 redesigned character, different outfit, different hair color, adult proportions, realistic photo, extra characters, callout text, watermark, signature, busy background
 
+## 非人特征的解剖先验（必读）
+
+模型对「尾巴」有**鱼鳞先验**：写 whale tail 不写材质，就会长出菱形鳞片、网格纹或甲片。鲸尾是哺乳动物的光滑皮肤，必须显式否掉：
+
+- 正向：`smooth whale tail, smooth skin, no scale texture, rounded fin edges`
+- 中文：`尾巴表面光滑、无鳞片、无鱼鳞纹理、无网格或菱形纹`
+- 负向：`scaly tail, fish scales, reptile scales, scale texture, armor plates`
+
+同类先验还有：鳍耳被画成翅膀、呆毛被画成天线、女仆裙被画成泳装。凡是「像鱼又不是鱼」「像翅膀又不是翅膀」的部位，都要在正向和负向各写一遍。
+
 ## 调参备注
 
 - 参考图分辨率低（<600px）也能跑，但细节会**被模型补全成它自己的理解**——先接受这点，再对比原图确认身份有没有漂。
 - 两视图常只出一个人：要么跑两三次挑，要么分开出「正面」「侧身」各一张再拼。
 - 想要「设定稿」感就加纯色背景 + 人物大小一致；加地面投影和场景立刻变成插画。
+- 2 头身比上游档位表最低档（super-deformed 2.1）更极端：要写「头部高度约等于全身一半」，只说「2 头身」模型常给到 2.5。
+- 用户明确「不要动原图」时，跳过清图步骤，直接把原图当身份参考做重绘（Q 版本来就是重画，水印不会跟过去）；这样原图一个像素都不改。
 - 不同厂商支持度：图生图（Gemini/Nano Banana 系、agnes-image）最稳；纯文生图平台没有参考图能力，只能靠文字描述身份。
 
 ## 来源

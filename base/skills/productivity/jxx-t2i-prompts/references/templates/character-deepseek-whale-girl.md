@@ -69,7 +69,9 @@ chibi anime sticker, DeepSeek Whale-chan, one consistent ageless humanoid charac
 
 ## 负面提示词
 
-realistic, 3d render, missing whale tail, human ears without fins, missing ahoge, wrong proportions, child-like age shift, mermaid, whale-bodied creature, neon colors, muddy gray, painterly, text gibberish, watermark, signature
+realistic, 3d render, missing whale tail, scaly tail, fish scales, reptile scales, scale texture, armor plates, human ears without fins, missing ahoge, wrong proportions, child-like age shift, mermaid, whale-bodied creature, neon colors, muddy gray, painterly, text gibberish, watermark, signature
+
+> 鲸尾**没有鳞片**（哺乳动物皮肤）。只写 `whale tail` 模型会加鱼鳞——正向写 `smooth whale tail, no scale texture`，负向写上面前三条鳞片词，两头一起压。
 
 ## 调参备注
 
