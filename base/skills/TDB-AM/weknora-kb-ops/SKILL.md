@@ -1,7 +1,7 @@
 ---
 name: weknora-kb-ops
 description: WeKnora 知识库运营面（全局技能）——对指定知识库直接上传 / 查询 / 管理：图片 SHA256 去重上传、重复命中合并标签、标签 CRUD、去重审计、解析失败排查、批量改名与双语描述。适用于任何本地工作空间维护团队知识库/图片资产。当用户要操作某个具体知识库、批量灌图/灌文档、问图片是否重复上传、改条目标签、查图找素材时使用。触发词：指定知识库、长兴博客、上传知识库、图片去重、重复上传、改标签、查图、kb ops。
-version: 2.3.0
+version: 2.6.0
 x-install: true
 ---
 
@@ -12,9 +12,11 @@ x-install: true
 > **改技能改 JwikisSkills 源，改完重跑 `ship install` 刷新已安装副本**；不要直接改已安装副本（会被下次安装覆盖，且过期副本会让源码里修好的防护失效）。
 > 安装 / 体检两条流程已固化为本技能的全局脚本（见下方「安装与体检」节），项目侧不再各写一份。
 > 三面分工，别再问「用哪把」：**写图片走灵枢面**（自带 SHA256 去重 + 描述记忆节点）、
-> **库内管理走 WeKnora 官方 MCP 面**（31 把，2026-10-04 对 `MyWeKnora/mcp-server/weknora_mcp_server.py`
+> **库内管理走 WeKnora 官方 MCP 面**（36 把，2026-10-21 实盘点；2026-10-04 为 31 把，其后 fork 增补目录三把
+> `list_knowledge_folders` / `move_knowledge_to_folder` / `rename_knowledge_folder`，见嵌套仓 MyWeKnora 提交 `932559171`。对 `MyWeKnora/mcp-server/weknora_mcp_server.py`
 > 源码与连接缓存双实盘点）、**标签与手工知识状态走 REST 补强面**（官方 MCP 未覆盖）。
 > 凭据走统一凭据腿（坚果云 `项目机密\Secret\`）：key 只从文件现取现用，不进仓库 / 文档 / 工单 / 回显。
+> **本机绝对路径、取 key 范式、按库选 key 与响应壳速查见 [references/rest-cookbook.md](references/rest-cookbook.md) §0 / §1a**——`scripts/kb-check.ps1` 已内置取 key 逻辑，别手搓。
 
 ## 何时用
 
@@ -33,9 +35,10 @@ x-install: true
 |---|---|
 | kb_id | `2d014440-786c-4d6b-84cc-12679f4df1cb` |
 | 定位 | BPM（Focus 库）问题处理知识库，多工作空间共用 |
-| 消费方 | `E:\work\work-sp\BPM问题处理`、`E:\work\work-sp\BPM需求开发`（知识链第 2 级，两仓 AGENTS.md 的知识库段均由 `scripts/kb-install.ps1` 生成） |
-| 标签台账 | [references/tag-registry-bpm.md](references/tag-registry-bpm.md)（主题八标，无 category 前缀体系） |
-| 内容 | 8 份 knora 蒸馏文档 + 存量 1 条（REST manual 腿首批入库） |
+| REST | `http://123.206.125.149:8127/api/v1`，头 `X-API-Key`（凭据腿 `项目机密\Secret\WeKnora-知识库-API密钥.md`；本机绝对路径见 cookbook §0） |
+| 消费方 | `E:\work\work-sp\BPM需求开发`（2026-10-21 起 AGENTS.md / CODEBUDDY.md / `docs/agents/knowledge-base.md` / 转发壳均由 `kb-install.ps1` 生成）；`E:\work\work-sp\BPM问题处理`（知识链第 2 级，知识库段 **2026-10-04 手写、未接安装器模板**：无标记块 / 无 CODEBUDDY.md / 无 `scripts/`） |
+| 标签台账 | [references/tag-registry-bpm.md](references/tag-registry-bpm.md)（主题十标，2026-10-21 实测 `data.total=10`；无 category 前缀体系） |
+| 内容 | **47 条，全 `manual`**（2026-10-21 实测）；已按功能分入 11 个目录（`总览`/平台机制三子目录/…），方案见库内条目「BPM 库目录结构说明」 |
 
 ### 设备管理知识库（2026-10-11 接入）
 
@@ -43,7 +46,7 @@ x-install: true
 |---|---|
 | kb_id | `ff4696b2-606b-4abe-aa51-79ca82a16675` |
 | UI | `http://123.206.125.149:8127/platform/knowledge-bases/ff4696b2-606b-4abe-aa51-79ca82a16675` |
-| REST | `http://123.206.125.149:8127/api/v1`，头 `X-API-Key`（凭据腿 `项目机密\Secret\WeKnora-知识库-API密钥.md`，key 只现取现用、不回显） |
+| REST | `http://123.206.125.149:8127/api/v1`，头 `X-API-Key`（凭据腿 `项目机密\Secret\WeKnora-知识库-API密钥.md`，本机绝对路径见 cookbook §0，key 只现取现用、不回显） |
 | 定位 | **项目知识库**：依模板库 `b2d1f93b-725a-4ee5-98bb-b77d57e646e2` 内《知识库 (Knowledge Base) 与 记忆 (Memory) 的设计划分指南》的「**客观 / 共享 / 相对静态**」定位——只放项目客观结论，不放主体经历（经历归灵枢记忆）。建库走 settings-only 模板复制，流程见「## 新建库（新项目 / 新库接入）」 |
 | 消费方 | `E:\work\work-sp\设备管理`（AGENTS.md / CODEBUDDY.md 知识库段 + `docs/agents/knowledge-base.md` + `scripts/kb-check.ps1` 转发壳均由 `scripts/kb-install.ps1` 生成；文件内已含 `<!-- project-kb-id: ff4696b2-… -->` 标记行） |
 | 标签台账 | [references/tag-registry-shebei.md](references/tag-registry-shebei.md)（来源两标，**暂无领域主题标**） |
@@ -69,7 +72,7 @@ x-install: true
 |---|---|
 | kb_id | `dfaaf6fc-1e5d-4385-a290-58c847d71bcb` |
 | UI | `http://123.206.125.149:8127/platform/knowledge-bases/dfaaf6fc-1e5d-4385-a290-58c847d71bcb` |
-| REST | `http://123.206.125.149:8127/api/v1`，头 `X-API-Key`（凭据腿 `项目机密\Secret\WeKnora-知识库-API密钥.md`，key 只现取现用、不回显） |
+| REST | `http://123.206.125.149:8127/api/v1`，头 `X-API-Key`（凭据腿 `项目机密\Secret\WeKnora-知识库-API密钥.md`，本机绝对路径见 cookbook §0，key 只现取现用、不回显） |
 | tenant | **10001**（与项目库同 tenant，用现有 tenant 10001 key 即可，**不跨 tenant、不会 403**；已实证该 key 的 `/knowledge-bases` 列表含本库） |
 | 定位 | **第三方官方 agent skills 的原文资料库**——收录各官方仓库发布的 `SKILL.md` 原文（例：Hostinger 官方两个技能包），供「找技能」时检索。**只做检索源，不改技能分层**：灵枢仍是技能面权威（kb-router 三步分流第 2 条：技能 → 灵枢） |
 | 消费方 | 全局技能 `find-skills`（外部 skills.sh / npx skills 生态之外，本机 WeKnora 的技能类知识库检索源之一，同列 `b822071a-fb95-4e98-b05d-aa33da685a42`「生成技能」）；暂无本地工作区经 `kb-install.ps1` 接入 |
@@ -91,11 +94,12 @@ capabilities = keyword / vector / wiki true，faq / graph false；`vector_store_
 |---|---|
 | kb_id | `26ab29e0-e739-4232-b0e9-30088e760cf1` |
 | UI | `http://123.206.125.149:8127/platform/knowledge-bases/<kb_id>` |
-| REST | `http://123.206.125.149:8127/api/v1`，头 `X-API-Key`（凭据腿 `项目机密\Secret\WeKnora-知识库-API密钥.md`） |
+| REST | `http://123.206.125.149:8127/api/v1`，头 `X-API-Key`（凭据腿 `项目机密\Secret\WeKnora-知识库-API密钥.md`；本机绝对路径见 cookbook §0） |
 | 内容 | 博客文章（manual，126 条）+ 图片（file，203 张，**条目名已全量中文化**，见下「文件名纪律」） |
 | 标签 | `灵枢记忆`（全部图片）· `文档上传`（全部文章）+ category/project 标（见 tag-registry）· `工厂` · `deprecated` · **`type:experience`/`type:material`（2026-10-18 起全量挂载：30/657）** |
 | 图片描述 | **双语**：首行中文摘要 + 空行 + `[EN]` 前缀原英文（203/203 已回写） |
 | 消费方 | 国内官网（official-domestic-website）、外贸站（ai-international-trade）的知识链第 2 级与图片资产管理 |
+| 目录 | 2026-10-21 全库 688 条分目录（资源类型主轴，根目录清零），方案与分派规则见 [references/folder-scheme.md](references/folder-scheme.md) |
 
 ### 长兴库标签台账
 
@@ -382,6 +386,7 @@ $cands | Where-Object { $_.title -match $关键词 -or $_.description -match $�
 
 - **去重审计**：全量翻页按 `file_hash` / `file_name` / manual `title` 分组找 >1 组。**注意图片库的两种正常形态不算欠账**（2026-10-18 修，memorial 057 第 8 问）：① 同名不同内容（国内站/外贸站各一张同名图，`file_hash` 不同）；② 图片批量命名所致重题（同页面多张图共用 title，靠 `file_name` 区分）。`kb-check.ps1` 已按此分流 + 对 `deprecated` 标条目豁免。现成 pwsh 脚本见 [references/rest-cookbook.md](references/rest-cookbook.md)。
 - **标签 CRUD**（REST 面）：`GET/POST /knowledge-bases/{kb}/tags`、`PUT/DELETE /knowledge-bases/{kb}/tags/{tag_id}`；批量改标 `PUT /knowledge/tags`（replace 语义，见上）。
+- **目录管理**（REST 面）：`GET /knowledge-bases/{kb}/knowledge/folders` 读目录树（`root_document_count` = 未归档条目数）；`POST /knowledge/folder` body `{kb_id, knowledge_ids(≤200/批), folder_path}` 批量归位——目录按路径**自动创建**、**只改 folder_path 不重解析**、空路径回顶层；`PUT /knowledge-bases/{kb}/knowledge/folders` body `{from,to}` 子树改名或合并（目标已存在即合并，不能移进自身子树）。MCP 面对应 `list_knowledge_folders` / `move_knowledge_to_folder` / `rename_knowledge_folder`。上限：深度 16、单段 ≤128 字符、路径 ≤1024。方案与防回潮规则见 [references/folder-scheme.md](references/folder-scheme.md)；体检判据见 `scripts/kb-check.ps1` §5c。
 - **解析失败排查**：列表按 `parse_status=failed` 过滤。
   **修复手法（2026-10-18 实证 4/4 成功）**：REST `PUT /knowledge/manual/{id}` 重推正文（内容不变、显式 `status:"publish"`）触发重解析；
   `parse_status` 经 `finalizing` 转 `completed`，耗时数秒到约 2 分钟不等，需轮询确认。长兴库 2026-09 批次那 4 条（ADR-0022/0027/0032/README）已用此法全部修复。
@@ -390,9 +395,11 @@ $cands | Where-Object { $_.title -match $关键词 -or $_.description -match $�
 
 ## 纪律
 
-- REST 面 base 与 key 一律从**凭据腿**现取（每库一个文件，键形如 `sk-...`，pwsh 取 key 范式见 cookbook），**任何产出物里不出现 key 值**。
+- REST 面 base 与 key 一律从**凭据腿**现取（每库一个文件，键形如 `sk-...`），**任何产出物里不出现 key 值**。
+- **手搓 REST 前先读 [references/rest-cookbook.md](references/rest-cookbook.md) §0（取 key）与 §1a（响应壳）**——别凭记忆拼壳；本次实测：`knowledge` 列表的 `data` 是数组、分页字段在顶层，写成 `.data.items` 会静默得到空集。
 - 删图前先查正文引用与 usage 标（改名已实证安全：正文零引用、存储句柄解耦、去重走 file_hash）。
-- 工具数以源码真值为准；本技能写死的「31 把」是 2026-10-04 的实盘点快照，变了以 `MyWeKnora/mcp-server/weknora_mcp_server.py` 为准。
+- 工具数以源码真值为准；本技能写死的「36 把」是 2026-10-21 的实盘点快照，变了以 `MyWeKnora/mcp-server/weknora_mcp_server.py` 的 `@mcp.tool` 计数为准。
+- **MyWeKnora 是嵌套独立仓**（`MyWeKnora/.git`）：目录三工具已在 `932559171 fork(mcp): knowledge folder tools - list / move / rename` 提交（`fork(...)` 前缀是该项目既有约定），不必再等提交决策。
 
 ## 项目侧强制约束（范式，写进各工作区 AGENTS.md/CODEBUDDY.md）
 
@@ -456,6 +463,7 @@ pwsh -File kb-install.ps1 -Kb <kb_id> -KbName "X" -Workspace . -ExtraRules "**�
 
 ## 深入
 
+- **references/folder-scheme.md** — 长兴库目录结构与分派规则（2026-10-21 全库分目录实录，含新条目防回潮规则）。
 - **references/rest-cookbook.md** — REST 补强面全部菜谱：取 key 范式、去重审计、标签 CRUD、批量改标、failed 排查、manual 更新、存量改名 SQL 腿、双语描述批量写回、**新建库与配置对齐（§11）**。要动手跑 REST 时读。
 - **references/tag-registry.md** — 长兴库 tag id 全表与挂标范式。新库接入时另建 `tag-registry-<slug>.md`。
 - **references/tag-registry-bpm.md** — BPM 库 tag id 全表。

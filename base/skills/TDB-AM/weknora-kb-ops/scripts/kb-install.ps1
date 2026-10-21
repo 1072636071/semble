@@ -1,4 +1,4 @@
-﻿# WeKnora 知识库接入安装器（全局脚本 · weknora-kb-ops 技能）
+# WeKnora 知识库接入安装器（全局脚本 · weknora-kb-ops 技能）
 #
 # 把一个 WeKnora 知识库接入到任意本地工作区：写 AGENTS.md / CODEBUDDY.md 知识库段（两份逐字一致、
 # 幂等 upsert）、建 docs/agents/knowledge-base.md 规范骨架、生成体检转发壳 scripts/kb-check.ps1。
@@ -98,7 +98,7 @@ function Upsert-Block([string]$content, [string]$block, [string]$position, [stri
 # ---------- 生成知识库段 ----------
 $rules = @(
   "**结论当日入库**——本次新确认的表结构、业务口径、踩坑结论、决策记录，当天写入知识库并挂对应领域标。只留在对话或本地文档里 = 任务未完成。",
-  "**入库前先查重**——写入前用 ``POST /knowledge-bases/{kb}/hybrid-search``（body 字段名是 ``query_text``，不是 ``query``）查同名 / 同主题；命中既有条目就改那一条（``PUT /knowledge/manual/{id}``，``status`` 必传），不要新建第二份。",
+  "**入库前先查重**——写入前用 ``POST /knowledge-bases/{kb}/hybrid-search``（body 字段名是 ``query_text``，不是 ``query``）查同名 / 同主题；命中既有条目就改那一条（``PUT /knowledge/manual/{id}``，``status`` 必传），不要新建第二份。**批量整理 / 批量写入前先跑 ``pwsh -File scripts/kb-check.ps1``**（查重账：hash / 同名 / 重题；语义查重仍走本节的 ``hybrid-search``）。",
   "**事实冲突必须双向修正**——代码 / 文档 / 库内条目三方打架时禁止只改一边。权威顺序：**用户输入与本次实测 > 知识库 > 记忆**；过时一方立即改到逐字一致，不留「待核对」。",
   "**每条结论必须可回溯**——入库正文写清证据位置（表名+字段 / 脚本路径 / ADR 编号）。查不到出处的结论不进库。"
 )
@@ -116,7 +116,7 @@ $MARK_BEGIN
 - 库：``$KbName``，kb_id ``$Kb``
 - UI：<$($Base.Replace('/api/v1',''))>/platform/knowledge-bases/$Kb
 - REST base：``$Base``（请求头 ``X-API-Key``）
-- 凭据腿：坚果云 ``项目机密\Secret\WeKnora-知识库-API密钥.md``——**key 只现取现用，不进仓库 / 文档 / 工单 / 回显**
+- 凭据腿：坚果云 ``项目机密\Secret\WeKnora-知识库-API密钥.md``——**key 只现取现用，不进仓库 / 文档 / 工单 / 回显**；本机绝对路径与取 key 范式见技能 ``references/rest-cookbook.md`` §0（``scripts/kb-check.ps1`` 已内置，别手搓）
 - 运维技能：``weknora-kb-ops``；完整写入 / 查询 / 标签 / 端点规范见 ``docs/agents/knowledge-base.md``
 - 安装与体检（全局脚本，由该技能分发，见 JwikisSkills ``base/skills/TDB-AM/weknora-kb-ops/scripts/``）：
   - 体检：``pwsh -File scripts/kb-check.ps1``（转发壳，自动定位技能目录里的全局脚本）
@@ -144,14 +144,23 @@ param(
   [int]$MaxPages = 50
 )
 
-$roots = @(
-  "$env:USERPROFILE\.agents\skills",
-  "$env:USERPROFILE\.codebuddy\skills",
-  "$env:USERPROFILE\.codeartsdoer\skills",
-  "$env:USERPROFILE\.trae-cn\skills",
-  "$env:USERPROFILE\.qoder-cn\skills",
-  "$env:USERPROFILE\.qwenworkcn\skills"
-)
+# 家目录解析：环境变量优先，逐级回退；不写死用户名
+$home0 = $env:USERPROFILE
+if (-not $home0) { $home0 = $env:HOME }
+if (-not $home0 -and $env:HOMEDRIVE -and $env:HOMEPATH) { $home0 = "$env:HOMEDRIVE$env:HOMEPATH" }
+if (-not $home0) { try { $home0 = [Environment]::GetFolderPath('UserProfile') } catch { } }
+
+$roots = @()
+if ($home0) {
+  $roots = @(
+    (Join-Path $home0 ".agents\skills"),
+    (Join-Path $home0 ".codebuddy\skills"),
+    (Join-Path $home0 ".codeartsdoer\skills"),
+    (Join-Path $home0 ".trae-cn\skills"),
+    (Join-Path $home0 ".qoder-cn\skills"),
+    (Join-Path $home0 ".qwenworkcn\skills")
+  )
+}
 $target = $null
 foreach ($r in $roots) {
   $p = Join-Path $r "weknora-kb-ops\scripts\kb-check.ps1"
@@ -190,7 +199,7 @@ $doc = @"
 | 库名 | ``$KbName`` |
 | UI | <$($Base.Replace('/api/v1',''))/platform/knowledge-bases/$Kb> |
 | REST base | ``$Base``，请求头 ``X-API-Key: <key>`` |
-| 凭据腿 | 坚果云 ``项目机密\Secret\WeKnora-知识库-API密钥.md`` |
+| 凭据腿 | 坚果云 ``项目机密\Secret\WeKnora-知识库-API密钥.md``（本机绝对路径与取 key 范式见技能 ``references/rest-cookbook.md`` §0） |
 
 **凭据纪律**：``sk-`` 开头的 key 只从凭据腿文件现取现用，不进仓库、不进文档、不进工单、不回显。
 

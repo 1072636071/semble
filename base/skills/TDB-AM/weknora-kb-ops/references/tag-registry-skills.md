@@ -35,6 +35,12 @@ REST `GET /knowledge-bases/{kb}/knowledge` 全量翻页回读：**57 条，全�
 **全部 57 条已挂 `type:material`**（`knowledge_count=57` 回读值），其中 1 条（总索引）另挂 `type:experience`。
 条目头部均带来源注释（仓库 / 分支 / 仓库内路径），例：`hostinger/api-mcp-server` 仓 `main` 分支 `skills/headless/SKILL.md`。
 
+**目录布局（2026-10-21 调整）**：15 个顶层技能目录全部移入 `hostinger/` 顶层目录（`hostinger/<skill>`；
+headless 子树 `hostinger/headless/steps/…` 随迁不变），为后续其他厂商技能目录腾出根级命名空间；
+自撰总索引 README 留在库根（`root_document_count=1`，全库 57 条 = hostinger 56 + 根 1）。
+操作走 `PUT /knowledge-bases/{kb}/knowledge/folders` 的 `{from, to}` 整目录重命名（15/15 成功，
+moved 合计 56，仅调整归类不重解析）。后续新厂商技能灌库时按同口径建 `<vendor>/` 顶层目录。
+
 ## 待挂清单与判据
 
 **无待挂类型标的条目**（57/57 已挂 `type:material`）。但有两条**待补**项，判据如下：

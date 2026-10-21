@@ -1,4 +1,4 @@
-﻿# WeKnora 知识库体检（全局脚本 · weknora-kb-ops 技能）
+# WeKnora 知识库体检（全局脚本 · weknora-kb-ops 技能）
 #
 # 对任意 WeKnora 知识库做连通性 + 内容体检：凭据 → 库级能力 → 全量条目 → 去重审计
 # → 标签台账 → 混合检索冒烟。以 FAIL / WARN 计数收口，退出码非 0 表示有 FAIL。
@@ -64,10 +64,10 @@ if ($All) {
   if (-not $Workspace) { $Workspace = "." }
   $ws = (Resolve-Path -LiteralPath $Workspace).Path
   $agentFile = Join-Path $ws "AGENTS.md"
-  if (-not (Test-Path -LiteralPath $agentFile)) { Write-Error "工作区缺 AGENTS.md：$ws"; exit 2 }
+  if (-not (Test-Path -LiteralPath $agentFile)) { Write-Host "工作区缺 AGENTS.md：$ws" -ForegroundColor Red; exit 2 }
   $md = [System.IO.File]::ReadAllText($agentFile, $utf8)
   $m = [regex]::Match($md, 'kb_id\s*`?([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})`?')
-  if (-not $m.Success) { Write-Error "AGENTS.md 里读不到 kb_id：$agentFile"; exit 2 }
+  if (-not $m.Success) { Write-Host "AGENTS.md 里读不到 kb_id：$agentFile（该文件若无字面量 kb_id，请显式传 -Kb <kb_id>）" -ForegroundColor Red; exit 2 }
   $targets += @{ id = $m.Groups[1].Value; name = "" }
   Note ("从 {0} 读到 kb_id={1}" -f $agentFile, $m.Groups[1].Value)
 }
@@ -82,9 +82,17 @@ if ($All) {
 # 候选文件扫描 + sk- 正则 + UTF-8 显式读取的范式与纪律不变：
 # key 不回显 / 不落盘 / 不进任何产出物 / 不进 commit message。
 # key 值只在进程内活，任何输出只出现来源文件名与末 4 位指纹。
+# 家目录解析：环境变量优先，逐级回退；不写死用户名（2026-10-21 起）
+$home0 = $env:USERPROFILE
+if (-not $home0) { $home0 = $env:HOME }
+if (-not $home0 -and $env:HOMEDRIVE -and $env:HOMEPATH) { $home0 = "$env:HOMEDRIVE$env:HOMEPATH" }
+if (-not $home0) { try { $home0 = [Environment]::GetFolderPath('UserProfile') } catch { } }
+
 $cands = @()
-$cands += Get-ChildItem -Path "C:\Users\jxc123\Nutstore\1\*\*\Secret\WeKnora-*.md" -ErrorAction SilentlyContinue
-$cands += Get-ChildItem -Path "C:\Users\jxc123\Nutstore\1\*\*\TencentDB-Agent-Memory\*weknora*.md" -ErrorAction SilentlyContinue
+if ($home0) {
+  $cands += Get-ChildItem -Path (Join-Path $home0 "Nutstore\1\*\*\Secret\WeKnora-*.md") -ErrorAction SilentlyContinue
+  $cands += Get-ChildItem -Path (Join-Path $home0 "Nutstore\1\*\*\TencentDB-Agent-Memory\*weknora*.md") -ErrorAction SilentlyContinue
+}
 
 # 去重后的候选 key（同一文件可能被多个正则重复命中；保序去重）
 $keyCands = [ordered]@{}
@@ -286,6 +294,45 @@ foreach ($t in $targets) {
     Note "本库未建 type:experience / type:material 标，跳过覆盖率判据（SKIP）"
   }
 
+  # ---- 5c. 目录结构巡检（2026-10-21 加 · references/folder-scheme.md）----
+  # 防的是「无人巡检 → 新条目回落根目录 → 目录树退化」这条回潮路径（同 2026-10-04 反模式①：无执行主体必然重演）。
+  # 度量：GET /knowledge-bases/{kb}/knowledge/folders 的 root_document_count。
+  #   一个目录都没有（folders 为空）→ SKIP 不判红（BPM / 儿童成长日记 等平铺库照旧）。
+  #   已有目录、根目录滞留 > 1 条 → WARN；> 10 条 → FAIL（1 条正常，如库内说明条目）。
+  $folderStats = [ordered]@{ folderCount = 0; rootDocumentCount = $null; totalDocumentCount = $null; status = 'skip'; strayRoot = @() }
+  $folderTree = $null
+  try { $folderTree = (curl.exe -s -H "X-API-Key: $key" "$Base/knowledge-bases/$kbId/knowledge/folders" | ConvertFrom-Json).data } catch { }
+  if ($folderTree) {
+    $topFolders = @($folderTree.folders)
+    $folderStats.rootDocumentCount  = [int]$folderTree.root_document_count
+    $folderStats.totalDocumentCount = [int]$folderTree.total_document_count
+    if ($topFolders.Count -eq 0) {
+      Note ("未建目录（根目录平铺 {0} 条）——跳过目录巡检；分目录方案见 references/folder-scheme.md" -f $folderStats.rootDocumentCount)
+    } else {
+      $folderStats.folderCount = $topFolders.Count
+      if ($folderStats.rootDocumentCount -gt 10) { $folderStats.status = 'fail' }
+      elseif ($folderStats.rootDocumentCount -gt 1) { $folderStats.status = 'warn' }
+      else { $folderStats.status = 'ok' }
+      if ($folderStats.status -eq 'ok') {
+        Say $true ("目录结构：{0} 个顶层目录，根目录滞留 {1} 条（total {2}）" -f $folderStats.folderCount, $folderStats.rootDocumentCount, $folderStats.totalDocumentCount)
+      } elseif ($folderStats.status -eq 'warn') {
+        Warn ("根目录滞留 {0} 条（共 {1} 个顶层目录）——新条目未归位，按 references/folder-scheme.md 用 POST /knowledge/folder 归桶" -f $folderStats.rootDocumentCount, $folderStats.folderCount)
+      } else {
+        Say $false ("根目录滞留 {0} 条（共 {1} 个顶层目录）——目录结构已退化，按 references/folder-scheme.md 重新归桶" -f $folderStats.rootDocumentCount, $folderStats.folderCount)
+      }
+      if ($folderStats.status -ne 'ok') {
+        try {
+          $rootResp  = curl.exe -s -H "X-API-Key: $key" "$Base/knowledge-bases/$kbId/knowledge?page=1&page_size=5&folder_path=" | ConvertFrom-Json
+          $rootItems = if ($rootResp.data -is [array]) { @($rootResp.data) } else { @($rootResp.data.data) }
+          $folderStats.strayRoot = @($rootItems | ForEach-Object { if ($_.file_name) { $_.file_name } else { $_.title } })
+          $folderStats.strayRoot | Select-Object -First 5 | ForEach-Object { Head ("       根目录：{0}" -f $_) }
+        } catch { }
+      }
+    }
+  } else {
+    Note "目录树读取失败，跳过目录巡检"
+  }
+
   # ---- 6. 混合检索冒烟 ----
   # 端点 POST /knowledge-bases/{kb}/hybrid-search，body 字段是 query_text（不是 query）。
   $hitCount = 0
@@ -321,6 +368,7 @@ foreach ($t in $targets) {
     dupTitleImageOnly = $dupTtlImgOnly.Count
     tagCount = $tags.Count
     typeTagCoverage = $typeCoverage
+    folderTree = $folderStats
     tags = @($tags | Sort-Object -Property knowledge_count -Descending | ForEach-Object { [ordered]@{ name = $_.name; id = $_.id; count = $_.knowledge_count } })
     searchHits = $hitCount
   }

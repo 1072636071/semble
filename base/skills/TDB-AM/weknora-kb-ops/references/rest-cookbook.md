@@ -7,11 +7,21 @@
 ## 0. 取 key 范式（每个脚本开头都是这段）
 
 ```powershell
-$md  = Get-Content -Raw "C:\Users\jxc123\Nutstore\1\我的坚果云\项目机密\Secret\WeKnora-知识库-API密钥.md"
+# 家目录解析：环境变量优先，逐级回退——不写死用户名（同 base/skills/engineering/jxx-git-auth/scripts/resolve-token.mjs 口径）
+$home0 = $env:USERPROFILE
+if (-not $home0) { $home0 = $env:HOME }
+if (-not $home0 -and $env:HOMEDRIVE -and $env:HOMEPATH) { $home0 = "$env:HOMEDRIVE$env:HOMEPATH" }
+if (-not $home0) { try { $home0 = [Environment]::GetFolderPath('UserProfile') } catch { } }
+
+$CredPath = Join-Path $home0 "Nutstore\1\我的坚果云\项目机密\Secret\WeKnora-知识库-API密钥.md"
+$md  = Get-Content -Raw $CredPath
 $key = [regex]::Match($md, 'sk-[A-Za-z0-9_\-]+').Value
 $kb  = "26ab29e0-e739-4232-b0e9-30088e760cf1"   # 长兴博客资源知识库；换库改这里
 $base = "http://123.206.125.149:8127/api/v1"
 ```
+
+本机实例（2026-10-21 实测存在）：`<家目录>\Nutstore\1\我的坚果云\项目机密\Secret\WeKnora-知识库-API密钥.md`（本机家目录由上面的回退链解出，勿写死用户名）。
+只读沙箱 ConstrainedLanguage 下 `[Environment]::` 会失败、被 `try/catch` 吞掉——前面三级回退仍有效。
 
 纪律：`$key` 只在进程内活，不 `echo`、不写文件、不进工单评论。
 
@@ -56,6 +66,21 @@ for ($p = 1; $p -le 50; $p++) {
 ```
 
 返回条目自带：`tags` 数组（id+name）、`type`（file/manual）、`file_name`、`file_hash`、`file_size`、`parse_status`、`description`（VLM 描述）、`profile`（gist/topics）。
+
+### 1a. 响应壳速查（2026-10-21 逐字段实测，别凭记忆拼）
+
+信封形状每个端点都不一样，写解析前先对这张表：
+
+| 端点 | 数据位置 | 备注 |
+| --- | --- | --- |
+| `GET /knowledge-bases` | `.data` 数组 | |
+| `GET /knowledge-bases/{kb}/knowledge` | `.data` 数组 | 分页字段 `page`/`page_size`/`total` 在**顶层**；**不存在** `.data.items` |
+| `GET /knowledge-bases/{kb}/tags` | `.data.data` 数组 | 两层信封（`data.total` + `data.data`，条目带 `knowledge_count`） |
+| `GET /knowledge-bases/{kb}/knowledge/folders` | `.data.{folders, root_document_count, total_document_count}` | `folders` 是树，子目录在 `children`；`total_count` 含子树、`document_count` 只算直挂 |
+| `GET /chunks/{knowledge_id}` | `.data` 数组 | 读取路径是 `/chunks/{id}`（`/knowledge/{id}/chunks` 返 404）；**同样分页，默认 `page_size=10`**，取全须翻页，信封在顶层 |
+| `POST /knowledge-bases/{kb}/hybrid-search` | `.data` 数组 | body 字段 `query_text` |
+
+**最贵的坑**：把列表写成 `.data.items` 不报错、只给空集——静默空集比报错难查。四个端点的壳都不同，先打印 `Object.keys` 再写解析。
 
 ## 2. 去重审计（图片 hash / 文件名 / 文章标题三维）
 
@@ -213,7 +238,7 @@ curl.exe -s -H "X-API-Key: $key" "$base/knowledge/<id>"
 ### 11a. 取 key（同 §0，不回显）
 
 ```powershell
-$md   = Get-Content -Raw "C:\Users\jxc123\Nutstore\1\我的坚果云\项目机密\Secret\WeKnora-知识库-API密钥.md"
+$md   = Get-Content -Raw $CredPath   # 同 §0：家目录解析 + $CredPath（不写死用户名）
 $key  = [regex]::Match($md, 'sk-[A-Za-z0-9_\-]+').Value
 $base = "http://123.206.125.149:8127/api/v1"
 $tpl  = "b2d1f93b-725a-4ee5-98bb-b77d57e646e2"   # 模板源库：只复制设置，不复制条目
