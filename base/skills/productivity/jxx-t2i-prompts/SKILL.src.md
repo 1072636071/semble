@@ -105,12 +105,6 @@ agent 只写全局库（`~/.agents/t2i-prompts/`，`T2I_PROMPT_HOME` 可改）�
 
 ## 内置模板
 
-| id | 用途 |
-| --- | --- |
-| `portrait-guofeng-3d` | 3D 写实国风美女 |
-| `portrait-photoreal` | 写实人像摄影 |
-| `character-game-cg` | 游戏角色 CG / 三视图 |
-| `product-commercial` | 产品商业广告 |
-| `scene-cinematic` | 电影感场景 / 氛围图 |
-| `illustration-anime` | 二次元插画 / 日系厚涂 |
-| `poster-visual` | 海报 / 主视觉 |
+27 条，按题材分族：**国风 5**（3D 国风 / 唐 / 宋 / 旗袍 / 仙侠）、**写实写真 12**（摄影 / 现代去网红脸 / 街拍 / 日系胶片 / 韩系 Y2K / 婚纱 / 3D 瓷感 / 时尚大片 / 美妆特写 / 商业头像 / 赛博霓虹 / 复古胶片）、**角色 3D 3**（游戏 CG / 写实三视图 / 赛博潮玩 IP）、**插画 4**（厚涂 / 头像 / 治愈系 / niji）、**产品 / 场景 / 海报 3**。
+
+挑模板看 [references/templates/index.md](references/templates/index.md)（按题材一张表），或直接 `prompt-lib.mjs list`。每条都有中文示例 + 英文版示例 + 负面 + 调参备注 + 来源。
