@@ -1,6 +1,6 @@
 # 内置模板目录
 
-27 条。按题材挑；命中后看该模板的「骨架 / 词库 / 完整示例 / 英文版示例 / 负面 / 调参备注 / 来源」。
+28 条。按题材挑；命中后看该模板的「骨架 / 词库 / 完整示例 / 英文版示例 / 负面 / 调参备注 / 来源」。
 
 脚本列表：`node <skill>/scripts/prompt-lib.mjs list`（本文件不参与校验，不计入条目）。
 
@@ -31,13 +31,14 @@
 | `portrait-neon-cyber-night` | 赛博霓虹夜拍 | 双色光源 + 湿地面反射 |
 | `portrait-retro-film-35mm` | 复古胶片 35mm | 光晕 + 颗粒 + 抓拍构图 |
 
-## 角色 / 3D（3）
+## 角色 / 3D（4）
 
 | id | 用途 | 一句话 |
 | --- | --- | --- |
 | `character-game-cg` | 游戏角色 CG | 设定图语汇，三视图与纯色背景 |
 | `character-turnaround-real` | 写实三视图设定 | 建模用：画质封顶 + 精准定参 + 一致性硬约束 |
 | `character-cyber-toy-ip` | 赛博机能潮玩 IP | 品牌名 + 色值 + 材质 + 机能件 |
+| `character-deepseek-whale-girl` | DeepSeek 鲸鱼娘表情包 | 六条不可变特征 + Q 版贴纸式，白底留台词位 |
 
 ## 插画 / 二次元（4）
 
