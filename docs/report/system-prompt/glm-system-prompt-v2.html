@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GLM 系统提示词工程方案 v2（证据门槛：2026-09-01 之后）</title>
+<meta name="description" content="ZCode 开源契约（2026-10-10）三段 system + meta_user 裁决；官方模板把 reasoning_effort 写进 system 首行；前缀 ≥500 Token">
+<style>
+:root{--h:268;
+  --bg:hsl(var(--h),26%,97%);--surface:#fff;--surface-2:hsl(var(--h),26%,95%);
+  --ink:hsl(var(--h),32%,15%);--muted:hsl(var(--h),19%,36%);--faint:hsl(var(--h),16%,40%);
+  --line:hsl(var(--h),20%,88%);--line-2:hsl(var(--h),22%,82%);
+  --accent:hsl(var(--h),68%,42%);--accent-ink:hsl(var(--h),60%,26%);--accent-weak:hsl(var(--h),64%,95%);
+  --code-bg:hsl(var(--h),32%,12%);--code-fg:hsl(var(--h),14%,90%);--code-key:hsl(calc(var(--h) + 40),60%,72%);
+  --ok:hsl(150,54%,30%);--ok-bg:hsl(150,50%,94%);
+  --warn:hsl(38,84%,30%);--warn-bg:hsl(42,86%,93%);
+  --bad:hsl(2,62%,38%);--bad-bg:hsl(4,72%,96%);
+  --info:hsl(206,66%,32%);--info-bg:hsl(206,66%,95%);
+  --r:14px;--maxw:74ch;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"Cascadia Mono",Consolas,"Liberation Mono",monospace;}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:16.5px;line-height:1.78;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+a{color:var(--accent-ink);text-decoration-thickness:1px;text-underline-offset:2px;overflow-wrap:anywhere}
+a.ext{font-family:var(--mono);font-size:.85em;word-break:break-all}
+a:hover{color:var(--accent)}
+:focus-visible{outline:3px solid hsl(var(--h),72%,52%);outline-offset:2px;border-radius:4px}
+.progress{position:fixed;inset:0 auto auto 0;height:3px;width:0;background:var(--accent);z-index:60;transition:width .08s linear}
+header.top{position:sticky;top:0;z-index:50;background:hsl(var(--h),30%,13%);color:hsl(var(--h),16%,88%);
+  border-bottom:1px solid hsl(var(--h),30%,22%)}
+.top .in{max-width:1320px;margin:0 auto;padding:.75rem 1.25rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
+.brand{font-weight:700;letter-spacing:-.01em;font-size:.95rem;color:#fff;text-decoration:none;white-space:nowrap}
+.brand em{font-style:normal;color:hsl(calc(var(--h) + 38),70%,70%)}
+nav.pills{display:flex;gap:.4rem;flex-wrap:wrap;flex:1 1 22rem}
+.pill{display:inline-flex;align-items:center;gap:.4rem;font-size:.82rem;line-height:1;padding:.5rem .72rem;border-radius:999px;
+  color:hsl(var(--h),14%,84%);text-decoration:none;background:hsl(var(--h),26%,20%);border:1px solid hsl(var(--h),26%,26%)}
+.pill:hover{background:hsl(var(--h),28%,26%);color:#fff}
+.pill.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--d,#fff);box-shadow:0 0 0 2px hsl(var(--h),30%,13%)}
+.shell{max-width:1320px;margin:0 auto;padding:0 1.25rem;display:grid;grid-template-columns:minmax(0,1fr) 15.5rem;gap:2.5rem}
+main{min-width:0;padding:2.5rem 0 5rem}
+article.doc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:clamp(1.4rem,4vw,3rem);box-shadow:0 4px 24px hsla(var(--h),30%,20%,.06)}
+h1{font-size:clamp(1.75rem,3.4vw,2.4rem);line-height:1.16;letter-spacing:-.025em;margin:0 0 1.4rem;padding-bottom:1rem;
+  border-bottom:2px solid var(--accent)}
+h1+h2,h1+p+h2{margin-top:1.6rem}
+h2{font-size:1.42rem;line-height:1.22;letter-spacing:-.02em;margin:3rem 0 .9rem;padding-left:.7rem;border-left:3px solid var(--accent)}
+h3{font-size:1.12rem;line-height:1.3;letter-spacing:-.015em;margin:2.1rem 0 .6rem;color:var(--accent-ink)}
+h4{font-size:1rem;margin:1.6rem 0 .4rem;color:var(--muted)}
+p{margin:.85rem 0;max-width:var(--maxw)}
+li{max-width:var(--maxw)}
+ul,ol{padding-left:1.35rem}
+li>ul,li>ol{margin:.35rem 0}
+hr{border:0;border-top:1px solid var(--line-2);margin:2.6rem 0}
+strong{color:var(--ink)}
+code{font-family:var(--mono);font-size:.88em;background:var(--surface-2);border:1px solid var(--line);
+  border-radius:5px;padding:.1em .38em;color:hsl(var(--h),40%,26%);overflow-wrap:anywhere}
+pre{margin:0;padding:1.05rem 1.15rem;overflow-x:auto;background:var(--code-bg);color:var(--code-fg);
+  font-family:var(--mono);font-size:.845rem;line-height:1.62;border-radius:0 0 calc(var(--r) - 4px) calc(var(--r) - 4px)}
+pre code{background:none;border:0;color:inherit;padding:0;font-size:1em}
+figure.code{margin:1.3rem 0;border:1px solid var(--line);border-radius:calc(var(--r) - 4px);overflow:hidden;background:var(--surface)}
+figure.code figcaption{display:flex;justify-content:space-between;align-items:center;gap:1rem;
+  padding:.42rem .8rem;background:var(--surface-2);border-bottom:1px solid var(--line)}
+figure.code .lang{font:600 .7rem/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.copy{font:600 .76rem/1 var(--sans);padding:.34rem .62rem;border-radius:7px;border:1px solid var(--line-2);
+  background:var(--surface);color:var(--accent-ink);cursor:pointer;min-height:30px}
+.copy:hover{background:var(--accent-weak);border-color:var(--accent)}
+.table-wrap{overflow-x:auto;margin:1.35rem 0;border:1px solid var(--line);border-radius:calc(var(--r) - 4px);max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:.915rem;line-height:1.6;min-width:34rem}
+caption{text-align:left;font-weight:700;padding:.7rem .85rem;background:var(--surface-2);border-bottom:1px solid var(--line)}
+th,td{padding:.62rem .8rem;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+thead th{background:hsl(var(--h),32%,19%);color:hsl(var(--h),16%,92%);font-weight:600;font-size:.85rem;letter-spacing:.01em;white-space:nowrap}
+tbody tr:nth-child(even){background:var(--surface-2)}
+td.k{font-weight:650;color:var(--accent-ink);white-space:nowrap}
+blockquote{margin:1.2rem 0;padding:.15rem 1.1rem;border-left:3px solid hsl(var(--h),52%,68%);background:var(--accent-weak);
+  border-radius:0 10px 10px 0;color:hsl(var(--h),28%,22%);max-width:calc(var(--maxw) + 2rem)}
+blockquote p{margin:.6rem 0}
+blockquote code{background:hsl(var(--h),40%,90%)}
+.g{display:inline-block;font:700 .7rem/1.5 var(--mono);min-width:1.35em;padding:0 .32em;border-radius:5px;
+  text-align:center;vertical-align:.12em}
+.g-A{background:var(--ok-bg);color:var(--ok);border:1px solid hsl(150,40%,74%)}
+.g-B{background:var(--info-bg);color:var(--info);border:1px solid hsl(206,50%,76%)}
+.g-C{background:var(--warn-bg);color:var(--warn);border:1px solid hsl(40,60%,72%)}
+.g-D{background:var(--bad-bg);color:var(--bad);border:1px solid hsl(2,55%,80%)}
+.gnote{font-size:.78em;color:var(--muted);margin-left:.3em}
+.fk{font-family:var(--mono);font-size:.86em;background:hsl(42,88%,92%);color:hsl(30,80%,26%);
+  border:1px dashed hsl(36,70%,58%);border-radius:5px;padding:.08em .3em}
+.lede,.hero{margin:0 0 2rem}
+.lede p{font-size:1.02rem;color:var(--muted);border-top:1px solid var(--line);padding-top:.9rem;max-width:none}
+.hero{display:grid;gap:1.8rem;padding:1.6rem 0 .4rem;border-top:1px solid var(--line)}
+.hero h2{font-size:clamp(1.3rem,2.6vw,1.85rem);margin:0 0 .5rem;border:0;padding:0;max-width:22ch}
+.hero-lead>p{max-width:46ch;color:var(--muted);margin:0}
+.metrics{list-style:none;display:flex;flex-wrap:wrap;gap:.9rem;margin:1.3rem 0 .3rem;padding:0}
+.metrics li{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:.55rem .85rem;display:flex;align-items:baseline;gap:.4rem}
+.metrics b{font-size:1.2rem;letter-spacing:-.02em;color:var(--accent-ink)}
+.metrics span{font-size:.78rem;color:var(--faint)}
+.note{font-size:.78rem;color:var(--faint)}
+.hero-grid{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr))}
+.vcard{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:.95rem 1rem;
+  text-decoration:none;color:var(--ink);position:relative;overflow:hidden}
+.vcard::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:hsl(var(--h),64%,48%)}
+.vcard b{display:block;font-size:1.02rem;letter-spacing:-.01em;margin-bottom:.3rem;color:hsl(var(--h),50%,34%)}
+.vcard span{font-size:.84rem;line-height:1.55;color:var(--muted)}
+.vcard:hover{border-color:hsl(var(--h),40%,70%);transform:translateY(-2px);transition:transform .25s cubic-bezier(.16,1,.3,1)}
+.legend{display:flex;flex-wrap:wrap;gap:.5rem .9rem;align-items:center;font-size:.8rem;color:var(--faint);
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:.6rem .85rem;margin-bottom:1.6rem}
+aside.toc{position:sticky;top:4.6rem;align-self:start;max-height:calc(100vh - 6rem);overflow-y:auto;padding:2.5rem 0 3rem;font-size:.85rem}
+aside.toc h2{font:700 .76rem/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:0 0 .7rem;border:0;padding:0}
+aside.toc ul{list-style:none;margin:0;padding:0;border-left:1px solid var(--line-2)}
+aside.toc li{margin:0}
+aside.toc a{display:block;padding:.28rem .7rem;color:var(--muted);text-decoration:none;border-left:2px solid transparent;margin-left:-1px;line-height:1.4}
+aside.toc a:hover{color:var(--accent-ink)}
+aside.toc a.t3{padding-left:1.4rem;font-size:.8rem}
+aside.toc a.act{color:var(--accent-ink);border-left-color:var(--accent);font-weight:600;background:var(--accent-weak);border-radius:0 6px 6px 0}
+footer.page{max-width:1320px;margin:0 auto;padding:0 1.25rem 3rem}
+.pager{display:grid;gap:.8rem;grid-template-columns:1fr 1fr}
+.pager a{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:.8rem .95rem;text-decoration:none}
+.pager a:hover{border-color:var(--accent)}
+.pager small{display:block;font-size:.75rem;color:var(--faint);letter-spacing:.05em;text-transform:uppercase}
+.pager b{font-size:.98rem;color:var(--accent-ink)}
+.pager .n{text-align:right}
+.colophon{font-size:.8rem;color:var(--faint);margin-top:1.1rem;line-height:1.7}
+button.tocbtn{display:none}
+@media (max-width:1080px){.shell{grid-template-columns:minmax(0,1fr)}aside.toc{position:static;max-height:none;padding:0 0 1rem}
+  aside.toc ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));border-left:0}
+  aside.toc a.t3{padding-left:.7rem}}
+@media (max-width:640px){body{font-size:16px}main{padding:1.4rem 0 3rem}.shell{gap:1.2rem;padding:0 .9rem}
+  h2{font-size:1.25rem;margin-top:2.3rem}table{font-size:.86rem;min-width:28rem}
+  .pill{font-size:.78rem;padding:.45rem .62rem}.pager{grid-template-columns:1fr}.pager .n{text-align:left}
+  button.tocbtn{display:inline-flex;align-items:center;gap:.4rem;font:600 .82rem/1 var(--sans);padding:.55rem .8rem;
+    border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--accent-ink);cursor:pointer;min-height:44px}
+  aside.toc[data-open="false"] ul{display:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media print{header.top,aside.toc,.progress,.copy,.pager{display:none!important}body{background:#fff}
+  article.doc{border:0;box-shadow:none;padding:0}a{color:var(--ink);text-decoration:none}
+  .table-wrap{overflow:visible;border:0}pre{white-space:pre-wrap;background:#f4f4f5;color:#1c1c1e}}
+</style>
+</head>
+<body>
+<div class="progress" id="prog" aria-hidden="true"></div>
+<header class="top"><div class="in">
+  <a class="brand" href="index-system-prompt-v2.html">系统提示词工程 v2 · 证据门槛 2026-09 <em>2026-10-20</em></a>
+  <nav class="pills" aria-label="方案导航"><a class="pill" href="index-system-prompt-v2.html"><span class="dot" style="--d:hsl(214,62%,46%)"></span>v2 索引</a><a class="pill" href="universal-system-prompt-v2.html"><span class="dot" style="--d:hsl(196,62%,46%)"></span>通用底座</a><a class="pill" href="deepseek-system-prompt-v2.html"><span class="dot" style="--d:hsl(222,62%,46%)"></span>DeepSeek</a><a class="pill on" href="glm-system-prompt-v2.html"><span class="dot" style="--d:hsl(268,62%,46%)"></span>GLM</a><a class="pill" href="minimax-system-prompt-v2.html"><span class="dot" style="--d:hsl(14,62%,46%)"></span>MiniMax</a><a class="pill" href="kimi-system-prompt-v2.html"><span class="dot" style="--d:hsl(168,62%,46%)"></span>Kimi</a></nav>
+  <button class="tocbtn" type="button" id="tocbtn" aria-expanded="false" aria-controls="toc">目录</button>
+</div></header>
+<div class="shell">
+<main id="main">
+  <div class="legend" aria-label="证据等级图例">
+    <span>证据等级：</span>
+    <span class="g g-A">A</span>官方一手
+    <span class="g g-B">B</span>权威二手 / 平台文档
+    <span class="g g-C">C</span>社区实测
+    <span class="g g-D">D</span>未证实，不作依据
+    <span class="fk">〈…〉</span>全角标记＝排版保护，用时须换成半角
+  </div>
+  <section class="lede"><p>ZCode 开源契约（2026-10-10）三段 system + meta_user 裁决；官方模板把 reasoning_effort 写进 system 首行；前缀 ≥500 Token</p></section>
+  <article class="doc"><h1 id="s000-1">GLM 系统提示词工程方案 v2（证据门槛：2026-09-01 之后）</h1>
+<blockquote><p><strong>只讲系统提示词（system prompt）工程</strong>：system 的协议位置、真实构成、分块契约、动态注入、缓存纪律、人设块写法。不含日常提问技巧与用户侧 prompt 公式。 <strong>门槛声明</strong>：本版只把 <strong>2026-09-01 之后发布或更新的官方文档、官方代码资产</strong>当作「现行规则」。早于门槛的材料一律进 §11 并显式标日期。 定稿 2026-10-20。真源：<code>.temp/research/sysprompt-2026-10/glm.md</code>（38.9 KB / 6006 中文字，18 次检索、25+ 页正文；原文快照在同目录 <code>raw/</code>）。 <strong>排版约定</strong>：本文所有尖括号用全角〈〉书写（防模板字面量被工具层吞掉），实际写进代码/提示词时必须换回 ASCII 半角。 等级：<span class="g g-A" title="证据等级 A">A</span> = 智谱官方一手（文档 / 官方代码资产）｜<span class="g g-B" title="证据等级 B">B</span> = 官方对端与权威实现（vLLM/DashScope/AWS）｜<span class="g g-C" title="证据等级 C">C</span> = 社区可复现｜<span class="g g-D" title="证据等级 D">D</span> = 农场（<strong>禁止引用其任何数字</strong>）。</p></blockquote>
+<hr>
+<h2 id="s013-1">0. 一句话结论：门槛内的新增知识几乎全在 agent 侧，不在提示词教程侧</h2>
+<p><code>guide/platform/prompt</code>（更新 2026-10-19）里关于 System Prompt 的那段定义文字<strong>与三年前一致、没有跟进 GLM-5.3</strong>。真正新增的 system 面机制藏在三处：</p>
+<ol><li><strong>GLM-5.3 官方 chat_template</strong>（ModelScope，10614 <span class="g g-B" title="证据等级 B">B</span>）——把 <code>reasoning_effort</code> 与 <code>tools</code> 物理写进 system 块；</li><li><strong><code>zai-org/ZCode</code> 开源契约</strong>（提交 2026-10-10T10:57:01Z）——<code>system-prompt-contract.md</code> + <code>meta-user-context.md</code>，官方 agent 的 system 分层与缓存裁决；</li><li><strong><code>capabilities/cache</code></strong>（中英双页）——站内唯一的 system 长度硬数字（500 Token）。</li></ol>
+<blockquote><p>⚠️ <strong>这条推翻上一版手册</strong>：v1 里我写「智谱官方没有发布可照抄的编码 agent 系统提示词全文，官方只提供框架接入 + MCP」。<strong>该结论自 2026-10-10 起失效</strong>——ZCode 已开源，官方 system 分层契约与源码可直接读、可核对提交日期（§3）。</p></blockquote>
+<hr>
+<h2 id="s030-1">1. 协议层：system 的合法位置与硬约束</h2>
+<div class="table-wrap"><table><thead><tr><th scope="col">条款</th><th scope="col">官方原文/事实</th><th scope="col">出处与日期</th><th scope="col">级</th></tr></thead><tbody><tr><td class="k"><strong>唯一硬约束</strong></td><td>「消息按时间顺序排列，支持四种角色：<code>system</code>（系统消息，用于设定 AI 的行为和角色）、<code>user</code>、<code>assistant</code>、<code>tool</code>……<strong>注意不能只包含系统消息或助手消息。</strong>」</td><td><code>api-reference/模型-api/对话补全</code>，2026-10-14</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">角色枚举</td><td><code>system | user | assistant | tool</code>，<code>default: system</code>；<strong><code>tool</code> 角色只对文本对话模型开放</strong>（视觉/音频分支同样写"不能只包含系统或助手消息"）</td><td>同上，2026-10-14</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">system 条数 / 位置</td><td><strong>站内没有任何条款</strong>要求 system 必须位于 <code>messages[0]</code>，也没有禁止多条 system。检索词 <code>system 多条</code>、<code>messages[0]</code>、<code>系统消息 位置</code>、<code>插入 system</code> 全部无命中；<code>cn/faq/api-issues</code> 通篇不讲 system</td><td>负结果，§12</td><td><span class="g g-A" title="证据等级 A">A</span><span class="gnote">缺证声明</span></td></tr><tr><td class="k">中途插入</td><td>文档层无表述；门槛内的实际答案来自<strong>官方代码资产</strong>：ZCode 契约把 <code>system[0]/system[1]/system[2]</code> 三段并列，并在 <code># Harness</code> 原样写入「系统可通过 mid-conversation system turns 发送更新、提醒或规则修改」</td><td>ZCode 契约，2026-10-10</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr></tbody></table></div>
+<h3 id="s041-1">1.1 换协议 = 换 system 承载方式（S13 总表）</h3>
+<p>这是 GLM 上最容易踩空的一层，四个协议各不相同：</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">协议</th><th scope="col">system 承载</th><th scope="col">注意</th></tr></thead><tbody><tr><td class="k">Chat Completions</td><td>可多条、可原位</td><td>模板侧支持任意位置/任意条数，约束只发生在协议序列化边界</td></tr><tr><td class="k">Anthropic 兼容</td><td>可多块，且带 <strong>cache 断点</strong></td><td>契约提到 "the existing conversation-tail cache marker within the provider's four-breakpoint limit"</td></tr><tr><td class="k"><strong>旧式 OpenAI 兼容模板</strong></td><td><strong>只接受一个开头 system</strong></td><td>必须<strong>按原序、空分隔符合并</strong>，不得补写空白（<code>system-message-compat.ts</code> 注释，A）</td></tr><tr><td class="k">Responses 兼容</td><td><strong>没有 system 消息位</strong></td><td>用顶层 <code>instructions</code> 承载（参数表逐字：「instructions | string | - | 系统指令」）</td></tr></tbody></table></div>
+<blockquote><p>契约正文逐字（<span class="g g-A" title="证据等级 A">A</span>，2026-10-10）："OpenAI-compatible adapters therefore concatenate contiguous leading system blocks with an empty separator and never add or infer whitespace. Protocols that support multiple system blocks preserve the original block contents."</p></blockquote>
+<p><strong>落地规则</strong>：同一份人设在 Anthropic 兼容下可以是三段，在旧式 OpenAI 兼容网关下会被合并成一段——<strong>合并不能插入任何分隔空白</strong>，否则跨协议行为不等价。DSH/opencode 这类框架的 <code>compat</code> 配置里「system 放哪个角色」不是可有可无的开关。</p>
+<hr>
+<h2 id="s064-1">2. GLM 的独特事实：你的 system 前缀不止是你写的那段</h2>
+<p><strong>GLM-5.3 官方 chat_template 会把两样东西物理塞进 system</strong>（<span class="g g-A" title="证据等级 A">A</span>，ModelScope <code>ZhipuAI/GLM-5.3/…/chat_template.jinja</code> 第 2–3 行逐字）：</p>
+<figure class="code"><figcaption><span class="lang">jinja</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></figcaption><pre><code>{gMASK}{sop} 之后第一句：
+{%- if effective_reasoning_effort is not none -%}〈|system|〉Reasoning Effort: 〈〈 effective_reasoning_effort | capitalize 〉〉</code></pre></figure>
+<ul><li>effort 解析式：<code>reasoning_effort if reasoning_effort is defined and reasoning_effort in ['low','high'] else 'max'</code> → <strong>不传或传非法值一律回退 max</strong>。</li><li><code>tools</code> 被序列化成<strong>第二个 system 块</strong>，逐字开头：「<span class="fk">〈|system|〉</span># Tools / You may call one or more functions to assist with the user query. / You are provided with function signatures within <span class="fk">〈tools〉</span><span class="fk">〈/tools〉</span> XML tags:」，随后逐个 JSON，调用格式为<span class="fk">〈tool_call〉</span>{function-name}<span class="fk">〈arg_key〉</span>…<span class="fk">〈/arg_key〉</span><span class="fk">〈arg_value〉</span>…。</li></ul>
+<p><strong>因此 GLM 的 system 前缀 = ① effort 行 + ② tools 块 + ③ 你写的 system。三者任一变动，前缀缓存整段失效。</strong></p>
+<ul><li>「改 <code>reasoning_effort</code> 就等于改 system 首块」——<strong>system 的第一个字符已经不属于你了</strong>。这与 Kimi「会话开始就定 effort 档」是同一条物理约束的两种表述。</li><li>「增删工具会破 system 前缀缓存」也由此得到解释。</li><li>官方对这个问题的<strong>原生机制答案是 <code>defer_loading</code></strong>：带该标记的工具<strong>不进 system 的 tools 块</strong>，改由<span class="fk">〈tool_response〉</span><span class="fk">〈tools〉</span>…按需回灌（<span class="g g-A" title="证据等级 A">A</span>，模板分支）。这就是 GLM 版的「渐进披露」。</li></ul>
+<h3 id="s088-1">2.1 代际差异表（官方模板实测，A）</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">代际</th><th scope="col">system 里的 effort 行</th><th scope="col">档位</th><th scope="col">门控</th><th scope="col"><code>clear_thinking</code> 默认</th></tr></thead><tbody><tr><td class="k">GLM-4.7-Flash / GLM-5</td><td><strong>无</strong></td><td>无</td><td>用 <code>enable_thinking</code></td><td>未定义按 falsy（丢弃末轮之前推理）</td></tr><tr><td class="k">GLM-5.2</td><td>有</td><td>仅 high / max</td><td><code>(enable_thinking is not defined or enable_thinking)</code> 才注入</td><td>同上</td></tr><tr><td class="k"><strong>GLM-5.3 / 5.3-Flash</strong></td><td>有</td><td>low / high / max</td><td><strong>无条件注入</strong>（强制思考，不可关）</td><td>模板显式 <code>else false</code> → <strong>保留式思考默认开</strong></td></tr></tbody></table></div>
+<p>GLM-5.3-Flash 官方模型页推荐参数逐字：「<code>thinking.type</code> 仅支持 <code>enabled</code>，建议设置 <code>thinking.clear_thinking: false</code>。流式调用建议同时开启 <code>stream: true</code> 和 <code>tool_stream: true</code>。」</p>
+<hr>
+<h2 id="s104-1">3. 最高价值：ZCode 官方 system 分层契约（可直接照抄的工程规范）</h2>
+<p><a href="https://github.com/zai-org/ZCode" class="ext" target="_blank" rel="noopener"><code>github.com/zai-org/ZCode</code></a> → <code>apps/zcode-cli/docs/design/v2/loop/system-prompt-contract.md</code> 与 <code>meta-user-context.md</code>，<strong>提交 2026-10-10T10:57:01Z</strong>；仓库 2026-10-20 仍在更新（tree 19362 路径，含 system-message 兼容性适配器与三份 wire 测试）。A 级。</p>
+<h3 id="s110-1">3.1 三个 system 块 + 一个 meta_user</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">块</th><th scope="col">内容</th><th scope="col">官方原文（逐字）</th></tr></thead><tbody><tr><td class="k"><code>system[0]</code> CLI prefix（唯一一句）</td><td>身份</td><td><code>You are ZCode, an interactive coding agent</code></td></tr><tr><td class="k"><code>system[1]</code> static body</td><td>主行为体</td><td>无 output style 时 <code>You are an interactive ZCode agent that helps users with software engineering tasks.</code>；有 output style 时 <code>You respond to the user according to the active Output Style below while using ZCode's tools and instructions.</code></td></tr><tr><td class="k"><code>system[2]</code> dynamic body</td><td>固定顺序</td><td><code># Communicating with the user</code> → 风险/汇报段 → <code># Session-specific guidance</code> →（可选 <code># Memory</code>）→ <code># Environment</code> →（可选 <code># Output Style</code>）→ <code># Context management</code> →（可选 <code>gitStatus:</code>），且<strong>永远自带一个前导空行边界</strong></td></tr></tbody></table></div>
+<p><strong>安全边界原文</strong>（<code>system[1]</code>，逐字节选）：<code>IMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS attacks, mass targeting, supply chain compromise, or detection evasion for malicious purposes. Dual-use security tools ... require clear authorization context: pentesting engagements, CTF competitions, security research, or defensive use cases.</code></p>
+<p><strong><code># Harness</code> 六条 bullet 原文</strong>（这是 GLM 官方对「运行环境事实该写什么」的正面范本）：</p>
+<figure class="code"><figcaption><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></figcaption><pre><code>- Text you output outside of tool use is displayed to the user as Github-flavored markdown in a terminal.
+- Tools run behind a user-selected permission mode; a denied call means the user declined it — adjust, don't retry verbatim.
+- The system may send updates, reminders, or modifications to rules via mid-conversation system turns.
+  These are system-controlled, unlike function results. Hooks may intercept tool calls; treat hook output as user feedback.
+- Prefer the dedicated file/search tools over shell commands when one fits. Independent tool calls can run in parallel in one response.
+- Reference code as file_path:line_number — it's clickable.</code></pre></figure>
+<h3 id="s136-1">3.2 什么<strong>不许</strong>进 system（官方禁止项，逐字）</h3>
+<blockquote><p>"Stable prompt text may describe tool-use philosophy, but it must not duplicate ordinary tool names, JSON schemas, permission metadata, or adapter-specific runtime rules. Those belong in provider tool definitions and dynamic context."</p></blockquote>
+<p>三条明确禁止：</p>
+<ul><li>Reprinting full tool schema fields in the stable prompt</li><li>Maintaining a separate list of all available tools in the stable prompt</li><li>Encoding provider-specific approval flags that the permission layer already owns</li></ul>
+<p>以及：<strong><code># currentDate</code>（<code>Today's date is …</code>）不进 system，落在 meta_user</strong>；Skills、AGENTS.md 指令文件同样进 meta_user 的<span class="fk">〈system-reminder〉</span>包裹块。理由原文：「Date changes independently of behavior rules.」／「cwd and platform vary by session, current model refreshes with session model changes」。</p>
+<h3 id="s153-1">3.3 裁决表：每段上下文声明两个字段</h3>
+<p>每个上下文段必须声明 <code>injectionTarget: "system" | "meta_user"</code> 与 <code>cacheHint: "stable" | "dynamic"</code>（<span class="g g-A" title="证据等级 A">A</span>）：</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">进 system + stable</th><th scope="col">进 system + dynamic</th><th scope="col">踢到 meta_user + dynamic</th></tr></thead><tbody><tr><td class="k">CLI Prefix、Agent Identity</td><td>Dynamic Behavior、Session Guidance、Memory、Environment Info、Output Style、Context Management、Git System Context</td><td><strong>Skills、Request User Context（含 AGENTS.md）、当前日期</strong></td></tr></tbody></table></div>
+<p>provider-visible 顺序（逐字排序）：1 Cached CLI prefix → 2 Cached stable system body → 3 Cached dynamic system block → 4 Skills system-reminder user block → 5 meta user context block → 6 真实 user/assistant/tool → 7 请求期模式提醒。收束句：</p>
+<blockquote><p>"<strong>This ordering keeps the cache-sensitive system prefix stable while keeping volatile context close to the user turn.</strong>"</p></blockquote>
+<p>设计目标原文：「ZCode context is split by injection target so <strong>stable behavior instructions can stay cache-friendly while volatile workspace context stays below them</strong>」；Goals 还包括「Avoid reading host time, files, git, or process state from core.」</p>
+<p>缓存标记策略（逐字）：「Main's CLI prefix carries no cache marker; the static and dynamic bodies retain their existing ephemeral markers, with no change to scope or TTL.」</p>
+<p>一条体积防线值得抄：「<code>git status --short --untracked-files=all</code> must be capped to <strong>20 entries</strong> before it enters <code>EnvInfo.gitStatusLines</code>; large decompiled or generated workspaces can otherwise make the initial provider request <strong>exceed the context window before the first user message is considered</strong>.」</p>
+<blockquote><p><strong>与社区流行写法方向相反</strong>：社区习惯「把日期、技能清单、仓库指令文件全塞进 system」。智谱官方的解法是「<strong>稳定段进 system、易变段进 meta_user、工具按需 defer_loading</strong>」。本手册以官方为准绳。</p></blockquote>
+<h3 id="s182-1">3.4 另两条官方工程口径（P6，逐字要点）</h3>
+<ul><li>「Make <strong>"read before deciding" the default behavior</strong> for repository tasks」；"a denied tool call means the user declined it; the agent adjusts rather than retrying the same call unchanged"。</li><li><strong>「Keep stable prompt copy English-only so prompt behavior is consistent across locales」</strong>——官方把<strong>稳定 system 文本锁成英文</strong>以求跨语言一致。这是门槛内的新知识点：<strong>人设正文用英文写、把输出语言交给单独一条规则</strong>，比整段中英混排更稳。</li><li>「The agent reports outcomes faithfully: failed tests, skipped checks, and verified completion are stated plainly」；「treat memory as optional context rather than truth」。</li><li>环境段边界：「Environment guidance must not include git branch/status/commit details; those belong to the optional <code>gitStatus:</code> system context snapshot」。</li><li>⚠️ <strong>官方自认的一处妥协</strong>：Explore 子代理 "runs in <code>yolo</code> mode … <strong>Read-only behavior is therefore enforced by the system prompt's CRITICAL section rather than by the permission layer</strong>"，并自评「<strong>weakens the previous physical isolation</strong>」。<strong>官方明确承认：拿 system 提示当权限层的替代品是有代价的</strong>——写手册时不能把「system 里写只读」当成安全边界。</li></ul>
+<hr>
+<h2 id="s195-1">4. 缓存纪律（站内唯一硬数字）</h2>
+<div class="table-wrap"><table><thead><tr><th scope="col">条</th><th scope="col">官方原文（逐字）</th><th scope="col">出处</th><th scope="col">级</th></tr></thead><tbody><tr><td class="k"><strong>最小命中长度</strong></td><td>「要触发上下文缓存，重复的前缀内容必须足够长（<strong>建议 500 Token 以上</strong>），<strong>两三句话的短系统提示词通常无法命中</strong>。」</td><td><code>capabilities/cache</code>（中）</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">分区放置</td><td>「<strong>把稳定不变的说明、规范与知识库放在系统提示词前部，把多变的问题放在用户消息中</strong>，这样可以最大化上下文缓存的命中率。」</td><td>同页</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">生效延迟</td><td>「重复的长前缀会被自动缓存……<strong>缓存为异步生效，首次请求后稍等片刻再发起后续请求效果更好</strong>」（解释了示例里首请求 <code>cached_tokens=0</code>）</td><td>同页</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">英文页四条纪律</td><td>"Use stable system prompt templates" / "Process long documents as system messages" / "Avoid overly frequent content changes" / "Design system prompts reasonably to improve reuse rates"</td><td><a href="https://docs.z.ai/guides/capabilities/cache" class="ext" target="_blank" rel="noopener"><code>docs.z.ai/guides/capabilities/cache</code></a></td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">整篇文档塞 system 的官方范式</td><td><code>{"role": "system", "content": f"Please answer user questions based on the following document content:\n\n{document_content}"}</code>，注释「Multiple calls with the same document, system prompts will be cached」</td><td>英文页</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">命中口径与价</td><td>命中看 <code>usage.prompt_tokens_details.cached_tokens</code>；命中价「通常为标准价格的 50%」</td><td>中英两页</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">显式断点（<strong>站内无此 API</strong>）</td><td>AWS 侧：隐式缓存默认启用；显式经 <code>prompt_cache_options</code> + <code>prompt_cache_breakpoint</code>，<strong>每个断点至少 1024 Token</strong></td><td>B，2026-10-06</td><td><span class="g g-B" title="证据等级 B">B</span></td></tr></tbody></table></div>
+<blockquote><p>注意 <strong>500 Token 是建议值、不是接口保证</strong>；中文缓存页未给 TTL、失效规则、显式标记 API（出现次数 0）。GLM-5.3/5.2 在智谱定价侧另有 Cache Write / Cache Read 两个独立价（<span class="g g-B" title="证据等级 B">B</span>，2026-10-15：写 ¥9.5/M、读 ¥1.9/M、输入 ¥7.6/M，读约为输入的 25%）。 <strong>与 §2 合起来的推论</strong>：既然 effort 行与 tools 块也在 system 前缀里，一个「只有两三句话人设」的 agent 实际上靠前缀里的 tools 块才够 500 Token——<strong>缩短人设不一定打不到缓存，但增删工具一定打不到</strong>。</p></blockquote>
+<hr>
+<h2 id="s216-1">5. 人设块（persona）的官方口径：门槛内已改成「只写职责」</h2>
+<p><strong>P2 新页 <code>best-practice/prompt-engineering-general</code>（门槛内在架，A，逐字）</strong>：</p>
+<ul><li>「当任务需要特定的专业视角、受众意识或工作职责时，可以用简洁的描述说明模型应该承担什么角色、根据什么标准工作。」</li><li>「<strong>角色设定应服务于任务，不必堆叠"世界顶级专家"等夸张身份。角色不能代替具体任务说明、原始证据和验证标准。也不要让模型声称自己具有与实际运行环境不符的身份、权限或专业资格。</strong>」</li><li>迁移检查表第 3 条：「<strong>重写身份与角色</strong>：删除其他模型身份设定。角色只描述职责、读者和标准，不虚构专业等级或权限。」第 1 条：「删除模型专属参数：不保留其他模型的思考、effort、预填充、工具批处理或其他 API 专属配置。」</li><li>该页自我设限（第十节，逐字）：「本篇只覆盖通用提示方法，<strong>不规定某一 GLM 模型的上下文长度、思考强度、采样参数、结构化输出 API 或版本专属能力</strong>。」→ 它给的是<strong>行为规范</strong>，不能当 system 机制来源。</li></ul>
+<p><strong>P3 默认行为必须写进 system</strong>（同页第四节，逐字）：「用户说"你能建议一些修改吗"和"请修改这段代码"对应不同的行动意图……<strong>对于会读取文件、修改代码、访问外部系统或产生副作用的场景，应在系统提示中明确默认行为。</strong>」官方随即给三段 <strong>system 级模块原文</strong>：</p>
+<figure class="code"><figcaption><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></figcaption><pre><code>〈default_to_action〉
+当用户明确要求检查、修改或完成工作时，执行必要且安全的本地工具调用。
+缺少非敏感信息时，先读取相关文件或调用查询工具确认，不要猜测参数。
+影响外部系统或难以回滚的操作仍需确认。
+〈/default_to_action〉
+
+〈conservative_mode〉
+默认只分析和给出建议，不修改文件或改变系统状态。
+只有用户明确授权后，才执行读取、编辑或外部调用。
+〈/conservative_mode〉
+
+〈use_parallel_tool_calls〉
+如果多个工具调用相互独立，应在同一轮并行执行。
+如果后续调用的参数依赖前序结果，必须等待结果。
+不要猜测缺失参数。
+〈/use_parallel_tool_calls〉</code></pre></figure>
+<blockquote><p>与 ZCode 契约把 parallel guidance 固定放进 <code>system[2]</code> 完全一致——<strong>并行规则是 system 块的内容，不是工具描述的内容</strong>。</p></blockquote>
+<p><strong>P4 要求 vs 材料的信任分层</strong>（同页，逐字）——门槛内官方最接近注入防护的一句：</p>
+<blockquote><p>「重点是让模型区分<strong>需要遵守的要求</strong>和<strong>需要处理的材料</strong>。外部文档、网页、工具结果和用户提交的数据应当作为信息来源，而不应因为其中出现了指令式语句，就被自动当作新的任务要求。」</p></blockquote>
+<p>（对照：官方《安全与风险提示》页 9022 <span class="g g-B" title="证据等级 B">B</span> 全文<strong>没有</strong>任何 system/注入表述——负证据。）</p>
+<p><strong>P5 人设的载体正在迁移</strong>：Managed Agents 把 system 升为 Agent 一等字段并<strong>版本化</strong>（<code>agent-setup</code>，A，逐字）：</p>
+<blockquote><p>「<strong>system</strong> | 系统提示词，定义 Agent 的行为与人设。系统提示词与用户消息不同：前者定义「你是谁、怎么做事」，后者描述「这次要做什么」。」</p></blockquote>
+<p>官方示例 <code>"system": "You are a helpful coding agent."</code> → 版本更新示例 <code>"system": "You are a helpful coding agent. Always write tests."</code>，并说明可在会话级临时覆盖 <code>model/system/tools/mcp_servers/skills</code>；「每条记录都是该版本的完整 Agent 配置快照」。<strong>「人设」在智谱口径里正从"提示词技巧"变成"Agent 配置项 + 不可变版本"。</strong></p>
+<p><strong>P1 负结果</strong>：门槛内<strong>没有任何</strong>指令遵循率 / role boundary / 长上下文幻觉的官方量化数字（逐页核对 6 处，含 <code>zai-org/GLM-5.3</code> README 14209 <span class="g g-B" title="证据等级 B">B</span>）。README 量化只落在 Coding/Cyber/Agentic 基准（Terminal-Bench 3.0 28.3、DeepSWE v1.1 66.9、CyberGym 84.5、Toolathlon 73.0）。<strong>手册不得写「GLM 指令遵循率 X%」。</strong></p>
+<hr>
+<h2 id="s278-1">6. 官方 system 原文样本库（可直接抄，全部 <span class="g g-A" title="证据等级 A">A</span> 级）</h2>
+<div class="table-wrap"><table><thead><tr><th scope="col">#</th><th scope="col">场景</th><th scope="col">官方原文</th><th scope="col">出处与日期</th></tr></thead><tbody><tr><td class="k">1</td><td>提取+结构化</td><td><code>{"role": "system", "content": "您擅长从文本中提取关键信息，精确、数据驱动，重点突出关键信息，根据用户提供的文本片段提取关键数据和事实，将提取的信息以清晰的JSON格式呈现。"}</code></td><td><code>guide/platform/prompt</code>，2026-10-19</td></tr><tr><td class="k">2</td><td>编码</td><td><code>"role": "system", "content": "你是编程助手，擅长写简洁高效的代码。"</code></td><td>对话补全参考，2026-10-14</td></tr><tr><td class="k">3</td><td><strong>知识库+RAG（约 1000 Token，官方用作缓存演示）</strong></td><td>「你是智谱开放平台（BigModel）的官方技术支持助手。请严格依据以下知识库回答开发者问题；知识库未覆盖的问题请如实告知，并引导开发者查阅官方文档或提交工单。」内部用【知识库开始】/【知识库结束】/【知识库补充：开发者进阶指南】分区</td><td><code>capabilities/cache</code>（中文页）——<strong>门槛内最新的一份官方 system 写法范本</strong></td></tr><tr><td class="k">4</td><td>agent 示例里唯一 system</td><td><code>{"role": "system", "content": "You are an assistant"}</code></td><td><code>capabilities/thinking-mode</code>——官方 agent 示例的 system 就这么薄，其余全靠 tools 与 reasoning 序列</td></tr><tr><td class="k">5</td><td>结构化输出</td><td>「你是一个情感分析专家。请按照以下 JSON 格式返回分析结果：{…}」／「请按照以下 JSON Schema 格式返回情感分析结果：{json.dumps(schema)}」</td><td><code>capabilities/struct-output</code>（12 处，示例 model 一律 <code>glm-5.2</code>）</td></tr><tr><td class="k">6</td><td>Agent 配置字段</td><td><code>"system": "You are a helpful coding agent. Always write tests."</code></td><td><code>managed-agents/agent-setup</code></td></tr><tr><td class="k">7</td><td>生产级三段式</td><td>§3.1 的 <code>system[0]/[1]/[2]</code> + <code># Harness</code> 六条</td><td>ZCode 契约，2026-10-10</td></tr></tbody></table></div>
+<p><strong>S1 官方定义逐字</strong>（唯一对 System Prompt 下定义的教程页，2026-10-19）：「System Prompt 用于设定 AI 助手行为模式的工具，包括角色设定、语言风格、任务模式和针对特定问题的具体行为指导。」 <strong>S6 智能体平台侧定义</strong>（<code>platform/intelligent-agent</code>，2026-09-01，边缘达标）：「System Prompt 通常是指由模型开发者或使用者设计的、用来指导模型行为的指令或上下文。这些提示可以是固定的格式，也可以是针对特定任务定制的。」</p>
+<p><strong>S4 分隔符口径变了</strong>（值得单独记）：老页只教三重双引号 <code>"""…"""</code>（且<strong>未给 system 专用分隔符</strong>）；新页 <code>prompt-engineering-general</code> 改成——「标签名应描述内容用途，并在同一系统或同一任务中保持一致。<strong>XML 标签是清晰的分隔手段，但不应被描述为对所有 GLM 版本都必然优于 Markdown</strong>；是否更合适，应在自己的任务上比较。」 <strong>S5 长度告诫只针对输出</strong>：「指定按照具体的长度的输出内容，但是让模型精确的生成一个特定的字数难以实现。」<strong>官方从未对 system 本身给字数上限</strong>；唯一长度类硬数字是缓存页的 500 Token。</p>
+<hr>
+<h2 id="s303-1">7. 工具政策与结构化输出：写在 system 还是 schema</h2>
+<ul><li><strong><code>tool_choice</code> 默认且仅支持 <code>auto</code></strong>（<code>capabilities/function-calling</code>，逐字：「控制函数调用策略，默认且仅支持 <code>auto</code>」）→ 别按 OpenAI 习惯传 <code>required</code>。</li><li>流式：<code>stream=true</code> <strong>且</strong> <code>tool_stream=true</code>，并流式拼接 <code>delta.tool_calls[*].function.arguments</code>（迁移 checklist 逐字）。</li><li><strong>tools 在 token 层就是 system 文本</strong>（§2），但 ZCode 契约禁止在稳定 prompt 里重印 schema/工具清单（§3.2）→ <strong>裁决：工具面写进 provider tool definitions，system 只写「工具使用哲学 + 并行/依赖规则 + 权限语义」。</strong></li><li>官方对提示词效力的边界（新页逐字）：「工具能否真正被调用，取决于应用是否提供相应能力和权限。<strong>提示词不能替代实际的工具配置、权限检查与执行结果校验。</strong>」</li><li><strong>结构化输出</strong>：<code>capabilities/struct-output</code> 在门槛内仍写「<strong><code>messages</code>：在系统消息中定义期望的 JSON 结构和字段要求</strong>」；核心参数只有 <code>{"type": "json_object"}</code>；<strong>该页 <code>json_schema</code> 出现 0 次</strong>。 → 结论：<strong>智谱官方只承诺 <code>json_object</code> 模式，schema 约束靠 system 正文表达；<code>json_schema</code> 严格模式在站内文档不成立</strong>（阿里云百炼对 GLM 提供 json_schema 属<strong>对端实现</strong>，B）。</li></ul>
+<h3 id="s314-1">7.1 思考序列是 system 之外的第二条隐式契约（T3，A，09-29 快照）</h3>
+<ul><li>逐字：「注意：当您在使用"交错思考 + 工具"时，<strong>必须显式保留 Reasoning content，并在返回工具结果时一并返回</strong>」。</li><li>Preserved thinking：「该能力在 <strong>Coding Plan 端点默认开启、标准 API 端点默认关闭</strong>……通过「<code>"clear_thinking": False</code>」在 API 端点中开启，并需要将<strong>完整、未修改</strong>的 reasoning content 传回 API。<strong>所有连续的 reasoning content 必须与模型在原始请求期间生成的序列完全一致，不要重新排序或修改这些 content，否则会降低效果并影响缓存命中。</strong>」</li><li>DashScope 侧更严表述（<span class="g g-B" title="证据等级 B">B</span>，2026-10-13）：「必须在 messages 中<strong>完整、未修改、按原顺序</strong>透传历史 reasoning_content，缺失、裁剪、改写或重排会导致效果下降或无法生效。」</li></ul>
+<p>→ 手册结论：<strong>别把「请保留思考」写进 system</strong>——它不是提示词能解决的事，是客户端回传纪律；同一份 system 在 Coding Plan 与标准 API 上<strong>行为不等价</strong>（前者默认带推理序列）。</p>
+<hr>
+<h2 id="s328-1">8. 可直接落地的 GLM 系统提示词骨架（每块标出处）</h2>
+<figure class="code"><figcaption><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></figcaption><pre><code>【块 0｜身份句 —— 进 system[0]，唯一一句，锁英文】
+You are {产品名}, an interactive {领域} agent
+  ↑ A：ZCode `cli-prefix.ts`（2026-10-10）；A：契约 "Keep stable prompt copy English-only"
+
+【块 1｜静态体 —— system[1]，cacheHint: stable】
+You are an interactive {产品名} agent that helps users with {任务域}.
+# Harness                      ← A：# Harness 六条是官方正面范本
+- 文本输出以 GitHub-flavored markdown 显示在终端。
+- 工具在用户选择的权限模式下运行；被拒绝的调用＝用户拒绝，调整而非原样重试。
+- 系统可能通过 mid-conversation system turns 下发更新/提醒/规则修改（受系统控制，不同于 function result）。
+- 优先专用文件/检索工具；相互独立的调用在同一轮并行。
+- 引用代码用 file_path:line_number。
+# Safety boundaries            ← A：契约 IMPORTANT 段（授权场景 + 拒绝清单）
+# Default behavior             ← A：P3 官方三模块之一（default_to_action 或 conservative_mode，二选一，别并存）
+# Role（只写职责/读者/标准）      ← A：P2「不必堆叠"世界顶级专家"」「不得虚构权限与资格」
+# Parallel tool calls          ← A：〈use_parallel_tool_calls〉模块原文
+
+【块 2｜动态体 —— system[2]，cacheHint: dynamic，固定顺序 + 前导空行边界】
+# Communicating with the user（含「只用与用户相同的语言回答」这一条，独立成规则）
+# Session-specific guidance → # Memory(可选) → # Environment → # Output Style(可选) → # Context management → # gitStatus:(可选，条目截 20)
+  ↑ A：ZCode 契约排序；A：EnvInfo.gitStatusLines 上限 20
+
+【不进 system，改放 meta_user（第 5 位）的〈system-reminder〉包裹块】
+当前日期、Skills 清单、AGENTS.md/指令文件内容
+  ↑ A：§3.2 禁止项与裁决表（"Date changes independently of behavior rules."）
+
+【块 3｜结构化输出（仅当要 JSON）】
+在 system 正文里写定期望 JSON 结构与字段要求；请求带 response_format={"type":"json_object"}
+  ↑ A：struct-output 逐字；该页 json_schema 出现 0 次 → 别指望 strict schema
+
+【协议与参数侧（不是 system 内容，但决定 system 是否成立）】
+- Chat Completions：可多条 system；旧式 OpenAI 兼容网关：按原序空分隔合并，不补空白
+- Responses 协议：system 位不存在 → 用顶层 instructions
+- effort 一旦会话开始就固定（它被注入 system 首行，换档=破缓存；5.3 系关不掉）
+- tools 用 defer_loading 按需回灌以保持前缀稳定；稳定 prompt 不重印 schema
+- 流式工具调用：stream=true + tool_stream=true，拼接 delta.tool_calls[*].function.arguments
+- 缓存：前缀 ≥500 Token 才有命中率（建议值）；异步生效，首请求后稍等再打第二发</code></pre></figure>
+<hr>
+<h2 id="s375-1">9. 反模式（门槛内证据）</h2>
+<div class="table-wrap"><table><thead><tr><th scope="col">反模式</th><th scope="col">为什么</th><th scope="col">级</th></tr></thead><tbody><tr><td class="k">把当前日期 / Skills 清单 / AGENTS.md 塞进 system</td><td>官方明确踢到 meta_user；且破缓存</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">在稳定 prompt 里重印工具 schema 或工具全清单</td><td>契约三条禁止项之一；且 tools 本身会被模板序列化进 system，重复即双倍成本</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">堆「世界顶级专家」式身份</td><td>官方："不必堆叠…不虚构专业等级或权限"</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">让模型声称与运行环境不符的权限/资格</td><td>官方禁止；且与 ZCode「身份由 CLI prefix 固定，caller 不得拼」冲突</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">把「只读」安全边界只写在 system 里</td><td>官方自认这是<strong>弱化了物理隔离</strong>（Explore 子代理 yolo 模式靠 CRITICAL 段兜），须由权限层承担</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">期望 <code>json_schema</code> strict 约束</td><td>站内结构化输出页 <code>json_schema</code> 出现 0 次；只有 <code>json_object</code></td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">传 <code>tool_choice: "required"</code></td><td>官方仅支持 <code>auto</code></td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">在 system 里写「请保留思考」</td><td>属客户端回传纪律，不是提示词可控项；且端点默认值不同</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">保留其他模型的 effort/预填充/工具批处理参数名</td><td>迁移 checklist 第 1 条明令删除</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">中英混排的稳定 system 文本</td><td>官方把稳定文本锁英文，语言一致性交给单独规则</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k"><strong>引用农场数字</strong></td><td>「标签内强约束识别率高 47%」「两个连续换行时 83% 只返回前 12 字」「system 从 320 字压到 87 字成本降 41%」及伪参数 <code>auto_max_tokens</code>、顶层 <code>system_prompt</code> 字段——<strong>一律禁止</strong></td><td><span class="g g-D" title="证据等级 D">D</span></td></tr></tbody></table></div>
+<hr>
+<h2 id="s396-1">10. 与上一版（v1）的差异（诚实记录）</h2>
+<div class="table-wrap"><table><thead><tr><th scope="col">v1 说法</th><th scope="col">v2 结论</th></tr></thead><tbody><tr><td class="k">「智谱官方没有可照抄的编码 agent 系统提示词全文」</td><td><strong>已过期</strong>：ZCode 开源（2026-10-10 提交契约），三段式 system + meta_user 裁决可直接用（§3）</td></tr><tr><td class="k">「GLM 官方产品与 API 都不注入 system prompt，人设完全靠调用方」</td><td>仍成立于 <a href="https://chat.z.ai/API" class="ext" target="_blank" rel="noopener">chat.z.ai/API</a>，但<strong>ZCode 宿主注入三段 system</strong>，且 <code>zai-org/feedback</code> issue #78 所谓「ZCode 原生 system 仅一句」已被 10-10 契约推翻（现为 3 块 + 6 条 Harness）</td></tr><tr><td class="k">「XML 工具标记属 <span class="g g-D" title="证据等级 D">D</span> 级存疑」</td><td><strong>升级为 A</strong>：GLM-5.3 官方 chat_template 逐字给出<span class="fk">〈tool_call〉</span>/<span class="fk">〈arg_key〉</span>/<span class="fk">〈arg_value〉</span>序列化，且 tools 是<strong>第二个 system 块</strong>（§2）</td></tr><tr><td class="k">「Preserved thinking 标准端点默认关、Coding Plan 默认开」</td><td>确认（09-29 快照，A），并补齐 5.3 模板 <code>clear_thinking</code> 默认 false = <strong>保留式思考默认开</strong></td></tr><tr><td class="k">「官方未给 system 长度数字」</td><td>确认无上限，但<strong>缓存侧有 500 Token 建议下限</strong>（<span class="g g-A" title="证据等级 A">A</span>，§4）</td></tr><tr><td class="k">内容含「日常提问技巧」「参数温度表」</td><td>v2 已剔除（超出系统提示词工程范围）</td></tr></tbody></table></div>
+<hr>
+<h2 id="s412-1">11. 门槛外残留证据（早于 2026-09-01，仅背景）</h2>
+<ol><li>GLM-5.3 / 5.3-Flash 发布 2026-08-14 / 08-19 / 08-26 —— 早于门槛，机制以门槛内文档与模板为准。</li><li>GLM-4.7 ModelScope 卡片（2026-08-19 抓取）：Preserved thinking 代际起点 <code>"chat_template_kwargs": {"enable_thinking": true, "clear_thinking": false}</code>，门槛内已被 09-29 <code>thinking-mode</code> 泛化改写。</li><li>ZCode 3.0 发布 2026-06-13（切自研内核）；其 <code>Commands</code> 文档只暴露用户侧 <code>Prompt</code> 字段，<strong>不提供官方 system 模板</strong>（该结论门槛内仍成立）。</li><li>智谱清言智能体 system 模板逆向（2026-02-03，D）：把用户设定与「当前日期」一起塞进模板化 system——<strong>恰是 ZCode 契约 10-10 起明确禁止的做法</strong>。</li><li>社区「格式约束放 system 更守规矩」（2026-05-15，D）：方向与官方范式一致，无 GLM 实测。</li></ol>
+<hr>
+<h2 id="s425-1">12. 门槛内没找到什么（负结果，勿编）</h2>
+<ol><li>没有任何官方条款回答「system 能否多条 / 必须 messages[0] / 能否中途插入」——只有模板与契约可推（属代码资产，非文档承诺）。</li><li>没有官方 system 长度/字数上限。</li><li>没有指令遵循率 / role boundary / 长上下文幻觉的官方量化数字（搜过 <code>GLM-5.3 instruction following</code>、<code>role boundary</code>、<code>指令遵循 提升 官方</code>、<code>system prompt 遵循 率</code>）。</li><li>没有 GLM-5.3 技术报告一手（<a href="https://z.ai/blog/glm-5.3" class="ext" target="_blank" rel="noopener"><code>z.ai/blog/glm-5.3</code></a> 直连返回 598 <span class="g g-B" title="证据等级 B">B</span> 空壳，jina 仅取到 655 <span class="g g-B" title="证据等级 B">B</span>）→ <strong>无法逐字引官方发布文</strong>。</li><li>没有 <code>zai-org/Cookbook</code> 仓库（raw 404）、没有 09 月后新增的 prompting 章节；<code>zai-org/GLM-5</code> README（更新至 2026-10-15）新增内容只有基准与部署。</li><li>没有官方给 Claude Code / OpenCode / Cline 的 system 片段（<code>cn/coding-plan/tool/others</code> 18228 <span class="g g-B" title="证据等级 B">B</span> 通篇只有 base_url / 模型名 / 权限，<code>system</code> 仅出现在 <code>System.out.println</code>）。</li><li>中文站没有显式缓存 API（<code>prompt_cache_breakpoint</code> / <code>cache_control</code> / TTL 在缓存页出现 0 次）；结构化输出页没有 <code>json_schema</code>（0 次）。</li><li><strong>文档日期不确定</strong>：各页 <code>Last-Modified</code> 恒等于抓取时刻，devbook 源为私有仓；本报告日期来自索引快照 PublishedTime 与 GitHub 提交日期，存在 ±1 日级不确定。</li><li>没有门槛内可复现的社区「GLM system 分层」实测数据集（搜过 linux.do / V2EX 相关词，命中集中在农场文，已按 <span class="g g-D" title="证据等级 D">D</span> 排除）。</li><li>没有 <a href="https://chat.z.ai" class="ext" target="_blank" rel="noopener">chat.z.ai</a> / 智谱清言 / 桌面版 ZCode <strong>当前</strong> system 原文的官方披露（§3-7 是开源 CLI 的契约与源码）。</li></ol></article>
+</main>
+<aside class="toc" id="toc" data-open="false"><h2>本页目录</h2><ul><li class="t1"><a href="#s000-1">GLM 系统提示词工程方案 v2（证据门槛：2026-09-01 之后）</a></li><li class="t2"><a href="#s013-1">0. 一句话结论：门槛内的新增知识几乎全在 agent 侧，不在提示词教程侧</a></li><li class="t2"><a href="#s030-1">1. 协议层：system 的合法位置与硬约束</a></li><li class="t3"><a href="#s041-1">1.1 换协议 = 换 system 承载方式（S13 总表）</a></li><li class="t2"><a href="#s064-1">2. GLM 的独特事实：你的 system 前缀不止是你写的那段</a></li><li class="t3"><a href="#s088-1">2.1 代际差异表（官方模板实测，A）</a></li><li class="t2"><a href="#s104-1">3. 最高价值：ZCode 官方 system 分层契约（可直接照抄的工程规范）</a></li><li class="t3"><a href="#s110-1">3.1 三个 system 块 + 一个 meta_user</a></li><li class="t3"><a href="#s136-1">3.2 什么不许进 system（官方禁止项，逐字）</a></li><li class="t3"><a href="#s153-1">3.3 裁决表：每段上下文声明两个字段</a></li><li class="t3"><a href="#s182-1">3.4 另两条官方工程口径（P6，逐字要点）</a></li><li class="t2"><a href="#s195-1">4. 缓存纪律（站内唯一硬数字）</a></li><li class="t2"><a href="#s216-1">5. 人设块（persona）的官方口径：门槛内已改成「只写职责」</a></li><li class="t2"><a href="#s278-1">6. 官方 system 原文样本库（可直接抄，全部 A 级）</a></li><li class="t2"><a href="#s303-1">7. 工具政策与结构化输出：写在 system 还是 schema</a></li><li class="t3"><a href="#s314-1">7.1 思考序列是 system 之外的第二条隐式契约（T3，A，09-29 快照）</a></li><li class="t2"><a href="#s328-1">8. 可直接落地的 GLM 系统提示词骨架（每块标出处）</a></li><li class="t2"><a href="#s375-1">9. 反模式（门槛内证据）</a></li><li class="t2"><a href="#s396-1">10. 与上一版（v1）的差异（诚实记录）</a></li><li class="t2"><a href="#s412-1">11. 门槛外残留证据（早于 2026-09-01，仅背景）</a></li><li class="t2"><a href="#s425-1">12. 门槛内没找到什么（负结果，勿编）</a></li></ul></aside>
+</div>
+<footer class="page">
+  <div class="pager">
+    <a href="deepseek-system-prompt-v2.html"><small>上一篇</small><b>DeepSeek</b></a>
+    <a class="n" href="minimax-system-prompt-v2.html"><small>下一篇</small><b>MiniMax</b></a>
+  </div>
+  <p class="colophon">构建于 2026-10-20：由 <code>.temp/scripts/md2craft.mjs</code> 从同名 Markdown 真源生成（单一真源，改文请改 <code>glm-system-prompt-v2.md</code> 后重跑）。引用出处、日期与证据等级逐条标注，见页内来源表。</p>
+</footer>
+<script>
+(function(){
+  var p=document.getElementById('prog');
+  function upd(){var h=document.documentElement;var max=h.scrollHeight-h.clientHeight;p.style.width=(max>0?(h.scrollTop||document.body.scrollTop)/max*100:0)+'%';}
+  addEventListener('scroll',upd,{passive:true});addEventListener('resize',upd);upd();
+  var links=[].slice.call(document.querySelectorAll('aside.toc a'));
+  var map={};links.forEach(function(a){var el=document.getElementById(a.getAttribute('href').slice(1));if(el)map[el.id]=a;});
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){
+      links.forEach(function(a){a.classList.remove('act');});var a=map[e.target.id];if(a){a.classList.add('act');}}});},
+      {rootMargin:'0px 0px -72% 0px',threshold:0});
+    Object.keys(map).forEach(function(id){io.observe(document.getElementById(id));});
+  }
+  var btn=document.getElementById('tocbtn'),toc=document.getElementById('toc');
+  if(btn){toc.setAttribute('data-open','false');btn.addEventListener('click',function(){
+    var open=toc.getAttribute('data-open')==='true';toc.setAttribute('data-open',String(!open));btn.setAttribute('aria-expanded',String(!open));});}
+  [].slice.call(document.querySelectorAll('figure.code .copy')).forEach(function(b){
+    b.addEventListener('click',function(){
+      var code=b.closest('figure').querySelector('code');
+      var t=code.innerText;
+      function done(ok){b.textContent=ok?'已复制':'请手动复制';setTimeout(function(){b.textContent='复制';},1600);}
+      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){done(1);},function(){done(0);});}
+      else{done(0);}
+    });
+  });
+  if(!matchMedia('(prefers-reduced-motion: reduce)').matches){document.documentElement.style.scrollBehavior='smooth';}
+})();
+</script>
+</body>
+</html>

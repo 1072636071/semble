@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiniMax 系统提示词工程方案 v2（证据门槛：2026-09-01 之后）</title>
+<meta name="description" content="M3.1-Flash 思考关不掉（disabled→400）；minimax-code 开源静态人设与 system-reminder 分离；无 response_format 通道">
+<style>
+:root{--h:14;
+  --bg:hsl(var(--h),26%,97%);--surface:#fff;--surface-2:hsl(var(--h),26%,95%);
+  --ink:hsl(var(--h),32%,15%);--muted:hsl(var(--h),19%,36%);--faint:hsl(var(--h),16%,40%);
+  --line:hsl(var(--h),20%,88%);--line-2:hsl(var(--h),22%,82%);
+  --accent:hsl(var(--h),68%,42%);--accent-ink:hsl(var(--h),60%,26%);--accent-weak:hsl(var(--h),64%,95%);
+  --code-bg:hsl(var(--h),32%,12%);--code-fg:hsl(var(--h),14%,90%);--code-key:hsl(calc(var(--h) + 40),60%,72%);
+  --ok:hsl(150,54%,30%);--ok-bg:hsl(150,50%,94%);
+  --warn:hsl(38,84%,30%);--warn-bg:hsl(42,86%,93%);
+  --bad:hsl(2,62%,38%);--bad-bg:hsl(4,72%,96%);
+  --info:hsl(206,66%,32%);--info-bg:hsl(206,66%,95%);
+  --r:14px;--maxw:74ch;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"Cascadia Mono",Consolas,"Liberation Mono",monospace;}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:16.5px;line-height:1.78;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+a{color:var(--accent-ink);text-decoration-thickness:1px;text-underline-offset:2px;overflow-wrap:anywhere}
+a.ext{font-family:var(--mono);font-size:.85em;word-break:break-all}
+a:hover{color:var(--accent)}
+:focus-visible{outline:3px solid hsl(var(--h),72%,52%);outline-offset:2px;border-radius:4px}
+.progress{position:fixed;inset:0 auto auto 0;height:3px;width:0;background:var(--accent);z-index:60;transition:width .08s linear}
+header.top{position:sticky;top:0;z-index:50;background:hsl(var(--h),30%,13%);color:hsl(var(--h),16%,88%);
+  border-bottom:1px solid hsl(var(--h),30%,22%)}
+.top .in{max-width:1320px;margin:0 auto;padding:.75rem 1.25rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
+.brand{font-weight:700;letter-spacing:-.01em;font-size:.95rem;color:#fff;text-decoration:none;white-space:nowrap}
+.brand em{font-style:normal;color:hsl(calc(var(--h) + 38),70%,70%)}
+nav.pills{display:flex;gap:.4rem;flex-wrap:wrap;flex:1 1 22rem}
+.pill{display:inline-flex;align-items:center;gap:.4rem;font-size:.82rem;line-height:1;padding:.5rem .72rem;border-radius:999px;
+  color:hsl(var(--h),14%,84%);text-decoration:none;background:hsl(var(--h),26%,20%);border:1px solid hsl(var(--h),26%,26%)}
+.pill:hover{background:hsl(var(--h),28%,26%);color:#fff}
+.pill.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--d,#fff);box-shadow:0 0 0 2px hsl(var(--h),30%,13%)}
+.shell{max-width:1320px;margin:0 auto;padding:0 1.25rem;display:grid;grid-template-columns:minmax(0,1fr) 15.5rem;gap:2.5rem}
+main{min-width:0;padding:2.5rem 0 5rem}
+article.doc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:clamp(1.4rem,4vw,3rem);box-shadow:0 4px 24px hsla(var(--h),30%,20%,.06)}
+h1{font-size:clamp(1.75rem,3.4vw,2.4rem);line-height:1.16;letter-spacing:-.025em;margin:0 0 1.4rem;padding-bottom:1rem;
+  border-bottom:2px solid var(--accent)}
+h1+h2,h1+p+h2{margin-top:1.6rem}
+h2{font-size:1.42rem;line-height:1.22;letter-spacing:-.02em;margin:3rem 0 .9rem;padding-left:.7rem;border-left:3px solid var(--accent)}
+h3{font-size:1.12rem;line-height:1.3;letter-spacing:-.015em;margin:2.1rem 0 .6rem;color:var(--accent-ink)}
+h4{font-size:1rem;margin:1.6rem 0 .4rem;color:var(--muted)}
+p{margin:.85rem 0;max-width:var(--maxw)}
+li{max-width:var(--maxw)}
+ul,ol{padding-left:1.35rem}
+li>ul,li>ol{margin:.35rem 0}
+hr{border:0;border-top:1px solid var(--line-2);margin:2.6rem 0}
+strong{color:var(--ink)}
+code{font-family:var(--mono);font-size:.88em;background:var(--surface-2);border:1px solid var(--line);
+  border-radius:5px;padding:.1em .38em;color:hsl(var(--h),40%,26%);overflow-wrap:anywhere}
+pre{margin:0;padding:1.05rem 1.15rem;overflow-x:auto;background:var(--code-bg);color:var(--code-fg);
+  font-family:var(--mono);font-size:.845rem;line-height:1.62;border-radius:0 0 calc(var(--r) - 4px) calc(var(--r) - 4px)}
+pre code{background:none;border:0;color:inherit;padding:0;font-size:1em}
+figure.code{margin:1.3rem 0;border:1px solid var(--line);border-radius:calc(var(--r) - 4px);overflow:hidden;background:var(--surface)}
+figure.code figcaption{display:flex;justify-content:space-between;align-items:center;gap:1rem;
+  padding:.42rem .8rem;background:var(--surface-2);border-bottom:1px solid var(--line)}
+figure.code .lang{font:600 .7rem/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.copy{font:600 .76rem/1 var(--sans);padding:.34rem .62rem;border-radius:7px;border:1px solid var(--line-2);
+  background:var(--surface);color:var(--accent-ink);cursor:pointer;min-height:30px}
+.copy:hover{background:var(--accent-weak);border-color:var(--accent)}
+.table-wrap{overflow-x:auto;margin:1.35rem 0;border:1px solid var(--line);border-radius:calc(var(--r) - 4px);max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:.915rem;line-height:1.6;min-width:34rem}
+caption{text-align:left;font-weight:700;padding:.7rem .85rem;background:var(--surface-2);border-bottom:1px solid var(--line)}
+th,td{padding:.62rem .8rem;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+thead th{background:hsl(var(--h),32%,19%);color:hsl(var(--h),16%,92%);font-weight:600;font-size:.85rem;letter-spacing:.01em;white-space:nowrap}
+tbody tr:nth-child(even){background:var(--surface-2)}
+td.k{font-weight:650;color:var(--accent-ink);white-space:nowrap}
+blockquote{margin:1.2rem 0;padding:.15rem 1.1rem;border-left:3px solid hsl(var(--h),52%,68%);background:var(--accent-weak);
+  border-radius:0 10px 10px 0;color:hsl(var(--h),28%,22%);max-width:calc(var(--maxw) + 2rem)}
+blockquote p{margin:.6rem 0}
+blockquote code{background:hsl(var(--h),40%,90%)}
+.g{display:inline-block;font:700 .7rem/1.5 var(--mono);min-width:1.35em;padding:0 .32em;border-radius:5px;
+  text-align:center;vertical-align:.12em}
+.g-A{background:var(--ok-bg);color:var(--ok);border:1px solid hsl(150,40%,74%)}
+.g-B{background:var(--info-bg);color:var(--info);border:1px solid hsl(206,50%,76%)}
+.g-C{background:var(--warn-bg);color:var(--warn);border:1px solid hsl(40,60%,72%)}
+.g-D{background:var(--bad-bg);color:var(--bad);border:1px solid hsl(2,55%,80%)}
+.gnote{font-size:.78em;color:var(--muted);margin-left:.3em}
+.fk{font-family:var(--mono);font-size:.86em;background:hsl(42,88%,92%);color:hsl(30,80%,26%);
+  border:1px dashed hsl(36,70%,58%);border-radius:5px;padding:.08em .3em}
+.lede,.hero{margin:0 0 2rem}
+.lede p{font-size:1.02rem;color:var(--muted);border-top:1px solid var(--line);padding-top:.9rem;max-width:none}
+.hero{display:grid;gap:1.8rem;padding:1.6rem 0 .4rem;border-top:1px solid var(--line)}
+.hero h2{font-size:clamp(1.3rem,2.6vw,1.85rem);margin:0 0 .5rem;border:0;padding:0;max-width:22ch}
+.hero-lead>p{max-width:46ch;color:var(--muted);margin:0}
+.metrics{list-style:none;display:flex;flex-wrap:wrap;gap:.9rem;margin:1.3rem 0 .3rem;padding:0}
+.metrics li{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:.55rem .85rem;display:flex;align-items:baseline;gap:.4rem}
+.metrics b{font-size:1.2rem;letter-spacing:-.02em;color:var(--accent-ink)}
+.metrics span{font-size:.78rem;color:var(--faint)}
+.note{font-size:.78rem;color:var(--faint)}
+.hero-grid{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr))}
+.vcard{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:.95rem 1rem;
+  text-decoration:none;color:var(--ink);position:relative;overflow:hidden}
+.vcard::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:hsl(var(--h),64%,48%)}
+.vcard b{display:block;font-size:1.02rem;letter-spacing:-.01em;margin-bottom:.3rem;color:hsl(var(--h),50%,34%)}
+.vcard span{font-size:.84rem;line-height:1.55;color:var(--muted)}
+.vcard:hover{border-color:hsl(var(--h),40%,70%);transform:translateY(-2px);transition:transform .25s cubic-bezier(.16,1,.3,1)}
+.legend{display:flex;flex-wrap:wrap;gap:.5rem .9rem;align-items:center;font-size:.8rem;color:var(--faint);
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:.6rem .85rem;margin-bottom:1.6rem}
+aside.toc{position:sticky;top:4.6rem;align-self:start;max-height:calc(100vh - 6rem);overflow-y:auto;padding:2.5rem 0 3rem;font-size:.85rem}
+aside.toc h2{font:700 .76rem/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:0 0 .7rem;border:0;padding:0}
+aside.toc ul{list-style:none;margin:0;padding:0;border-left:1px solid var(--line-2)}
+aside.toc li{margin:0}
+aside.toc a{display:block;padding:.28rem .7rem;color:var(--muted);text-decoration:none;border-left:2px solid transparent;margin-left:-1px;line-height:1.4}
+aside.toc a:hover{color:var(--accent-ink)}
+aside.toc a.t3{padding-left:1.4rem;font-size:.8rem}
+aside.toc a.act{color:var(--accent-ink);border-left-color:var(--accent);font-weight:600;background:var(--accent-weak);border-radius:0 6px 6px 0}
+footer.page{max-width:1320px;margin:0 auto;padding:0 1.25rem 3rem}
+.pager{display:grid;gap:.8rem;grid-template-columns:1fr 1fr}
+.pager a{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:.8rem .95rem;text-decoration:none}
+.pager a:hover{border-color:var(--accent)}
+.pager small{display:block;font-size:.75rem;color:var(--faint);letter-spacing:.05em;text-transform:uppercase}
+.pager b{font-size:.98rem;color:var(--accent-ink)}
+.pager .n{text-align:right}
+.colophon{font-size:.8rem;color:var(--faint);margin-top:1.1rem;line-height:1.7}
+button.tocbtn{display:none}
+@media (max-width:1080px){.shell{grid-template-columns:minmax(0,1fr)}aside.toc{position:static;max-height:none;padding:0 0 1rem}
+  aside.toc ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));border-left:0}
+  aside.toc a.t3{padding-left:.7rem}}
+@media (max-width:640px){body{font-size:16px}main{padding:1.4rem 0 3rem}.shell{gap:1.2rem;padding:0 .9rem}
+  h2{font-size:1.25rem;margin-top:2.3rem}table{font-size:.86rem;min-width:28rem}
+  .pill{font-size:.78rem;padding:.45rem .62rem}.pager{grid-template-columns:1fr}.pager .n{text-align:left}
+  button.tocbtn{display:inline-flex;align-items:center;gap:.4rem;font:600 .82rem/1 var(--sans);padding:.55rem .8rem;
+    border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--accent-ink);cursor:pointer;min-height:44px}
+  aside.toc[data-open="false"] ul{display:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media print{header.top,aside.toc,.progress,.copy,.pager{display:none!important}body{background:#fff}
+  article.doc{border:0;box-shadow:none;padding:0}a{color:var(--ink);text-decoration:none}
+  .table-wrap{overflow:visible;border:0}pre{white-space:pre-wrap;background:#f4f4f5;color:#1c1c1e}}
+</style>
+</head>
+<body>
+<div class="progress" id="prog" aria-hidden="true"></div>
+<header class="top"><div class="in">
+  <a class="brand" href="index-system-prompt-v2.html">系统提示词工程 v2 · 证据门槛 2026-09 <em>2026-10-20</em></a>
+  <nav class="pills" aria-label="方案导航"><a class="pill" href="index-system-prompt-v2.html"><span class="dot" style="--d:hsl(214,62%,46%)"></span>v2 索引</a><a class="pill" href="universal-system-prompt-v2.html"><span class="dot" style="--d:hsl(196,62%,46%)"></span>通用底座</a><a class="pill" href="deepseek-system-prompt-v2.html"><span class="dot" style="--d:hsl(222,62%,46%)"></span>DeepSeek</a><a class="pill" href="glm-system-prompt-v2.html"><span class="dot" style="--d:hsl(268,62%,46%)"></span>GLM</a><a class="pill on" href="minimax-system-prompt-v2.html"><span class="dot" style="--d:hsl(14,62%,46%)"></span>MiniMax</a><a class="pill" href="kimi-system-prompt-v2.html"><span class="dot" style="--d:hsl(168,62%,46%)"></span>Kimi</a></nav>
+  <button class="tocbtn" type="button" id="tocbtn" aria-expanded="false" aria-controls="toc">目录</button>
+</div></header>
+<div class="shell">
+<main id="main">
+  <div class="legend" aria-label="证据等级图例">
+    <span>证据等级：</span>
+    <span class="g g-A">A</span>官方一手
+    <span class="g g-B">B</span>权威二手 / 平台文档
+    <span class="g g-C">C</span>社区实测
+    <span class="g g-D">D</span>未证实，不作依据
+    <span class="fk">〈…〉</span>全角标记＝排版保护，用时须换成半角
+  </div>
+  <section class="lede"><p>M3.1-Flash 思考关不掉（disabled→400）；minimax-code 开源静态人设与 system-reminder 分离；无 response_format 通道</p></section>
+  <article class="doc"><h1 id="s000-1">MiniMax 系统提示词工程方案 v2（证据门槛：2026-09-01 之后）</h1>
+<blockquote><p><strong>只讲系统提示词（system prompt）工程</strong>：system 的协议入口、与思考/预算的耦合、消息回传纪律、前缀缓存、官方 system 资产现状、人设能力边界。不含日常提问技巧与用户侧 prompt 公式。 <strong>门槛声明</strong>：只把 2026-09-01 之后发布/更新的官方文档、公告、官方代码资产当「现行规则」；早于门槛的进 §11 并标日期。MiniMax 恰好是四家里门槛内材料最密的——<strong>M3.1-Flash 是 2026-10-19 GA</strong>。 定稿 2026-10-20。真源：<code>.temp/research/sysprompt-2026-10/minimax.md</code>（23683 <span class="g g-B" title="证据等级 B">B</span> / 102 行 / 3695 汉字，18 次检索、20+ 页正文）。 <strong>排版约定</strong>：全角〈〉是排版保护（防控制标记被工具层吞掉），实际写进代码/提示词必须换回半角尖括号。 等级：<span class="g g-A" title="证据等级 A">A</span> = 官方文档/博客/GitHub 代码资产｜<span class="g g-B" title="证据等级 B">B</span> = 官方合作伙伴或直供托管平台文档｜<span class="g g-C" title="证据等级 C">C</span> = 科技媒体与社区实测｜<span class="g g-D" title="证据等级 D">D</span> = 农场（只作辟谣素材）。 日期口径：多数文档页不自述「最后更新」，页内日期取本文抓取日（2026-10-20 live 快照）或搜索引擎抓取时间戳（标「爬」）。</p></blockquote>
+<hr>
+<h2 id="s014-1">0. 一句话结论：门槛内 MiniMax 的 system 面发生了三件事</h2>
+<ol><li><strong>M3.1-Flash（10-19 GA）思考常开且关不掉</strong>，传 <code>disabled</code> 直接 400 → system 不再需要承担「要不要想」的表达，只管「做什么、怎么交付」。</li><li><strong>M2.5 / M2.7 于 10-19 停止新用户、2026-11-18 正式下线</strong>，套餐侧原模型名统一路由到 M3.1-Flash → 旧默认人设 <code>You are a helpful assistant. Your name is MiniMax-M2.x and is built by MiniMax.</code> <strong>随模型失效</strong>，「Your name is MiniMax-M2.x」式身份行与后端模型不再对应。</li><li><strong>官方把 agent 的 prompt 资产开源了</strong>（<code>MiniMax-AI/minimax-code</code>，commit c59cf537 于 <strong>09-18</strong>、d8a32b6b「sync MiniMax Code 0.5.9」于 <strong>09-29</strong>，HEAD 2026-10-20）：静态人设（<code>prompt-base-all.md</code> 7678 <span class="g g-B" title="证据等级 B">B</span>）与动态状态（独立模块 <code>agent-modules/system-reminder</code>）<strong>物理分离</strong>——这是门槛内最有价值的官方范式（§3）。</li></ol>
+<hr>
+<h2 id="s025-1">1. 协议层：system 入口三面分立，且「省略时」默认值不一致</h2>
+<div class="table-wrap"><table><thead><tr><th scope="col">协议</th><th scope="col">system 承载字段</th><th scope="col">官方说法</th><th scope="col">级</th></tr></thead><tbody><tr><td class="k"><strong>Anthropic 兼容（官方推荐路径）</strong></td><td>顶层 <code>system</code> 字段</td><td>「完全支持 系统提示词」</td><td><span class="g g-A" title="证据等级 A">A</span><span class="gnote">live</span></td></tr><tr><td class="k">OpenAI 兼容</td><td><code>messages</code> 内 <code>role:"system"</code></td><td>标准角色</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">OpenAI Responses 兼容</td><td>顶层 <code>instructions</code></td><td>描述只有四个字：「系统指令」；InputItem 的 role 枚举含 <code>system</code>/<code>developer</code></td><td><span class="g g-A" title="证据等级 A">A</span></td></tr></tbody></table></div>
+<p><strong>官方全部示例的 system 只有一句</strong>：<code>You are a helpful assistant.</code>（<span class="g g-A" title="证据等级 A">A</span>，live 两协议快速开始）。</p>
+<h3 id="s038-1">1.1 「省略时」的思考默认值——同一模型跨协议不等价（<span class="g g-A" title="证据等级 A">A</span>，live 两张参数表逐字核对）</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">模型</th><th scope="col">OpenAI 兼容省略 <code>thinking</code></th><th scope="col">Anthropic 兼容省略</th><th scope="col">传 <code>disabled</code></th></tr></thead><tbody><tr><td class="k">M3</td><td><strong>开</strong></td><td><strong>关</strong></td><td>跳过直答 / adaptive 开</td></tr><tr><td class="k">M3.1-Flash</td><td>开</td><td>开</td><td><strong>400 报错</strong></td></tr><tr><td class="k">M2.x</td><td>开</td><td>开</td><td>被接收但<strong>不生效</strong></td></tr></tbody></table></div>
+<blockquote><p>官方错误原文（<span class="g g-A" title="证据等级 A">A</span>）：<code>model "MiniMax-M3.1-Flash" requires adaptive thinking; thinking.type="disabled" (including reasoning.effort=none) is not allowed (2013)</code></p></blockquote>
+<p><strong>推论（手册必写）</strong>：同一份 system 在 MiniMax 的两个兼容协议上，<strong>推理行为可能相反</strong>。移植 agent 时必须按协议分别测，不能假设 system 文本决定了行为。</p>
+<p>档位：<code>low / medium / high / xhigh / max</code>，<strong>省略即 max</strong>；<code>none</code>/<code>minimal</code> 均被禁（<span class="g g-A" title="证据等级 A">A</span>，工具接入页逐字）：OpenClaw 页「始终开启思考，无法关闭。运行时不要使用 /think off」；Hermes 页「可用档位为 low…max；请勿使用 none 或 minimal」。</p>
+<p>本地侧不一致（<span class="g g-B" title="证据等级 B">B</span>）：vLLM Ascend 教程 <code>chat_template_kwargs.thinking_mode</code> 未设置默认 <strong>adaptive</strong>；而 <code>MiniMax-AI/MiniMax-M3</code> README（push 2026-07-11，早于门槛）列 enabled/adaptive/disabled 三模式——<strong>与平台文档只列 adaptive/disabled 不一致</strong>，写解析器要两头兼容。</p>
+<hr>
+<h2 id="s063-1">2. system 与思考/预算的耦合：官方把「思考」完全划给了参数</h2>
+<ul><li><strong>effort 只由请求字段控制</strong>：Anthropic <code>output_config.effort</code>／OpenAI <code>reasoning_effort</code>／Responses <code>reasoning.effort</code>。官方文档<strong>没有任何</strong>「在 system 里写思考指令」的表述；且 <code>reasoning_effort</code> 标注「仅 MiniMax-M3.1-Flash 生效」，<strong>不是通用 M 系列控制项</strong>（<span class="g g-A" title="证据等级 A">A</span>）。</li><li>官方指引原文（<span class="g g-A" title="证据等级 A">A</span>）：「如需减少思考带来的耗时和 token 用量，<strong>请调低 effort 档位，而不是关闭思考</strong>。」</li><li>推断（<strong>非官方原文，标明</strong>）：往 system 里塞 <code>think harder</code> / <code>step by step</code> 类指令在 MiniMax 无官方依据；档位应放请求参数或 harness 配置（Codex 用 <code>default_reasoning_level</code>）。</li><li><strong>思考与回答字段级分离后，system 不再承担「输出隔离」职责</strong>（<span class="g g-A" title="证据等级 A">A</span>，models-intro 逐字）：「思考内容与最终回答分开返回：在 OpenAI 兼容协议下，思考内容固定通过 <code>reasoning_content</code> 字段单独给出，<code>content</code> 只含最终回答，可以直接用于展示，<strong>不需要从<span class="fk">〈think〉</span>标签里自行解析</strong>」。</li><li><code>reasoning_split</code> 现状（<span class="g g-A" title="证据等级 A">A</span>，live）：<code>true</code> → thinking 拆到 <code>reasoning_content</code>；<code>false</code> → thinking 以成对 think 标签保留在 <code>content</code> 内；<strong>M3.1-Flash 不支持 <code>false</code></strong>（等于强制 split）；且「reasoning_split <strong>不会开启或关闭 thinking</strong>」（它只管位置，不管开关）。</li><li>预算联动（<span class="g g-A" title="证据等级 A">A</span>，两协议表逐字）：<code>max_tokens</code> / <code>max_completion_tokens</code>「<strong>思考 token 也计入此上限，设置过小会导致 finish_reason 为 length 且 content 为空</strong>」→ <strong>写长 system 时必须连带给思考留预算</strong>；档位越高「输出的 thinking token 和响应耗时也越多」。M Plan 文档把 effort 与上下文瘦身并列为两大成本杠杆：「如果额度消耗较快，可以为简单任务选择较低的思考深度，适时开启新会话，并只引入完成任务所需的文件」。</li></ul>
+<hr>
+<h2 id="s077-1">3. 门槛内核心增量：官方开源的 agent prompt 资产（可直接读、可核提交日期）</h2>
+<p><code>MiniMax-AI/minimax-code</code>（MIT，created 2026-06-01，快照公开 09-18 / 09-29，HEAD 2026-10-20）。A 级。</p>
+<h3 id="s083-1">3.1 静态人设：<code>packages/local-runtime-v2/assets/agents/_default/prompt-base-all.md</code>（7678 B）</h3>
+<p>分节：<code>Harness</code> / <code>Tool Usage</code> / <code>Memory</code> / <code>Recoverable Deletion</code> / <code>Output Conventions</code> / <code>Media Output</code>。三个可直接抄的官方写法要点：</p>
+<ul><li><strong>Preamble messages 原则</strong>（官方对「工具前言该怎么写」的长度规定）：<strong>「逻辑成组、1–2 句、8–12 词」</strong>。</li><li><strong>记忆的判据写成一句可操作问题</strong>：「未来的 agent 是否会因为我写的这条而行为更好」——并明确禁写一次性事实与临时事实清单。</li><li><strong>语言条款</strong>：<code>Match the user's language naturally</code>（Output Conventions 节）。</li><li>交付协议：Media Output 节定义<span class="fk">〈deliver-assets〉</span><span class="fk">〈media /〉</span>自述标签。</li></ul>
+<h3 id="s095-1">3.2 身份句：<code>prompt-session-root.md</code>（284 <span class="g g-B" title="证据等级 B">B</span>，原文逐字）</h3>
+<figure class="code"><figcaption><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></figcaption><pre><code>You are this agent's root session — the user's primary conversation entry point and long-lived continuity owner.</code></pre></figure>
+<p>另有 <code>prompt-base-worker.md</code>（617 <span class="g g-B" title="证据等级 B">B</span>），只保留 Basics + Communication 两节——<strong>官方按角色给不同体量的 system，而不是所有 agent 共用一份长人设</strong>。</p>
+<h3 id="s106-1">3.3 动态状态：独立模块 <code>packages/agent-modules/system-reminder</code></h3>
+<p><code>blocks.ts</code> 头注说明：纯函数产出注入<span class="fk">〈system-reminder〉</span>容器的 XML/markdown 块。→ <strong>官方把「静态人设（prompt-base）」与「动态状态（system-reminder 注入）」物理分离</strong>，这就是「静态前置/动态后置」在 agent harness 层的实现方式（与 §4 的前缀顺序互为因果）。</p>
+<h3 id="s112-1">3.4 官方身份句的另一处：Codex <code>base_instructions</code>（<span class="g g-A" title="证据等级 A">A</span>，2026-09-20 爬）</h3>
+<p>官方对该字段的释义：「Codex 使用该模型时附加的基础 system prompt，<strong>可用于声明模型身份和协作方式</strong>」。M3 版原文（10-19 前快照）：</p>
+<figure class="code"><figcaption><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></figcaption><pre><code>You are Codex, a coding agent based on MiniMax-M3. You and the user share the same workspace and collaborate to achieve the user's goals.</code></pre></figure>
+<p>M3.1-Flash 版仅换模型名。这是门槛内<strong>官方亲自撰写并维护的「身份 + 协作方式」两段式人设范式</strong>。</p>
+<h3 id="s126-1">3.5 仍在但已停更的资产</h3>
+<ul><li><code>MiniMax-AI/Mini-Agent</code> 的 <code>mini_agent/config/system_prompt.md</code>：最后提交 <strong>2025-11-07</strong>（7a3b2481），<strong>2026-09 后无变更</strong>，HEAD 2026-02-14；现行文件 3208 B。范式＝分类小节 + 短命令式 bullet：<code>Be concise but thorough in responses</code>、<code>Don't guess - use tools to discover missing information</code>、<code>Stay focused - stop when the task is fulfilled</code>；含 <strong>Progressive Disclosure 三级技能加载协议</strong>（Metadata → get_skill → Resources）与 <code>{SKILLS_METADATA}</code> 占位符——即「静态骨架 + 动态插槽」的标准实现（<strong>早于门槛，仍可作范式引用，但不得称 9 月后新口径</strong>）。</li><li><strong>平台文档 `grep "Your name is" 零命中</strong>（<span class="g g-A" title="证据等级 A">A</span>，live）：M3/M3.1 时代官方<strong>未再发布</strong>带身份行的默认 system。</li></ul>
+<hr>
+<h2 id="s136-1">4. 缓存与前缀纪律（system 长度的真实约束）</h2>
+<ul><li>前缀顺序（<span class="g g-A" title="证据等级 A">A</span>，live text-prompt-caching 逐字）：「缓存采用前缀匹配的方式，以<strong>「工具定义 - 系统提示词 - 历史对话内容」为顺序</strong>构建，<strong>任意模块内容的变更，都可能会影响缓存的效果</strong>」。</li><li>最佳实践（<span class="g g-A" title="证据等级 A">A</span> 逐字）：「在对话的开头部分放置静态的或重复的内容（包括工具定义、系统提示词，历史对话内容），将动态的用户信息放在对话的最后，以最大程度利用 cache」。</li><li><strong>门槛值 512 token</strong>（<span class="g g-A" title="证据等级 A">A</span>）：「缓存适用于包含 <strong>512 个及以上</strong>的输入 token 数量的 API 调用」→ system 过短就进不了缓存。</li><li>命中计量字段：Anthropic 侧 <code>usage.cache_read_input_tokens</code>；OpenAI 侧 <code>usage.prompt_tokens_details.cached_tokens</code>（<span class="g g-A" title="证据等级 A">A</span>）。</li><li>⚠️ <strong>显式断点 API 面临失效</strong>（A→失效风险）：09-10 抓到的「Anthropic 主动缓存」页曾给 <code>cache_control</code> 断点、前缀顺序 <code>tools → system → messages</code>、单断点 + 最长前缀检查 + 「20 块回溯窗口」；<strong>2026-10-20 实测该 URL 已改为承载「Prompt 缓存（自动）」页</strong>。→ 手册应以「<strong>前缀顺序</strong>」为规则、把「断点 API」当可能失效的实现。</li><li>成本含义（<span class="g g-A" title="证据等级 A">A</span>）：M3.1-Flash 输入 ¥1.00/百万、<strong>缓存读取 ¥0.10/百万</strong>（英文版 $0.15 / $0.015）→ system 前缀命中后成本约 <strong>1/10</strong>。官方 Codex 集成文档实测口径：「512K 与 1M 窗口下的平均模型表现接近，<strong>512K 的估算费用低约 20%</strong>」，并解释 MSA 稀疏注意力下窗口越大单 token 计算越贵 → <strong>1M 上下文 + 长 system + 全历史回传是主要成本面</strong>。</li><li>官方缓存示例的 system 原文（<span class="g g-A" title="证据等级 A">A</span>，注意结尾带换行符 <code>\n</code>，属缓存前缀敏感字符）：<code>You are an AI assistant tasked with analyzing literary works. Your goal is to provide insightful commentary on themes, characters, and writing style.</code></li></ul>
+<hr>
+<h2 id="s151-1">5. 消息回传纪律：system 之外最大的一条 prompt 工程约束（全 <span class="g g-A" title="证据等级 A">A</span>，逐字）</h2>
+<ul><li>Anthropic 页：「将<strong>完整的 <code>response.content</code>（包含 thinking/text/tool_use 等所有块）</strong>添加到消息历史」；「必须完整回传」；「当响应包含 thinking 内容块时，后续轮次中应<strong>原样保留</strong>这些内容块，尤其是在工具调用对话中」。</li><li>OpenAI 页：含 tool_calls 的完整 response_message 入历史；「MiniMax-M3.1-Flash 的模型思考内容通过 <code>reasoning_content</code> 字段单独提供，<strong>同样需要完整保留</strong>」。</li><li>text-m3-function-call 指南：「它的核心是：<strong>回传每一次模型 Response 的全部信息，尤其是其中的思考字段（thinking / reasoning_content）</strong>」；「<strong>解析时请先判断字段是否存在，无论本轮是否包含思考内容，都需要完整回传模型返回的消息</strong>」；「重要提醒：为了保证 Interleaved Thinking 的生效、模型思维链不被打断……必须被保留在 Message History 中，在下一轮调用中回传给模型。如此才能发挥模型的最佳性能！」</li></ul>
+<p><strong>这条不该写进 system</strong>（写进去也不解决问题），它是<strong>客户端契约</strong>；但它决定了 system 的一个写法约束：<strong>别在 system 里要求模型「记住上一轮想过的东西」</strong>——记忆由回传的思考序列承载，不是由提示词承诺承载。</p>
+<hr>
+<h2 id="s165-1">6. 结构化输出：MiniMax 是四家里最「不提供 schema 通道」的一家</h2>
+<ul><li><strong>三个协议的参数表均无 <code>response_format</code></strong>（<span class="g g-A" title="证据等级 A">A</span>：全文档 dump 检索 <code>response_format</code> 仅命中语音/ASR/文件接口）。</li><li>官方文字里唯一的 JSON 出口是官方 CLI 的一行功能名：<code>mmx text chat</code>「多轮对话、流式输出、系统提示词、JSON 输出」（<span class="g g-A" title="证据等级 A">A</span>，minimax-cli 页 10-03 爬）。</li><li><strong>官方没有给出「system 里怎么写 JSON」的任何条款</strong>（<span class="g g-A" title="证据等级 A">A</span>，负结果）。</li><li>采样面连带结论（<span class="g g-A" title="证据等级 A">A</span>）：<code>temperature</code> / <code>top_p</code>「<strong>暂不支持指定，传入的值不会生效</strong>」（固定 1 / 0.95，Anthropic 侧标"忽略"）；<code>top_k</code>、<code>stop_sequences</code>、<code>context_management</code> 一律"忽略"；官方<strong>未提供经 system 改采样行为的通道</strong>。</li></ul>
+<p><strong>落地做法</strong>：JSON 约束只能写进 prompt 文本（建议写成 system 的输出契约 + 一个字段清单示例），业务层必做二次校验；<strong>别写 <code>response_format</code></strong>，那是中继站卡片里的假能力（§8.3）。</p>
+<hr>
+<h2 id="s180-1">7. 人设能力边界的官方口径（以及一条要紧的第三方信号）</h2>
+<ul><li>门槛内<strong>未找到</strong>官方新的 role-boundary 表述。现行官方口径仍是 <strong>M2.7 发布文（2026-03-18，早于门槛，保留）</strong> 原文：</li></ul>
+<p>  &gt; "role boundaries, adversarial reasoning, protocol adherence, and behavioral differentiation — <strong>these cannot be achieved through prompting alone</strong> and must be internalized as native capabilities of the model."</p>
+<p>  同文：「On MM Claw testing, M2.7 maintained a <strong>97% skill compliance</strong> rate across 40 complex skills (each exceeding 2,000 tokens)」。</p>
+<ul><li><strong>M3.1-Flash 发布文（10-19）通篇无人设/system 相关表述</strong>（已全文核对）——能力叙事全走基准与价格。</li><li>M3 发布文（2026-06，早于门槛）承认基准口径：「When using Claude Code, <strong>the default system prompt was overridden</strong>」→ 官方自己说明：跑分里的人设由脚手架覆盖，<strong>不是模型默认</strong>。</li><li><strong>C 级要紧信号</strong>（10-20 亿邦转述 AA 评测）：M3.1-Flash「会尝试回答所有问题，遇到不确定的内容<strong>极少拒答</strong>，幻觉率 93%」——<strong>官方未回应</strong>。手册结论：<strong>拒答/事实校验类约束不能指望人设自带，必须由 harness 护栏（工具校验、引用要求、二次核验）承担</strong>。</li></ul>
+<hr>
+<h2 id="s199-1">8. 条款归属澄清（本轮专查，5 条）</h2>
+<div class="table-wrap"><table><thead><tr><th scope="col">#</th><th scope="col">流传条款</th><th scope="col">真实出处</th><th scope="col">结论</th></tr></thead><tbody><tr><td class="k">1</td><td>「多轮对话<strong>只将 content 回传、不回传 reasoning_content</strong> 以省 token」</td><td>腾讯云《MiniMax 调用指南》（<span class="g g-B" title="证据等级 B">B</span>，06-11 爬）</td><td><strong>与 MiniMax 官方"完整回传思考字段"直接相反</strong>。属托管平台自家旧规（同文 temperature 0-1 默认 0.9、上下文 200K 均为 M2.x 旧规格）。<strong>不可冠名"MiniMax 官方要求"</strong></td></tr><tr><td class="k">2</td><td>「M2.5 于 8/7 下线」「m3 自 8/4 下线」「M2.1 于 7/9 下架」</td><td>腾讯云 TokenHub/CloudBase、火山引擎、阿里云百炼</td><td><strong>各家时间表互不适用</strong>。MiniMax 官方口径＝<strong>停新用户 10-19、正式下线 11-18</strong>。百炼页自证「以上模型为 MiniMax 直供，非部署在阿里云百炼服务器上」→ <strong>直供调用 ≠ 其文档为官方文档</strong></td></tr><tr><td class="k">3</td><td>「MiniMax 支持 json_schema 强制输出 / 合规率 100%」</td><td>apiyi 等中继站模型卡片（"结构化输出 ✅"）+ php.cn 农场文（08-13，还虚构 <code>response_format</code> 用法）</td><td><strong>均属第三方声称</strong>（<span class="g g-D" title="证据等级 D">D</span>）。官方参数表零命中</td></tr><tr><td class="k">4</td><td>「<code>x-cache: HIT</code> 响应头 / <code>X-Minimax-Debug</code> 调试头 / 返回 <code>cache_key</code> / 在 messages 首位插入空 system 可清除历史 KV 缓存 / 禁用 system prompt 强制清空上下文」</td><td>php.cn（06-10/06-11/06-17）</td><td><strong>农场假官方，全部不采信</strong><span class="g g-D" title="证据等级 D">D</span> </td></tr><tr><td class="k">5</td><td>「xhigh 是编程甜点 / 七档」</td><td>微博 07-01、CSDN 05-29</td><td>讲的是 <strong>Anthropic Opus 4.8 / Claude Code</strong>，不是 MiniMax。<strong>MiniMax 官方仅定义五档名称、默认 max 与"越高越充分"，未发布任何场景推荐档</strong></td></tr></tbody></table></div>
+<hr>
+<h2 id="s214-1">9. 可直接落地的 MiniMax 系统提示词骨架（每块标出处）</h2>
+<figure class="code"><figcaption><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></figcaption><pre><code>【system（Anthropic 兼容走顶层 system；旧式 OpenAI 网关合并成一段，别指望多块）】
+
+1. 身份 + 协作方式（两段式，锁一句）        ← A：Codex base_instructions 官方范式
+   "You are {产品名}, a {领域} agent based on MiniMax-M3.1-Flash.
+    You and the user share the same workspace and collaborate to achieve the user's goals."
+   ⚠ 模型名换代后必须同步改（M2.x 身份行已随下线失效）
+
+2. Harness 事实（终端渲染/权限模式/被拒即调整/并行独立调用）  ← A：prompt-base-all.md `Harness` 节
+3. 工具前言规则：逻辑成组、1–2 句、8–12 词    ← A：官方 Preamble 原则（照抄这三段长度纪律）
+4. 记忆判据：只写「未来的 agent 是否会因这条而行为更好」的内容 ← A：Memory 节
+5. 输出契约：`Match the user's language naturally` + JSON 时给字段清单与示例 ← A/C §6
+6. 删除与不可逆动作的显式边界               ← A：Recoverable Deletion 节
+
+【不要写进 system】
+- 「请深度思考 / step by step / think harder」   ← A：effort 只由请求字段控制，官方无 system 思考指令
+- 「请保留上一轮思考」                       ← A：属客户端回传纪律（§5）
+- response_format / json_schema 相关承诺        ← A：参数表无此字段
+- 温度、top_p、stop、penalty 相关期望          ← A：传入不生效/被忽略
+
+【请求侧（决定 system 能否成立）】
+thinking 必为 adaptive（M3.1 传 disabled→400）；effort 显式写、别依赖「省略即 max」
+按协议分别测（M3 在 OpenAI 端省略→开、Anthropic 端省略→关）
+max_tokens 给思考留预算（过小 → finish_reason=length 且 content 空）
+前缀顺序 tools→system→messages，system ≥512 token 才进缓存（命中约 1/10 价）
+工具按需加载以稳住前缀；动态状态走〈system-reminder〉注入（官方 system-reminder 模块范式）</code></pre></figure>
+<hr>
+<h2 id="s249-1">10. 反模式（门槛内证据）</h2>
+<div class="table-wrap"><table><thead><tr><th scope="col">反模式</th><th scope="col">后果/依据</th><th scope="col">级</th></tr></thead><tbody><tr><td class="k">用 <code>thinking.type:"disabled"</code> 关 M3.1-Flash 思考</td><td><strong>400</strong>，错误码 2013</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">依赖「省略 effort」</td><td>省略即<strong>最重的 max 档</strong>；社区批评「想让它快，得自己动手往下调」</td><td><span class="g g-A" title="证据等级 A">A</span> <span class="g g-C" title="证据等级 C">C</span></td></tr><tr><td class="k">用 <code>none</code> / <code>minimal</code> 档</td><td>官方明令禁止（Hermes 页）</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">在 system 里写思考指令</td><td>无官方依据；档位属请求参数</td><td>A（缺证声明）+ 推断标明</td></tr><tr><td class="k">期望 <code>response_format</code> 生效</td><td>三协议参数表零命中，中继卡片假能力</td><td><span class="g g-A" title="证据等级 A">A</span> <span class="g g-D" title="证据等级 D">D</span></td></tr><tr><td class="k">只回传 <code>content</code>（腾讯云口径）</td><td>与官方相反，打断 Interleaved Thinking</td><td><span class="g g-B" title="证据等级 B">B</span><span class="gnote">误归属</span></td></tr><tr><td class="k">把日期/技能清单/临时状态写进静态 system</td><td>官方把动态状态放进 <code>system-reminder</code> 模块；且破 512-token 前缀缓存</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">长 system 不给思考预算</td><td><code>content</code> 空 + <code>finish_reason=length</code></td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">沿用 <code>Your name is MiniMax-M2.x</code> 身份行</td><td>模型 11-18 下线、套餐已路由 M3.1-Flash，身份与后端不再对应</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">靠人设兜「拒答/不幻觉」</td><td>第三方评测指其极少拒答（幻觉率 93%，官方未回应）→ 必须 harness 护栏</td><td><span class="g g-C" title="证据等级 C">C</span></td></tr></tbody></table></div>
+<hr>
+<h2 id="s269-1">11. 门槛外残留证据（早于 2026-09-01，仅在无更新数据时保留）</h2>
+<p>M1 README「两个杠杆＝推理参数 + System Prompt」（无 9 月后替代文档）｜M2.x 身份行 system（README 最后更新 2025-02~2026-04）｜Mini-Agent <code>system_prompt.md</code>（2025-11-07）｜M2.7 人设边界与 97% skill compliance（2026-03-18）｜M3 博客 default-system-override（2026-06）｜M2-her 角色规范页（<code>guides/text-chat</code> 10-09 仍在架，但 faq/models 10-19 已列 M2-her 下线——<strong>文档与模型状态失同步，引用需谨慎</strong>；其「system 定义 AI 的基本行为、<code>user_system</code> 定义用户身份」「用 <code>sample_message_user</code>/<code>sample_message_ai</code> 给 1–3 个示例对话」仍是官方唯一的"用户人设"专章）｜主动缓存断点页（09-10 爬，现被并入自动缓存页）｜泄漏库 <code>Misc/minimax-m2.5.md</code>（捕获 2026-02-25，5224 <span class="g g-B" title="证据等级 B">B</span>）｜vLLM Ascend <code>thinking_mode</code> 默认 adaptive｜M3 README enabled/adaptive/disabled（2026-07-11 push）。</p>
+<p><strong>公开样本范式（<span class="g g-C" title="证据等级 C">C</span>，不可照抄）</strong>：M2.5 泄漏人设的结构是「机器提醒开场（声明本消息非用户消息）→ 编号绝对规则块（RULE 0 先查工具与 system／RULE 1 编码·设计·调研必须先调 deep_thinking／RULE 3 web 项目 playwright 测试-修复-重部署／RULE 4 引用规范指针）→ 「违规＝失败」式验收语」。可取的是<strong>短命令式 + 显式验收 + 把思考工具化前置</strong>这三点结构。</p>
+<p><strong>门槛内社区实操（<span class="g g-C" title="证据等级 C">C</span>，只作结构参考）</strong>：① PowerContext 插件（cnblogs 2026-10-09）在系统级提示词注入工具路由规则「查历史必须调 search_memory、记录必须调 remember_memory，严禁盲目翻本地文件」；② evolink 协议清单（10-20）「追加工具结果前，先写入完整 assistant 响应。Chat 保留存在时的 reasoning_content 和所有 tool_calls；Messages 保留完整内容块列表。<strong>简单轮次可能没有思考字段，要允许缺失</strong>」；③ cnblogs 09-28 建议把档位策略写进 harness 配置而非依赖 model 默认；④ margrop 09-27 的「默认 Medium / 极速 Low / 攻坚 Max」三分法（<strong>该文称"四档"与官方五档不符：采其分法、弃其数</strong>）。</p>
+<hr>
+<h2 id="s284-1">12. 门槛内未找到（如实记录，不作臆断）</h2>
+<ol><li>2026-09+ 官方针对 M3.1-Flash / M3 的 <strong>system prompt 模板或写法指引</strong>（搜遍 platform 全站、博客、README；M3.1 发布文零提及）。</li><li><strong>官方「要 JSON 时 system 怎么写」</strong>的任何条款（搜 <code>response_format</code>、结构化输出、<code>json_object</code>、JSON 输出：仅 CLI 一行功能名）。</li><li>system 提示词的<strong>长度上限 / 计费专项条款</strong>（只有通用 512-token 缓存门槛与 <code>max_tokens</code> 预算条款）。</li><li>2026-09+ <strong>官方新人设能力边界表述</strong>（<code>role boundary</code> / <code>protocol adherence</code> 类口径无 9 月后新文；"MiniMax prompting alone" 仅命中 03-18 旧文）。</li><li>2026-09+ <strong>捕获的 MiniMax 产品端泄漏 system prompt</strong>（泄漏库仅 2026-02-25 一条；MCode 开源的是 prompt-base 组件 + reminder 模块，<strong>未见产品端完整装配全文公开</strong>）。</li><li>effort <strong>各档位的延迟/token 官方数字</strong>（cocoloop 09-28 亦指出文档未给；M 档 vs max 档实测对比缺失）。</li><li>M3.1-Flash 的 <code>service_tier</code> 是否将支持、官方缓存命中率数字。</li><li>MiniMax Agent（agent.<a href="https://minimax.io" class="ext" target="_blank" rel="noopener">minimax.io</a>）现行端侧默认人设原文（changelog 仅披露计费拆分项：<strong>按消息、工具、技能、系统提示词、记忆拆开展示上下文占用</strong>——09-07 爬，值得注意：官方产品把 system 单列为一个计费/占用维度）。</li><li>HuggingFace 直连不可达，<strong>M3.1-Flash 权重页（官方称 2026-10-23 开放、许可未公布）未验证</strong>。</li></ol></article>
+</main>
+<aside class="toc" id="toc" data-open="false"><h2>本页目录</h2><ul><li class="t1"><a href="#s000-1">MiniMax 系统提示词工程方案 v2（证据门槛：2026-09-01 之后）</a></li><li class="t2"><a href="#s014-1">0. 一句话结论：门槛内 MiniMax 的 system 面发生了三件事</a></li><li class="t2"><a href="#s025-1">1. 协议层：system 入口三面分立，且「省略时」默认值不一致</a></li><li class="t3"><a href="#s038-1">1.1 「省略时」的思考默认值——同一模型跨协议不等价（A，live 两张参数表逐字核对）</a></li><li class="t2"><a href="#s063-1">2. system 与思考/预算的耦合：官方把「思考」完全划给了参数</a></li><li class="t2"><a href="#s077-1">3. 门槛内核心增量：官方开源的 agent prompt 资产（可直接读、可核提交日期）</a></li><li class="t3"><a href="#s083-1">3.1 静态人设：packages/local-runtime-v2/assets/agents/_default/prompt-base-all.md（7678 B）</a></li><li class="t3"><a href="#s095-1">3.2 身份句：prompt-session-root.md（284 B，原文逐字）</a></li><li class="t3"><a href="#s106-1">3.3 动态状态：独立模块 packages/agent-modules/system-reminder</a></li><li class="t3"><a href="#s112-1">3.4 官方身份句的另一处：Codex base_instructions（A，2026-09-20 爬）</a></li><li class="t3"><a href="#s126-1">3.5 仍在但已停更的资产</a></li><li class="t2"><a href="#s136-1">4. 缓存与前缀纪律（system 长度的真实约束）</a></li><li class="t2"><a href="#s151-1">5. 消息回传纪律：system 之外最大的一条 prompt 工程约束（全 A，逐字）</a></li><li class="t2"><a href="#s165-1">6. 结构化输出：MiniMax 是四家里最「不提供 schema 通道」的一家</a></li><li class="t2"><a href="#s180-1">7. 人设能力边界的官方口径（以及一条要紧的第三方信号）</a></li><li class="t2"><a href="#s199-1">8. 条款归属澄清（本轮专查，5 条）</a></li><li class="t2"><a href="#s214-1">9. 可直接落地的 MiniMax 系统提示词骨架（每块标出处）</a></li><li class="t2"><a href="#s249-1">10. 反模式（门槛内证据）</a></li><li class="t2"><a href="#s269-1">11. 门槛外残留证据（早于 2026-09-01，仅在无更新数据时保留）</a></li><li class="t2"><a href="#s284-1">12. 门槛内未找到（如实记录，不作臆断）</a></li></ul></aside>
+</div>
+<footer class="page">
+  <div class="pager">
+    <a href="glm-system-prompt-v2.html"><small>上一篇</small><b>GLM</b></a>
+    <a class="n" href="kimi-system-prompt-v2.html"><small>下一篇</small><b>Kimi</b></a>
+  </div>
+  <p class="colophon">构建于 2026-10-20：由 <code>.temp/scripts/md2craft.mjs</code> 从同名 Markdown 真源生成（单一真源，改文请改 <code>minimax-system-prompt-v2.md</code> 后重跑）。引用出处、日期与证据等级逐条标注，见页内来源表。</p>
+</footer>
+<script>
+(function(){
+  var p=document.getElementById('prog');
+  function upd(){var h=document.documentElement;var max=h.scrollHeight-h.clientHeight;p.style.width=(max>0?(h.scrollTop||document.body.scrollTop)/max*100:0)+'%';}
+  addEventListener('scroll',upd,{passive:true});addEventListener('resize',upd);upd();
+  var links=[].slice.call(document.querySelectorAll('aside.toc a'));
+  var map={};links.forEach(function(a){var el=document.getElementById(a.getAttribute('href').slice(1));if(el)map[el.id]=a;});
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){
+      links.forEach(function(a){a.classList.remove('act');});var a=map[e.target.id];if(a){a.classList.add('act');}}});},
+      {rootMargin:'0px 0px -72% 0px',threshold:0});
+    Object.keys(map).forEach(function(id){io.observe(document.getElementById(id));});
+  }
+  var btn=document.getElementById('tocbtn'),toc=document.getElementById('toc');
+  if(btn){toc.setAttribute('data-open','false');btn.addEventListener('click',function(){
+    var open=toc.getAttribute('data-open')==='true';toc.setAttribute('data-open',String(!open));btn.setAttribute('aria-expanded',String(!open));});}
+  [].slice.call(document.querySelectorAll('figure.code .copy')).forEach(function(b){
+    b.addEventListener('click',function(){
+      var code=b.closest('figure').querySelector('code');
+      var t=code.innerText;
+      function done(ok){b.textContent=ok?'已复制':'请手动复制';setTimeout(function(){b.textContent='复制';},1600);}
+      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){done(1);},function(){done(0);});}
+      else{done(0);}
+    });
+  });
+  if(!matchMedia('(prefers-reduced-motion: reduce)').matches){document.documentElement.style.scrollBehavior='smooth';}
+})();
+</script>
+</body>
+</html>

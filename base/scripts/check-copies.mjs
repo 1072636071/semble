@@ -91,6 +91,11 @@ const REGISTRY_SPEC = [
     skills: ['engineering/jxx-to-spec', 'engineering/jxx-to-tickets'],
     destRel: 'scripts/issue-flow.mjs',
   },
+  {
+    src: 'base/scripts/ac-audit.mjs',
+    skills: ['engineering/jxx-to-tickets'],
+    destRel: 'scripts/ac-audit.mjs',
+  },
 ];
 
 /**

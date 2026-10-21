@@ -75,7 +75,7 @@ triage 期间写入 issue 文件的每条评论**必须**以此免责声明开�
 
 5. **应用结果：**
 
-   **服务器对齐（v1.1.0 起默认纪律）**：项目已接入服务器工单（repo_key 在 `jxx_tickets` 中出现）时，triage 结果（状态变更、标签、agent 简报评论）在写本地 issue 文件的同一步内用 `jxx_ticket_call update` 双写服务器（工具面见 `jxx-ticket-router` 技能）——先 `get` 拿最新 `version` 作 `base_version`；服务器不可达时只写本地（离线降级），回连后 `jxx_ticket_sync` 收口。
+   **服务器对齐（v1.1.0 起默认纪律）**：项目已接入服务器工单（repo_key 在 `jxx_tickets` 中出现）时，triage 结果（状态变更、标签、agent 简报评论）在写本地 issue 文件的同一步内用 `jxx_ticket_call update` 双写服务器（工具面见项目内 `agents/skills/jxx-ticket-router/SKILL.md`，项目技能、`read` 加载，项目未提供该文件时以 MCP `tools/list` 自披露 schema 为准）——先 `get` 拿最新 `version` 作 `base_version`；服务器不可达时只写本地（离线降级），回连后 `jxx_ticket_sync` 收口。
 
    - `ready-for-agent` — 发布 agent 简报评论（[AGENT-BRIEF.md](AGENT-BRIEF.md)）。
    - `ready-for-human`——与 agent 简报相同结构，但注明为何不能委托（判断决策、外部访问、设计决策、手动测试）。

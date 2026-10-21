@@ -18,3 +18,4 @@
 模型或用户均可可达（丰富的触发措辞使模型能主动调用）。
 
 - **[grilling](./jxx-grilling/SKILL.md)** — 对用户的计划或设计进行 relentless grill，直到决策树的每个分支都得到解决。
+- **[t2i-prompts](./jxx-t2i-prompts/SKILL.md)** — 文生图提示词：取模板、按平台改组稿、无模板按渠道搜、跑通的好模板沉淀进用户库。

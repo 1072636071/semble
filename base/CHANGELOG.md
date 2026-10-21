@@ -1,5 +1,14 @@
 # mattpocock-skills
 
+## 确定性生成器产出合规工单 2026-10-21
+
+### 修复（`issue-flow.mjs` 生成即违规）
+
+- **`to-tickets` 缺省验收段**：`- [ ] 验收标准 1 / 2` → 与 `jxx-to-tickets` 的 `<local-issue-file-template>` 逐字一致的 4 条示例行（主路径 / 错误路径 / 回归 / 负向，带 `AC-<n>` 编号、`[类别]`、`验证:机器 <用例名|命令>` 载荷）；工单模板补 `**AC 覆盖声明：**` 与 `**处理步骤：**` 两行（验收标准之后、`## 评论` 之前）。旧模板生成的工单跑 `ac-audit` 直接「缺验收点」退出码 1。
+- **`to-spec` PRD 骨架**：用户故事之后补 `## 验收点（AC）` 节（含 4 条 AC 草案行——有验收点节却零 AC 行会被判硬问题）；`Status:` 行改为粗体 `**Status:** ready-for-agent`，符合 issue-tracker 约定并让 `ac-audit` 认出这是工单类文件。
+- **自检提示**：两个生成子命令完成后打印 `下一步自检：node <脚本目录>/scripts/ac-audit.mjs <功能目录> --strict`（`SCRIPT_DIR` 只用于定位同目录 `ac-audit.mjs`，不参与输出路径推断）。
+- **同步与验证**：`check-copies --fix` 下发两份技能副本（复检 42 处一致、0 漂移）；`base/scripts/test/issue-flow.test.mjs` 随模板更新断言并补缺省 AC / 覆盖声明 / 处理步骤断言；`node --test base/scripts/test/issue-flow.test.mjs base/scripts/test/copies-parity.test.mjs` 32/32 通过；`.temp/output/issue-flow-test/` 冒烟生成物跑 `ac-audit` 退出码 0。
+
 ## 共享安装目录的校验噪音修复 2026-10-17
 
 ### 修复（install 每次误报 45 项 MISMATCH）

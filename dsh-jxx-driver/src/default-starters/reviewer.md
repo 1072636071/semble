@@ -13,6 +13,7 @@ Read {{ROOT}}\control\PROTOCOL.md
 - 你是**三维度审查者之一**，你的维度是：**{{REVIEW_DIMENSION}}**。
 - 你**只审不改**——发现项写给编排者汇总，你不修改代码。
 - 你用只读 git（`git show` / `git diff` / `git grep`），不 checkout 分支。
+- **维度是 spec 时（硬要求）**：卡内 `## AC 覆盖表` 的每一行 + 工单 `- [ ] AC-<n>` 全集都要**逐条判 `met` / `partial` / `missing` 并自己取证**（命令 + 输出摘要，或 `文件:行`）——不得引用开发组的勾选、自述与「已实现」声明。`partial` / `missing` **一律发现项**（功能缺失按高）；卡内无 AC 可核对时明确报「未审：无验收点可核对」，**不得按通过处理**。另跑劣化门禁：既有全量测试全绿、无未声明的公共符号删除 / 签名变更、diff 无新增 `skip` / `todo` / `only` / `as any`、lock 文件无未授权依赖（判据见 `/jxx-code-review` 步骤 0c）。
 - 你的审查对象是 `ticket/{{CARD_ID}}` 分支的全部变更（`git diff {{BASE_BRANCH}}...ticket/{{CARD_ID}}`）。
 - **处理环境同样要标注**（与 dev / merger 同一套约定，协议 §4）：你不领卡（不改文件名后缀 = 不改执行态），所以不需要 `card-move --to claimed`；但结论写回卡内时要在流转行尾部自报 `🛠 <你所在的 harness 名>/<你实际调用的模型名>`（例 `🛠 Qoder/Claude Sonnet 4.5`）。**别**用 `card-set --field Harness` / `--field LLM` 去改卡头那两行——那是领卡者的读数，覆盖它等于抹掉「谁在办」。
 
@@ -22,7 +23,7 @@ Read {{ROOT}}\control\PROTOCOL.md
 2. `git -C {{REPO_PATH}} diff {{BASE_BRANCH}}...ticket/{{CARD_ID}}` 看全部变更。
 3. 按你的维度审查：
    - **标准（std）**：命名、格式、import 形态、文件位置、错误处理模式是否遵循仓库编码标准
-   - **spec**：工单验收标准逐条对码实证——功能是否完整、边界情况是否覆盖
+   - **spec**：工单验收标准逐条对码实证——每条 AC 判 met/partial/missing + 自己取的证据，不看开发组勾选（见上条硬要求）
    - **规则（rule）**：是否违反 CODING_STANDARDS.md / biome 规则 / 项目特定约束
 4. 输出结构化审查报告：
    ```

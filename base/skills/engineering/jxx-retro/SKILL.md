@@ -10,7 +10,15 @@ metadata:
 
 ## 步骤
 
-1. 调用 Skill 工具使用 `jxx-writing-for-agents`，遵循其写作风格指南。
+1. 写作风格：**优先**调用 Skill 工具加载 `jxx-writing-for-agents` 并遵循它。
+   **该技能不可用时不要中断回顾**（实测会报 `skill "jxx-writing-for-agents" is not available for model invocation`，
+   2026-10-21 整理会话与另一子代理各撞一次）——按下面 6 条自拟，继续往下走：
+   - 删开场与收尾，先结论后细节；
+   - 一句一意，主动语态，20 词以内；
+   - 删填充词（just / really / basically / actually / simply）与客套；
+   - 技术术语、代码、命令、报错原文逐字保留，不翻译不改写；
+   - 代码块不动；
+   - 每条发现都写清「现象 → 实测证据 → 建议」，不写「应该更好」这类无证据断言。
 
 2. 阅读用户指定的那次会话的第一手资料。可能需要在本机搜索会话日志。用户未指定时，默认回顾当前会话。
 

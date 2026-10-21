@@ -63,6 +63,28 @@ x-install: true
 `TencentDB-Agent-Memory/weknora-credentials.md` §9，只此一份、只取不回显）；tenant 10001 的 key 访问它返 **403**
 （Permission denied，不是 404、不是 key 失效）。详见下方「多 tenant 库的 key 选择」。
 
+### 第三方官方skills 知识库（2026-10-20 登记）
+
+| 项 | 值 |
+|---|---|
+| kb_id | `dfaaf6fc-1e5d-4385-a290-58c847d71bcb` |
+| UI | `http://123.206.125.149:8127/platform/knowledge-bases/dfaaf6fc-1e5d-4385-a290-58c847d71bcb` |
+| REST | `http://123.206.125.149:8127/api/v1`，头 `X-API-Key`（凭据腿 `项目机密\Secret\WeKnora-知识库-API密钥.md`，key 只现取现用、不回显） |
+| tenant | **10001**（与项目库同 tenant，用现有 tenant 10001 key 即可，**不跨 tenant、不会 403**；已实证该 key 的 `/knowledge-bases` 列表含本库） |
+| 定位 | **第三方官方 agent skills 的原文资料库**——收录各官方仓库发布的 `SKILL.md` 原文（例：Hostinger 官方两个技能包），供「找技能」时检索。**只做检索源，不改技能分层**：灵枢仍是技能面权威（kb-router 三步分流第 2 条：技能 → 灵枢） |
+| 消费方 | 全局技能 `find-skills`（外部 skills.sh / npx skills 生态之外，本机 WeKnora 的技能类知识库检索源之一，同列 `b822071a-fb95-4e98-b05d-aa33da685a42`「生成技能」）；暂无本地工作区经 `kb-install.ps1` 接入 |
+| 标签台账 | [references/tag-registry-skills.md](references/tag-registry-skills.md)（类型两标 57/57 挂载，暂无来源标与主题标） |
+| 内容 | **灌装中**（2026-10-20 快照）：57 条 manual = 1 条自撰总索引「README-Hostinger-技能索引」+ 30 条顶层技能原文 + 26 条 `hostinger-headless-aux-NN-*` 附属文件；`parse_status` 全为 `finalizing`、`chunk_count=0`（用户建库后立刻批量导入，仍在实时灌装） |
+
+**建库信息**（2026-10-20 建，creator `std04b`）：`created_at=2026-10-20T16:29:53+08:00`，
+capabilities = keyword / vector / wiki true，faq / graph false；`vector_store_engine_type=postgres`，`status=available`。
+
+**本库与「通用类型标」的关系**：建库即按类型标口径建 `type:material`（`7b162c17-660c-4d65-b9d9-44ae4c0016bf`）/
+`type:experience`（`3c6f9c9a-ba11-44aa-8dc6-3ebd5081a867`）两枚，**57/57 条目已挂 `type:material`**
+（第三方官方 SKILL 原文 = 资料；总索引那条另挂 `type:experience`）。注意本库两枚 id 与其他库同名标**不共用**
+（每库标签空间独立）。反模式防范：本库条目 `tags` 原为全 null，连上传腿来源标都没有——**来源标暂不建**
+（无对应上传腿接入，建了没人挂会重演反模式），判据见台账「待挂清单与判据」。
+
 ### 长兴博客资源知识库（主库，2026-10-04 实测）
 
 | 项 | 值 |
@@ -439,4 +461,5 @@ pwsh -File kb-install.ps1 -Kb <kb_id> -KbName "X" -Workspace . -ExtraRules "**�
 - **references/tag-registry-bpm.md** — BPM 库 tag id 全表。
 - **references/tag-registry-shebei.md** — 设备管理库 tag id 全表（来源两标，暂无主题标）。
 - **references/tag-registry-children.md** — 儿童成长日记库 tag id 全表（tenant 10006，来源两标，暂无主题标）。
+- **references/tag-registry-skills.md** — 第三方官方skills 库 tag id 全表（tenant 10001，类型两标 57/57 挂载，暂无来源标与主题标）。
 - **scripts/kb-check.ps1** / **scripts/kb-install.ps1** — 体检与安装两条全局流程（见上节）。

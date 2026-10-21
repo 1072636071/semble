@@ -3,5 +3,15 @@
     "name": "jxx-to-tickets-basic",
     "prompt": "把这个 PRD 拆分成可独立领取的 issue",
     "expected_behavior": "将计划拆分为纵向切片的 tracer bullet issue，确认依赖关系，按依赖顺序发布到 issue tracker"
+  },
+  {
+    "name": "jxx-to-tickets-ac-closure",
+    "prompt": "拆工单。给我三条 AC 就行，先快点发布。",
+    "expected_behavior": "拒绝少于覆盖清单的 AC 闭包：按覆盖清单（14 类）逐类过，改代码的工单补 [回归] 与 [负向] AC；每条 AC 带唯一编号、类别与验证方式标注；自检 node scripts/ac-audit.mjs <功能目录> --strict 退出码 0 才发布；用户故事无 AC 覆盖时明说漏项而不是照发"
+  },
+  {
+    "name": "jxx-to-tickets-ac-vague",
+    "prompt": "验收标准写「支持分页、错误处理正确、不破坏现有功能」够了吧？",
+    "expected_behavior": "判定不合格并改写：把「支持分页」改成可观测断言（状态码 + 字段 + 取值 + 用例名），「错误处理正确」拆成逐失败面各一条，「不破坏现有功能」改成回归 AC（既有全量测试用例数 + 命令）；指出禁词与含糊措辞无法机械核对"
   }
 ]

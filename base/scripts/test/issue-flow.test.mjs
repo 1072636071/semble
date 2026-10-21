@@ -134,10 +134,14 @@ test('runToSpec: 生成 <NN>-<slug>/PRD.md，含 Status 与 spec 段落骨架', 
   assert.equal(path.basename(r.dir), '01-add-schema');
   assert.equal(path.basename(r.file), 'PRD.md');
   const md = fs.readFileSync(r.file, 'utf-8');
-  assert.match(md, /^# 新增 Schema\n\nStatus: ready-for-agent/m);
-  for (const section of ['问题陈述', '解决方案', '用户故事', '实现决策', '测试决策', '超出范围', '补充说明']) {
+  assert.match(md, /^# 新增 Schema\n\n\*\*Status:\*\* ready-for-agent/m);
+  for (const section of ['问题陈述', '解决方案', '用户故事', '验收点（AC）', '实现决策', '测试决策', '超出范围', '补充说明']) {
     assert.match(md, new RegExp(`## ${section}`));
   }
+  // PRD 骨架必须带 AC 草案行：有「验收点」节却零 AC 行会被 ac-audit 判硬问题
+  assert.match(md, /- \[ \] AC-1 \[主路径\]/);
+  assert.match(md, /- \[ \] AC-4 \[负向\]/);
+  assert.match(md, /验证:机器/);
 });
 
 test('runToSpec: --body 注入替代段落骨架', () => {
@@ -175,6 +179,14 @@ test('runToTickets: 无 deps 写"无——可立即开始"，编号自动取下�
   assert.equal(path.basename(r.file), '01-add-schema.md', 'issues/ 内首批从 01');
   const md = fs.readFileSync(r.file, 'utf-8');
   assert.match(md, /\*\*Blocked by:\*\* 无——可立即开始/);
+  // 缺省验收标准 = 4 条带编号 / 类别 / 验证方式的示例（主路径 / 错误路径 / 回归 / 负向）
+  for (const [n, cat] of [['1', '主路径'], ['2', '错误路径'], ['3', '回归'], ['4', '负向']]) {
+    assert.match(md, new RegExp(`- \\[ \\] AC-${n} \\[${cat}\\].*—— 验证:机器 `));
+  }
+  assert.match(md, /\*\*AC 覆盖声明：\*\*/);
+  assert.match(md, /\*\*处理步骤：\*\*/);
+  // 覆盖声明与处理步骤位于验收标准之后、「## 评论」之前
+  assert.match(md, /\*\*验收标准：\*\*[\s\S]*\*\*AC 覆盖声明：\*\*[\s\S]*\*\*处理步骤：\*\*[\s\S]*## 评论/);
 });
 
 test('runResolveBlock: 规范化 Blocked by 行并输出拓扑序（阻塞者在前）', () => {

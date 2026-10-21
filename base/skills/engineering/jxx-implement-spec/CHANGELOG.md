@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.0 — 2026-10-21
+
+**整轨以 AC 为收口判据（防少做 / 漏实现贯穿到编排层）**：投卡前、审查时、收口处各加一道 AC 闸门，判定口径一律 pointer 到 `jxx-to-tickets/references/acceptance-criteria.md`（唯一权威源，不复制正文）。要点：
+
+- 步骤 2 之前新增步骤 1b「AC → 工单映射缺口审查」：读 PRD 覆盖矩阵产出缺口清单，有用户故事未被任何工单 AC 覆盖 ⇒ 停止编排、先补工单；`ac-audit --strict` 硬问题 0 且缺口清单清空才投卡。
+- 步骤 3 worker 下发要求：工作区含该工单 AC 全集；worker 按 `/jxx-implement` 1.8.0「验收点闭环」闭环；交付卡面「AC 覆盖表」逐条填 `met` / `partial` / `missing`。
+- 步骤 3 审查者要求：spec 维度输出逐 AC 判定表，`partial` / `missing` 一律发现项；有 `missing` 时合并专员不得合入。
+- 步骤 4 PRD 收口前置：每个工单 `ac-audit` 退出码 0，且覆盖矩阵无空洞（每用户故事至少 1 个 `met` 的 AC），否则不得宣布收口。
+
 ## 1.6.0 — 2026-10-15
 
 编排步骤 3 补 worker 纪律锚点：worker 必须遵守 /jxx-implement 1.6.0 的「步骤打卡与断线续接」——列步骤清单进工单文件，每完成一步打卡并双写服务器；编排者中断后以 worker 打卡现场续接。

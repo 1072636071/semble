@@ -63,6 +63,15 @@ For example:
 - User asks "can you help me with PR reviews?" → `npx skills find pr review`
 - User asks "I need to create a changelog" → `npx skills find changelog`
 
+**Also search the local WeKnora skill knowledge bases** — the open ecosystem above is not the only source. Before or after the CLI search (and definitely when the CLI returns nothing), search these in-house WeKnora libraries, which hold official third-party `SKILL.md` originals and generated skills:
+
+| KB | kb_id |
+|---|---|
+| 第三方官方skills | `dfaaf6fc-1e5d-4385-a290-58c847d71bcb` |
+| 生成技能 | `b822071a-fb95-4e98-b05d-aa33da685a42` |
+
+Tool: `hybrid_search(kb_id, query)` (MCP), or REST `POST /knowledge-bases/{kb}/hybrid-search` with body field **`query_text`** (not `query`). Base URL and `X-API-Key` come from the credential store (`项目机密\Secret\WeKnora-知识库-API密钥.md`); see the `weknora-kb-ops` skill for details. Present a hit to the user by its `knowledge_title`, and note it came from the in-house library rather than skills.sh.
+
 ### Step 4: Verify Quality Before Recommending
 
 **Do not recommend a skill based solely on search results.** Always verify:
@@ -125,7 +134,7 @@ When searching, consider these common categories:
 
 ## When No Skills Are Found
 
-If no relevant skills exist:
+If no relevant skills exist (check the local WeKnora libraries from Step 3 before concluding this):
 
 1. Acknowledge that no existing skill was found
 2. Offer to help with the task directly using your general capabilities

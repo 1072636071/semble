@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kimi（月之暗面）提示词与 Agent 人设方案（2026-10）</title>
+<meta name="description" content="采样参数全部锁死，提示词是唯一杠杆 · 人设三句铁律 · 「K2 不支持 system」已证伪">
+<style>
+:root{--h:168;
+  --bg:hsl(var(--h),26%,97%);--surface:#fff;--surface-2:hsl(var(--h),26%,95%);
+  --ink:hsl(var(--h),32%,15%);--muted:hsl(var(--h),19%,36%);--faint:hsl(var(--h),16%,40%);
+  --line:hsl(var(--h),20%,88%);--line-2:hsl(var(--h),22%,82%);
+  --accent:hsl(var(--h),68%,42%);--accent-ink:hsl(var(--h),60%,26%);--accent-weak:hsl(var(--h),64%,95%);
+  --code-bg:hsl(var(--h),32%,12%);--code-fg:hsl(var(--h),14%,90%);--code-key:hsl(calc(var(--h) + 40),60%,72%);
+  --ok:hsl(150,54%,30%);--ok-bg:hsl(150,50%,94%);
+  --warn:hsl(38,84%,30%);--warn-bg:hsl(42,86%,93%);
+  --bad:hsl(2,62%,38%);--bad-bg:hsl(4,72%,96%);
+  --info:hsl(206,66%,32%);--info-bg:hsl(206,66%,95%);
+  --r:14px;--maxw:74ch;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"Cascadia Mono",Consolas,"Liberation Mono",monospace;}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:16.5px;line-height:1.78;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+a{color:var(--accent-ink);text-decoration-thickness:1px;text-underline-offset:2px;overflow-wrap:anywhere}
+a.ext{font-family:var(--mono);font-size:.85em;word-break:break-all}
+a:hover{color:var(--accent)}
+:focus-visible{outline:3px solid hsl(var(--h),72%,52%);outline-offset:2px;border-radius:4px}
+.progress{position:fixed;inset:0 auto auto 0;height:3px;width:0;background:var(--accent);z-index:60;transition:width .08s linear}
+header.top{position:sticky;top:0;z-index:50;background:hsl(var(--h),30%,13%);color:hsl(var(--h),16%,88%);
+  border-bottom:1px solid hsl(var(--h),30%,22%)}
+.top .in{max-width:1320px;margin:0 auto;padding:.75rem 1.25rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
+.brand{font-weight:700;letter-spacing:-.01em;font-size:.95rem;color:#fff;text-decoration:none;white-space:nowrap}
+.brand em{font-style:normal;color:hsl(calc(var(--h) + 38),70%,70%)}
+nav.pills{display:flex;gap:.4rem;flex-wrap:wrap;flex:1 1 22rem}
+.pill{display:inline-flex;align-items:center;gap:.4rem;font-size:.82rem;line-height:1;padding:.5rem .72rem;border-radius:999px;
+  color:hsl(var(--h),14%,84%);text-decoration:none;background:hsl(var(--h),26%,20%);border:1px solid hsl(var(--h),26%,26%)}
+.pill:hover{background:hsl(var(--h),28%,26%);color:#fff}
+.pill.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--d,#fff);box-shadow:0 0 0 2px hsl(var(--h),30%,13%)}
+.shell{max-width:1320px;margin:0 auto;padding:0 1.25rem;display:grid;grid-template-columns:minmax(0,1fr) 15.5rem;gap:2.5rem}
+main{min-width:0;padding:2.5rem 0 5rem}
+article.doc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:clamp(1.4rem,4vw,3rem);box-shadow:0 4px 24px hsla(var(--h),30%,20%,.06)}
+h1{font-size:clamp(1.75rem,3.4vw,2.4rem);line-height:1.16;letter-spacing:-.025em;margin:0 0 1.4rem;padding-bottom:1rem;
+  border-bottom:2px solid var(--accent)}
+h1+h2,h1+p+h2{margin-top:1.6rem}
+h2{font-size:1.42rem;line-height:1.22;letter-spacing:-.02em;margin:3rem 0 .9rem;padding-left:.7rem;border-left:3px solid var(--accent)}
+h3{font-size:1.12rem;line-height:1.3;letter-spacing:-.015em;margin:2.1rem 0 .6rem;color:var(--accent-ink)}
+h4{font-size:1rem;margin:1.6rem 0 .4rem;color:var(--muted)}
+p{margin:.85rem 0;max-width:var(--maxw)}
+li{max-width:var(--maxw)}
+ul,ol{padding-left:1.35rem}
+li>ul,li>ol{margin:.35rem 0}
+hr{border:0;border-top:1px solid var(--line-2);margin:2.6rem 0}
+strong{color:var(--ink)}
+code{font-family:var(--mono);font-size:.88em;background:var(--surface-2);border:1px solid var(--line);
+  border-radius:5px;padding:.1em .38em;color:hsl(var(--h),40%,26%);overflow-wrap:anywhere}
+pre{margin:0;padding:1.05rem 1.15rem;overflow-x:auto;background:var(--code-bg);color:var(--code-fg);
+  font-family:var(--mono);font-size:.845rem;line-height:1.62;border-radius:0 0 calc(var(--r) - 4px) calc(var(--r) - 4px)}
+pre code{background:none;border:0;color:inherit;padding:0;font-size:1em}
+figure.code{margin:1.3rem 0;border:1px solid var(--line);border-radius:calc(var(--r) - 4px);overflow:hidden;background:var(--surface)}
+figure.code figcaption{display:flex;justify-content:space-between;align-items:center;gap:1rem;
+  padding:.42rem .8rem;background:var(--surface-2);border-bottom:1px solid var(--line)}
+figure.code .lang{font:600 .7rem/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.copy{font:600 .76rem/1 var(--sans);padding:.34rem .62rem;border-radius:7px;border:1px solid var(--line-2);
+  background:var(--surface);color:var(--accent-ink);cursor:pointer;min-height:30px}
+.copy:hover{background:var(--accent-weak);border-color:var(--accent)}
+.table-wrap{overflow-x:auto;margin:1.35rem 0;border:1px solid var(--line);border-radius:calc(var(--r) - 4px);max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:.915rem;line-height:1.6;min-width:34rem}
+caption{text-align:left;font-weight:700;padding:.7rem .85rem;background:var(--surface-2);border-bottom:1px solid var(--line)}
+th,td{padding:.62rem .8rem;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+thead th{background:hsl(var(--h),32%,19%);color:hsl(var(--h),16%,92%);font-weight:600;font-size:.85rem;letter-spacing:.01em;white-space:nowrap}
+tbody tr:nth-child(even){background:var(--surface-2)}
+td.k{font-weight:650;color:var(--accent-ink);white-space:nowrap}
+blockquote{margin:1.2rem 0;padding:.15rem 1.1rem;border-left:3px solid hsl(var(--h),52%,68%);background:var(--accent-weak);
+  border-radius:0 10px 10px 0;color:hsl(var(--h),28%,22%);max-width:calc(var(--maxw) + 2rem)}
+blockquote p{margin:.6rem 0}
+blockquote code{background:hsl(var(--h),40%,90%)}
+.g{display:inline-block;font:700 .7rem/1.5 var(--mono);min-width:1.35em;padding:0 .32em;border-radius:5px;
+  text-align:center;vertical-align:.12em}
+.g-A{background:var(--ok-bg);color:var(--ok);border:1px solid hsl(150,40%,74%)}
+.g-B{background:var(--info-bg);color:var(--info);border:1px solid hsl(206,50%,76%)}
+.g-C{background:var(--warn-bg);color:var(--warn);border:1px solid hsl(40,60%,72%)}
+.g-D{background:var(--bad-bg);color:var(--bad);border:1px solid hsl(2,55%,80%)}
+.gnote{font-size:.78em;color:var(--muted);margin-left:.3em}
+.fk{font-family:var(--mono);font-size:.86em;background:hsl(42,88%,92%);color:hsl(30,80%,26%);
+  border:1px dashed hsl(36,70%,58%);border-radius:5px;padding:.08em .3em}
+.lede,.hero{margin:0 0 2rem}
+.lede p{font-size:1.02rem;color:var(--muted);border-top:1px solid var(--line);padding-top:.9rem;max-width:none}
+.hero{display:grid;gap:1.8rem;padding:1.6rem 0 .4rem;border-top:1px solid var(--line)}
+.hero h2{font-size:clamp(1.3rem,2.6vw,1.85rem);margin:0 0 .5rem;border:0;padding:0;max-width:22ch}
+.hero-lead>p{max-width:46ch;color:var(--muted);margin:0}
+.metrics{list-style:none;display:flex;flex-wrap:wrap;gap:.9rem;margin:1.3rem 0 .3rem;padding:0}
+.metrics li{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:.55rem .85rem;display:flex;align-items:baseline;gap:.4rem}
+.metrics b{font-size:1.2rem;letter-spacing:-.02em;color:var(--accent-ink)}
+.metrics span{font-size:.78rem;color:var(--faint)}
+.note{font-size:.78rem;color:var(--faint)}
+.hero-grid{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr))}
+.vcard{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:.95rem 1rem;
+  text-decoration:none;color:var(--ink);position:relative;overflow:hidden}
+.vcard::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:hsl(var(--h),64%,48%)}
+.vcard b{display:block;font-size:1.02rem;letter-spacing:-.01em;margin-bottom:.3rem;color:hsl(var(--h),50%,34%)}
+.vcard span{font-size:.84rem;line-height:1.55;color:var(--muted)}
+.vcard:hover{border-color:hsl(var(--h),40%,70%);transform:translateY(-2px);transition:transform .25s cubic-bezier(.16,1,.3,1)}
+.legend{display:flex;flex-wrap:wrap;gap:.5rem .9rem;align-items:center;font-size:.8rem;color:var(--faint);
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:.6rem .85rem;margin-bottom:1.6rem}
+aside.toc{position:sticky;top:4.6rem;align-self:start;max-height:calc(100vh - 6rem);overflow-y:auto;padding:2.5rem 0 3rem;font-size:.85rem}
+aside.toc h2{font:700 .76rem/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:0 0 .7rem;border:0;padding:0}
+aside.toc ul{list-style:none;margin:0;padding:0;border-left:1px solid var(--line-2)}
+aside.toc li{margin:0}
+aside.toc a{display:block;padding:.28rem .7rem;color:var(--muted);text-decoration:none;border-left:2px solid transparent;margin-left:-1px;line-height:1.4}
+aside.toc a:hover{color:var(--accent-ink)}
+aside.toc a.t3{padding-left:1.4rem;font-size:.8rem}
+aside.toc a.act{color:var(--accent-ink);border-left-color:var(--accent);font-weight:600;background:var(--accent-weak);border-radius:0 6px 6px 0}
+footer.page{max-width:1320px;margin:0 auto;padding:0 1.25rem 3rem}
+.pager{display:grid;gap:.8rem;grid-template-columns:1fr 1fr}
+.pager a{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:.8rem .95rem;text-decoration:none}
+.pager a:hover{border-color:var(--accent)}
+.pager small{display:block;font-size:.75rem;color:var(--faint);letter-spacing:.05em;text-transform:uppercase}
+.pager b{font-size:.98rem;color:var(--accent-ink)}
+.pager .n{text-align:right}
+.colophon{font-size:.8rem;color:var(--faint);margin-top:1.1rem;line-height:1.7}
+button.tocbtn{display:none}
+@media (max-width:1080px){.shell{grid-template-columns:minmax(0,1fr)}aside.toc{position:static;max-height:none;padding:0 0 1rem}
+  aside.toc ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));border-left:0}
+  aside.toc a.t3{padding-left:.7rem}}
+@media (max-width:640px){body{font-size:16px}main{padding:1.4rem 0 3rem}.shell{gap:1.2rem;padding:0 .9rem}
+  h2{font-size:1.25rem;margin-top:2.3rem}table{font-size:.86rem;min-width:28rem}
+  .pill{font-size:.78rem;padding:.45rem .62rem}.pager{grid-template-columns:1fr}.pager .n{text-align:left}
+  button.tocbtn{display:inline-flex;align-items:center;gap:.4rem;font:600 .82rem/1 var(--sans);padding:.55rem .8rem;
+    border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--accent-ink);cursor:pointer;min-height:44px}
+  aside.toc[data-open="false"] ul{display:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media print{header.top,aside.toc,.progress,.copy,.pager{display:none!important}body{background:#fff}
+  article.doc{border:0;box-shadow:none;padding:0}a{color:var(--ink);text-decoration:none}
+  .table-wrap{overflow:visible;border:0}pre{white-space:pre-wrap;background:#f4f4f5;color:#1c1c1e}}
+</style>
+</head>
+<body>
+<div class="progress" id="prog" aria-hidden="true"></div>
+<header class="top"><div class="in">
+  <a class="brand" href="prompt-playbooks-index-2026.html">提示词与人设方案 <em>2026-10-20</em></a>
+  <nav class="pills" aria-label="方案导航"><a class="pill" href="prompt-playbooks-index-2026.html"><span class="dot" style="--d:hsl(214,62%,46%)"></span>索引</a><a class="pill" href="prompt-playbook-deepseek-2026.html"><span class="dot" style="--d:hsl(222,62%,46%)"></span>DeepSeek</a><a class="pill" href="prompt-playbook-glm-2026.html"><span class="dot" style="--d:hsl(268,62%,46%)"></span>GLM</a><a class="pill" href="prompt-playbook-minimax-2026.html"><span class="dot" style="--d:hsl(14,62%,46%)"></span>MiniMax</a><a class="pill on" href="prompt-playbook-kimi-2026.html"><span class="dot" style="--d:hsl(168,62%,46%)"></span>Kimi</a><a class="pill" href="prompt-playbook-universal-agent-2026.html"><span class="dot" style="--d:hsl(196,62%,46%)"></span>通用底座</a></nav>
+  <button class="tocbtn" type="button" id="tocbtn" aria-expanded="false" aria-controls="toc">目录</button>
+</div></header>
+<div class="shell">
+<main id="main">
+  <div class="legend" aria-label="证据等级图例">
+    <span>证据等级：</span>
+    <span class="g g-A">A</span>官方一手
+    <span class="g g-B">B</span>权威二手 / 平台文档
+    <span class="g g-C">C</span>社区实测
+    <span class="g g-D">D</span>未证实，不作依据
+    <span class="fk">〈…〉</span>全角标记＝排版保护，用时须换成半角
+  </div>
+  <section class="lede"><p>采样参数全部锁死，提示词是唯一杠杆 · 人设三句铁律 · 「K2 不支持 system」已证伪</p></section>
+  <article class="doc"><h1 id="s000-1">Kimi（月之暗面）提示词与 Agent 人设方案（2026-10）</h1>
+<blockquote><p>适用范围：<code>kimi-k3</code>、<code>kimi-k2.7-code(-highspeed)</code>、<code>kimi-k2.6</code>，含自部署开源权重。 定稿日期：2026-10-20。证据基线：<a href="https://platform.kimi.com" class="ext" target="_blank" rel="noopener">platform.kimi.com</a> 官方文档（2026-10-16 前后更新，逐页取 <code>.md</code> 原文）、MoonshotAI GitHub、moonshotai 模型卡（hf-mirror 逐字核对）、Kimi 帮助中心。 写作约定：<span class="fk">〈system-reminder〉</span><span class="fk">〈think〉</span>等全角尖括号是排版保护写法，实际使用时替换为 ASCII 半角。 证据等级：<span class="g g-A" title="证据等级 A">A</span> = 官方一手；<span class="g g-A" title="证据等级 A（历史快照）">A⁻</span> = 官方文档历史快照（Wayback）；<span class="g g-B" title="证据等级 B">B</span> = 权威二手；<span class="g g-C" title="证据等级 C">C</span> = 社区复现；<span class="g g-D" title="证据等级 D">D</span> = 未证实/泄露文本。 调研稿：<code>.temp/research/prompt-2026-10/kimi.md</code>，30+ 份官方原文快照在同目录 <code>raw/</code>。</p></blockquote>
+<hr>
+<h2 id="s013-1">0. 一句话抓住 Kimi 的特性：<strong>采样参数锁死，提示词是唯一杠杆</strong></h2>
+<p>现行代系 Kimi 的 <code>temperature</code> / <code>top_p</code> <strong>全部不可修改</strong>（<span class="g g-A" title="证据等级 A">A</span>，官方模型参数参考逐字）：</p>
+<blockquote><p>"表中「固定」表示该参数不可修改：传入其他值会报错。"</p></blockquote>
+<div class="table-wrap"><table><thead><tr><th scope="col">模型</th><th scope="col">temperature</th><th scope="col">top_p</th><th scope="col">上下文</th><th scope="col">推理配置</th></tr></thead><tbody><tr><td class="k"><code>kimi-k3</code></td><td>固定 <strong>1.0</strong></td><td>固定 <strong>0.95</strong></td><td><strong>1M</strong></td><td>顶层 <code>reasoning_effort</code>：low/high/max（默认 max）；<code>max_completion_tokens</code> 默认 131072，可至 1048576</td></tr><tr><td class="k"><code>kimi-k2.7-code(-highspeed)</code></td><td>固定 1.0</td><td>固定 0.95</td><td>256K</td><td>thinking 常开，Preserved Thinking 始终开启</td></tr><tr><td class="k"><code>kimi-k2.6</code></td><td>思考 1.0 / 非思考 <strong>0.6</strong></td><td>固定 0.95</td><td>256K</td><td><code>thinking.type</code> = enabled/disabled；<code>thinking.keep:"all"</code> 可选</td></tr></tbody></table></div>
+<p>官方还直接劝退："建议调用以上模型时<strong>不要显式传入 <code>temperature</code></strong>"。</p>
+<p>后果：<strong>别人家用参数调行为，Kimi 只能靠提示词调行为</strong>。所以 Kimi 这套方案的权重全压在 prompt 层与工具层，唯一可用的行为闸门是 <code>reasoning_effort</code>（思考强度）和工具 schema 的设计质量。</p>
+<p>另一条硬约束（<span class="g g-A" title="证据等级 A">A</span>）："当 <code>temperature</code> 接近 0 时，<code>n</code> 只能为 1，否则返回 <code>invalid_request_error</code>"——历史上 K2 开源时代是 0.6，那时才存在低温采样玩法，现已不适用。</p>
+<hr>
+<h2 id="s041-1">1. 版图与时间线（先别用错模型名）</h2>
+<ul><li><strong>kimi-k3</strong>（2026-07-17 发布、07-27 开源权重）：旗舰，2.8T 参数 MoE，官方逐字："Kimi K3 是 Kimi 迄今能力最强的旗舰模型……拥有 100 万 token 上下文窗口……全球首个开源的 3 万亿级别模型"。<strong>仅思考模型，思考关不掉</strong>（<span class="g g-A" title="证据等级 A">A</span>："目前关不了（思考），K3 始终开启思考模式"），原生视觉。</li><li><strong>kimi-k2.7-code / -highspeed</strong>：编程专用、仅思考（"始终开启思考、不可禁用"），256K；highspeed "输出速度约 180 Tokens/s，短上下文场景可达 260 Token/s"（<span class="g g-A" title="证据等级 A">A</span>）。</li><li><strong>kimi-k2.6</strong>：通用混合思考（可开关），256K，视觉 + 视频输入（<span class="g g-A" title="证据等级 A">A</span>）。</li><li><strong>已下线</strong>（<span class="g g-A" title="证据等级 A">A</span>，模型列表页）：<code>kimi-k2</code> 全系 2026-05-25；<code>kimi-k2.5</code> 与 <code>moonshot-v1</code> 全系 2026-08-31；<code>kimi-latest</code> 2026-01-28。</li><li><strong>instruct/thinking 分离史</strong>：K2 代是两个独立模型 ID（<code>kimi-k2-0905-preview</code> = Instruct、<code>kimi-k2-thinking</code> = 思考）；K2.5/K2.6 起合并成同一模型 + <code>thinking</code>/<code>enable_thinking</code> 开关；<strong>K3 只剩思考一档</strong>、用 <code>reasoning_effort</code> 分强度。</li><li>端点（<span class="g g-A" title="证据等级 A">A</span>，FAQ）：国内 <a href="https://api.moonshot.cn/v1" class="ext" target="_blank" rel="noopener"><code>https://api.moonshot.cn/v1</code></a>，国际 <a href="https://api.moonshot.ai/v1" class="ext" target="_blank" rel="noopener"><code>https://api.moonshot.ai/v1</code></a>，"<strong>两个平台的账户和 key 完全独立，不能混用</strong>"；兼容 OpenAI Chat Completions / Responses 与 Anthropic Messages（<code>/anthropic</code>）。</li><li>传闻 K3.1（三档推理、1M）2026-10 登场：<strong>截至 10-20 平台模型列表仍是 k3 / k2.7-code / k2.6，未落地</strong>（<span class="g g-B" title="证据等级 B">B</span> <span class="g g-C" title="证据等级 C">C</span>，存疑）。</li></ul>
+<hr>
+<h2 id="s056-1">2. 人设（System Prompt）：先辟谣，再给官方口径</h2>
+<h3 id="s059-1">2.1 证伪一条流传说法</h3>
+<p><strong>「K2 不支持 system / 官方建议把 system 并入 user」——未找到任何一手依据，属误传。</strong> Kimi 官方从未在模型卡、API 文档或教程里说过这话，反而全程在用 system：</p>
+<ul><li>K2 开源模型卡（<span class="g g-A" title="证据等级 A">A</span>，moonshotai/Kimi-K2-Instruct）示例即 <code>{"role": "system", "content": "You are Kimi, an AI assistant created by Moonshot AI."}</code>，并写："<strong>If no special instructions are required, the system prompt above is a good default.</strong>"</li><li>K2 Thinking 卡（<span class="g g-A" title="证据等级 A">A</span>，2025-11）同样带 system 示例。</li><li>K2 代 API 文档（<span class="g g-A" title="证据等级 A（历史快照）">A⁻</span>，Wayback 2026-03-31）全部示例首条即 <code>role:"system"</code>。</li><li>现行 API 参考（<span class="g g-A" title="证据等级 A">A</span>）："role 支持 system、user、assistant、tool 其一，content 不得为空。"</li></ul>
+<p>这条误传的真实来源是<strong>三个相邻事实被混为一谈</strong>（这才是需要记住的工程信息）：</p>
+<ol><li><strong>K2.5 在开源推理侧撤掉了「默认 system prompt」</strong>（<span class="g g-A" title="证据等级 A">A</span>，K2.5 卡 Changelog 2026-01-29 逐字）："The default system prompt might cause confusion to users and unexpected behaviours, so we remove it." —— 撤的是<strong>聊天模板里自动注入的默认值</strong>，不是 API 的 system role。（更早 K2-0905 时官方还主动 "updated the default system prompt"，B。）</li><li><strong>不支持的是 OpenAI 新 role <code>developer</code></strong>，不是 system（<span class="g g-C" title="证据等级 C">C</span>，第三方 harness 修复记录 #5159："使用 system 而非不支持的 developer 消息"）。</li><li>"把 system 写进首条 user" 是 <strong>DeepSeek-R1 的官方口径</strong>，与 Kimi 无关（K3 模型卡示例确实只用 user/assistant，但平台文档与 FAQ 一直推荐 system）。</li></ol>
+<blockquote><p>实操结论：在 Kimi 上<strong>放心用 system role</strong>；但自部署开源权重时要检查 chat template 是否还带自动注入的默认 system——K2.5 之后官方把它撤了，你的 harness 若依赖模板注入人设，会发现「人设凭空消失」。</p></blockquote>
+<h3 id="s082-1">2.2 Kimi 官方的 agent 人设三句铁律（<span class="g g-A" title="证据等级 A">A</span>，逐字）</h3>
+<p>来自官方 <code>use-kimi-k3-to-setup-agent</code>：</p>
+<blockquote><p>"<strong>System prompt 只描述角色、工作流程和质量边界，把具体工具参数留给工具 schema</strong>" "<strong>不要把工具能够完成的工作重复写进冗长的 system prompt</strong>" "<strong>不要用 prompt 代替参数约束</strong>"</p></blockquote>
+<p>这是五家里对「人设 vs 工具 schema」分工写得最干净的官方口径：<strong>参数合法性归 JSON schema，行为边界归 system，具体任务归 user</strong>。</p>
+<h3 id="s096-1">2.3 长对话里的人设维护：官方要求「定期强化」</h3>
+<p>A 级逐字（Partial Mode 文档《在长对话中保持角色一致》）：</p>
+<blockquote><p>"应在系统提示词（system prompt）中提供明确的指令和指南，说明该角色在这些情况下应如何行动；<strong>定期强化角色设定</strong>：如果对话的轮次非常长，可以<strong>定期使用系统提示词（system prompt）强化角色的设定</strong>，特别是当模型开始产生一些偏离时。"</p></blockquote>
+<p>即：Kimi 官方承认长轮次下人设会漂移，<strong>官方给的解法是周期性重发 system</strong>，不是写更长的 system。</p>
+<h3 id="s108-1">2.4 K3 的两个 system 新用法（有报错红线）</h3>
+<ul><li><strong>动态工具加载</strong>（<span class="g g-A" title="证据等级 A">A</span>，use-dynamic-tool-loading）：system 消息可<strong>只携带 tools、不携带 content</strong>；"携带 tools 的 system 消息不能再携带 content 字段，否则 400（cannot be used with content）"。</li><li><strong>多文件问答</strong>（<span class="g g-A" title="证据等级 A">A</span>，file-based-qa）：官方建议"<strong>将每个文件单独放置在一个系统提示词 system prompt 中</strong>"，支持多条 system 消息。</li><li><strong>时效信息</strong>（<span class="g g-A" title="证据等级 A（历史快照）">A⁻</span>，FAQ）：官方建议"你可以在系统提示词 system prompt 中为 Kimi 大模型提供这样的信息"（指当前日期）。</li></ul>
+<blockquote><p>⚠️ 这里有一条<strong>官方文档内部的张力</strong>（我的推断，非官方成文）：FAQ 建议把当前日期写进 system，而 context-caching 又要求"<strong>不要在前缀中插入时间戳、随机 ID 或其他动态字段</strong>"。两者在逐日变化的日期上冲突。稳妥做法：日期若每天变，就放在<strong>消息序列尾部</strong>（user 侧）而不是前缀 system，或接受每天破一次缓存。</p></blockquote>
+<hr>
+<h2 id="s122-1">3. 官方《Prompt 最佳实践》九条（<span class="g g-A" title="证据等级 A">A</span>，可逐条照抄）</h2>
+<p>标题与关键原句照抄（<a href="https://platform.kimi.com/docs/guide/prompt-best-practice" class="ext" target="_blank" rel="noopener"><code>platform.kimi.com/docs/guide/prompt-best-practice</code></a>，2026-10 在线版与 2025-07 Wayback 快照一致，说明规则稳定）：</p>
+<ol><li><strong>编写清晰的说明</strong>——"模型无法读懂你的想法……模型越少猜测你的需求，你越有可能得到满意的结果。"</li><li><strong>在请求中包含更多细节</strong>——"请保证在输入请求中提供所有重要细节和背景"（附"一般的请求 vs 更好的请求"对照表）。</li><li><strong>在请求中要求模型扮演一个角色</strong>——官方示例就是 <code>role:"system"</code> 人设消息。</li><li><strong>在请求中使用分隔符</strong>——"使用<strong>三重引号 / XML 标签 / 章节标题</strong>等定界符"。</li><li><strong>明确完成任务所需的步骤</strong>——"任务建议明确一系列步骤"。</li><li><strong>向模型提供输出示例</strong>（few-shot）——"提供一般指导的示例描述，通常比展示任务的所有排列……更加高效"（即<strong>给原则性示例，不要穷举排列</strong>）。</li><li><strong>指定期望输出的长度</strong>——官方警告逐字："<strong>指示模型生成特定数量的文字并不具有高精度。模型更擅长生成特定数量的段落或项目符号的输出。</strong>" → 用「3 段」「5 个 bullet」而不是「300 字」。</li><li><strong>提供参考文本</strong>（防幻觉官方句式）——"使用提供的文章（用三引号分隔）回答问题。<strong>如果答案在文章中找不到，请写'我找不到答案。'</strong>"</li><li><strong>拆分复杂的任务</strong>——按分类路由指令；长对话"总结或过滤之前的对话"（<strong>摘要可作为 system 消息回灌</strong>）；"分块概括长文档，并递归构建完整摘要"。</li></ol>
+<h3 id="s139-1">3.1 面向普通用户的官方四要素 + 误区表（<span class="g g-A" title="证据等级 A">A</span>，Kimi 帮助中心）</h3>
+<p>四要素："明确角色与背景 / 具体描述任务（做什么、输出格式、数量与范围、质量要求）/ 提供示例或参考 / 分步骤拆解复杂任务"。实用技巧：追问迭代、善用文件和链接、指定输出格式、"<strong>利用系统提示和记忆</strong>"（用产品端记忆功能固化长期偏好）。</p>
+<p>官方《常见误区》表（<span class="g g-A" title="证据等级 A">A</span>，逐条给修法，日常对话直接用）：</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">误区</th><th scope="col">官方给的替代做法</th></tr></thead><tbody><tr><td class="k">一次塞入过多不相关的任务</td><td>每个独立任务新建会话</td></tr><tr><td class="k">提示过于模糊（如"帮我写点东西"）</td><td>说明写什么、给谁看、什么风格、多少字</td></tr><tr><td class="k">期望一次完美输出</td><td><strong>先生成初稿，再通过追问迭代优化</strong></td></tr><tr><td class="k">不检查 AI 输出的事实性</td><td>涉及数据、日期等事实信息时，务必核实</td></tr></tbody></table></div>
+<hr>
+<h2 id="s159-1">4. Agent 工具层：Kimi 是五家里官方规定最密的</h2>
+<h3 id="s162-1">4.1 回传铁律（<span class="g g-A" title="证据等级 A">A</span>，逐字）</h3>
+<blockquote><p>"我们推荐直接将 Kimi API 返回的 <code>choice.message</code> <strong>'原封不动'地添加到 messages 列表中</strong>。"</p></blockquote>
+<p>配套：</p>
+<ul><li>思考模型必须<strong>连同 <code>reasoning_content</code> 原样回传</strong>，否则"破坏后续工具调用上下文"；单轮工具循环内"应保留上下文中所有的思考内容（reasoning_content）并随请求回传"。</li><li>每个 tool_call 必须有对应 <code>tool_call_id</code> 的 <code>role=tool</code> 消息，<strong>缺一即错</strong>（官方专设 <code>tool_call_id not found</code> 排查节）。</li><li>别只保留 content 就回传 assistant 消息（K3 明确警告）；判断字段存在"仅支持通过 <code>hasattr</code> 判断 <code>reasoning_content</code> 存在"。</li><li><code>reasoning_content</code> <strong>会计入 token 消耗</strong>（<span class="g g-A" title="证据等级 A">A</span>，计费警告）。</li><li>流式注意：先输出 <code>delta.content</code> 再输出 <code>delta.tool_calls</code>，须<strong>按 index 拼接 arguments</strong>。</li></ul>
+<h3 id="s178-1">4.2 硬性配置（<span class="g g-A" title="证据等级 A">A</span>，逐字）</h3>
+<blockquote><p>"<strong>设置 <code>max_tokens&gt;=16000</code></strong> 以避免无法输出完整的 reasoning_content 和 content"；"<strong>无需设置 temperature</strong>"；"使用流式输出（stream=True）"。</p></blockquote>
+<p><code>reasoning_effort</code> 换档警告（<span class="g g-A" title="证据等级 A">A</span>）："切换档位会破坏前缀缓存命中，<strong>建议在会话开始前确定 effort 档位，避免中途切换</strong>。"</p>
+<h3 id="s187-1">4.3 tool_choice 的代际差异（容易踩）</h3>
+<ul><li><code>kimi-k3</code> 支持 auto / none / <strong>required</strong>；<strong>K2.6 / K2.7 不支持 required，传入报错</strong>。</li><li><strong>强制指定单个函数与思考模式互斥</strong>（<span class="g g-A" title="证据等级 A">A</span>）：400 "tool_choice 'specified' is incompatible with thinking enabled"。</li><li>"是否设置 tool_choice <strong>不会破坏前缀缓存</strong>"。</li></ul>
+<h3 id="s195-1">4.4 多工具编排的官方模式（<span class="g g-A" title="证据等级 A">A</span>，kimi-k3-tool-calling-best-practice）</h3>
+<blockquote><p>"<strong>不要把所有（上百个）工具定义一次性放进请求</strong>"</p></blockquote>
+<p>官方给的三步：只挂 <code>search_tools</code> + 核心工具 → 首轮 <code>tool_choice:"required"</code> <strong>强制检索</strong> → 后续恢复 <code>"auto"</code> → 用<strong>带 tools 的 system 消息</strong>按需注入工具定义（即 §2.4 的动态加载）。</p>
+<h3 id="s204-1">4.5 重复调用治理（官方给了现成模板）</h3>
+<p>A 级（tool-call-repeat）：业务侧检测<strong>同一工具、同一组参数、连续 3 / 5 / 8 次</strong>时，向 system prompt 追加<span class="fk">〈system-reminder〉</span>文本（官方给两段逐字模板），并强调"<strong>仅在同一工具、同一组参数、连续多次重复、工具结果没有新进展同时成立时触发</strong>"。</p>
+<blockquote><p>值得直接抄进 harness：这是把「纠偏提醒」做成<strong>按需注入的 system 增量</strong>，而不是预先写进人设——与 §2.2「不要把工具能做的写进冗长 system」一脉相承。</p></blockquote>
+<h3 id="s213-1">4.6 工具描述写法<span class="g g-A" title="证据等级 A">A</span> </h3>
+<ul><li>"description 描述了工具的<strong>具体作用、以及在什么场合需要使用工具</strong>"（用途 + 触发场合，两件事都要写）。</li><li>schema 侧："将 <code>additionalProperties</code> 设为 <code>false</code>，并在 <code>required</code> 中列出必填字段，<strong>可以减少模型生成无效参数的概率</strong>"。</li><li>"思考后再调用"不需要写咒语：官方口径是模型"原生掌握边思考边使用工具"，你要做的是把一次工具循环内<strong>全部 reasoning_content 留在上下文</strong>里（<span class="g g-A" title="证据等级 A">A</span>）。</li></ul>
+<h3 id="s221-1">4.7 自部署 K2 系列的 ID 格式坑<span class="g g-B" title="证据等级 B">B</span> </h3>
+<p>vLLM 官方博客（2025-10-28）：K2 工具调用输出包裹于特殊 begin/end 标记，<strong>工具 ID 必须是 <code>functions.{name}:{idx}</code> 格式</strong>——"the Kimi-K2 model expects all tool call IDs in historical messages to follow the functions.func_name:idx format"；<strong>官方 API 会自动归一化历史 tool call ID</strong>（"their API automatically renames all historical tool call IDs"），自建推理必须复刻这层预处理。</p>
+<p>配套官方口径（<span class="g g-A" title="证据等级 A">A</span>，K2 文档）："官方 API 版本工具调用准确率接近 100%……<strong>第三方平台部署的开源版本工具调用能力可能会有所下降</strong>"。</p>
+<hr>
+<h2 id="s233-1">5. 结构化输出（Kimi 独有：schema 方言 + 自检 CLI）</h2>
+<ul><li><strong>JSON Mode 三步</strong>（<span class="g g-A" title="证据等级 A">A</span>，逐字）："1. 在 system 或 user prompt 中定义输出 JSON 的格式……<strong>最佳实践是给出具体的输出示例，并解释每个字段的具体含义</strong>；2. <code>response_format:{"type":"json_object"}</code>；3. 解析 <code>message.content</code>"。</li><li><strong>Structured Output</strong>：<code>json_schema + strict:true</code>，走 <strong>token 级约束解码</strong>；schema 须符合 <strong>MFJS（Moonshot Flavored JSON Schema）</strong>，官方给 <code>walle</code> CLI 自检：<code>go install github.com/moonshotai/walle/cmd/walle@latest</code>。</li><li><strong>模型分级差异</strong>（<span class="g g-A" title="证据等级 A">A</span>，逐字）："kimi-k2.6 在复杂 schema 下偶有不稳定表现，例如 <code>$ref</code> 可能返回 Markdown 代码块、<code>oneOf</code> 可能被忽略、<code>partial=true</code> 可能输出 schema 外字段……<strong>建议优先使用简单 schema，并在业务层做二次校验</strong>"。横评侧还记录到官方给出的稳定性序：<strong>k2.7-code &gt; k3 &gt; k2.6</strong>。</li><li>防编造技巧（<span class="g g-A" title="证据等级 A">A</span>）：可能缺失的字段用联合类型 <code>"type": ["integer", "null"]</code>。</li><li>"是否设置 <code>response_format</code> <strong>不会破坏前缀缓存</strong>"；k2.6 上不建议 <code>response_format</code> 与 <code>partial=true</code> 混用。</li><li>解析纪律：<strong>只解析 <code>content</code>，勿碰 <code>reasoning_content</code></strong>。</li></ul>
+<hr>
+<h2 id="s247-1">6. 长上下文与检索</h2>
+<ul><li>容量换算（<span class="g g-A" title="证据等级 A（历史快照）">A⁻</span>，FAQ）：256K ≈ 40 万汉字，1M 更大。</li><li>截断处理链：<code>estimate-token-count</code> 预估 → <code>finish_reason=length</code> → 接 <strong>Partial Mode 续写</strong>（官方专门为续写做的功能）。</li><li>超长文档官方策略（最佳实践第 9 条）：<strong>分块概括 → 摘要的摘要 → 递归拼装</strong>。</li><li>前缀缓存纪律（<span class="g g-A" title="证据等级 A">A</span>，context-caching 逐字）："把稳定的 system prompt、工具定义、参考资料和代码库放在请求前部……<strong>不要在前缀中插入时间戳、随机 ID 或其他动态字段</strong>"。</li><li><strong>官方未发布</strong>「注意力中段衰减 / lost in the middle」类成文告诫（已检索，记未找到）。</li><li>联网搜索官方建议（<span class="g g-A" title="证据等级 A">A</span>）：查询词 <strong>1–6 词</strong>、带上<strong>当年年份</strong>、<strong>先搜后开链</strong>；但 K3 快速开始同时提示"联网搜索工具正在更新，近期不建议使用"（<strong>官方工具链临时状态</strong>，用前先看公告）。</li><li>两条 token 灾难警告（<span class="g g-A" title="证据等级 A">A</span>，FAQ）："使用 base64 编码你的文本内容会导致产生<strong>巨量的 Tokens 消耗</strong>"；"请不要把二进制文件添加到上下文中"；"目前不支持使用文件 file_id 的方式引用文件内容作为上下文"。</li><li>长文档定位三板斧（<span class="g g-D" title="证据等级 D">D</span>，社区，无官方背书，可与官方引用要求叠加）：提问带<strong>大纲锚点</strong>（复现原文章节编号）、关键词反查段落、先让模型产出<strong>目录树当坐标系</strong>、答案要求"见原文第 N 页"式出处。</li></ul>
+<hr>
+<h2 id="s263-1">7. 可直接复制的三个模板</h2>
+<h3 id="s266-1">模板 ① · 通用任务</h3>
+<figure class="code"><figcaption><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></figcaption><pre><code>【system】（Kimi 官方：角色 + 质量边界，不含工具参数细节）
+你是{角色}，服务{目标读者}。规则：
+- 区分已确认事实、估算与推断；不确定就直说，不得编造        ← 最佳实践§8
+- 用与用户相同的语言回答                                    ← agent 指南逐字
+- 输出：{段落/表格/编号列表}，按「段数或条目数」限定，不写字数  ← §7 官方警告
+
+【user】
+【背景】…                                            ← §2 细节与背景
+【任务】明确动词（分析/总结/翻译/对比）                ← §1 清晰的说明
+【范围与限制】…
+【示例】{一个原则性示例，不穷举排列}                   ← §6 官方 few-shot 口径
+【参数】不传 temperature/top_p（传入报错）；k3 用 reasoning_effort 选档</code></pre></figure>
+<h3 id="s285-1">模板 ② · Kimi Agent 工具调用（k3，官方 setup-agent 骨架）</h3>
+<figure class="code"><figcaption><span class="lang">python</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></figcaption><pre><code>SYSTEM_PROMPT = """你是{领域}助手。先明确范围，再检索/调用工具并交叉验证，最后输出报告。
+要求：区分事实与推断；不得编造数据或来源；报告含摘要、关键发现、限制、来源列表。"""
+
+messages = [{"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": task}]
+# 工具：required 列全 + enum + additionalProperties:False（官方：减少无效参数）
+# 工具多时：只挂 search_tools + 核心工具，首轮 tool_choice="required" 强制检索，之后回 auto
+loop(≤8 轮):
+    create(model="kimi-k3", messages=messages, tools=tools,
+           max_completion_tokens=8192)     # 思考模型官方要求 max_tokens&gt;=16000
+    # 不传 temperature/top_p；思考模式下不要指定单个函数（400 互斥）
+    messages.append(response.choices[0].message)      # 原封不动，含 reasoning_content
+    for tc in message.tool_calls:
+        messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+    # finish_reason=="length" → 提高 max_completion_tokens
+    # 同工具同参连续 3 次且无新进展 → 按官方模板向 system 追加〈system-reminder〉</code></pre></figure>
+<h3 id="s308-1">模板 ③ · 长文档分析（几十万字）</h3>
+<figure class="code"><figcaption><span class="lang">python</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></figcaption><pre><code>messages = [
+  {"role": "system", "content":
+    "你是文档分析助手。仅依据给定材料回答；材料中没有就写「我找不到答案。」；"
+    "回答须引用原文位置（章节号/页码）。"},                       # ← 官方防幻觉句式 + §7 参考文本
+  # 每个文件单独一条 system（官方 file-based-qa 建议），固定前缀放头部吃缓存
+  *[{"role": "system", "content": f"〈文档{i}〉{抽取文本}〈/文档{i}〉"} for i, …],
+  {"role": "user", "content":
+    "第一步：输出带编号大纲；第二步：针对【4.2 数据验证方法】章节……（复现原文编号格式）"}
+]
+# model=kimi-k3；reasoning_effort="max"（难题）/"low"（抽取类）；会话开始就定档，别中途换
+# max_completion_tokens&gt;=16000；stream=True
+# 超长：分块概括 → 摘要的摘要 → 拼装（官方§9）；字数控制不可靠 → 分章节模板逐段填充（官方FAQ长文方案）</code></pre></figure>
+<hr>
+<h2 id="s330-1">8. Kimi 敏感度小结（供索引表引用）</h2>
+<ul><li><strong>参数敏感度：最低</strong>——采样参数锁死，行为完全由提示词与工具 schema 决定（<span class="g g-A" title="证据等级 A">A</span>）。</li><li><strong>system 遵守度：高且官方主推</strong>，但要求 system <strong>保持精简</strong>、工具参数一律下沉 schema（<span class="g g-A" title="证据等级 A">A</span> 三句铁律）；长轮次会漂移，官方解法是「定期强化」。</li><li><strong>最脆弱点</strong>：回传纪律。<code>choice.message</code> 必须原封不动回传、<code>tool_call_id</code> 必须齐、思考内容必须留在上下文——任一缺失直接 400 或链路断裂（<span class="g g-A" title="证据等级 A">A</span>）。</li><li><strong>格式约束</strong>：走 <code>json_schema + strict</code> 的 token 级约束解码最可靠；复杂 schema（<code>$ref</code>/<code>oneOf</code>）按模型分级，k2.6 已知不稳（<span class="g g-A" title="证据等级 A">A</span>）。</li><li><strong>语言</strong>：官方要求"用与用户相同的语言回答"需显式写进人设（agent 指南逐字），说明它同样存在语言漂移。</li></ul>
+<hr>
+<h2 id="s343-1">9. 引用清单与存疑</h2>
+<p><strong>A 级（官方一手，2026-10-16 前后 <code>.md</code> 原文，快照存 <code>.temp/research/prompt-2026-10/raw/kimi-docs/</code>）</strong></p>
+<p><code>/docs/llms.txt</code>、<code>/docs/models</code>、<code>/api/models-overview</code>、<code>/api/chat</code>、<code>/guide/kimi-k3-quickstart</code>、<code>/guide/prompt-best-practice</code>、<code>/guide/use-kimi-api-to-complete-tool-calls</code>、<code>/guide/use-tool-choice</code>、<code>/guide/kimi-k3-tool-calling-best-practice</code>、<code>/guide/use-dynamic-tool-loading</code>、<code>/guide/tool-call-repeat</code>、<code>/guide/use-kimi-k3-to-setup-agent</code>、<code>/guide/use-thinking-models</code>、<code>/guide/response_format</code>、<code>/guide/use-json-mode-feature-of-kimi-api</code>、<code>/guide/use-partial-mode-feature-of-kimi-api</code>、<code>/guide/context-caching</code>、<code>/guide/use-kimi-api-for-file-based-qa</code>、<code>/hosted-agents/overview</code>（官方 12 个 agent 设计案例模板库）</p>
+<p>模型卡（hf-mirror 取 raw README）：<code>moonshotai/Kimi-K2-Instruct</code>、<code>Kimi-K2-Thinking</code>、<code>Kimi-K2.5</code>（Changelog 2026.1.29）、<code>Kimi-K2.6</code>、<code>Kimi-K2.7-Code</code>、<code>Kimi-K3</code> GitHub：<code>MoonshotAI/Kimi-K2</code> README + <code>docs/tool_call_guidance.md</code> 帮助中心（用户向，A）：<code>kimi.com/zh-cn/help/new-user-guide/what-is-prompt</code>、<a href="https://kimi.ai/zh-hans/help/getting-started/what-is-prompt" class="ext" target="_blank" rel="noopener"><code>kimi.ai/zh-hans/help/getting-started/what-is-prompt</code></a></p>
+<p><span class="g g-A" title="证据等级 A（历史快照）">A⁻</span>：Wayback <a href="https://platform.moonshot.cn/docs/guide/prompt-best-practice" class="ext" target="_blank" rel="noopener"><code>platform.moonshot.cn/docs/guide/prompt-best-practice</code></a>、<code>/faq</code>、<code>/kimi-k2-quickstart</code>（2026-03-31 SSR 快照，存 <code>raw/archive/</code>）</p>
+<p><span class="g g-B" title="证据等级 B">B</span>：vllm.ai/blog/2025-10-28-kimi-k2-accuracy；AWS Bedrock K2-Thinking model card（2025-11-06）；开源中国 361598（2025-07-23 模板更新）；IT之家（K2 下线 2026-05-26）；PChome/Wccftech（K3 时间与 K3.1 传闻）</p>
+<p><span class="g g-C" title="证据等级 C">C</span> <span class="g g-D" title="证据等级 D">D</span>：Pi 中文文档 news（K2.6 developer role 修复 #5159）；php.cn 长文档定位教程；163/woshipm「K2 Thinking 执行回路」提示词文（<span class="g g-D" title="证据等级 D">D</span>）；<code>asgeirtj/system_prompts_leaks</code> 里的 Kimi 泄露人设文本（<strong>非官方发布</strong>，只能当写法参考；其中 K3 助手几条挺有意思："Show the outcome, not the machinery"、"search the assumption itself rather than the answer you already have in mind"、"Own and fix your mistakes…no protracted apologies"）；阿里云百炼 kimi 文档（三方部署口径）。</p>
+<p><strong>存疑与未找到一手依据</strong></p>
+<ol><li>「K2 官方建议把 system 并入 user」：<strong>未找到</strong>，判为三个相邻事实的混淆（§2.1）。</li><li>K2 Thinking 时代 API 文档（<code>use-kimi-k2-thinking-model</code>，2025-11）Wayback 只有 JS 壳快照，正文无法排除当时另有 system 告诫 → 记「未找到」。</li><li>Kimi K3 技术报告 PDF 与 K2.5 技术报告（arXiv 2602.02276）<strong>未逐页研读</strong>，提示词附录未核。</li><li>官方「长上下文衰减」成文建议：未找到。</li><li>官方 X（@Kimi_Moonshot）prompting tips 专帖：本机无 twitter 工具面，未检索到一手原文。</li><li>K3.1 截至 2026-10-20 未上架。</li><li>K2 文档提过的 "Enforcer &amp; Json Mode" 特有功能：现行文档未见专页，推断已被 <code>tool_choice=required</code> + strict json_schema 取代（存疑）。</li></ol></article>
+</main>
+<aside class="toc" id="toc" data-open="false"><h2>本页目录</h2><ul><li class="t1"><a href="#s000-1">Kimi（月之暗面）提示词与 Agent 人设方案（2026-10）</a></li><li class="t2"><a href="#s013-1">0. 一句话抓住 Kimi 的特性：采样参数锁死，提示词是唯一杠杆</a></li><li class="t2"><a href="#s041-1">1. 版图与时间线（先别用错模型名）</a></li><li class="t2"><a href="#s056-1">2. 人设（System Prompt）：先辟谣，再给官方口径</a></li><li class="t3"><a href="#s059-1">2.1 证伪一条流传说法</a></li><li class="t3"><a href="#s082-1">2.2 Kimi 官方的 agent 人设三句铁律（A，逐字）</a></li><li class="t3"><a href="#s096-1">2.3 长对话里的人设维护：官方要求「定期强化」</a></li><li class="t3"><a href="#s108-1">2.4 K3 的两个 system 新用法（有报错红线）</a></li><li class="t2"><a href="#s122-1">3. 官方《Prompt 最佳实践》九条（A，可逐条照抄）</a></li><li class="t3"><a href="#s139-1">3.1 面向普通用户的官方四要素 + 误区表（A，Kimi 帮助中心）</a></li><li class="t2"><a href="#s159-1">4. Agent 工具层：Kimi 是五家里官方规定最密的</a></li><li class="t3"><a href="#s162-1">4.1 回传铁律（A，逐字）</a></li><li class="t3"><a href="#s178-1">4.2 硬性配置（A，逐字）</a></li><li class="t3"><a href="#s187-1">4.3 tool_choice 的代际差异（容易踩）</a></li><li class="t3"><a href="#s195-1">4.4 多工具编排的官方模式（A，kimi-k3-tool-calling-best-practice）</a></li><li class="t3"><a href="#s204-1">4.5 重复调用治理（官方给了现成模板）</a></li><li class="t3"><a href="#s213-1">4.6 工具描述写法（A）</a></li><li class="t3"><a href="#s221-1">4.7 自部署 K2 系列的 ID 格式坑（B）</a></li><li class="t2"><a href="#s233-1">5. 结构化输出（Kimi 独有：schema 方言 + 自检 CLI）</a></li><li class="t2"><a href="#s247-1">6. 长上下文与检索</a></li><li class="t2"><a href="#s263-1">7. 可直接复制的三个模板</a></li><li class="t3"><a href="#s266-1">模板 ① · 通用任务</a></li><li class="t3"><a href="#s285-1">模板 ② · Kimi Agent 工具调用（k3，官方 setup-agent 骨架）</a></li><li class="t3"><a href="#s308-1">模板 ③ · 长文档分析（几十万字）</a></li><li class="t2"><a href="#s330-1">8. Kimi 敏感度小结（供索引表引用）</a></li><li class="t2"><a href="#s343-1">9. 引用清单与存疑</a></li></ul></aside>
+</div>
+<footer class="page">
+  <div class="pager">
+    <a href="prompt-playbook-minimax-2026.html"><small>上一篇</small><b>MiniMax</b></a>
+    <a class="n" href="prompt-playbook-universal-agent-2026.html"><small>下一篇</small><b>通用底座</b></a>
+  </div>
+  <p class="colophon">构建于 2026-10-20：由 <code>.temp/scripts/md2craft.mjs</code> 从同名 Markdown 真源生成（单一真源，改文请改 <code>prompt-playbook-kimi-2026.md</code> 后重跑）。引用出处、日期与证据等级逐条标注，见页内来源表。</p>
+</footer>
+<script>
+(function(){
+  var p=document.getElementById('prog');
+  function upd(){var h=document.documentElement;var max=h.scrollHeight-h.clientHeight;p.style.width=(max>0?(h.scrollTop||document.body.scrollTop)/max*100:0)+'%';}
+  addEventListener('scroll',upd,{passive:true});addEventListener('resize',upd);upd();
+  var links=[].slice.call(document.querySelectorAll('aside.toc a'));
+  var map={};links.forEach(function(a){var el=document.getElementById(a.getAttribute('href').slice(1));if(el)map[el.id]=a;});
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){
+      links.forEach(function(a){a.classList.remove('act');});var a=map[e.target.id];if(a){a.classList.add('act');}}});},
+      {rootMargin:'0px 0px -72% 0px',threshold:0});
+    Object.keys(map).forEach(function(id){io.observe(document.getElementById(id));});
+  }
+  var btn=document.getElementById('tocbtn'),toc=document.getElementById('toc');
+  if(btn){toc.setAttribute('data-open','false');btn.addEventListener('click',function(){
+    var open=toc.getAttribute('data-open')==='true';toc.setAttribute('data-open',String(!open));btn.setAttribute('aria-expanded',String(!open));});}
+  [].slice.call(document.querySelectorAll('figure.code .copy')).forEach(function(b){
+    b.addEventListener('click',function(){
+      var code=b.closest('figure').querySelector('code');
+      var t=code.innerText;
+      function done(ok){b.textContent=ok?'已复制':'请手动复制';setTimeout(function(){b.textContent='复制';},1600);}
+      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){done(1);},function(){done(0);});}
+      else{done(0);}
+    });
+  });
+  if(!matchMedia('(prefers-reduced-motion: reduce)').matches){document.documentElement.style.scrollBehavior='smooth';}
+})();
+</script>
+</body>
+</html>

@@ -3,7 +3,7 @@ name: jxx-implement
 description: 按 spec 或工单实现：在工单 worktree 开发、走统一看板流转，收口四段（复核→预演冲突→合 main→回收）。触发词：实现、implement、工单实现。
 disable-model-invocation: false
 metadata:
-  version: 1.6.0
+  version: 1.8.1
 ---
 
 实现用户在 spec 或工单中描述的工作。
@@ -31,7 +31,7 @@ node tools/jxx-bootstrap.mjs --root <项目根>        # 缺则创建（种子�
 
 - 项目已接入 ⇒ `already-bootstrapped`，继续正常流程；
 - **新项目（线上无该 repo_key 工单）⇒ 自动先创建**：种子工单（`【bootstrap】<项目名> 工作区开通`）+ 本地投影基准，然后才进行后续操作；
-- **状态流转 / 正文修订 / 打卡上报：常规双写一条命令**（PRD 127 · 2026-10-17 起默认，不再手工编排 MCP 往返）：改完本地 md 后跑 `node tools/ticket-flow.mjs --root <仓库根> [--file <单条md>]`——它内部做完匹配（state 精确 → repo_key+title 回退）→ 无匹配 create / 有差异 update（内部 get 最新版 → update，`version_conflict` 自动重拉重试一次）→ 刷新 state，幂等可重跑；`--dry-run` 零写入预演。MCP 四把工具（`jxx_ticket_call` / `get` / `list` / `push`）**降级为 exit 2 兜底路径**：仅当项目未接 `tools/ticket-flow.mjs` 或该命令不可用时才回到它（口径见 `jxx-ticket-router` 技能「快速通道」节）。服务不可达时照常直写本地 md（离线降级），回连后 `jxx_ticket_sync` 收口。
+- **状态流转 / 正文修订 / 打卡上报：常规双写一条命令**（PRD 127 · 2026-10-17 起默认，不再手工编排 MCP 往返）：改完本地 md 后跑 `node tools/ticket-flow.mjs --root <仓库根> [--file <单条md>]`——它内部做完匹配（state 精确 → repo_key+title 回退）→ 无匹配 create / 有差异 update（内部 get 最新版 → update，`version_conflict` 自动重拉重试一次）→ 刷新 state，幂等可重跑；`--dry-run` 零写入预演。MCP 四把工具（`jxx_ticket_call` / `get` / `list` / `push`）**降级为 exit 2 兜底路径**：仅当项目未接 `tools/ticket-flow.mjs` 或该命令不可用时才回到它（口径见项目内 `agents/skills/jxx-ticket-router/SKILL.md`，项目技能、`read` 加载，项目未提供该文件时以 MCP `tools/list` 自披露 schema 为准「快速通道」节）。服务不可达时照常直写本地 md（离线降级），回连后 `jxx_ticket_sync` 收口。
 - **正文与评论同样双写（v1.5.0 起默认纪律）**：实现过程中往工单文件追加的评论、修订的验收点/正文，先改本地 md，再以服务器最新 `version` 作 `base_version` 推服务器副本——服务器是真源，只改本地等于没记录。
 - **批量 push 的 id 必须实测核对**：从当次 `list`/`get` 结果逐条取 id，不得凭表格或记忆手抄——串位会把正文写进邻居工单（2026-10-15 实测事故：T131–T135 四条错位，靠乐观锁 409 + 标签过滤 `list` 对账才发现）。
 - 本仓无 `tools/jxx-bootstrap.mjs` 的项目（未接此套工具）：以「`jxx_ticket_call list` 按 repo_key 查询 + 无则 `create` 种子工单」同语义手动执行（口径见 `references/ADR-010-server-first-tickets.md`）。
@@ -44,17 +44,45 @@ node tools/jxx-bootstrap.mjs --root <项目根>        # 缺则创建（种子�
 - 打卡与代码提交解耦：打卡更新随下次 commit 顺带入库即可，**不因打卡单独发 commit**，但打卡动作本身不得攒——完成一步打一步；
 - 续接入口：新会话先读工单文件的 `**处理步骤：**` 打卡区 + `## 评论` 时间线 + 服务器副本（用 `node tools/ticket-flow.mjs --root <仓库根> --dry-run` **零写入预演**看差异，或兜底用 `jxx_ticket_call get`），三方对齐后再动手；三方不一致时以服务器为准并回写本地。
 
+## 验收点闭环（v1.8.0 硬出口，不可跳过）
+
+步骤打卡记**动作进度**，AC 勾选记**结果闭包**——两套账，缺一不算完成。判定口径见 `jxx-to-tickets` 技能 `references/acceptance-criteria.md` 第二、三节（唯一权威源），本处只留判据：
+
+1. **开工先立 AC 勾选区**：领卡后在工单文件「**处理步骤：**」之下建独立的「**AC 勾选区：**」，逐条列出工单里的 AC 编号（`- [ ] AC-<n>`，编号原样、不改写、不合并、不重编）；行格式与证据写法见第 3 条。
+2. **无 AC 就停手**：工单没有任何 `AC-<n>` 行（或只有「实现 X 功能」这类无断言行）⇒ **不写代码**，先按规范补 AC 或退回生产侧（`jxx-to-spec` / `jxx-to-tickets`），补完重来。
+3. **做完一条勾一条**：`- [ ] AC-n` → `- [x] AC-n`，**同一行追加证据**，行格式收敛为 `- [x] AC-<n> | 证据：<用例名 / 命令 + 退出码 / 文件:行>`——不复抄类别与验证方式（复抄会与 `ac-audit` 的类别统计打架）。证据必须自己跑出来，不抄他人结论、不写「已验证」。
+4. **全勾才交审**：AC 全部 `- [x]` 且逐条带证据，是置 `pending-review` 的前置；留未勾项就交审 ⇒ 交付不完整，直接退回。
+
 ## 完成步骤（不可跳过）
 
 以下三步是实现的硬出口——不执行视为未完成（三步同样是 `**处理步骤：**` 清单的组成部分，完成即打卡）：
 
 - [ ] **标记待审查**：第一轮功能开发完成（代码写完、本地类型检查与单测通过）后，将工单 `Status:` 置为 `pending-review`（待审查），在提交前保存。
+  **AC 前置（v1.8.0）**：AC 勾选区全部 `- [x]` 且逐条带证据；未全勾不得置 `pending-review`。
 - [ ] **代码审查**：调用 `/jxx-code-review` 审查所有变更（diff 基准 = origin/main——所有工单分支都从 main 拉出）。审查通过前不得提交；审查有发现项时按下方流程修复后重新审查。
-- [ ] **标记结束并提交**：代码审查通过（或无发现项、用户明确确认无视）后，将工单 `Status:` 置为 `done`（结束），再将工作 commit 到**工单分支** `ticket/<卡id>`（worktree 内）。commit message 遵循 conventional commits 格式，body 说明变更原因。
+  **AC 前置（v1.8.0）**：审查按 AC 逐条判定 `met` / `partial` / `missing`（规范第五节）；判定表缺项或仍有未勾 AC 的审查不算通过。
+- [ ] **标记结束并提交**：代码审查通过（或无发现项、用户明确确认无视）后，将工单 `Status:` 置为 `done`（结束），再将工作 commit 到**工单分支** `ticket/<卡id>`（worktree 内）。**置 `done` 的唯一责任方 = 执行者**（审查者的步骤 6 只复核与报告，不代置）。commit message 遵循 conventional commits 格式，body 说明变更原因。
+  **AC 前置（v1.8.0）**：`node <jxx-to-tickets 技能目录>/scripts/ac-audit.mjs <工单文件>` 退出码 0；非 0 先按报告修 AC，再置 `done`。
+
+### 防劣化门禁（独立执行，不采信他人结论）
+
+改代码的工单必须**自己跑遍**规范第四节的 5 条门禁——审查者的结论不能当自己的证据（对方也可能漏跑）。判据正文见 `references/acceptance-criteria.md` §四（唯一权威源），本处只留名称与命令：**既有全量测试全绿** · **公共符号 diff** · **断言放宽扫描** · **依赖与配置** · **行为基线**。逐条留证据（命令 + 退出码 + 摘要），填进 AC 勾选区对应 `[回归]` / `[负向]` 行的证据位。
+
+```bash
+# $B = origin/main；全部命令在工单 worktree 内跑
+B=origin/main
+git diff --stat $B...HEAD                        # 1 先看改动面，再跑项目全量测试命令（如 pnpm test）
+git diff $B...HEAD -- '*.ts' '*.tsx' '*.d.ts'    # 2 公共符号：逐看 export / interface 的删除与签名变更
+git diff $B...HEAD                               # 3 断言放宽：只看新增行（^+）里的 skip / only / as any / timeout
+git diff $B...HEAD -- '*lock*' '*package.json'   # 4 依赖与配置清单
+# 5 基线：改动前把工单点明命令的输出存 .temp/output/<卡id>-before.txt，改动后同命令重跑再 diff
+```
+
+任一为 no ⇒ 不交审。确属需求变更（例如确需改公共签名）⇒ 先回工单补 AC 与覆盖声明、PRD 侧确认，再继续——**不得**靠删用例或改断言让门禁变绿。
 
 ### 交付（硬出口之后）
 
-- [ ] **交付移卡**：commit 整齐、`git push origin ticket/<卡id>` 后，在卡的「交付记录」追加提交范围 + 审查报告指针、「终审待验清单」逐条写实，然后 `board.mjs card-move --root <项目根> --id <卡id> --to review`（卡到待终审位），刷看板（`board.mjs html --root <项目根>`），回报「已交付待终审」。**合并不是本技能的事**——合并专员把工单分支回合 main（PROTOCOL §3，含 PRD 工单，v0.14.0 起）；技术受阻才暂存 PRD 分支或 blocked，且必须向用户汇报不能回合的原因。
+- [ ] **交付移卡**：commit 整齐、`git push origin ticket/<卡id>` 后，在卡的「交付记录」追加提交范围 + 审查报告指针，并按卡内「## AC 覆盖表」逐条写实（编号 | 类别 | 期望结果 | 自报判定 | 证据坐标），然后 `board.mjs card-move --root <项目根> --id <卡id> --to review`（卡到待终审位），刷看板（`board.mjs html --root <项目根>`），回报「已交付待终审」。**合并不是本技能的事**——合并专员把工单分支回合 main（PROTOCOL §3，含 PRD 工单，v0.14.0 起）；技术受阻才暂存 PRD 分支或 blocked，且必须向用户汇报不能回合的原因。
 
 ### 交付之后：收口是四段闭环（v0.15.0 起，PROTOCOL §3）
 
@@ -78,8 +106,9 @@ node tools/jxx-bootstrap.mjs --root <项目根>        # 缺则创建（种子�
 ```
 请选择处理方式：
 A. 修复审查发现的问题后重新审查
-B. 无视问题，直接提交（需用户明确确认）
+B. 无视问题，直接提交（需用户明确确认；`partial` / `missing` 的 AC 与假实现除外）
 ```
 
 4. **选项 A — 修复**：逐项修复审查报告中的发现项，修复后重新执行 `/jxx-code-review`，重复此流程直到审查无发现项或用户选择 B。
-5. **选项 B — 无视提交**：用户明确确认后，跳过审查要求直接提交。commit message 中注明"代码审查未通过，用户确认无视"。
+5. **选项 B — 无视提交**：用户明确确认后，跳过审查要求直接提交。commit message 中注明"代码审查未通过，用户确认无视"。**例外（不可绕过）**：判为 `partial` / `missing` 的 AC，以及**假实现**（桩 / 硬编码 / `TODO` / 空实现）必须先修好并重审——这两类不是「取舍」，是功能没交付，用户确认也不能放行。
+6. **AC 返工必须回到勾选区**：审查报告判为 `partial` / `missing` 的 AC，逐条回到工单「**AC 勾选区：**」返工——先把该行取消勾选（`- [x]` → `- [ ]`），改完再勾，并**重写证据**（用例名 / 命令 + 退出码 / `文件:行`）。只改代码不补证据 ⇒ 返工未完成，不得再交审。判定口径见规范第二、五节。

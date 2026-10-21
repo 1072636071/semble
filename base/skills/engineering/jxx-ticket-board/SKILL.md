@@ -3,7 +3,7 @@ name: jxx-ticket-board
 description: 工单公告板：把 git 仓库开成多 worktree 并行协作场，本会话即领导者。触发词：公告板、领卡、投卡、工单看板、auto、自动编排、合并、回收工作空间。
 disable-model-invocation: false
 metadata:
-  version: 0.15.2
+  version: 0.16.1
 argument-hint: init [--in-project] [--repo <git-url>] | board | verify | ledger --action <文本> | merge-check --id <卡id> | auto --tickets <工单文件列表>
 ---
 
@@ -43,7 +43,7 @@ argument-hint: init [--in-project] [--repo <git-url>] | board | verify | ledger 
 - `board.mjs rm-wt --ticket <单卡id>` — 回收**工作树 + 分支两件**。分支该不该删由合入实况裁定：`origin/main..ticket/<卡id>` 零领先才自动删；仍有领先默认保留并报明领先数（不静默丢活），`--delete-branch` 强删、`--keep-branch` 保留。一次一卡，红线 §7。**远端分支两条硬出口（v0.15.1）**：`rm-wt` 与 `verify` 都只看本地——远端 `origin/ticket/<卡id>` 残留要人工闭环：删前 `git diff --stat <原hash> <重放后hash>` 实证零丢失（rebase 场景原 hash 不在 main 链，不许凭记忆删），删后 `git ls-remote --heads origin ticket/<卡id>` 空输出才算回收完整（协议 §3 第四段）。
 - `board.mjs verify` 新增**回收对账**：已收口（done/archived）的卡若还挂着 `wt/<id>` 或零领先的 `ticket/<id>` 分支 ⇒ `MISMATCH` 点名并给出可照做的 `rm-wt` 命令；领先 main 的分支只报 `INFO`（那是暂存活，盲删等于丢活）。这条闸门是收口闭环的守门人——**看到 `MISMATCH 未回收…` 就是第四段没做完**，不是噪声。详见 PROTOCOL §3（含冲突分诊表）与 `references/ADR-012-close-the-loop.md`。
 
-**服务器优先 + bootstrap（v0.13.0，默认）**：服务器（jxx-ticket REST = 线上 `/tickets` 看板）是工单真源，本地 md 是创作面与离线投影。**线上工作目录 = 该项目 repo_key 在服务器 `jxx_tickets` 中出现**；开工前先 `node tools/jxx-bootstrap.mjs --root <项目根>`——线上无该 repo_key 工单时**自动先创建**（种子工单 + 投影基准）再操作，已有则幂等退出；离线降级照常直写本地 md。**服务器对齐默认纪律（2026-10-15 起）**：卡面记录的工单评论/正文修订与状态流转，先改本地 md 再以服务器最新 `version` 作 `base_version` 双写；**批量 push 的 id 必须从当次 `list` 实测逐条核对**，不得凭表格手抄（2026-10-15 T131–T135 串位事故教训）；工具面总入口 = `jxx-ticket-router` 技能。详见 `references/ADR-010-server-first-tickets.md` 与 PROTOCOL §0。
+**服务器优先 + bootstrap（v0.13.0，默认）**：服务器（jxx-ticket REST = 线上 `/tickets` 看板）是工单真源，本地 md 是创作面与离线投影。**线上工作目录 = 该项目 repo_key 在服务器 `jxx_tickets` 中出现**；开工前先 `node tools/jxx-bootstrap.mjs --root <项目根>`——线上无该 repo_key 工单时**自动先创建**（种子工单 + 投影基准）再操作，已有则幂等退出；离线降级照常直写本地 md。**服务器对齐默认纪律（2026-10-15 起）**：卡面记录的工单评论/正文修订与状态流转，先改本地 md 再以服务器最新 `version` 作 `base_version` 双写；**批量 push 的 id 必须从当次 `list` 实测逐条核对**，不得凭表格手抄（2026-10-15 T131–T135 串位事故教训）；工具面总入口 = 项目内 `agents/skills/jxx-ticket-router/SKILL.md`（项目技能，`read` 加载；项目未提供该文件时以 MCP `tools/list` 自披露 schema 为准）。详见 `references/ADR-010-server-first-tickets.md` 与 PROTOCOL §0。
 
 **步骤打卡与断线续接（v0.15.2 起，与服务器对齐纪律配套）**：处理工单时在工单文件列 `**处理步骤：**` 清单（每步一行 `- [ ]`），**每完成一步就地打卡并按服务器对齐纪律同步服务器副本**——线上线下同步更新，打卡即存档；会话中断/换人续接从打卡现场直接恢复，不重做已完成步骤。卡面（`control/cards/`）与工单 md 的打卡区不双写两套——打卡现场以**工单 md**为真源，卡面只带状态与指针。
 
@@ -77,7 +77,7 @@ argument-hint: init [--in-project] [--repo <git-url>] | board | verify | ledger 
 | 审查者 | 维度 | 内容 |
 |--------|------|------|
 | reviewer-std | 标准 | 编码标准（命名、格式、import、错误处理） |
-| reviewer-spec | spec | 工单验收标准逐条对码实证 |
+| reviewer-spec | spec | 逐条 AC 判 `met` / `partial` / `missing` 并**自己取证**（命令 + 输出摘要 / `文件:行`）；`partial` / `missing` 一律发现项；卡内无 AC 可核对时明报「未审」，不得按通过处理（判据见 `/jxx-code-review` 步骤 0c） |
 | reviewer-rule | 规则 | CODING_STANDARDS.md / biome / 项目约束 |
 
 **失败处理**（协议 §5.5）：worker 失败先重试一次；审查失败返工重审；合并冲突按 `merge-check` 分诊——机械候选自解（**解后重审**）、非机械 blocked 交回开发组；合入后未回收由编排者补 `rm-wt`；编排者失败 `verify` 断点续接。
@@ -195,7 +195,7 @@ node <skill>/scripts/board.mjs card-move --root <root> --id <卡id> --to blocked
 
 0. 上岗即拉起看板服务面：`html --watch` 后台常驻（或每次动作后补跑 `html`），浏览器打开 `control/board.html` 给用户。
 1. 读用户诉求 / 仓库 `.scratch/` PRD → 用 `new-card` 分解投卡进 `open/`（待领位 = 无后缀），逐张定级（每投一张记一笔账，含定级理由；`--labels` 缺省取自工单 `**Status:**`）。**不轻信 Status 行**：对"是否真开放/真完成"有疑点时，派只读子代理逐条对码实证（读验收标准→查实物→能跑则跑测试），实证结论记入卡与账本，再决定投/撤。
-2. 卡进入 `.review.md` 位时按 v0.6.0 分级：**L1-L3 直接投 merge 卡**（技术定点复核由合并专员按协议 §3 先审后合执行，打回机制兜底）；**L4 卡与跨单口径问题**（范围/判据二选一这类判断）领导者先亲自裁决或派子代理实证，裁决点写进 merge 卡「领导者口径裁决」段。合并顺序与理由记入账本。**交付载荷是纯文档的卡（双仓单的本仓侧、纯回写单）**：投 merge 卡前必须通读分支版工单验收段全文——勾选框与 Status 一致、同文件数字前后一致、无乱码病句；假勾选闸门（verify ④）只兜形态，内容级矛盾靠这一读（70-04 打回复盘：终审当时只 grep 了 Status 行，未数勾选、未读正文）。
+2. 卡进入 `.review.md` 位时按 v0.6.0 分级：**L1-L3 直接投 merge 卡**（技术定点复核由合并专员按协议 §3 先审后合执行，打回机制兜底）；**L4 卡与跨单口径问题**（范围/判据二选一这类判断）领导者先亲自裁决或派子代理实证，裁决点写进 merge 卡「领导者口径裁决」段。合并顺序与理由记入账本。**交付载荷是纯文档的卡（双仓单的本仓侧、纯回写单）**：投 merge 卡前必须通读分支版工单验收段全文——勾选框与 Status 一致、同文件数字前后一致、无乱码病句；假勾选闸门（verify ④）只兜形态，内容级矛盾靠这一读（70-04 打回复盘：终审当时只 grep 了 Status 行，未数勾选、未读正文）。**终审以卡内 `## AC 覆盖表` 为复核对象**：合并专员按 `/jxx-code-review` 步骤 0c 自己取证、逐条判 `met` / `partial` / `missing`，不采信表内自报判定；出现 `partial` / `missing` 即打回。
 3. 合并卡回报 done 后，把对应开发卡 move 到 `done/`，记一笔账。**并核对第四段（回收）真做了**：跑 `verify`，`MISMATCH 未回收工作树/分支 <卡id>` 即 merger 漏了回收 ⇒ 领导者按提示补 `rm-wt --ticket <单卡id>`（一次一卡，红线 §7）。收口是四段闭环，不是「merge 卡 done 就算完」。
 3b. **合并卡被合并专员打回时（§3 复核不过）**：领导者复核其发现项后裁决——**确认打回**则 `card-move --to blocked` 收 merge 卡（三态板 = 待领位 + needs-info），卡内写明「返工重交付后放回待领位复审、diff 变了必须复审」，开发卡改名回 `open/<卡id>.claimed.md` 等返工（合并专员已退回）；**不确认**则在卡内写明理由并把卡放回待领位 `open/<卡id>.md`（此时须显式覆盖 §3 的复核结论，别让合并专员再打回一次）。两种情况都记一笔账，理由里写清「哪几条发现项成立、哪几条降级为建议」。
 4. 随时可 `board` 汇总向用户汇报；被中断后 `verify` 重建认知。

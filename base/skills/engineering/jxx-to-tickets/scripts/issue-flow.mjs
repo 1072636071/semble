@@ -12,12 +12,14 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { nextSeq, slugify } from './shared/next-seq.mjs';
 import { renderTemplate } from './shared/render-template.mjs';
 import { writeFileSafe } from './shared/fs-utils.mjs';
 
 export const DEFAULT_STATUS = 'ready-for-agent';
+// 本脚本所在目录——只用于找同目录的 ac-audit.mjs 打自检提示，不参与任何输出路径推断。
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_MARKERS = ['.git', '.scratch'];
 
 // 工具安装目录段：脚本被 ship 安装到这些目录下（如 ~/.workbuddy/skills/<skill>/scripts/）。
@@ -198,7 +200,7 @@ export function sortByDeps(issues) {
 const PRD_TEMPLATE = [
   '# {{title}}',
   '',
-  'Status: {{status}}',
+  '**Status:** {{status}}',
   '',
   '{{body}}',
 ].join('\n');
@@ -212,6 +214,15 @@ const SPEC_BODY = [
   '',
   '1. 作为 <角色>，我想要 <功能>，以便 <收益>',
   '',
+  '## 验收点（AC）',
+  '',
+  '按用户故事逐条给 AC 草案（每条用户故事 ≥ 1 条）；格式、类别覆盖与禁词见 `jxx-to-tickets` 的 `references/acceptance-criteria.md`。',
+  '',
+  '- [ ] AC-1 [主路径] 当 <输入 / 前置> 时，<动作>，则 <可观测结果> —— 验证:机器 <用例名 | 命令>',
+  '- [ ] AC-2 [错误路径] 当 <非法输入 / 失败面> 时，<动作>，则 <状态码 + 错误码> —— 验证:机器 <用例名 | 命令>',
+  '- [ ] AC-3 [回归] 当跑既有全量测试时，全部通过 —— 验证:机器 <命令>',
+  '- [ ] AC-4 [负向] 本次 diff 不得 <禁止行为：新增依赖 / 改公共签名 / 放宽断言 / 吞异常> —— 验证:机器 <检查命令>',
+  '',
   '## 实现决策',
   '',
   '## 测试决策',
@@ -220,6 +231,18 @@ const SPEC_BODY = [
   '',
   '## 补充说明',
   '',
+].join('\n');
+
+/**
+ * 默认验收标准：4 条示例行（主路径 / 错误路径 / 回归 / 负向），
+ * 与 jxx-to-tickets 的 `<local-issue-file-template>` 逐字一致——生成的工单默认能过 ac-audit。
+ * 模型按实际需求替换为真实断言，不留占位尖括号。
+ */
+export const DEFAULT_ACCEPTANCE = [
+  '- [ ] AC-1 [主路径] 当 <输入 / 前置> 时，<动作>，则 <可观测结果> —— 验证:机器 <用例名 | 命令>',
+  '- [ ] AC-2 [错误路径] 当 <非法输入 / 失败面> 时，<动作>，则 <状态码 + 错误码> —— 验证:机器 <用例名 | 命令>',
+  '- [ ] AC-3 [回归] 当跑既有全量测试时，全部通过 —— 验证:机器 <命令>',
+  '- [ ] AC-4 [负向] 本次 diff 不得 <禁止行为：新增依赖 / 改公共签名 / 放宽断言 / 吞异常> —— 验证:机器 <检查命令>',
 ].join('\n');
 
 const TICKET_TEMPLATE = [
@@ -234,6 +257,10 @@ const TICKET_TEMPLATE = [
   '**验收标准：**',
   '',
   '{{acceptance}}',
+  '',
+  '**AC 覆盖声明：**（未产出 AC 的类别逐条写「- <类别>：不适用——<理由>」；14 类全覆盖则写「无缺口——14 类已覆盖」）',
+  '',
+  '**处理步骤：**（开工时由 `/jxx-implement` 填写；AC 勾选区紧随其后）',
   '',
   '## 评论',
   '',
@@ -263,8 +290,9 @@ export function runToSpec({ root, slug, title, body, dryRun }) {
  * to-tickets：创建 `<topicDir>/issues/<NN>-<slug>.md`，NN 为 topic 内递增工单编号。
  * @param {{dir: string, slug: string, num?: string|number, deps?: string, title?: string,
  *          build?: string, accept?: string[], dryRun?: boolean}} args
- *    num 缺省自动取下一值（首批 01）；deps 为"01, 02"式依赖引用；accept 为验收项列表（cb 化）。
- * @returns {{nn: string, file: string}}
+ *    num 缺省自动取下一值（首批 01）；deps 为"01, 02"式依赖引用；accept 为验收项列表（cb 化，
+ *    缺省用 DEFAULT_ACCEPTANCE 的 4 条合规示例）。
+ * @returns {{nn: string, dir: string, file: string}}
  */
 export function runToTickets({ dir, slug, num, deps, title, build, accept, dryRun }) {
   const issuesDir = path.join(dir, 'issues');
@@ -274,7 +302,7 @@ export function runToTickets({ dir, slug, num, deps, title, build, accept, dryRu
   const blockedBy = blockedByText(parseDeps(deps || ''));
   const acceptLines = accept && accept.length
     ? accept.map((a) => `- [ ] ${a}`).join('\n')
-    : '- [ ] 验收标准 1\n- [ ] 验收标准 2';
+    : DEFAULT_ACCEPTANCE;
   const content = renderTemplate(TICKET_TEMPLATE, {
     title: title || s,
     status: DEFAULT_STATUS,
@@ -283,7 +311,16 @@ export function runToTickets({ dir, slug, num, deps, title, build, accept, dryRu
     acceptance: acceptLines,
   });
   if (!dryRun) writeFileSafe(file, content + '\n');
-  return { nn, file };
+  return { nn, dir, file };
+}
+
+/**
+ * 生成动作后的自检提示：指向同目录 ac-audit.mjs，让模型立刻跑生产闸。
+ * @param {string} dir 功能目录 `<NN>-<slug>`（绝对路径）
+ * @returns {string} 单行提示
+ */
+export function auditHint(dir) {
+  return `下一步自检：node ${path.join(SCRIPT_DIR, 'ac-audit.mjs')} ${dir} --strict`;
 }
 
 /**
@@ -400,6 +437,7 @@ async function main() {
       const body = opts.body ? fs.readFileSync(path.resolve(opts.body), 'utf-8') : undefined;
       const r = runToSpec({ root, slug: opts.slug, title: opts.title, body, dryRun: opts.dryRun });
       console.log(`${dry ? '将创建' : '已创建'} ${r.file}`);
+      if (!opts.dryRun) console.log(auditHint(r.dir));
       return 0;
     }
     if (opts.cmd === 'to-tickets') {
@@ -409,6 +447,7 @@ async function main() {
         title: opts.title, build: opts.build, accept: opts.accept, dryRun: opts.dryRun,
       });
       console.log(`${dry ? '将创建' : '已创建'} ${r.file}`);
+      if (!opts.dryRun) console.log(auditHint(r.dir));
       return 0;
     }
     if (opts.cmd === 'resolve-block') {

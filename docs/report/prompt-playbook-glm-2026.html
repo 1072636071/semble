@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>智谱 GLM 提示词与 Agent 人设方案（2026-10）</title>
+<meta name="description" content="短、显式、机械精确 · 三种 Thinking 模式与回传禁令 · tool_stream 漏传即静默失效">
+<style>
+:root{--h:268;
+  --bg:hsl(var(--h),26%,97%);--surface:#fff;--surface-2:hsl(var(--h),26%,95%);
+  --ink:hsl(var(--h),32%,15%);--muted:hsl(var(--h),19%,36%);--faint:hsl(var(--h),16%,40%);
+  --line:hsl(var(--h),20%,88%);--line-2:hsl(var(--h),22%,82%);
+  --accent:hsl(var(--h),68%,42%);--accent-ink:hsl(var(--h),60%,26%);--accent-weak:hsl(var(--h),64%,95%);
+  --code-bg:hsl(var(--h),32%,12%);--code-fg:hsl(var(--h),14%,90%);--code-key:hsl(calc(var(--h) + 40),60%,72%);
+  --ok:hsl(150,54%,30%);--ok-bg:hsl(150,50%,94%);
+  --warn:hsl(38,84%,30%);--warn-bg:hsl(42,86%,93%);
+  --bad:hsl(2,62%,38%);--bad-bg:hsl(4,72%,96%);
+  --info:hsl(206,66%,32%);--info-bg:hsl(206,66%,95%);
+  --r:14px;--maxw:74ch;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"Cascadia Mono",Consolas,"Liberation Mono",monospace;}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:16.5px;line-height:1.78;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+a{color:var(--accent-ink);text-decoration-thickness:1px;text-underline-offset:2px;overflow-wrap:anywhere}
+a.ext{font-family:var(--mono);font-size:.85em;word-break:break-all}
+a:hover{color:var(--accent)}
+:focus-visible{outline:3px solid hsl(var(--h),72%,52%);outline-offset:2px;border-radius:4px}
+.progress{position:fixed;inset:0 auto auto 0;height:3px;width:0;background:var(--accent);z-index:60;transition:width .08s linear}
+header.top{position:sticky;top:0;z-index:50;background:hsl(var(--h),30%,13%);color:hsl(var(--h),16%,88%);
+  border-bottom:1px solid hsl(var(--h),30%,22%)}
+.top .in{max-width:1320px;margin:0 auto;padding:.75rem 1.25rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
+.brand{font-weight:700;letter-spacing:-.01em;font-size:.95rem;color:#fff;text-decoration:none;white-space:nowrap}
+.brand em{font-style:normal;color:hsl(calc(var(--h) + 38),70%,70%)}
+nav.pills{display:flex;gap:.4rem;flex-wrap:wrap;flex:1 1 22rem}
+.pill{display:inline-flex;align-items:center;gap:.4rem;font-size:.82rem;line-height:1;padding:.5rem .72rem;border-radius:999px;
+  color:hsl(var(--h),14%,84%);text-decoration:none;background:hsl(var(--h),26%,20%);border:1px solid hsl(var(--h),26%,26%)}
+.pill:hover{background:hsl(var(--h),28%,26%);color:#fff}
+.pill.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--d,#fff);box-shadow:0 0 0 2px hsl(var(--h),30%,13%)}
+.shell{max-width:1320px;margin:0 auto;padding:0 1.25rem;display:grid;grid-template-columns:minmax(0,1fr) 15.5rem;gap:2.5rem}
+main{min-width:0;padding:2.5rem 0 5rem}
+article.doc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:clamp(1.4rem,4vw,3rem);box-shadow:0 4px 24px hsla(var(--h),30%,20%,.06)}
+h1{font-size:clamp(1.75rem,3.4vw,2.4rem);line-height:1.16;letter-spacing:-.025em;margin:0 0 1.4rem;padding-bottom:1rem;
+  border-bottom:2px solid var(--accent)}
+h1+h2,h1+p+h2{margin-top:1.6rem}
+h2{font-size:1.42rem;line-height:1.22;letter-spacing:-.02em;margin:3rem 0 .9rem;padding-left:.7rem;border-left:3px solid var(--accent)}
+h3{font-size:1.12rem;line-height:1.3;letter-spacing:-.015em;margin:2.1rem 0 .6rem;color:var(--accent-ink)}
+h4{font-size:1rem;margin:1.6rem 0 .4rem;color:var(--muted)}
+p{margin:.85rem 0;max-width:var(--maxw)}
+li{max-width:var(--maxw)}
+ul,ol{padding-left:1.35rem}
+li>ul,li>ol{margin:.35rem 0}
+hr{border:0;border-top:1px solid var(--line-2);margin:2.6rem 0}
+strong{color:var(--ink)}
+code{font-family:var(--mono);font-size:.88em;background:var(--surface-2);border:1px solid var(--line);
+  border-radius:5px;padding:.1em .38em;color:hsl(var(--h),40%,26%);overflow-wrap:anywhere}
+pre{margin:0;padding:1.05rem 1.15rem;overflow-x:auto;background:var(--code-bg);color:var(--code-fg);
+  font-family:var(--mono);font-size:.845rem;line-height:1.62;border-radius:0 0 calc(var(--r) - 4px) calc(var(--r) - 4px)}
+pre code{background:none;border:0;color:inherit;padding:0;font-size:1em}
+figure.code{margin:1.3rem 0;border:1px solid var(--line);border-radius:calc(var(--r) - 4px);overflow:hidden;background:var(--surface)}
+figure.code figcaption{display:flex;justify-content:space-between;align-items:center;gap:1rem;
+  padding:.42rem .8rem;background:var(--surface-2);border-bottom:1px solid var(--line)}
+figure.code .lang{font:600 .7rem/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.copy{font:600 .76rem/1 var(--sans);padding:.34rem .62rem;border-radius:7px;border:1px solid var(--line-2);
+  background:var(--surface);color:var(--accent-ink);cursor:pointer;min-height:30px}
+.copy:hover{background:var(--accent-weak);border-color:var(--accent)}
+.table-wrap{overflow-x:auto;margin:1.35rem 0;border:1px solid var(--line);border-radius:calc(var(--r) - 4px);max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:.915rem;line-height:1.6;min-width:34rem}
+caption{text-align:left;font-weight:700;padding:.7rem .85rem;background:var(--surface-2);border-bottom:1px solid var(--line)}
+th,td{padding:.62rem .8rem;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+thead th{background:hsl(var(--h),32%,19%);color:hsl(var(--h),16%,92%);font-weight:600;font-size:.85rem;letter-spacing:.01em;white-space:nowrap}
+tbody tr:nth-child(even){background:var(--surface-2)}
+td.k{font-weight:650;color:var(--accent-ink);white-space:nowrap}
+blockquote{margin:1.2rem 0;padding:.15rem 1.1rem;border-left:3px solid hsl(var(--h),52%,68%);background:var(--accent-weak);
+  border-radius:0 10px 10px 0;color:hsl(var(--h),28%,22%);max-width:calc(var(--maxw) + 2rem)}
+blockquote p{margin:.6rem 0}
+blockquote code{background:hsl(var(--h),40%,90%)}
+.g{display:inline-block;font:700 .7rem/1.5 var(--mono);min-width:1.35em;padding:0 .32em;border-radius:5px;
+  text-align:center;vertical-align:.12em}
+.g-A{background:var(--ok-bg);color:var(--ok);border:1px solid hsl(150,40%,74%)}
+.g-B{background:var(--info-bg);color:var(--info);border:1px solid hsl(206,50%,76%)}
+.g-C{background:var(--warn-bg);color:var(--warn);border:1px solid hsl(40,60%,72%)}
+.g-D{background:var(--bad-bg);color:var(--bad);border:1px solid hsl(2,55%,80%)}
+.gnote{font-size:.78em;color:var(--muted);margin-left:.3em}
+.fk{font-family:var(--mono);font-size:.86em;background:hsl(42,88%,92%);color:hsl(30,80%,26%);
+  border:1px dashed hsl(36,70%,58%);border-radius:5px;padding:.08em .3em}
+.lede,.hero{margin:0 0 2rem}
+.lede p{font-size:1.02rem;color:var(--muted);border-top:1px solid var(--line);padding-top:.9rem;max-width:none}
+.hero{display:grid;gap:1.8rem;padding:1.6rem 0 .4rem;border-top:1px solid var(--line)}
+.hero h2{font-size:clamp(1.3rem,2.6vw,1.85rem);margin:0 0 .5rem;border:0;padding:0;max-width:22ch}
+.hero-lead>p{max-width:46ch;color:var(--muted);margin:0}
+.metrics{list-style:none;display:flex;flex-wrap:wrap;gap:.9rem;margin:1.3rem 0 .3rem;padding:0}
+.metrics li{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:.55rem .85rem;display:flex;align-items:baseline;gap:.4rem}
+.metrics b{font-size:1.2rem;letter-spacing:-.02em;color:var(--accent-ink)}
+.metrics span{font-size:.78rem;color:var(--faint)}
+.note{font-size:.78rem;color:var(--faint)}
+.hero-grid{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr))}
+.vcard{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:.95rem 1rem;
+  text-decoration:none;color:var(--ink);position:relative;overflow:hidden}
+.vcard::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:hsl(var(--h),64%,48%)}
+.vcard b{display:block;font-size:1.02rem;letter-spacing:-.01em;margin-bottom:.3rem;color:hsl(var(--h),50%,34%)}
+.vcard span{font-size:.84rem;line-height:1.55;color:var(--muted)}
+.vcard:hover{border-color:hsl(var(--h),40%,70%);transform:translateY(-2px);transition:transform .25s cubic-bezier(.16,1,.3,1)}
+.legend{display:flex;flex-wrap:wrap;gap:.5rem .9rem;align-items:center;font-size:.8rem;color:var(--faint);
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:.6rem .85rem;margin-bottom:1.6rem}
+aside.toc{position:sticky;top:4.6rem;align-self:start;max-height:calc(100vh - 6rem);overflow-y:auto;padding:2.5rem 0 3rem;font-size:.85rem}
+aside.toc h2{font:700 .76rem/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:0 0 .7rem;border:0;padding:0}
+aside.toc ul{list-style:none;margin:0;padding:0;border-left:1px solid var(--line-2)}
+aside.toc li{margin:0}
+aside.toc a{display:block;padding:.28rem .7rem;color:var(--muted);text-decoration:none;border-left:2px solid transparent;margin-left:-1px;line-height:1.4}
+aside.toc a:hover{color:var(--accent-ink)}
+aside.toc a.t3{padding-left:1.4rem;font-size:.8rem}
+aside.toc a.act{color:var(--accent-ink);border-left-color:var(--accent);font-weight:600;background:var(--accent-weak);border-radius:0 6px 6px 0}
+footer.page{max-width:1320px;margin:0 auto;padding:0 1.25rem 3rem}
+.pager{display:grid;gap:.8rem;grid-template-columns:1fr 1fr}
+.pager a{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:.8rem .95rem;text-decoration:none}
+.pager a:hover{border-color:var(--accent)}
+.pager small{display:block;font-size:.75rem;color:var(--faint);letter-spacing:.05em;text-transform:uppercase}
+.pager b{font-size:.98rem;color:var(--accent-ink)}
+.pager .n{text-align:right}
+.colophon{font-size:.8rem;color:var(--faint);margin-top:1.1rem;line-height:1.7}
+button.tocbtn{display:none}
+@media (max-width:1080px){.shell{grid-template-columns:minmax(0,1fr)}aside.toc{position:static;max-height:none;padding:0 0 1rem}
+  aside.toc ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));border-left:0}
+  aside.toc a.t3{padding-left:.7rem}}
+@media (max-width:640px){body{font-size:16px}main{padding:1.4rem 0 3rem}.shell{gap:1.2rem;padding:0 .9rem}
+  h2{font-size:1.25rem;margin-top:2.3rem}table{font-size:.86rem;min-width:28rem}
+  .pill{font-size:.78rem;padding:.45rem .62rem}.pager{grid-template-columns:1fr}.pager .n{text-align:left}
+  button.tocbtn{display:inline-flex;align-items:center;gap:.4rem;font:600 .82rem/1 var(--sans);padding:.55rem .8rem;
+    border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--accent-ink);cursor:pointer;min-height:44px}
+  aside.toc[data-open="false"] ul{display:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media print{header.top,aside.toc,.progress,.copy,.pager{display:none!important}body{background:#fff}
+  article.doc{border:0;box-shadow:none;padding:0}a{color:var(--ink);text-decoration:none}
+  .table-wrap{overflow:visible;border:0}pre{white-space:pre-wrap;background:#f4f4f5;color:#1c1c1e}}
+</style>
+</head>
+<body>
+<div class="progress" id="prog" aria-hidden="true"></div>
+<header class="top"><div class="in">
+  <a class="brand" href="prompt-playbooks-index-2026.html">提示词与人设方案 <em>2026-10-20</em></a>
+  <nav class="pills" aria-label="方案导航"><a class="pill" href="prompt-playbooks-index-2026.html"><span class="dot" style="--d:hsl(214,62%,46%)"></span>索引</a><a class="pill" href="prompt-playbook-deepseek-2026.html"><span class="dot" style="--d:hsl(222,62%,46%)"></span>DeepSeek</a><a class="pill on" href="prompt-playbook-glm-2026.html"><span class="dot" style="--d:hsl(268,62%,46%)"></span>GLM</a><a class="pill" href="prompt-playbook-minimax-2026.html"><span class="dot" style="--d:hsl(14,62%,46%)"></span>MiniMax</a><a class="pill" href="prompt-playbook-kimi-2026.html"><span class="dot" style="--d:hsl(168,62%,46%)"></span>Kimi</a><a class="pill" href="prompt-playbook-universal-agent-2026.html"><span class="dot" style="--d:hsl(196,62%,46%)"></span>通用底座</a></nav>
+  <button class="tocbtn" type="button" id="tocbtn" aria-expanded="false" aria-controls="toc">目录</button>
+</div></header>
+<div class="shell">
+<main id="main">
+  <div class="legend" aria-label="证据等级图例">
+    <span>证据等级：</span>
+    <span class="g g-A">A</span>官方一手
+    <span class="g g-B">B</span>权威二手 / 平台文档
+    <span class="g g-C">C</span>社区实测
+    <span class="g g-D">D</span>未证实，不作依据
+    <span class="fk">〈…〉</span>全角标记＝排版保护，用时须换成半角
+  </div>
+  <section class="lede"><p>短、显式、机械精确 · 三种 Thinking 模式与回传禁令 · tool_stream 漏传即静默失效</p></section>
+  <article class="doc"><h1 id="s000-1">智谱 GLM 提示词与 Agent 人设方案（2026-10）</h1>
+<blockquote><p>适用范围：<code>glm-5.3</code> / <code>glm-5.3-flash(flashx)</code> / <code>glm-5.2</code> / <code>glm-4.7</code> / <code>glm-4.6</code> / <code>glm-4.5(air)</code>，含自托管开源权重。 定稿日期：2026-10-20。证据基线：<a href="https://docs.bigmodel.cn" class="ext" target="_blank" rel="noopener">docs.bigmodel.cn</a>（提示词工程页 2026-10-19 更新）、<a href="https://docs.z.ai" class="ext" target="_blank" rel="noopener">docs.z.ai</a>、zai-org GitHub README。 写作约定：文中<span class="fk">〈think〉</span><span class="fk">〈/think〉</span><span class="fk">〈tool_call〉</span><span class="fk">〈arg_key〉</span>等全角尖括号是<strong>排版保护写法</strong>，真正放进提示词/代码时必须替换成 ASCII 半角尖括号。 证据等级：<span class="g g-A" title="证据等级 A">A</span> = 官方原文；<span class="g g-B" title="证据等级 B">B</span> = 权威二手（Cline 官方博文、vLLM/OpenClaw/AWS 文档等）；<span class="g g-C" title="证据等级 C">C</span> = 社区实测；<span class="g g-D" title="证据等级 D">D</span> = 未证实（内容农场，仅记录）。 调研稿：<code>.temp/research/prompt-2026-10/glm.md</code>。</p></blockquote>
+<hr>
+<h2 id="s013-1">0. 先对齐代际：GLM 的提示词规则<strong>按代际不同</strong>，这是最大的坑</h2>
+<p>2026-10-20 智谱主推已是 <strong>GLM-5.3 文本系 + GLM-5.3-Flash 原生多模态</strong>；GLM-4.7 是「4.x 编码代」收尾；4.5/4.6 是带技术报告（arXiv 2508.06471）、被引用最多的基座代。</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">代际</th><th scope="col">发布</th><th scope="col">上下文（官方口径）</th><th scope="col">与提示词直接相关的行为</th><th scope="col">等级</th></tr></thead><tbody><tr><td class="k">GLM-4.5 / Air</td><td>2025-07-28</td><td>128K，输出 96K</td><td>混合推理首现；<strong>Interleaved thinking 起于本代</strong></td><td><span class="g g-A" title="证据等级 A">A</span> <span class="g g-B" title="证据等级 B">B</span></td></tr><tr><td class="k">GLM-4.6</td><td>2025-09-30</td><td>200K，输出 128K</td><td>新增 <code>tool_stream</code>；<strong>temperature 默认升到 1.0</strong></td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">GLM-4.7</td><td>2025-12-22</td><td>200K</td><td>新增 <strong>Preserved / Turn-level Thinking</strong>；<strong>强制思考</strong></td><td><span class="g g-A" title="证据等级 A">A</span> <span class="g g-B" title="证据等级 B">B</span></td></tr><tr><td class="k">GLM-5</td><td>2026-02-11</td><td>202K（平台口径有 1M）</td><td>DSA+MTP 架构</td><td><span class="g g-B" title="证据等级 B">B</span></td></tr><tr><td class="k">GLM-5.1</td><td>2026-04-07</td><td>—</td><td>Coding Plan 主推</td><td><span class="g g-B" title="证据等级 B">B</span></td></tr><tr><td class="k">GLM-5.2</td><td>2026-06-16</td><td>1M（第三方云口径）</td><td>引入 <code>reasoning_effort</code> 全档</td><td><span class="g g-B" title="证据等级 B">B</span></td></tr><tr><td class="k"><strong>GLM-5.3 / 5.3-Flash</strong></td><td>2026-08-14 / 08-26</td><td>云口径 1M，API 默认 max_tokens 65536</td><td><strong>强制思考、关闭即报错</strong>；Flash 为首个开源原生多模态</td><td><span class="g g-A" title="证据等级 A">A</span> <span class="g g-B" title="证据等级 B">B</span></td></tr></tbody></table></div>
+<blockquote><p>官方文档导航当前的迁移页已是「迁移至 GLM-5.3」，模型介绍列 GLM-5.3 / 5.3-Flash / 5.2（<span class="g g-A" title="证据等级 A">A</span>）。 ⚠️ 上下文口径分歧要如实标注：<a href="https://docs.z.ai" class="ext" target="_blank" rel="noopener">docs.z.ai</a> 模型页给 4.5=128K / 4.6=200K / 4.7=200K；「1M」只见于第三方云（腾讯云 TokenHub、OpenClaw、AWS）对 GLM-5.x 的标注，<strong>未在智谱自家模型页坐实</strong>（<span class="g g-A" title="证据等级 A">A</span> <span class="g g-B" title="证据等级 B">B</span>，存疑见 §7）。</p></blockquote>
+<hr>
+<h2 id="s037-1">1. 官方提示词三策略（<span class="g g-A" title="证据等级 A">A</span> 级原文，逐条可用）</h2>
+<p>官方《提示词工程》页（<a href="https://docs.bigmodel.cn/cn/guide/platform/prompt" class="ext" target="_blank" rel="noopener"><code>https://docs.bigmodel.cn/cn/guide/platform/prompt</code></a>）分三条策略，开宗明义："<strong>GLM 越能明确您的需求，提供的回答质量越高</strong>"。</p>
+<p><strong>策略一 · 编写清晰、具体的指令</strong></p>
+<ul><li><strong>定义 System Prompt</strong>：官方给 system 的定位是——"设定 AI 助手行为模式的工具，包括角色设定、语言风格、任务模式和针对特定问题的具体行为指导。" 官方示例原文：</li></ul>
+<figure class="code"><figcaption><span class="lang">json</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></figcaption><pre><code>{"role":"system","content":"您擅长从文本中提取关键信息，精确、数据驱动……将提取的信息以清晰的JSON格式呈现。"}</code></pre></figure>
+<ul><li><strong>提供具体细节要求</strong>：背景与输出细节都写进 prompt。</li><li><strong>角色扮演</strong>："让 GLM 扮演角色，可以更准确地模仿该角色的行为和对话方式。"</li><li><strong>使用分隔符</strong>：用 <code>"""…"""</code> 包裹待处理正文（GLM 官方推荐的分隔符是三重双引号，不是 XML 标签）。</li><li><strong>思维链提示</strong>："要求模型分步骤解答问题，还要求其展示其推理过程的每个步骤"，以减少不准确、便于评估。</li><li><strong>少样本学习</strong>：给风格样例引导模仿。</li><li><strong>指定输出长度</strong>：官方明确注记——"<strong>让模型精确的生成一个特定的字数难以实现</strong>"。所以写"不超过 100 个词"这类<strong>软约束</strong>，别写"恰好 200 字"。</li></ul>
+<p><strong>策略二 · 提供参考资料</strong>："引用外部资料能有效提升模型回答的准确性……有助于减少错误或虚构信息的生成"；超出上下文时用 Retrieval 工具做语义切片。</p>
+<p><strong>策略三 · 将复杂任务分解为简单的子任务</strong>：官方点名的三种拆法——意图理解与实体提取（"以 Json 格式输出，便于后端接口解析、防报错"）、总结上文关键信息、分段归纳长文档并逐步构建摘要。</p>
+<blockquote><p>注意：GLM-4.5 发布时 GitHub README 有独立 "Prompting Guide" 一节，<strong>现版 README 已删除</strong>，只保留 "Please use OpenAI-style tool description format for calls" 这类实现提示。所以人设/提示词的官方真源是上面这份「提示词工程」文档（<span class="g g-A" title="证据等级 A">A</span> <span class="g g-B" title="证据等级 B">B</span>）。</p></blockquote>
+<hr>
+<h2 id="s074-1">2. GLM 上的人设（System Prompt）写法</h2>
+<h3 id="s077-1">2.1 官方给的载体边界</h3>
+<p>官方把 system message 明确定位为承载 <strong>角色 + 语言风格 + 任务模式 + 行为约束 + 期望输出结构</strong> 的地方；结构化输出文档还要求"<strong>在系统消息中定义期望的 JSON 结构和字段要求</strong>"（<span class="g g-A" title="证据等级 A">A</span>）。<strong>未找到</strong>官方「长指令一律放 system」的量化建议——所以放与不放依据是：动态用户数据不要进 system（会破坏前缀缓存并稀释规则）。</p>
+<h3 id="s083-1">2.2 GLM 人设要「短、显式、机械精确」——目前最硬的一条实证</h3>
+<p>这条来自 <strong>Cline 官方博文</strong>（<span class="g g-B" title="证据等级 B">B</span> 级，GLM 官方推荐的编码框架之一，非内容农场转述），是对 GLM 编码 agent 最有价值的一段：</p>
+<blockquote><p>"For models like GLM-4.6, the context surrounding coding-agent behavior is largely implicit, and would be redundant to include in a system prompt. At Cline, we found GLM-4.6 performed best when given <strong>shorter, more explicit, and mechanically precise instructions</strong>."</p></blockquote>
+<p>配套复盘（作者 Arafat Katze）给出的具体动作：</p>
+<ul><li><strong>删掉泛化指令</strong>——<code>"use tools efficiently"</code>、<code>"be helpful"</code> 这类整段移除；</li><li>只留<strong>明确的调用规则</strong> + <strong>严格序列</strong>（explore → summarize → implement）+ <strong>机械精确的工具定义</strong>；</li><li>结果：system prompt 从 56,499 字符缩到 24,111（<strong>−57%</strong>），成功率反而上升；</li><li>早期坑记录：工具调用失败、"spurious thing tags"（凭空冒出标记）。</li></ul>
+<p>结论落到 GLM 人设写法上：<strong>GLM 对「行为背景」是隐式理解的，写进去不仅冗余还会挤占注意力</strong>。人设里只写三样：作业范围（哪个仓库/哪些文件）、动作序列（严格顺序）、输出契约（给什么、不给什么）。</p>
+<h3 id="s104-1">2.3 中文语言漂移必须显式钉死</h3>
+<p>B 级实测（GLM-4.6 与 Claude Sonnet 4.5 / GPT-5 Codex 同题横评）："语言一致性上仍存在问题，<strong>在中文 Prompt 下偏好输出英文</strong>"。</p>
+<ul><li>修法：在 system <strong>顶部</strong>用强制句钉死输出语言，例如"只用与用户提问相同的语言回答（强制）"。</li><li>注意：<strong>智谱官方并未声明「中文提示优于英文」</strong>（已检索，未找到官方口径，见 §7.3）；社区「中文更好」多为 <span class="g g-D" title="证据等级 D">D</span> 级农场，「英文更稳」为 <span class="g g-C" title="证据等级 C">C</span> 级论坛观感，两者互相矛盾且都不是官方结论。稳妥做法是：<strong>提示词语言 = 期望回答语言</strong>，并在 system 里显式约束。</li></ul>
+<h3 id="s114-1">2.4 思考开关联动的人设调整</h3>
+<p>官方 GLM-4.5 模型指南给了三档任务分档（<span class="g g-A" title="证据等级 A">A</span>，含官方示例）：</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">档位</th><th scope="col">官方示例</th><th scope="col">人设写法</th></tr></thead><tbody><tr><td class="k">简单任务（无需思考）</td><td>"When was Z.AI founded?"、"Translate 'I love you' into Chinese"</td><td>直给指令，别写"先规划再执行"（浪费轮次）</td></tr><tr><td class="k">中等任务（默认/部分思考）</td><td>"为何木星卫星多于土星"、"北京到上海 飞机 vs 高铁 对比"</td><td>给输出结构</td></tr><tr><td class="k">困难任务（满额思考）</td><td>"MoE 专家如何协作"、"结合本周上证波动判断是否买指数 ETF"</td><td>给评估标准与边界，别给步骤（模型自己会拆）</td></tr></tbody></table></div>
+<p>官方《Deep Thinking》页口径（<span class="g g-A" title="证据等级 A">A</span>）：推荐开启——复杂分析、多步推理、技术方案设计、策略决策、学术研究、创作；可关闭——简单事实查询、基础翻译、简单分类、快速问答。</p>
+<hr>
+<h2 id="s133-1">3. 参数与 API 层（<span class="g g-A" title="证据等级 A">A</span> 级，照抄不猜）</h2>
+<div class="table-wrap"><table><thead><tr><th scope="col">参数</th><th scope="col">GLM 官方口径</th></tr></thead><tbody><tr><td class="k">temperature</td><td>取值 <strong>[0.0, 1.0]</strong>、限两位小数（注意：上限是 1.0，不是 2.0）。<strong>分代默认值：GLM-5.3/5.2/5.1/5/4.7/4.6 = 1.0；GLM-4.5 系 = 0.6；GLM-4 系 = 0.75。</strong> 官方语义："较高的值（如 0.8）……适合创意写作；较低的值（如 0.2）……适合事实性问答。"</td></tr><tr><td class="k">top_p</td><td>取值 [0.01, 1.0]，默认 <strong>0.95</strong>（4.5/4.6/4.7；GLM-4 系默认 0.9）</td></tr><tr><td class="k">二者关系</td><td><strong>官方硬约束（反模式级）</strong>："建议根据应用场景调整 top_p 或 temperature 参数，但<strong>不要同时调整两个参数</strong>。"</td></tr><tr><td class="k">max_tokens</td><td>默认 65536、最大 131072（glm-4.5+ 文本系）；GLM-4.5 系上限 98304；"GLM-4.7/4.6 最大支持 128K 输出，GLM-4.5 最大 96K，<strong>建议设置不小于 1024</strong>"。换算：1 token ≈ 0.75 英文词 或 1.5 中文字</td></tr><tr><td class="k">stream</td><td>默认 false；"对于聊天机器人、实时代码生成等应用，<strong>强烈建议设为 true</strong>"</td></tr><tr><td class="k">do_sample</td><td>默认 true；"需要可复现、确定性的输出时，设为 <strong>false</strong>"（GLM 的可复现开关，别的家少见）</td></tr><tr><td class="k">协议兼容</td><td>官方 API 兼容 <strong>OpenAI / Anthropic / Response</strong> 三套；Claude Code 走 <a href="https://open.bigmodel.cn/api/anthropic" class="ext" target="_blank" rel="noopener"><code>https://open.bigmodel.cn/api/anthropic</code></a>（国内）或 <code>https://api.z.ai/api/anthropic</code>（Coding Plan）</td></tr></tbody></table></div>
+<h3 id="s147-1">3.1 思考控制（GLM 最复杂的一块，逐字 <span class="g g-A" title="证据等级 A">A</span> 级）</h3>
+<p>参数：<code>thinking = {"type": "enabled" | "disabled"}</code>，默认 <code>enabled</code>，仅 GLM-4.5+ 支持。</p>
+<p><strong>各代际行为差异（官方原文逐字，A）</strong>：</p>
+<blockquote><p>"<code>enabled</code> 默认；<code>GLM-5.3 / 5.3-FLASH / 5.3-FLASHX</code> 强制需开启（设 disabled 报错）；<code>GLM-5.2 / 5.1 / 5 / 5-Turbo / 5v-Turbo / 4.6 / 4.6V / 4.5</code> 为模型自动判断是否思考；<code>GLM-4.7 / 4.5V</code> 为强制思考。"</p></blockquote>
+<p><code>reasoning_effort</code>（GLM-5.2+）：<code>max</code>（默认/推荐）/ <code>high</code> / <code>low</code>；<strong>GLM-5.3 系只有这三档，传其它值直接报错</strong>；GLM-5.2 另支持 xhigh/medium/minimal/none（none/minimal = 停思考，low/medium 映射为 high，xhigh 映射为 max）。</p>
+<p><strong>三种 Thinking 模式（GLM-4.7 起，A）</strong>——这是 GLM 区别于其他厂商的机制，必须按官方要求回传：</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">模式</th><th scope="col">引入</th><th scope="col">干什么</th><th scope="col">官方硬性要求（逐字）</th></tr></thead><tbody><tr><td class="k"><strong>Interleaved thinking</strong></td><td>4.5 起默认</td><td>在工具调用<strong>之间</strong>与收到工具结果<strong>之后</strong>思考</td><td>"thinking blocks should be explicitly preserved and returned together with the tool results."（工具消息要<strong>连同思考块一起回传</strong>）</td></tr><tr><td class="k"><strong>Preserved thinking</strong></td><td>4.7（编码场景）</td><td>跨轮保留前序 <code>reasoning_content</code></td><td>需 <code>"clear_thinking": false</code> 开启；"<strong>All consecutive reasoning_content blocks must exactly match the original sequence… Do not reorder or edit these blocks; otherwise performance may degrade and cache hit rates may be affected.</strong>"；<strong>Coding Plan 端点默认开，标准 API 端点默认关</strong></td></tr><tr><td class="k"><strong>Turn-level thinking</strong></td><td>4.7</td><td>同一会话内按轮开关</td><td>轻请求关思考降延迟/成本，复杂任务开思考提精度</td></tr></tbody></table></div>
+<p>思考内容位置：流式在 <code>delta.reasoning_content</code>，非流式在 <code>message.reasoning_content</code>，与 <code>content</code> 分离，客户端要分别处理。自托管关思考：<code>extra_body={"chat_template_kwargs": {"enable_thinking": False}}</code>（<span class="g g-A" title="证据等级 A">A</span> <span class="g g-B" title="证据等级 B">B</span>）。</p>
+<h3 id="s175-1">3.2 工具调用</h3>
+<ul><li>官方 API 层 = <strong>OpenAI JSON-schema 风格</strong>（name / description / parameters）。响应字段：<code>tool_calls[].function.name</code>、<code>.function.arguments</code>（<strong>JSON 字符串</strong>）、<code>id</code>（<span class="g g-A" title="证据等级 A">A</span>）。</li><li><strong><code>tool_choice</code> 默认且仅支持 <code>auto</code></strong>（<span class="g g-A" title="证据等级 A">A</span>）——别按 OpenAI 习惯传 <code>required</code> 或具名函数来强制调用，这是 GLM 与 OpenAI 语义不一致的地方。</li><li>流式工具调用：<code>tool_stream=true</code>（GLM-4.6+），需自行拼接 <code>delta.tool_calls[*].function.arguments</code>（<span class="g g-A" title="证据等级 A">A</span>）。</li><li>官方函数设计三原则（<span class="g g-A" title="证据等级 A">A</span>，逐条照抄）："<strong>单一职责</strong>：每个函数只做一件事；<strong>清晰命名</strong>：函数名和参数名要有意义；<strong>完整描述</strong>：提供详细的函数和参数描述"。参数设计要求给 <code>description</code> / <code>enum</code> / <code>default</code> / <code>examples</code>，并示范"支持中英文，如：北京、Beijing"。</li><li>稳健性补充（<span class="g g-B" title="证据等级 B">B</span> <span class="g g-C" title="证据等级 C">C</span>，Novita 实操手册）：schema 用<strong>短而唯一</strong>的参数名；<strong>避免嵌套 <code>anyOf</code></strong>，防参数混淆与解析失败。</li></ul>
+<p><strong>关于 XML 工具标记的澄清</strong>（重要，避免误传）：网上流传的 GLM 基座格式<span class="fk">〈tool_calls〉</span>/<span class="fk">〈arg_key〉</span>/<span class="fk">〈arg_value〉</span>确实存在，但它是 <strong>token 层格式</strong>，由 vLLM <code>--tool-call-parser glm45/glm47</code>、SGLang 解析器在推理时编码/解析（<span class="g g-B" title="证据等级 B">B</span>）。<strong>现版官方文档没有把它作为面向用户的推荐格式</strong>，README 明确要求 "use OpenAI-style tool description format"（<span class="g g-A" title="证据等级 A">A</span>）。逐字符的 token 串本机未能一手核对（huggingface.co 不可达、raw 对 parser 文件 502/404、ModelScope 正文未取到），故 <strong>XML 具体写法记 <span class="g g-D" title="证据等级 D">D</span> 级、不做定论</strong>；写应用一律走 §3.2 的 JSON 工具面，只有自托管手搓 chat template 时才需要回查 <code>tokenizer_config.json</code> / <code>chat_template.jinja</code>。</p>
+<h3 id="s188-1">3.3 官方检索/联网面<span class="g g-A" title="证据等级 A">A</span> </h3>
+<p>Z.AI 三件套：<strong>Web Search API</strong>（<code>search-prime</code>，返回标题/URL/摘要/站点等 LLM 友好结构，支持 <code>search_domain_filter</code>、<code>search_recency_filter</code>、<code>count</code>）、<strong>Web Search in Chat</strong>（检索结果并入回答并给引用）、<strong>Search Agent</strong>；文档含 MCP Server 入口。面向编码/视觉 agent 的官方推荐 MCP：<code>zai-mcp-server</code>（视觉理解/截图分析）、<code>web-search-prime</code>、<code>web-reader</code>。</p>
+<hr>
+<h2 id="s197-1">4. GLM 反模式清单（官方原话级）</h2>
+<div class="table-wrap"><table><thead><tr><th scope="col">#</th><th scope="col">反模式</th><th scope="col">依据</th><th scope="col">修法</th></tr></thead><tbody><tr><td class="k">1</td><td>同时调 temperature 和 top_p</td><td>A："不要同时调整两个参数"</td><td>二选一</td></tr><tr><td class="k">2</td><td>要求"恰好 N 字"</td><td>A："让模型精确的生成一个特定的字数难以实现"</td><td>改「不超过 N」软约束</td></tr><tr><td class="k">3</td><td>给 GLM-5.3/4.7 传 <code>thinking:{type:"disabled"}</code></td><td>A：强制思考代际，设 disabled <strong>报错</strong></td><td>用 reasoning_effort 分档，别关</td></tr><tr><td class="k">4</td><td>工具循环里丢/重排/编辑 <code>reasoning_content</code></td><td>A（Preserved）："Do not reorder or edit these blocks; otherwise performance may degrade and cache hit rates may be affected."</td><td>原序原样回传</td></tr><tr><td class="k">5</td><td>Interleaved 模式下只回传 tool 结果不回传思考块</td><td><span class="g g-A" title="证据等级 A">A</span></td><td>思考块随工具结果一起回传</td></tr><tr><td class="k">6</td><td>按 OpenAI 习惯传 <code>tool_choice:"required"</code></td><td>A：官方仅支持 <code>auto</code></td><td>用描述与提示引导，别强制</td></tr><tr><td class="k">7</td><td>依赖 <code>response_format</code> JSON 模式做复杂输出</td><td>A 告诫："在某些复杂场景下<strong>可能影响回答的自然性</strong>"</td><td>复杂场景退回提示词约束 + 后处理校验</td></tr><tr><td class="k">8</td><td>人设里塞"be helpful / use tools efficiently"泛化指令</td><td><span class="g g-B" title="证据等级 B">B</span><span class="gnote">Cline</span></td><td>删掉，换严格序列 + 机械精确工具定义</td></tr><tr><td class="k">9</td><td>拿 max_tokens &lt; 1024 跑 agent</td><td>A："建议设置不小于 1024"</td><td>编码/agent 显式给 ≥1024</td></tr><tr><td class="k">10</td><td>GLM-4.5V/4.6V 与 4.1V 混用模板</td><td>A（GLM-V README）："use <strong>different conversation templates — please distinguish carefully</strong>"</td><td>按模型选模板</td></tr><tr><td class="k">11</td><td>巨石 prompt / 指令矛盾（"简洁"与"详尽"并存）/ 把动态用户数据写进 system / 盲目堆 few-shot / 纯否定式指令</td><td><span class="g g-C" title="证据等级 C">C</span><span class="gnote">社区通用，非 GLM 专属</span></td><td>见通用手册 §反模式</td></tr></tbody></table></div>
+<p><strong>内容农场红线（<span class="g g-D" title="证据等级 D">D</span> 级，勿据此决策）</strong>：「GLM-4.7 用中文 system prompt 更佳 / 英文低 0.15 CodeBLEU」「额外 system 提示反而干扰原生逻辑」「流式把 token 拆成 c/const」「CodeBLEU 0.87、成功率 94.9%、47% 识别率、83% 截断」——均无官方一手佐证，部分与官方口径直接矛盾。</p>
+<hr>
+<h2 id="s221-1">5. 可直接复制的三个模板</h2>
+<h3 id="s224-1">5.1 通用任务（中文）</h3>
+<figure class="code"><figcaption><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></figcaption><pre><code>【system】
+你是一名{角色：行业+年限}。语言风格：{正式/口语}。
+只用与用户提问相同的语言回答（强制）。        ← 钉死 §2.3 中文漂移
+{期望输出结构，例：以清晰的 JSON 呈现，字段为 …}  ← A：官方要求 JSON 结构写在系统消息
+
+【user】
+任务：{动词开头的具体指令}
+背景/细节：{要点}                              ← 策略一「提供具体细节要求」
+参考资料："""{粘贴正文}"""                      ← 策略二 + A 官方分隔符 """
+输出要求：{格式}，长度不超过{软约束，勿写"恰好N字"}  ← A §4-2
+
+【API】
+temperature=1.0(4.6+/5.x) 或 0.6(4.5系)；或只调 top_p=0.95 —— 二选一   ← A §3
+thinking={"type":"enabled"}（复杂）；4.6 及以下可 disabled，5.3/4.7 不可关 ← A §3.1
+stream=True（聊天/代码官方强烈建议）                                  ← A §3</code></pre></figure>
+<h3 id="s246-1">5.2 GLM Agent 工具调用</h3>
+<figure class="code"><figcaption><span class="lang">python</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></figcaption><pre><code>client.chat.completions.create(
+  model="glm-5.2",                    # 或 glm-4.7；GLM-4.5+ 均支持工具调用
+  messages=[
+    {"role": "system", "content":
+      "你是{领域}助手。按 探索→归纳→实现→验证 的顺序行动；"
+      "只在需要外部信息时调用工具。只用中文回答。"},   # ← B §2.2 短+显式+序列
+    {"role": "user", "content": "{请求}"}
+  ],
+  tools=[{                            # ← A §3.2 单一职责/清晰命名/完整描述
+    "type": "function", "function": {
+      "name": "get_weather", "description": "获取指定城市当前天气",
+      "parameters": {"type": "object", "properties": {
+        "city": {"type": "string", "description": "城市名，支持中英文，如：北京、Beijing"},
+        "unit": {"type": "string", "enum": ["celsius", "fahrenheit"], "default": "celsius"}
+      }, "required": ["city"]}}}],
+  tool_choice="auto",                 # ← A：官方仅支持 auto
+  stream=True, tool_stream=True,      # ← A：4.6+，需拼接 delta.tool_calls[*].function.arguments
+  extra_body={"thinking": {"type": "enabled", "clear_thinking": False}}  # ← A：开 Preserved thinking
+)
+# 工具循环硬纪律（A）：把 reasoning_content 原样、按原序、随工具结果一起回传；绝不重排/编辑。</code></pre></figure>
+<h3 id="s273-1">5.3 编码 Agent 系统提示（对齐 Cline <span class="g g-B" title="证据等级 B">B</span> 级 + 官方 README <span class="g g-A" title="证据等级 A">A</span> 级）</h3>
+<figure class="code"><figcaption><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></figcaption><pre><code>【system —— 短、显式、机械精确；删掉一切"be helpful/use tools efficiently"式泛化句】
+你是资深{语言}工程师，在 {codebase} 内作业。规则：
+1) 严格序列：explore(读文件) → summarize(要点) → implement(改代码) → verify(跑测试)。
+2) 只改指定文件，其余文件不得改动。
+3) 输出：只给可直接运行的代码，不写前言与解释（除非被要求）。
+4) 工具调用一律 OpenAI JSON schema；参数名短而唯一，不使用嵌套 anyOf。   ← A README + B Novita
+
+【API】model=glm-5.2/glm-4.7；stream=True；Preserved thinking=on
+      （标准端点默认 off、Coding Plan 端点默认 on）；max_tokens≥1024。
+【语言】若出现"中文问、英文答"漂移，在 system 顶部用强制句钉死。          ← B §2.3</code></pre></figure>
+<hr>
+<h2 id="s293-1">6. GLM 敏感度小结（供索引表引用）</h2>
+<ul><li><strong>system 遵守度</strong>：官方把 system 定为唯一指定的人设/规则载体（<span class="g g-A" title="证据等级 A">A</span>），但<strong>GLM 官方产品与 API 本身不注入 system prompt</strong>——横评侧证据显示人设完全靠调用方提供（<span class="g g-A" title="证据等级 A">A</span>，见索引手册）。</li><li><strong>最适提示风格</strong>：短、显式、机械精确；泛化行为指令是负资产（<span class="g g-B" title="证据等级 B">B</span>）。</li><li><strong>最脆弱的点</strong>：工具循环里 <code>reasoning_content</code> 的处理顺序——Preserved thinking 一旦重排/编辑，官方原文警告「性能下降 + 缓存命中率受损」（<span class="g g-A" title="证据等级 A">A</span>）。</li><li><strong>语言</strong>：中文提示下易漂向英文输出，必须显式钉死（<span class="g g-B" title="证据等级 B">B</span>）。</li><li><strong>强制思考代际</strong>：GLM-4.7 与 5.3 系关不掉思考，一切「靠关思考省 token」的优化对这两代无效（<span class="g g-A" title="证据等级 A">A</span>）。</li></ul>
+<hr>
+<h2 id="s306-1">7. 引用清单与存疑</h2>
+<p><strong>A 级（官方原文）</strong></p>
+<div class="table-wrap"><table><thead><tr><th scope="col">来源</th><th scope="col">URL</th></tr></thead><tbody><tr><td class="k">提示词工程（三策略，2026-10-19 更新）</td><td><a href="https://docs.bigmodel.cn/cn/guide/platform/prompt" class="ext" target="_blank" rel="noopener">https://docs.bigmodel.cn/cn/guide/platform/prompt</a></td></tr><tr><td class="k">核心参数（thinking 分代行为、温度只调一个）</td><td><a href="https://docs.bigmodel.cn/cn/guide/start/concept-param" class="ext" target="_blank" rel="noopener">https://docs.bigmodel.cn/cn/guide/start/concept-param</a></td></tr><tr><td class="k">对话补全 API（温度/top_p 分代默认值、max_tokens）</td><td><a href="https://docs.bigmodel.cn/api-reference/模型-api/对话补全" class="ext" target="_blank" rel="noopener">https://docs.bigmodel.cn/api-reference/模型-api/对话补全</a></td></tr><tr><td class="k">迁移至 GLM-4.6</td><td><a href="https://docs.bigmodel.cn/cn/guide/start/migrate-to-glm-4.6" class="ext" target="_blank" rel="noopener">https://docs.bigmodel.cn/cn/guide/start/migrate-to-glm-4.6</a></td></tr><tr><td class="k">工具调用 function-calling</td><td><a href="https://docs.bigmodel.cn/cn/guide/capabilities/function-calling" class="ext" target="_blank" rel="noopener">https://docs.bigmodel.cn/cn/guide/capabilities/function-calling</a></td></tr><tr><td class="k">结构化输出 struct-output</td><td><a href="https://docs.bigmodel.cn/cn/guide/capabilities/struct-output" class="ext" target="_blank" rel="noopener">https://docs.bigmodel.cn/cn/guide/capabilities/struct-output</a></td></tr><tr><td class="k">Thinking Mode（Interleaved/Preserved/Turn-level 逐字）</td><td><a href="https://docs.z.ai/guides/capabilities/thinking-mode" class="ext" target="_blank" rel="noopener">https://docs.z.ai/guides/capabilities/thinking-mode</a></td></tr><tr><td class="k">Deep Thinking（开关建议清单）</td><td><a href="https://docs.z.ai/guides/capabilities/thinking" class="ext" target="_blank" rel="noopener">https://docs.z.ai/guides/capabilities/thinking</a></td></tr><tr><td class="k">GLM-4.5 模型页（思考三档任务分档）</td><td><a href="https://docs.z.ai/guides/llm/glm-4.5" class="ext" target="_blank" rel="noopener">https://docs.z.ai/guides/llm/glm-4.5</a></td></tr><tr><td class="k">GLM-4.6 模型页</td><td><a href="https://docs.z.ai/guides/llm/glm-4.6" class="ext" target="_blank" rel="noopener">https://docs.z.ai/guides/llm/glm-4.6</a></td></tr><tr><td class="k">Web Search / MCP</td><td><a href="https://docs.z.ai/guides/tools/web-search" class="ext" target="_blank" rel="noopener">https://docs.z.ai/guides/tools/web-search</a></td></tr><tr><td class="k">zai-org/GLM-4.5 README</td><td><a href="https://github.com/zai-org/GLM-4.5" class="ext" target="_blank" rel="noopener">https://github.com/zai-org/GLM-4.5</a></td></tr><tr><td class="k">zai-org/GLM-V README（模板区分警告）</td><td><a href="https://github.com/zai-org/GLM-V" class="ext" target="_blank" rel="noopener">https://github.com/zai-org/GLM-V</a></td></tr><tr><td class="k">技术报告</td><td>arXiv 2508.06471（GLM-4.5）</td></tr></tbody></table></div>
+<p><strong>B 级</strong>：Cline 官方博文 GLM-4.6（<a href="https://cline.ghost.io/cline-our-commitment-to-open-source-zai-glm-4-6/" class="ext" target="_blank" rel="noopener">https://cline.ghost.io/cline-our-commitment-to-open-source-zai-glm-4-6/</a>）；OpenClaw Z.AI provider 文档（<a href="https://docs.openclaw.ai/zh-CN/providers/zai" class="ext" target="_blank" rel="noopener">https://docs.openclaw.ai/zh-CN/providers/zai</a>）；AWS Bedrock model-card GLM-5 / GLM-4.7；vLLM tool calling parser 文档（<a href="https://docs.vllm.ai/en/latest/features/tool_calling/" class="ext" target="_blank" rel="noopener">https://docs.vllm.ai/en/latest/features/tool_calling/</a>）；阿里云百炼 GLM 文档；Novita GLM-4.5 Function Calling 手册；人人都是产品经理 GLM-4.6 中文输出英文实测（<a href="https://www.woshipm.com/ai/6276579.html" class="ext" target="_blank" rel="noopener">https://www.woshipm.com/ai/6276579.html</a>）。</p>
+<p><strong>C 级</strong>：知乎 GLM-4.6 接入 Claude Code 实操（<a href="https://zhuanlan.zhihu.com/p/1956839795801167476" class="ext" target="_blank" rel="noopener">https://zhuanlan.zhihu.com/p/1956839795801167476</a>）、B 站思考默认值踩坑视频。</p>
+<p><strong>存疑（已如实检索）</strong></p>
+<ol><li>XML 工具标记的官方一手出处：未面向用户发布，具体 token 串本机不可核（huggingface 不可达 / raw 502 / ModelScope 未取正文）→ 记 <strong>D 级</strong>，不做定论。</li><li>智谱官方<strong>没有</strong>发布可照抄的「vibe coding 系统提示词全文」，官方只提供框架接入 + MCP；人设层最硬依据是 Cline 的 <span class="g g-B" title="证据等级 B">B</span> 级调优经验。</li><li>「中文提示优于英文」<strong>无官方口径</strong>，社区 <span class="g g-C" title="证据等级 C">C</span> <span class="g g-D" title="证据等级 D">D</span> 与农场 <span class="g g-D" title="证据等级 D">D</span> 说法互相矛盾。</li><li>GLM-5.x 的「1M 上下文」仅第三方云标注，未在智谱自家模型页坐实。</li><li>农场量化数字（CodeBLEU 0.87、94.9% 成功率等）一律不采信。</li></ol></article>
+</main>
+<aside class="toc" id="toc" data-open="false"><h2>本页目录</h2><ul><li class="t1"><a href="#s000-1">智谱 GLM 提示词与 Agent 人设方案（2026-10）</a></li><li class="t2"><a href="#s013-1">0. 先对齐代际：GLM 的提示词规则按代际不同，这是最大的坑</a></li><li class="t2"><a href="#s037-1">1. 官方提示词三策略（A 级原文，逐条可用）</a></li><li class="t2"><a href="#s074-1">2. GLM 上的人设（System Prompt）写法</a></li><li class="t3"><a href="#s077-1">2.1 官方给的载体边界</a></li><li class="t3"><a href="#s083-1">2.2 GLM 人设要「短、显式、机械精确」——目前最硬的一条实证</a></li><li class="t3"><a href="#s104-1">2.3 中文语言漂移必须显式钉死</a></li><li class="t3"><a href="#s114-1">2.4 思考开关联动的人设调整</a></li><li class="t2"><a href="#s133-1">3. 参数与 API 层（A 级，照抄不猜）</a></li><li class="t3"><a href="#s147-1">3.1 思考控制（GLM 最复杂的一块，逐字 A 级）</a></li><li class="t3"><a href="#s175-1">3.2 工具调用</a></li><li class="t3"><a href="#s188-1">3.3 官方检索/联网面（A）</a></li><li class="t2"><a href="#s197-1">4. GLM 反模式清单（官方原话级）</a></li><li class="t2"><a href="#s221-1">5. 可直接复制的三个模板</a></li><li class="t3"><a href="#s224-1">5.1 通用任务（中文）</a></li><li class="t3"><a href="#s246-1">5.2 GLM Agent 工具调用</a></li><li class="t3"><a href="#s273-1">5.3 编码 Agent 系统提示（对齐 Cline B 级 + 官方 README A 级）</a></li><li class="t2"><a href="#s293-1">6. GLM 敏感度小结（供索引表引用）</a></li><li class="t2"><a href="#s306-1">7. 引用清单与存疑</a></li></ul></aside>
+</div>
+<footer class="page">
+  <div class="pager">
+    <a href="prompt-playbook-deepseek-2026.html"><small>上一篇</small><b>DeepSeek</b></a>
+    <a class="n" href="prompt-playbook-minimax-2026.html"><small>下一篇</small><b>MiniMax</b></a>
+  </div>
+  <p class="colophon">构建于 2026-10-20：由 <code>.temp/scripts/md2craft.mjs</code> 从同名 Markdown 真源生成（单一真源，改文请改 <code>prompt-playbook-glm-2026.md</code> 后重跑）。引用出处、日期与证据等级逐条标注，见页内来源表。</p>
+</footer>
+<script>
+(function(){
+  var p=document.getElementById('prog');
+  function upd(){var h=document.documentElement;var max=h.scrollHeight-h.clientHeight;p.style.width=(max>0?(h.scrollTop||document.body.scrollTop)/max*100:0)+'%';}
+  addEventListener('scroll',upd,{passive:true});addEventListener('resize',upd);upd();
+  var links=[].slice.call(document.querySelectorAll('aside.toc a'));
+  var map={};links.forEach(function(a){var el=document.getElementById(a.getAttribute('href').slice(1));if(el)map[el.id]=a;});
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){
+      links.forEach(function(a){a.classList.remove('act');});var a=map[e.target.id];if(a){a.classList.add('act');}}});},
+      {rootMargin:'0px 0px -72% 0px',threshold:0});
+    Object.keys(map).forEach(function(id){io.observe(document.getElementById(id));});
+  }
+  var btn=document.getElementById('tocbtn'),toc=document.getElementById('toc');
+  if(btn){toc.setAttribute('data-open','false');btn.addEventListener('click',function(){
+    var open=toc.getAttribute('data-open')==='true';toc.setAttribute('data-open',String(!open));btn.setAttribute('aria-expanded',String(!open));});}
+  [].slice.call(document.querySelectorAll('figure.code .copy')).forEach(function(b){
+    b.addEventListener('click',function(){
+      var code=b.closest('figure').querySelector('code');
+      var t=code.innerText;
+      function done(ok){b.textContent=ok?'已复制':'请手动复制';setTimeout(function(){b.textContent='复制';},1600);}
+      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){done(1);},function(){done(0);});}
+      else{done(0);}
+    });
+  });
+  if(!matchMedia('(prefers-reduced-motion: reduce)').matches){document.documentElement.style.scrollBehavior='smooth';}
+})();
+</script>
+</body>
+</html>

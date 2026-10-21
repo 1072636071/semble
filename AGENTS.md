@@ -10,7 +10,11 @@ AGENTS.md 和 CODEBUDDY.md 内容必须保持一致。
 
 **服务器对齐默认纪律（2026-10-15 起，覆盖全部涉工单技能）**：凡是创建、修订、流转工单的 jxx 技能（to-spec / to-tickets / implement / implement-spec / code-review / triage / wayfinder / to-milestones），**本地落盘与服务器上行是同一步**，不是可选项——项目已接入服务器工单（repo_key 在 `jxx_tickets` 中出现）时：新建（PRD+工单）落盘即批量上行并回写 ticket_no/id/version 留痕；正文、评论、状态、标签的每次改动先改本地 md 再以服务器最新 `version` 作 `base_version` 乐观锁双写；**批量 push 的 id 必须从当次 `list` 实测逐条核对**（不得凭表格手抄——2026-10-15 T131–T135 串位事故：四条正文错写进邻居工单，靠乐观锁 409 + 标签过滤对账才发现）；删除走 `archived` 软删两侧一致；仅服务器不可达时允许只写本地（离线降级），回连 `jxx_ticket_sync` 收口。工具面总入口 = `jxx-ticket-router` 技能；配套 CLI = TencentDB-Agent-Memory 仓 `tools/ticket-uplink.mjs`（幂等按 repo_key+title 判重）。
 
-**步骤打卡与断线续接（2026-10-15 起，与服务器对齐配套）**：处理工单时把执行步骤列成 `**处理步骤：**` 清单写进工单文件（每步一行 `- [ ]`），**每完成一步就地打卡**（`- [x]` + 步尾日期，必要时一行执行事实）并按服务器对齐纪律同步服务器副本——线上线下同步更新，打卡即存档。会话中断/换会话/换人续接时从打卡现场直接恢复，不重做已完成步骤、不凭记忆重建进度；续接入口 = 工单打卡区 + 评论时间线 + 服务器副本三方对齐，不一致以服务器为准。落地技能：jxx-implement 1.6.0（执行面完整块）、jxx-implement-spec 1.6.0（worker 锚点）、jxx-wayfinder 1.3.0（调查步打卡）、jxx-ticket-board 0.15.2（打卡真源 = 工单 md，卡面只带状态与指针）。
+**步骤打卡与断线续接（2026-10-15 起，与服务器对齐配套）**：处理工单时把执行步骤列成 `**处理步骤：**` 清单写进工单文件（每步一行 `- [ ]`），**每完成一步就地打卡**（`- [x]` + 步尾日期，必要时一行执行事实）并按服务器对齐纪律同步服务器副本——线上线下同步更新，打卡即存档。会话中断/换会话/换人续接时从打卡现场直接恢复，不重做已完成步骤、不凭记忆重建进度；续接入口 = 工单打卡区 + 评论时间线 + 服务器副本三方对齐，不一致以服务器为准。落地技能：jxx-implement 1.8.0（执行面完整块）、jxx-implement-spec 1.7.0（worker 锚点）、jxx-wayfinder 1.3.0（调查步打卡）、jxx-ticket-board 0.16.0（打卡真源 = 工单 md，卡面只带状态与指针）。
+
+**验收点闭包纪律（2026-10-21 起，覆盖全部涉工单技能）**：AC 唯一权威源 = `base/skills/engineering/jxx-to-tickets/references/acceptance-criteria.md`（判据正文只在这份，其他技能只留动作 + pointer）。
+三道闸各一条命令：**生产闸** `node base/scripts/ac-audit.mjs <功能目录> --strict`；**执行闸** `node base/scripts/ac-audit.mjs <工单文件>`；**审查闸** `git diff origin/main...HEAD` 逐条 AC 自己取证。
+放行条件与退出码语义全在规范里（§四 / §五 / §七），本文件不复述。
 
 ## Agent skills
 

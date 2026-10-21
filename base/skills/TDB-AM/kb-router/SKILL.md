@@ -65,6 +65,7 @@ metadata:
 | 跨项目全局搜素材 | 灵枢（namespace 标签 + project 过滤；**`project:` 与 `workspace:` 是两条正交轴**——前者「为什么做」后者「在哪做」，别互相挪用，ADR-0093 决策 4） |
 | 查「这类问题别人踩过什么坑」（只要经验） | **WeKnora 两步法**：REST 按 `type:experience` 过滤拿候选集 → 语义读。库上百条后必须走两步，全库语义检索会漏（实测 687 条库漏掉排不进前 6 的真经验）。路径与判据见 `weknora-kb-ops`「查询」节 |
 | 查「项目用到哪些资料/素材」 | **WeKnora 两步法**：REST 按 `type:material` 过滤 → 语义读。同上 |
+| 找第三方官方 agent skill 原文 / 找可装的技能 | 外部生态先 `npx skills find`（见 `find-skills`）；**本机 WeKnora 检索源**：`dfaaf6fc-1e5d-4385-a290-58c847d71bcb`「第三方官方skills」+ `b822071a-fb95-4e98-b05d-aa33da685a42`「生成技能」，`hybrid_search(kb_id, query)`。**分层不变**——灵枢仍是技能面权威（三分流第 2 条），这里只是「找技能」多一个检索源 |
 | 敏感素材不上云、离线可用 | 无对应云落点；此类内容不入服务器，留本地文件自管 |
 | 团队文档 → 结构化 Wiki、按图谱检索 | **WeKnora**（直连官方 MCP 面；ADR-0083） |
 | 代码仓库符号/调用链/影响分析 | **mzg**（本仓唯一对外代码索引 MCP 入口，ADR-0094 / PRD 61） |

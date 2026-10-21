@@ -3,7 +3,7 @@ name: jxx-to-spec
 description: 将当前对话转化为 spec（规格文档）并发布到 issue tracker——不访谈，仅综合已有讨论。触发词：写 spec、to spec。
 disable-model-invocation: false
 metadata:
-  version: 1.2.0
+  version: 1.3.1
 ---
 
 本技能将当前对话上下文和代码库理解转化为规格文档（你可能称之为 PRD）。不要访谈用户——仅综合你已知的内容。
@@ -22,9 +22,17 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 
 发布路径：在仓库根目录的 `.scratch/` 下创建功能目录 `<NN>-<feature-slug>/`，将规格文档写入 `.scratch/<NN>-<feature-slug>/PRD.md`。`<NN>` 为从 `01` 起的全局递增顺序号，按创建先后排列（如第一个功能为 `01-login/`）。具体目录与文件约定见 issue tracker 定义（`/jxx-setup-skills`）。
 
+4. 发布前自检（v1.3.0 起，不可跳过）：`node <jxx-to-tickets 技能目录>/scripts/ac-audit.mjs <功能目录> --strict`。
+
+   - 退出码 `0` ⇒ 放行，可发布。
+   - 退出码 `2`（`没有工单类文件`）⇒ **仅**在「PRD 全 defer、AC 交给工单层」时放行：发布说明写明落地位置「AC 落地位置：工单层（jxx-to-tickets）」。PRD 已写验收点节却零 AC 行 ⇒ 按硬问题处理，不得当 defer。
+   - 退出码 `3` ⇒ 调用错误（路径 / 用法），必须修正后重跑，**不得**当 defer 放行。
+   - 退出码 `1`（有硬问题）⇒ **不得发布**；按报告逐条修 AC，或补 `map.md` 的「## AC 覆盖矩阵」后重跑。
+   - 边界：文件名是 `PRD.md` 时脚本自动宽松——编号仍硬查，缺验证标注 / 类别不足 / 缺回归负向只报软问题。所以 PRD 层可以只给草案，但**推荐**按模板「## 验收点（AC）」写足；工单层的 AC 不得少于 PRD 层承诺的验收点。
+
 ### 服务器上行与本地落盘同属发布动作（默认纪律 · v1.2.0，非可选项）
 
-PRD 本地落盘的**同一步**内必须同步上行服务器工单系统（jxx-ticket）——不存在「先本地、服务器以后再说」：项目已接入服务器工单（repo_key 在 `jxx_tickets` 中出现）时，PRD 上行是发布动作的一部分，未经上行的 PRD 视为发布未完成。工具面与参数契约见 `jxx-ticket-router` 技能（`jxx_ticket_push` / `jxx_ticket_call`；配套 CLI 仓可直接 `node tools/ticket-uplink.mjs --root <仓库根>`，幂等按 repo_key+title 判重）：
+PRD 本地落盘的**同一步**内必须同步上行服务器工单系统（jxx-ticket）——不存在「先本地、服务器以后再说」：项目已接入服务器工单（repo_key 在 `jxx_tickets` 中出现）时，PRD 上行是发布动作的一部分，未经上行的 PRD 视为发布未完成。工具面与参数契约见项目内 `agents/skills/jxx-ticket-router/SKILL.md`（项目技能，`read` 加载；项目未提供该文件时以 MCP `tools/list` 自披露 schema 为准），`jxx_ticket_push` / `jxx_ticket_call`；配套 CLI 仓可直接 `node tools/ticket-uplink.mjs --root <仓库根>`，幂等按 repo_key+title 判重：
 
 - **新建**：PRD 落盘后立即上行（labels 带 `prd:<NN>-<slug>` 归组），把服务器回写的 ticket_no + id + version 记入 PRD 正文或本地评论留痕；
 - **后续修订**：先改本地 md → `get` 拿最新 `version` 作 `base_version` → 更新服务器（乐观锁；409 冲突先对账再推，不盲目重试）；
@@ -64,6 +72,15 @@ PRD 本地落盘的**同一步**内必须同步上行服务器工单系统（jxx
 </user-story-example>
 
 用户故事列表应极其详尽，覆盖功能的所有方面。
+
+**硬要求（v1.3.0）**：每条用户故事必须被至少 1 条验收点覆盖。写完用户故事立即做覆盖自检（逐条用户故事指到 ≥1 个 `AC-<n>`），结果写进 `.scratch/<NN>-<slug>/map.md` 的「## AC 覆盖矩阵」节（节名与列义见规范第一节）。任一用户故事无 AC ⇒ 先补 AC，不得发布。
+
+## 验收点（AC）
+
+按用户故事聚合的验收点草案——每条用户故事至少 1 条 AC。编号 `AC-<n>` 从 1 连续、本 PRD 内唯一；格式、覆盖清单（14 类，见规范 §一）、禁词、验证方式标注**一律照** `jxx-to-tickets` 技能 `references/acceptance-criteria.md` 第一、二节，本处不复述。
+
+- **PRD 层 AC 是承诺下限**：工单层可细分（拆条、补错误路径与边界），但**不得少于** PRD 层承诺的验收点，不得删条、不得降级。
+- 每条落成机械可核对的句式：`- [ ] AC-<n> [<类别>] 当 … 时，…，则 … —— 验证:机器 <用例名|命令>`；写不出可观测结果的不算 AC。
 
 ## 实现决策
 

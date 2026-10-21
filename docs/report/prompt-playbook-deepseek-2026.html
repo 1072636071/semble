@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepSeek 提示词与 Agent 人设方案（2026-10）</title>
+<meta name="description" content="system 态度三次翻转的官方原文链条 · 思考模式静默旁路采样参数 · JSON 双写与 reasoning_content 回传">
+<style>
+:root{--h:222;
+  --bg:hsl(var(--h),26%,97%);--surface:#fff;--surface-2:hsl(var(--h),26%,95%);
+  --ink:hsl(var(--h),32%,15%);--muted:hsl(var(--h),19%,36%);--faint:hsl(var(--h),16%,40%);
+  --line:hsl(var(--h),20%,88%);--line-2:hsl(var(--h),22%,82%);
+  --accent:hsl(var(--h),68%,42%);--accent-ink:hsl(var(--h),60%,26%);--accent-weak:hsl(var(--h),64%,95%);
+  --code-bg:hsl(var(--h),32%,12%);--code-fg:hsl(var(--h),14%,90%);--code-key:hsl(calc(var(--h) + 40),60%,72%);
+  --ok:hsl(150,54%,30%);--ok-bg:hsl(150,50%,94%);
+  --warn:hsl(38,84%,30%);--warn-bg:hsl(42,86%,93%);
+  --bad:hsl(2,62%,38%);--bad-bg:hsl(4,72%,96%);
+  --info:hsl(206,66%,32%);--info-bg:hsl(206,66%,95%);
+  --r:14px;--maxw:74ch;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"Cascadia Mono",Consolas,"Liberation Mono",monospace;}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:16.5px;line-height:1.78;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+a{color:var(--accent-ink);text-decoration-thickness:1px;text-underline-offset:2px;overflow-wrap:anywhere}
+a.ext{font-family:var(--mono);font-size:.85em;word-break:break-all}
+a:hover{color:var(--accent)}
+:focus-visible{outline:3px solid hsl(var(--h),72%,52%);outline-offset:2px;border-radius:4px}
+.progress{position:fixed;inset:0 auto auto 0;height:3px;width:0;background:var(--accent);z-index:60;transition:width .08s linear}
+header.top{position:sticky;top:0;z-index:50;background:hsl(var(--h),30%,13%);color:hsl(var(--h),16%,88%);
+  border-bottom:1px solid hsl(var(--h),30%,22%)}
+.top .in{max-width:1320px;margin:0 auto;padding:.75rem 1.25rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
+.brand{font-weight:700;letter-spacing:-.01em;font-size:.95rem;color:#fff;text-decoration:none;white-space:nowrap}
+.brand em{font-style:normal;color:hsl(calc(var(--h) + 38),70%,70%)}
+nav.pills{display:flex;gap:.4rem;flex-wrap:wrap;flex:1 1 22rem}
+.pill{display:inline-flex;align-items:center;gap:.4rem;font-size:.82rem;line-height:1;padding:.5rem .72rem;border-radius:999px;
+  color:hsl(var(--h),14%,84%);text-decoration:none;background:hsl(var(--h),26%,20%);border:1px solid hsl(var(--h),26%,26%)}
+.pill:hover{background:hsl(var(--h),28%,26%);color:#fff}
+.pill.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--d,#fff);box-shadow:0 0 0 2px hsl(var(--h),30%,13%)}
+.shell{max-width:1320px;margin:0 auto;padding:0 1.25rem;display:grid;grid-template-columns:minmax(0,1fr) 15.5rem;gap:2.5rem}
+main{min-width:0;padding:2.5rem 0 5rem}
+article.doc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:clamp(1.4rem,4vw,3rem);box-shadow:0 4px 24px hsla(var(--h),30%,20%,.06)}
+h1{font-size:clamp(1.75rem,3.4vw,2.4rem);line-height:1.16;letter-spacing:-.025em;margin:0 0 1.4rem;padding-bottom:1rem;
+  border-bottom:2px solid var(--accent)}
+h1+h2,h1+p+h2{margin-top:1.6rem}
+h2{font-size:1.42rem;line-height:1.22;letter-spacing:-.02em;margin:3rem 0 .9rem;padding-left:.7rem;border-left:3px solid var(--accent)}
+h3{font-size:1.12rem;line-height:1.3;letter-spacing:-.015em;margin:2.1rem 0 .6rem;color:var(--accent-ink)}
+h4{font-size:1rem;margin:1.6rem 0 .4rem;color:var(--muted)}
+p{margin:.85rem 0;max-width:var(--maxw)}
+li{max-width:var(--maxw)}
+ul,ol{padding-left:1.35rem}
+li>ul,li>ol{margin:.35rem 0}
+hr{border:0;border-top:1px solid var(--line-2);margin:2.6rem 0}
+strong{color:var(--ink)}
+code{font-family:var(--mono);font-size:.88em;background:var(--surface-2);border:1px solid var(--line);
+  border-radius:5px;padding:.1em .38em;color:hsl(var(--h),40%,26%);overflow-wrap:anywhere}
+pre{margin:0;padding:1.05rem 1.15rem;overflow-x:auto;background:var(--code-bg);color:var(--code-fg);
+  font-family:var(--mono);font-size:.845rem;line-height:1.62;border-radius:0 0 calc(var(--r) - 4px) calc(var(--r) - 4px)}
+pre code{background:none;border:0;color:inherit;padding:0;font-size:1em}
+figure.code{margin:1.3rem 0;border:1px solid var(--line);border-radius:calc(var(--r) - 4px);overflow:hidden;background:var(--surface)}
+figure.code figcaption{display:flex;justify-content:space-between;align-items:center;gap:1rem;
+  padding:.42rem .8rem;background:var(--surface-2);border-bottom:1px solid var(--line)}
+figure.code .lang{font:600 .7rem/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.copy{font:600 .76rem/1 var(--sans);padding:.34rem .62rem;border-radius:7px;border:1px solid var(--line-2);
+  background:var(--surface);color:var(--accent-ink);cursor:pointer;min-height:30px}
+.copy:hover{background:var(--accent-weak);border-color:var(--accent)}
+.table-wrap{overflow-x:auto;margin:1.35rem 0;border:1px solid var(--line);border-radius:calc(var(--r) - 4px);max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:.915rem;line-height:1.6;min-width:34rem}
+caption{text-align:left;font-weight:700;padding:.7rem .85rem;background:var(--surface-2);border-bottom:1px solid var(--line)}
+th,td{padding:.62rem .8rem;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+thead th{background:hsl(var(--h),32%,19%);color:hsl(var(--h),16%,92%);font-weight:600;font-size:.85rem;letter-spacing:.01em;white-space:nowrap}
+tbody tr:nth-child(even){background:var(--surface-2)}
+td.k{font-weight:650;color:var(--accent-ink);white-space:nowrap}
+blockquote{margin:1.2rem 0;padding:.15rem 1.1rem;border-left:3px solid hsl(var(--h),52%,68%);background:var(--accent-weak);
+  border-radius:0 10px 10px 0;color:hsl(var(--h),28%,22%);max-width:calc(var(--maxw) + 2rem)}
+blockquote p{margin:.6rem 0}
+blockquote code{background:hsl(var(--h),40%,90%)}
+.g{display:inline-block;font:700 .7rem/1.5 var(--mono);min-width:1.35em;padding:0 .32em;border-radius:5px;
+  text-align:center;vertical-align:.12em}
+.g-A{background:var(--ok-bg);color:var(--ok);border:1px solid hsl(150,40%,74%)}
+.g-B{background:var(--info-bg);color:var(--info);border:1px solid hsl(206,50%,76%)}
+.g-C{background:var(--warn-bg);color:var(--warn);border:1px solid hsl(40,60%,72%)}
+.g-D{background:var(--bad-bg);color:var(--bad);border:1px solid hsl(2,55%,80%)}
+.gnote{font-size:.78em;color:var(--muted);margin-left:.3em}
+.fk{font-family:var(--mono);font-size:.86em;background:hsl(42,88%,92%);color:hsl(30,80%,26%);
+  border:1px dashed hsl(36,70%,58%);border-radius:5px;padding:.08em .3em}
+.lede,.hero{margin:0 0 2rem}
+.lede p{font-size:1.02rem;color:var(--muted);border-top:1px solid var(--line);padding-top:.9rem;max-width:none}
+.hero{display:grid;gap:1.8rem;padding:1.6rem 0 .4rem;border-top:1px solid var(--line)}
+.hero h2{font-size:clamp(1.3rem,2.6vw,1.85rem);margin:0 0 .5rem;border:0;padding:0;max-width:22ch}
+.hero-lead>p{max-width:46ch;color:var(--muted);margin:0}
+.metrics{list-style:none;display:flex;flex-wrap:wrap;gap:.9rem;margin:1.3rem 0 .3rem;padding:0}
+.metrics li{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:.55rem .85rem;display:flex;align-items:baseline;gap:.4rem}
+.metrics b{font-size:1.2rem;letter-spacing:-.02em;color:var(--accent-ink)}
+.metrics span{font-size:.78rem;color:var(--faint)}
+.note{font-size:.78rem;color:var(--faint)}
+.hero-grid{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr))}
+.vcard{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:.95rem 1rem;
+  text-decoration:none;color:var(--ink);position:relative;overflow:hidden}
+.vcard::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:hsl(var(--h),64%,48%)}
+.vcard b{display:block;font-size:1.02rem;letter-spacing:-.01em;margin-bottom:.3rem;color:hsl(var(--h),50%,34%)}
+.vcard span{font-size:.84rem;line-height:1.55;color:var(--muted)}
+.vcard:hover{border-color:hsl(var(--h),40%,70%);transform:translateY(-2px);transition:transform .25s cubic-bezier(.16,1,.3,1)}
+.legend{display:flex;flex-wrap:wrap;gap:.5rem .9rem;align-items:center;font-size:.8rem;color:var(--faint);
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:.6rem .85rem;margin-bottom:1.6rem}
+aside.toc{position:sticky;top:4.6rem;align-self:start;max-height:calc(100vh - 6rem);overflow-y:auto;padding:2.5rem 0 3rem;font-size:.85rem}
+aside.toc h2{font:700 .76rem/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:0 0 .7rem;border:0;padding:0}
+aside.toc ul{list-style:none;margin:0;padding:0;border-left:1px solid var(--line-2)}
+aside.toc li{margin:0}
+aside.toc a{display:block;padding:.28rem .7rem;color:var(--muted);text-decoration:none;border-left:2px solid transparent;margin-left:-1px;line-height:1.4}
+aside.toc a:hover{color:var(--accent-ink)}
+aside.toc a.t3{padding-left:1.4rem;font-size:.8rem}
+aside.toc a.act{color:var(--accent-ink);border-left-color:var(--accent);font-weight:600;background:var(--accent-weak);border-radius:0 6px 6px 0}
+footer.page{max-width:1320px;margin:0 auto;padding:0 1.25rem 3rem}
+.pager{display:grid;gap:.8rem;grid-template-columns:1fr 1fr}
+.pager a{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:.8rem .95rem;text-decoration:none}
+.pager a:hover{border-color:var(--accent)}
+.pager small{display:block;font-size:.75rem;color:var(--faint);letter-spacing:.05em;text-transform:uppercase}
+.pager b{font-size:.98rem;color:var(--accent-ink)}
+.pager .n{text-align:right}
+.colophon{font-size:.8rem;color:var(--faint);margin-top:1.1rem;line-height:1.7}
+button.tocbtn{display:none}
+@media (max-width:1080px){.shell{grid-template-columns:minmax(0,1fr)}aside.toc{position:static;max-height:none;padding:0 0 1rem}
+  aside.toc ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));border-left:0}
+  aside.toc a.t3{padding-left:.7rem}}
+@media (max-width:640px){body{font-size:16px}main{padding:1.4rem 0 3rem}.shell{gap:1.2rem;padding:0 .9rem}
+  h2{font-size:1.25rem;margin-top:2.3rem}table{font-size:.86rem;min-width:28rem}
+  .pill{font-size:.78rem;padding:.45rem .62rem}.pager{grid-template-columns:1fr}.pager .n{text-align:left}
+  button.tocbtn{display:inline-flex;align-items:center;gap:.4rem;font:600 .82rem/1 var(--sans);padding:.55rem .8rem;
+    border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--accent-ink);cursor:pointer;min-height:44px}
+  aside.toc[data-open="false"] ul{display:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media print{header.top,aside.toc,.progress,.copy,.pager{display:none!important}body{background:#fff}
+  article.doc{border:0;box-shadow:none;padding:0}a{color:var(--ink);text-decoration:none}
+  .table-wrap{overflow:visible;border:0}pre{white-space:pre-wrap;background:#f4f4f5;color:#1c1c1e}}
+</style>
+</head>
+<body>
+<div class="progress" id="prog" aria-hidden="true"></div>
+<header class="top"><div class="in">
+  <a class="brand" href="prompt-playbooks-index-2026.html">提示词与人设方案 <em>2026-10-20</em></a>
+  <nav class="pills" aria-label="方案导航"><a class="pill" href="prompt-playbooks-index-2026.html"><span class="dot" style="--d:hsl(214,62%,46%)"></span>索引</a><a class="pill on" href="prompt-playbook-deepseek-2026.html"><span class="dot" style="--d:hsl(222,62%,46%)"></span>DeepSeek</a><a class="pill" href="prompt-playbook-glm-2026.html"><span class="dot" style="--d:hsl(268,62%,46%)"></span>GLM</a><a class="pill" href="prompt-playbook-minimax-2026.html"><span class="dot" style="--d:hsl(14,62%,46%)"></span>MiniMax</a><a class="pill" href="prompt-playbook-kimi-2026.html"><span class="dot" style="--d:hsl(168,62%,46%)"></span>Kimi</a><a class="pill" href="prompt-playbook-universal-agent-2026.html"><span class="dot" style="--d:hsl(196,62%,46%)"></span>通用底座</a></nav>
+  <button class="tocbtn" type="button" id="tocbtn" aria-expanded="false" aria-controls="toc">目录</button>
+</div></header>
+<div class="shell">
+<main id="main">
+  <div class="legend" aria-label="证据等级图例">
+    <span>证据等级：</span>
+    <span class="g g-A">A</span>官方一手
+    <span class="g g-B">B</span>权威二手 / 平台文档
+    <span class="g g-C">C</span>社区实测
+    <span class="g g-D">D</span>未证实，不作依据
+    <span class="fk">〈…〉</span>全角标记＝排版保护，用时须换成半角
+  </div>
+  <section class="lede"><p>system 态度三次翻转的官方原文链条 · 思考模式静默旁路采样参数 · JSON 双写与 reasoning_content 回传</p></section>
+  <article class="doc"><h1 id="s000-1">DeepSeek 提示词与 Agent 人设方案（2026-10）</h1>
+<blockquote><p>适用范围：<code>deepseek-flash</code>（V4.1-Flash-1017）、<code>deepseek-v4-pro</code>，以及本地部署的 R1-0528 / V3.1 / V3.2 系开源权重。 定稿日期：2026-10-20。证据基线：官方 api-docs 于 2026-10-19 抓取，官方 GitHub / model card 逐字核对。 写作约定：文中所有形如<span class="fk">〈think〉</span><span class="fk">〈/think〉</span><span class="fk">〈tool_call〉</span>的全角尖括号是<strong>排版保护写法</strong>，真正放进提示词时必须替换成 ASCII 半角尖括号。 证据等级：<span class="g g-A" title="证据等级 A">A</span> = 官方原文可逐字复述；<span class="g g-B" title="证据等级 B">B</span> = 权威二手转述；<span class="g g-C" title="证据等级 C">C</span> = 社区实测一致；<span class="g g-D" title="证据等级 D">D</span> = 流行说法但一手出处已不可核。本手册把 <span class="g g-C" title="证据等级 C">C</span> <span class="g g-D" title="证据等级 D">D</span> 明确隔离在「社区口径」小节，不与官方结论混写。 完整调研证据与 25+ 份官方抓取件：<code>.temp/research/prompt-2026-10/deepseek.md</code>、<code>.temp/research/ds/</code>。</p></blockquote>
+<hr>
+<h2 id="s013-1">0. 先认清 2026 的 DeepSeek：三条会影响提示词写法的事实</h2>
+<div class="table-wrap"><table><thead><tr><th scope="col">事实</th><th scope="col">内容</th><th scope="col">对提示词的后果</th></tr></thead><tbody><tr><td class="k">模型名换代</td><td>现役是 <code>deepseek-flash</code> / <code>deepseek-v4-pro</code>；<code>deepseek-chat</code>、<code>deepseek-reasoner</code> 已于 <strong>2026-07-24 15:59 UTC 彻底退役</strong>，请求返回 404</td><td>模板里模型名必须参数化，任何还写 <code>deepseek-reasoner</code> 的旧配置直接失效<span class="g g-A" title="证据等级 A">A</span> </td></tr><tr><td class="k">chat / reasoning 的分界消失</td><td>V3.1（2025-08-21）起一个模型双模式，用参数切 thinking/non-thinking，不再靠选模型</td><td>「推理模型 vs 对话模型两套人设」这种老框架已过时，现在要按<strong>思考开没开</strong>分两套写法</td></tr><tr><td class="k">1M 上下文成默认</td><td>官方原文："🔹 <strong>1M Standard:</strong> 1M context is now the default across all official DeepSeek services."（V4 Preview 公告，A）</td><td>长前缀缓存策略变成主要优化点，不再需要为省 token 压缩人设</td></tr></tbody></table></div>
+<p>思考控制参数（现行，A）：</p>
+<ul><li>OpenAI 兼容格式：<code>extra_body={"thinking": {"type": "enabled"|"disabled"}}</code>，强度 <code>reasoning_effort: "low"|"high"|"max"</code>；官方建议映射：<code>minimal/low→low</code>、<code>medium/high/xhigh→high</code>、<code>max/ultra→max</code>。</li><li>Anthropic 兼容格式：<code>{"reasoning": {"effort": "none"|"low"|"high"|"max"}}</code>，<code>none</code> = 关思考。</li><li>Responses API：<code>output_config.effort</code>。</li><li>默认值：<strong>开启思考 + effort=high</strong>。</li><li>官方给的档位用法口径（V4-Pro GA 公告，A）："low for simple tasks, high for daily Agent workflows, max for complex tasks"。</li></ul>
+<hr>
+<h2 id="s036-1">1. 人设（System Prompt）在 DeepSeek 上到底该怎么写</h2>
+<h3 id="s039-1">1.1 演变史：为什么网上说法互相打架</h3>
+<p>DeepSeek 对 system role 的态度在三年内翻了三次车，这是所有「DeepSeek 要不要写 system prompt」争论的根源。逐条官方原文（全 <span class="g g-A" title="证据等级 A">A</span>）：</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">时间</th><th scope="col">官方原文</th><th scope="col">结论</th></tr></thead><tbody><tr><td class="k">2023-11（DeepSeek-LLM V1）</td><td>"since the system prompt is not compatible with this version of our models, we <strong>DO NOT RECOMMEND</strong> including the system prompt in your input."</td><td>不兼容，禁用</td></tr><tr><td class="k"><strong>2024-05-17</strong></td><td>"we have optimized model ability to follow instruction filled in the <code>system</code> part. This optimization has significantly elevated the user experience across a variety of tasks, including immersive translation, RAG, and more."</td><td>官方<strong>专门强化</strong> system 指令遵循，system 自此成为一等公民</td></tr><tr><td class="k">2025-01-20（R1）</td><td>"<strong>Avoid adding a system prompt; all instructions should be contained within the user prompt.</strong>"</td><td>旧 R1 建议绕过 system</td></tr><tr><td class="k"><strong>2025-05-28（R1-0528）</strong></td><td>"1. System prompt is supported now. 2. It is not required to add 「<span class="fk">〈think〉</span>\n」 at the beginning of the output to force the model into thinking pattern."</td><td>思考模型重新支持 system</td></tr><tr><td class="k">2025-08-21（V3.1 chat template）</td><td>模板首槽即 system：<code>〈begin of sentence〉{system prompt}〈User〉{query}〈Assistant〉</code></td><td>思考/非思考两种模式下 system 槽位都存在</td></tr><tr><td class="k">2026 V4 时代</td><td>API Reference 完整文档化 <code>system</code> role；Anthropic 格式标 "Fully Supported"；<strong>Chat 格式还支持会话中途插入 system 消息</strong></td><td>system 完全可用，且可动态注入</td></tr></tbody></table></div>
+<p><strong>可直接引用的结论</strong>：今天（V4 系）在 DeepSeek 上用 system prompt 是被官方完全支持的，历史禁忌只适用于旧 R1 与 2023 年权重。本地跑 R1-0528 之前的旧 checkpoint 才需要把指令全塞进 user。</p>
+<h3 id="s058-1">1.2 官方自己的「人设长什么样」——两行范式</h3>
+<p>R1-0528 model card 披露了官方 Web/App 实际使用的 system message，只有两行（<span class="g g-A" title="证据等级 A">A</span>）：</p>
+<blockquote><p>该助手为DeepSeek-R1，由深度求索公司创造。今天是{current date}。</p></blockquote>
+<p>这是 DeepSeek 官方给出的<strong>人设写法上限示范</strong>：极短、声明式、只带身份与日期，不带形容词、不带能力断言、不带规则清单。（V4 时代 App 的 system 内容未找到一手依据，见 §6。）</p>
+<p>结合官方样例的三条 <span class="g g-A" title="证据等级 A">A</span> 级旁证，可以安全地推出 DeepSeek 的人设分层法：</p>
+<ul><li>KV 缓存指南示例：system 放<strong>角色 + 长文档固定前缀</strong>，把<strong>每轮会变的指令</strong>追加到 user 尾部（为吃缓存前缀）。</li><li>JSON 指南示例：格式规则放 system，待处理数据放 user。</li><li>V3.1 工具格式：工具描述也注入 system 槽（<code>{system prompt}\n\n{tool_description}</code>）。</li></ul>
+<blockquote><p>注意：「高级全局约束放 system、任务指令放 user」这句流传很广的话<strong>没有官方原话</strong>（搜过 api-docs、changelog、wayback）。手册把它定性为「与官方示例结构一致的社区最佳实践」，不要当官方声明引用。</p></blockquote>
+<h3 id="s081-1">1.3 DeepSeek 人设的四条落地规则</h3>
+<ol><li><strong>system 里只写不随轮次变化的东西</strong>：身份、语言、输出契约、风格边界。每轮变化的指令写进 user 末尾——既符合官方缓存示例，也避免 system 被逐轮重复稀释。</li><li><strong>写短</strong>。官方 App 的两行范式 + system 遵循优化只解决「能不能听」，不解决「听多少」；规则条数与遵循率的衰减是所有模型共有的工程事实（见通用手册的 IFScale/ManyIFEval 证据）。</li><li><strong>格式契约必须也在 user 里说一遍</strong>。这不是审美问题：JSON 模式下官方明确警告不写指令会「无限吐空白符直到触顶」（<span class="g g-A" title="证据等级 A">A</span>，原文见 §3.2）。</li><li><strong>动态提醒走 system 插入</strong>。Chat 格式允许会话中途插 system 消息（<span class="g g-A" title="证据等级 A">A</span>），这是 DeepSeek 上给长程 agent 加「还没交付吗 / 检查清单」这类提醒的合法通道；但<strong>不能</strong>在 Chat 格式历史中段插 tool 结果消息，那要改用 Anthropic 或 Responses 格式。</li></ol>
+<hr>
+<h2 id="s093-1">2. 日常对话层：DeepSeek 网页/App 里的提问技巧</h2>
+<p>官方 App 内置《DeepSeek 使用指南》十条（<span class="g g-B" title="证据等级 B">B</span> 级：2025-02 起被掘金/CSDN/360doc 大量逐字转载，官方原文页已不可直链）：明确需求 / 提供上下文 / 指定格式 / 分步骤提问 / 使用角色设定 / 尝试开放式问题 / 调整语气和风格 / 多轮对话逐步完善 等，每条给「不好的提示词 vs 更好的提示词」对照（例："告诉我一些东西" → "请帮我总结一下人工智能的发展历史"）。</p>
+<p>落地要点：</p>
+<ul><li>网页/App <strong>没有独立 system 输入框</strong>（社区共识，C）。要自定义人设，把身份+格式契约写在<strong>第一条消息</strong>里，后续轮次靠上下文带过去；要稳定生效就每 3–5 轮重申一次格式要求。</li><li>官方提示词库仍在线可直接抄（<span class="g g-A" title="证据等级 A">A</span>）：<a href="https://api-docs.deepseek.com/zh-cn/prompt-library/" class="ext" target="_blank" rel="noopener"><code>https://api-docs.deepseek.com/zh-cn/prompt-library/</code></a>，13 类，含<strong>代码改写/解释/生成、内容分类、结构化输出、角色扮演（自定义人设）、角色扮演（情景续写）、散文/诗歌/文案大纲/宣传标语、模型提示词生成（元提示）、中英翻译专家</strong>。人设类有官方模板。</li><li>数学/竞赛题保留官方原句（<span class="g g-A" title="证据等级 A">A</span>，R1 README）："Please reason step by step, and put your final answer within \boxed{}."（请逐步推理，并将最终答案放在 \boxed{} 中。）这是 DeepSeek 唯一逐字给出的场景化提示词。</li><li>中文写作去 AI 味（社区高赞，C）：末尾加风格约束「用普通人唠嗑语气，句子长短随意，不要排比，不要『综上所述/值得注意的是/与此同时』，段落长短不一，不强行总结升华」；先出 200 字碎初稿，再让模型按你的语气润色；给禁用词表 + 替代短语。</li><li>联网/检索任务：2026-10-17 起官方开放自研 Search &amp; Fetch 工具 API（<span class="g g-A" title="证据等级 A">A</span>），过滤 SEO 垃圾，经 Harness/Claude Code/Codex 服务端代跑至 2026-11-01 免费，之后 $0.75/千次。优先用官方 Search/Fetch 而不是自建 RAG 工具。</li></ul>
+<hr>
+<h2 id="s112-1">3. 参数与 API 层（工程侧照抄，别猜）</h2>
+<h3 id="s115-1">3.1 采样参数</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">参数</th><th scope="col">官方口径</th></tr></thead><tbody><tr><td class="k">temperature</td><td>默认 <strong>1.0</strong>，范围 0–2（<span class="g g-A" title="证据等级 A">A</span>）。官方任务-温度表（<span class="g g-A" title="证据等级 A">A</span>，《The Temperature Parameter》）：Coding/Math <strong>0.0</strong>；Data Cleaning/Analysis <strong>1.0</strong>；General Conversation <strong>1.3</strong>；Translation <strong>1.3</strong>；Creative Writing/Poetry <strong>1.5</strong></td></tr><tr><td class="k">top_p</td><td><strong>与 temperature 二选一</strong>，官方原文："We generally recommend altering this or <code>top_p</code> but not both."<span class="g g-A" title="证据等级 A">A</span> </td></tr><tr><td class="k">presence_penalty / frequency_penalty</td><td><strong>已整体 deprecated</strong>："This parameter is no longer supported. It will not take effect if you pass it to the API."<span class="g g-A" title="证据等级 A">A</span> </td></tr><tr><td class="k">max_tokens</td><td>1–384K；不传时默认 非思考 <strong>8K</strong> / 思考 <strong>64K</strong> / effort=max <strong>128K</strong>（<span class="g g-A" title="证据等级 A">A</span>）——这是官方给的思考长度硬闸门</td></tr><tr><td class="k">R1 系本地部署</td><td>官方："Set the temperature within the range of 0.5-0.7 (0.6 is recommended) to prevent endless repetitions or incoherent outputs."（<span class="g g-A" title="证据等级 A">A</span>）评测口径 temp 0.6 / top_p 0.95 / 最大生成 64K，Web/App 温度 0.6（<span class="g g-A" title="证据等级 A">A</span>，R1 与 R1-0528 双次确认）</td></tr></tbody></table></div>
+<p><strong>思考模式会静默旁路采样参数</strong>（<span class="g g-A" title="证据等级 A">A</span>，Thinking Mode 指南原文）：</p>
+<blockquote><p>"Thinking mode does not support the <code>temperature</code>, <code>presence_penalty</code>, or <code>frequency_penalty</code> parameters… setting these parameters will not trigger an error but will also have no effect."</p></blockquote>
+<p><code>top_p</code> 依模型而定：<code>deepseek-flash</code> 仅思考模式生效、有效区间 0.95–1.0（低于 0.95 按 0.95），非思考固定 1.0；<code>deepseek-v4-pro</code> 思考模式忽略传入值（带 tools 固定 0.95，否则 1.0），非思考模式生效（<span class="g g-A" title="证据等级 A">A</span>）。</p>
+<p>后果很实际：<strong>想治复读，别指望惩罚系数</strong>。正解是 R1 系温度收到 0.5–0.7，思考模型用 <code>reasoning_effort</code> + <code>max_tokens</code> 控制。</p>
+<h3 id="s139-1">3.2 结构化输出</h3>
+<p>JSON 输出的<strong>强制配套动作</strong>（<span class="g g-A" title="证据等级 A">A</span>，API Reference 原文）：</p>
+<blockquote><p>"<strong>Important:</strong> When using JSON Output, you must also instruct the model to produce JSON yourself via a system or user message. Without this, the model may generate an unending stream of whitespace until the generation reaches the token limit…"</p></blockquote>
+<p>即：设了 <code>response_format={"type":"json_object"}</code> 还必须在消息里明说「输出 JSON」，否则表现为「卡住/空白输出」。再加一条（<span class="g g-A" title="证据等级 A">A</span>）："Set max_tokens appropriately to prevent the JSON string from being truncated midway."</p>
+<h3 id="s151-1">3.3 工具调用</h3>
+<ul><li>上限 128 个 function/次，支持并行（<span class="g g-A" title="证据等级 A">A</span>）。</li><li><strong>strict 模式</strong>：<code>base_url="https://api.deepseek.com/beta"</code> + 每个 function <code>"strict": true</code>，服务端校验 schema；<strong>所有 object 属性必须进 <code>required</code> 且 <code>additionalProperties: false</code></strong>；支持 object/string/number/integer/boolean/array/enum/anyOf 与 <code>$ref</code>/<code>$def</code>；<strong>不支持</strong> minLength/maxLength/minItems/maxItems（<span class="g g-A" title="证据等级 A">A</span>）。</li><li><strong>最容易踩的一条</strong>（<span class="g g-A" title="证据等级 A">A</span>）：带 <code>tools</code> 时，后续<strong>所有</strong>请求必须完整回传历史 <code>reasoning_content</code>（即使那一轮没调工具），否则 "the API will return a 400 error"。官方快捷写法 <code>messages.append(response.choices[0].message)</code>。不带 <code>tools</code> 时无需回传，回传也被忽略——<strong>思考链不进上下文</strong>。</li><li>由此推出一条人设纪律：不带 tools 的多轮思考对话里，如果某个结论需要下一轮记住，必须要求模型把它<strong>显式写进 content</strong>，不能留在思考里。</li><li>官方工具描述格式（<span class="g g-A" title="证据等级 A">A</span>，V3.1 model card 逐字）：<code>## Tools / ### {tool_name} / Description: … / Parameters: {json} / IMPORTANT: ALWAYS adhere to this exact format for tool use: 〈tool calls begin〉…</code></li></ul>
+<h3 id="s161-1">3.4 接口面（选格式有提示词后果）</h3>
+<p>ChatCompletions / Anthropic 兼容 <code>/anthropic</code>（模型名映射：<code>claude-opus*</code>→<code>deepseek-v4-pro</code>，其余 <code>claude*</code>→<code>deepseek-flash</code>，A）/ Responses API（2026-08-13 原生，为 Codex 适配）/ FIM <code>/completions</code>（<strong>仅非思考模式</strong>）/ Chat Prefix Completion（beta，<code>{"prefix": true}</code> 强制 assistant 以 <code>"</code>`<code>python\n"</code> 或 <code>"{"</code> 开头输出，A）。</p>
+<hr>
+<h2 id="s170-1">4. 官方反对的反模式（逐字，全 <span class="g g-A" title="证据等级 A">A</span> 级，逐条给修法）</h2>
+<div class="table-wrap"><table><thead><tr><th scope="col">#</th><th scope="col">反模式</th><th scope="col">官方原文/依据</th><th scope="col">修法</th></tr></thead><tbody><tr><td class="k">1</td><td>JSON 模式不写明输出要求</td><td>"may generate an unending stream of whitespace"</td><td>system 或 user 里明说「只输出 JSON」</td></tr><tr><td class="k">2</td><td>同时调 temperature 和 top_p</td><td>"recommend altering this or top_p but not both"</td><td>只动一个</td></tr><tr><td class="k">3</td><td>传 presence/frequency penalty</td><td>"no longer supported… will not take effect"</td><td>删掉，复读靠温度/effort</td></tr><tr><td class="k">4</td><td>思考模式配采样参数</td><td>"will not trigger an error but will also have no effect"</td><td>思考模式别调采样，用 effort</td></tr><tr><td class="k">5</td><td>带 tools 不回传 reasoning_content</td><td>"the API will return a 400 error"</td><td>整体 append 官方返回的 message</td></tr><tr><td class="k">6</td><td>思考模式配非标工具组件</td><td>"思考模式未充分适配 Cline、RooCode 等使用非标准工具调用的组件，我们建议用户在使用此类组件时继续使用非思考模式。"（V3.2 官方新闻，A）</td><td>这类 harness 关掉思考</td></tr><tr><td class="k">7</td><td>拿 V3.2-Speciale 上生产 agent</td><td>changelog：no tool calls<span class="g g-A" title="证据等级 A">A</span> </td><td>仅评测/研究用</td></tr><tr><td class="k">8</td><td>硬编码 <code>deepseek-chat</code>/<code>reasoner</code></td><td>2026-07-24 退役<span class="g g-A" title="证据等级 A">A</span> </td><td>模型名参数化</td></tr><tr><td class="k">9</td><td>用 Pro 做视觉</td><td>支持矩阵 Vision：Pro = Not supported<span class="g g-A" title="证据等级 A">A</span> </td><td>视觉任务用 <code>deepseek-flash</code></td></tr><tr><td class="k">10</td><td>旧 R1 本地推理放 system</td><td>"Avoid adding a system prompt"（<span class="g g-A" title="证据等级 A">A</span>，仅 &lt;0528）</td><td>指令全放 user</td></tr></tbody></table></div>
+<hr>
+<h2 id="s190-1">5. 可直接复制的三个模板</h2>
+<h3 id="s193-1">模板 <span class="g g-A" title="证据等级 A">A</span> · 通用任务（flash / v4-pro，简单任务用非思考）</h3>
+<figure class="code"><figcaption><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></figcaption><pre><code>【system】—— 逐轮保持不变（吃前缀缓存），短、声明式
+你是{身份，一句话}。始终用{中文|英文}回答。输出遵守：{格式契约}。{风格边界，1–2 条}
+  ↑ 依据：A（system role 完全支持；官方 App 两行人示范式；格式契约须明示；缓存要求前缀稳定）
+
+【user】
+## Task
+{动词开头的具体任务，避免「帮忙看看」这类模糊动词}
+## Context
+{会变动的背景材料/数据}
+## Output Format
+{格式 + 长度 + 条目数，例：5 条 bullet，每条不超过 30 字}
+## Constraints
+{禁区、字数、术语要求、必须引用的标准}
+  ↑ 依据：B（官方 App 使用指南十条：明确需求/提供上下文/指定格式/分步骤）、
+    B（清晰标记分隔各部分，together.ai 指南）、A（数据放 user、规则放 system 的官方样例结构）
+
+【参数】
+thinking: disabled（简单任务）
+temperature: 代码 0.0 / 数据分析 1.0 / 对话 1.3 / 翻译 1.3 / 创意 1.5   ← A 官方表
+top_p: 不动（与 temperature 二选一）                                  ← A
+max_tokens: 显式设置，防截断                                           ← A</code></pre></figure>
+<h3 id="s221-1">模板 <span class="g g-B" title="证据等级 B">B</span> · Agent / 工具调用（V4 思考模式 + tools）</h3>
+<figure class="code"><figcaption><span class="lang">python</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></figcaption><pre><code>model = cfg.model_name          # 勿写死；deepseek-chat/reasoner 已 404（A）
+extra_body = {"thinking": {"type": "enabled"}}                 # A
+reasoning_effort = "high"        # 日常 agent；简单 low；复杂 max  ← A 官方公告原句
+
+tools = [{
+  "type": "function",
+  "function": {
+    "name": "...",
+    "strict": True,                                            # A：须走 base_url /beta
+    "parameters": {
+      "type": "object",
+      "properties": {...},
+      "required": [全部字段],                                   # A：strict 要求全 required
+      "additionalProperties": False                            # A：strict 要求显式关闭
+    }
+  }
+}]
+
+# 循环纪律（全是 A 级）
+# 1) 每个 assistant 回复整体回传，保留 reasoning_content 与 tool_calls：
+#    messages.append(response.choices[0].message)
+# 2) 带 tools 时历史里所有 reasoning_content 必须原样带上（哪怕那轮没调工具）→ 否则 400
+# 3) 中途要注入系统提醒：Chat 格式可插 system 消息；
+#    要在历史中段插第三方 tool 结果 → 改走 Anthropic / Responses 格式
+# 4) 需要强制格式的子任务：assistant 前缀补全
+#    {"role":"assistant","content":"{\n","prefix":True} + base_url=/beta
+# 5) 联网优先用官方 Search/Fetch 工具 API（2026-10-17 开放）</code></pre></figure>
+<h3 id="s255-1">模板 <span class="g g-C" title="证据等级 C">C</span> · 推理任务（V4 thinking API，或本地 R1-0528+/V3.2）</h3>
+<figure class="code"><figcaption><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></figcaption><pre><code>API 场景：
+  thinking: enabled
+  不要设 temperature / top_p / penalties（思考模式旁路，A）
+  控思考长度只用 reasoning_effort + max_tokens（默认 64K，max 128K，A）
+
+user 提示写法：
+  {任务}——不堆角色、不塞 few-shot、不写「一步一步思考」（模型自会思考；B/C）
+  数学竞赛类保留官方句：请逐步推理，并将最终答案放在 \boxed{} 中。   ← A
+  各部分用 ## 或 XML 标签分隔（指令 / 材料 / 格式要求）              ← B
+
+本地旧 R1（&lt; 0528）：
+  temp=0.6, top_p=0.95；不放 system；强制输出以「〈think〉\n」开头      ← A
+本地 0528+ / V3.1+：
+  system 槽可用，只放身份+日期级的短约束；不必强制〈think〉开头        ← A
+
+多轮注意（A）：
+  不带 tools 时思考链不回拼上下文 ⇒ 需要下一轮记住的结论必须显式写进 content</code></pre></figure>
+<hr>
+<h2 id="s282-1">6. 社区口径与查无实据（禁止当官方结论引用）</h2>
+<ul><li><span class="g g-C" title="证据等级 C">C</span>：「V3 聪明且听话，R1 聪明但没那么听话」——非思考模型给清晰操作规范，思考模型少干预（不需要角色设定、CoT 提示、结构化套话、示例）。与 together.ai 指南方向一致，属社区共识。</li><li><strong>B→C</strong>：few-shot 取舍。together.ai《Prompting DeepSeek R1 guidelines》原文（经中文全文转载）："<strong>无少样本提示</strong>：不要在提示中提供示例，因为这会持续降低模型性能……如果你确实想提供示例，请确保它们与你的提示指令非常一致"。但官方 <code>json_mode</code> 样例本身就带 EXAMPLE，说明 few-shot 不是禁区，只是<strong>推理模型不宜堆例子</strong>。</li><li><span class="g g-D" title="证据等级 D">D</span>：「英文 prompt 优先」「keep prompts simple and clear」——曾在早期 DeepSeek-LLM/Coder 卡片流传，已核查 GitHub 现行与 2023-11/2024-01 历史提交、hf-mirror 三张早期卡、api-docs 全 sitemap、wayback CDX，<strong>均无该章节</strong>（<code>.temp/research/prompt-2026-10/deepseek.md</code> §8.1 记录了搜索词）。官方可确认的相关事实是 V3.1-Terminus 修复了「中英混排与异常字符」，即<strong>语言一致性是官方修复目标</strong>（<span class="g g-A" title="证据等级 A">A</span>），据此建议：提示词语言与要求回答的语言保持一致。</li><li><span class="g g-D" title="证据等级 D">D</span>：「DeepSeek 的 system prompt 80 字以内越短越有效」「user 指令优先级高于 system」「API temperature=1.0 实际映射 0.3」——查无官方依据，且 php.cn 与部分博客互相矛盾。</li><li><span class="g g-C" title="证据等级 C">C</span>：本地 vLLM 跑 V4 长工具链（8 次以上调用）出现工具标记泄漏、重复调用、自报次数错误，判为 <strong>vLLM 对 V4 内部工具标记的解析 bug</strong>，官方 API 无此现象——长链 agent 请用官方 API/Harness。</li><li><strong>待核</strong>：V4 时代官方 App 的 system message 实际内容与长度未找到一手（只搜到 <span class="g g-C" title="证据等级 C">C</span> <span class="g g-D" title="证据等级 D">D</span> 级泄露文本）。</li></ul>
+<hr>
+<h2 id="s296-1">7. 引用清单</h2>
+<div class="table-wrap"><table><thead><tr><th scope="col">来源</th><th scope="col">URL</th><th scope="col">日期</th><th scope="col">等级</th></tr></thead><tbody><tr><td class="k">官方 Change Log</td><td><a href="https://api-docs.deepseek.com/updates" class="ext" target="_blank" rel="noopener">https://api-docs.deepseek.com/updates</a></td><td>抓取 2026-10-19</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">Thinking Mode 指南（英/中）</td><td><a href="https://api-docs.deepseek.com/guides/thinking_mode" class="ext" target="_blank" rel="noopener">https://api-docs.deepseek.com/guides/thinking_mode</a></td><td>2026-10-19</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">Chat Completion API Reference</td><td><a href="https://api-docs.deepseek.com/api/create-chat-completion" class="ext" target="_blank" rel="noopener">https://api-docs.deepseek.com/api/create-chat-completion</a></td><td>2026-10-19</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">The Temperature Parameter</td><td><a href="https://api-docs.deepseek.com/quick_start/parameter_settings" class="ext" target="_blank" rel="noopener">https://api-docs.deepseek.com/quick_start/parameter_settings</a></td><td>2026-04 快照</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">Tool Calls 指南</td><td><a href="https://api-docs.deepseek.com/guides/tool_calls" class="ext" target="_blank" rel="noopener">https://api-docs.deepseek.com/guides/tool_calls</a></td><td>2026-10-19</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">JSON Output 指南</td><td><a href="https://api-docs.deepseek.com/guides/json_mode" class="ext" target="_blank" rel="noopener">https://api-docs.deepseek.com/guides/json_mode</a></td><td>2026-10-19</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">Context Caching</td><td><a href="https://api-docs.deepseek.com/guides/kv_cache" class="ext" target="_blank" rel="noopener">https://api-docs.deepseek.com/guides/kv_cache</a></td><td>2026-10-19</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">Anthropic 兼容 API</td><td><a href="https://api-docs.deepseek.com/guides/anthropic_api" class="ext" target="_blank" rel="noopener">https://api-docs.deepseek.com/guides/anthropic_api</a></td><td>2026-10-19</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">Chat Prefix Completion</td><td><a href="https://api-docs.deepseek.com/guides/chat_prefix_completion" class="ext" target="_blank" rel="noopener">https://api-docs.deepseek.com/guides/chat_prefix_completion</a></td><td>2026-10-19</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">Models &amp; Pricing</td><td><a href="https://api-docs.deepseek.com/quick_start/pricing" class="ext" target="_blank" rel="noopener">https://api-docs.deepseek.com/quick_start/pricing</a></td><td>2026-10-19</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">V4 Preview 公告</td><td><a href="https://api-docs.deepseek.com/news/news260424" class="ext" target="_blank" rel="noopener">https://api-docs.deepseek.com/news/news260424</a></td><td>2026-04-24</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">V4-Pro GA 公告（effort 三档）</td><td><a href="https://api-docs.deepseek.com/news/news260813" class="ext" target="_blank" rel="noopener">https://api-docs.deepseek.com/news/news260813</a></td><td>2026-08-13</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">V4.1-Flash 公告</td><td><a href="https://api-docs.deepseek.com/news/news260910" class="ext" target="_blank" rel="noopener">https://api-docs.deepseek.com/news/news260910</a></td><td>2026-09-10</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">V4.1-Flash-1017 + Search API</td><td><a href="https://api-docs.deepseek.com/news/news261017" class="ext" target="_blank" rel="noopener">https://api-docs.deepseek.com/news/news261017</a></td><td>2026-10-17</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">官方提示词库（13 类，含自定义人设）</td><td><a href="https://api-docs.deepseek.com/zh-cn/prompt-library/" class="ext" target="_blank" rel="noopener">https://api-docs.deepseek.com/zh-cn/prompt-library/</a></td><td>2026-10-19</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">DeepSeek-R1 README</td><td><a href="https://github.com/deepseek-ai/DeepSeek-R1" class="ext" target="_blank" rel="noopener">https://github.com/deepseek-ai/DeepSeek-R1</a></td><td>2026-10-19</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">DeepSeek-LLM README（旧 system 声明）</td><td><a href="https://github.com/deepseek-ai/DeepSeek-LLM" class="ext" target="_blank" rel="noopener">https://github.com/deepseek-ai/DeepSeek-LLM</a></td><td>2026-10-19</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">DeepSeek-R1-0528 model card</td><td><a href="https://hf-mirror.com/deepseek-ai/DeepSeek-R1-0528/raw/main/README.md" class="ext" target="_blank" rel="noopener">https://hf-mirror.com/deepseek-ai/DeepSeek-R1-0528/raw/main/README.md</a></td><td>2025-05-28</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">DeepSeek-V3.1 model card（chat template）</td><td><a href="https://hf-mirror.com/deepseek-ai/DeepSeek-V3.1/raw/main/README.md" class="ext" target="_blank" rel="noopener">https://hf-mirror.com/deepseek-ai/DeepSeek-V3.1/raw/main/README.md</a></td><td>2025-08-21</td><td><span class="g g-A" title="证据等级 A">A</span></td></tr><tr><td class="k">官方 App《使用指南》十条（转载存档）</td><td><a href="https://juejin.cn/post/7468218848228114458" class="ext" target="_blank" rel="noopener">https://juejin.cn/post/7468218848228114458</a></td><td>2025-02</td><td><span class="g g-B" title="证据等级 B">B</span></td></tr><tr><td class="k">together.ai R1 提示指南（中译）</td><td><a href="https://m.oschina.net/news/336234/prompting-deepseek-r1-guideline" class="ext" target="_blank" rel="noopener">https://m.oschina.net/news/336234/prompting-deepseek-r1-guideline</a></td><td>2025-02/03</td><td><span class="g g-B" title="证据等级 B">B</span></td></tr><tr><td class="k">阿里云 PAI 托管文档（转述 R1 建议）</td><td><a href="https://help.aliyun.com/zh/pai/use-cases/one-click-deploy-deepseek" class="ext" target="_blank" rel="noopener">https://help.aliyun.com/zh/pai/use-cases/one-click-deploy-deepseek</a></td><td>2026-08</td><td><span class="g g-B" title="证据等级 B">B</span></td></tr><tr><td class="k">V3/R1 人设策略（「V3 听话、R1 少干预」）</td><td><a href="https://m.blog.csdn.net/a1026950076/article/details/145728568" class="ext" target="_blank" rel="noopener">https://m.blog.csdn.net/a1026950076/article/details/145728568</a></td><td>2025-03</td><td><span class="g g-C" title="证据等级 C">C</span></td></tr><tr><td class="k">V4 本地长工具链 DSML 崩坏</td><td><a href="https://m.toutiao.com/article/7696441396277838399/" class="ext" target="_blank" rel="noopener">https://m.toutiao.com/article/7696441396277838399/</a></td><td>2026-09</td><td><span class="g g-C" title="证据等级 C">C</span></td></tr><tr><td class="k">php.cn 系列（system 80 字内等）</td><td><a href="https://m.php.cn/faq/" class="ext" target="_blank" rel="noopener">https://m.php.cn/faq/</a></td><td>2026</td><td><span class="g g-D" title="证据等级 D">D</span><span class="gnote">不作依据</span></td></tr></tbody></table></div>
+<h3 id="s328-1">存疑与未找到（已如实检索）</h3>
+<ol><li>「英文 prompt 优先 / keep prompts simple and clear」无现行官方一手出处（搜过 GitHub 历史 README、hf-mirror 卡片、api-docs sitemap、wayback CDX）。</li><li>「全局约束放 system、任务放 user」无官方原话，仅官方样例结构旁证。</li><li>V4 时代官方 App 的 system message 内容与长度未找到一手。</li><li>R1 初期（2025-01~05）英文整页 API 文档无 wayback 存档，最接近的一手是 R1 README 的 "Avoid adding a system prompt"。</li><li>「think longer」类自然语言触发语无官方指导；官方调节手段只有 effort 档与 max_tokens。</li><li>DeepSeek-V4 技术报告 PDF 所在域本机不可达，未核对。</li></ol></article>
+</main>
+<aside class="toc" id="toc" data-open="false"><h2>本页目录</h2><ul><li class="t1"><a href="#s000-1">DeepSeek 提示词与 Agent 人设方案（2026-10）</a></li><li class="t2"><a href="#s013-1">0. 先认清 2026 的 DeepSeek：三条会影响提示词写法的事实</a></li><li class="t2"><a href="#s036-1">1. 人设（System Prompt）在 DeepSeek 上到底该怎么写</a></li><li class="t3"><a href="#s039-1">1.1 演变史：为什么网上说法互相打架</a></li><li class="t3"><a href="#s058-1">1.2 官方自己的「人设长什么样」——两行范式</a></li><li class="t3"><a href="#s081-1">1.3 DeepSeek 人设的四条落地规则</a></li><li class="t2"><a href="#s093-1">2. 日常对话层：DeepSeek 网页/App 里的提问技巧</a></li><li class="t2"><a href="#s112-1">3. 参数与 API 层（工程侧照抄，别猜）</a></li><li class="t3"><a href="#s115-1">3.1 采样参数</a></li><li class="t3"><a href="#s139-1">3.2 结构化输出</a></li><li class="t3"><a href="#s151-1">3.3 工具调用</a></li><li class="t3"><a href="#s161-1">3.4 接口面（选格式有提示词后果）</a></li><li class="t2"><a href="#s170-1">4. 官方反对的反模式（逐字，全 A 级，逐条给修法）</a></li><li class="t2"><a href="#s190-1">5. 可直接复制的三个模板</a></li><li class="t3"><a href="#s193-1">模板 A · 通用任务（flash / v4-pro，简单任务用非思考）</a></li><li class="t3"><a href="#s221-1">模板 B · Agent / 工具调用（V4 思考模式 + tools）</a></li><li class="t3"><a href="#s255-1">模板 C · 推理任务（V4 thinking API，或本地 R1-0528+/V3.2）</a></li><li class="t2"><a href="#s282-1">6. 社区口径与查无实据（禁止当官方结论引用）</a></li><li class="t2"><a href="#s296-1">7. 引用清单</a></li><li class="t3"><a href="#s328-1">存疑与未找到（已如实检索）</a></li></ul></aside>
+</div>
+<footer class="page">
+  <div class="pager">
+    <a href="prompt-playbooks-index-2026.html"><small>上一篇</small><b>索引</b></a>
+    <a class="n" href="prompt-playbook-glm-2026.html"><small>下一篇</small><b>GLM</b></a>
+  </div>
+  <p class="colophon">构建于 2026-10-20：由 <code>.temp/scripts/md2craft.mjs</code> 从同名 Markdown 真源生成（单一真源，改文请改 <code>prompt-playbook-deepseek-2026.md</code> 后重跑）。引用出处、日期与证据等级逐条标注，见页内来源表。</p>
+</footer>
+<script>
+(function(){
+  var p=document.getElementById('prog');
+  function upd(){var h=document.documentElement;var max=h.scrollHeight-h.clientHeight;p.style.width=(max>0?(h.scrollTop||document.body.scrollTop)/max*100:0)+'%';}
+  addEventListener('scroll',upd,{passive:true});addEventListener('resize',upd);upd();
+  var links=[].slice.call(document.querySelectorAll('aside.toc a'));
+  var map={};links.forEach(function(a){var el=document.getElementById(a.getAttribute('href').slice(1));if(el)map[el.id]=a;});
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){
+      links.forEach(function(a){a.classList.remove('act');});var a=map[e.target.id];if(a){a.classList.add('act');}}});},
+      {rootMargin:'0px 0px -72% 0px',threshold:0});
+    Object.keys(map).forEach(function(id){io.observe(document.getElementById(id));});
+  }
+  var btn=document.getElementById('tocbtn'),toc=document.getElementById('toc');
+  if(btn){toc.setAttribute('data-open','false');btn.addEventListener('click',function(){
+    var open=toc.getAttribute('data-open')==='true';toc.setAttribute('data-open',String(!open));btn.setAttribute('aria-expanded',String(!open));});}
+  [].slice.call(document.querySelectorAll('figure.code .copy')).forEach(function(b){
+    b.addEventListener('click',function(){
+      var code=b.closest('figure').querySelector('code');
+      var t=code.innerText;
+      function done(ok){b.textContent=ok?'已复制':'请手动复制';setTimeout(function(){b.textContent='复制';},1600);}
+      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){done(1);},function(){done(0);});}
+      else{done(0);}
+    });
+  });
+  if(!matchMedia('(prefers-reduced-motion: reduce)').matches){document.documentElement.style.scrollBehavior='smooth';}
+})();
+</script>
+</body>
+</html>
