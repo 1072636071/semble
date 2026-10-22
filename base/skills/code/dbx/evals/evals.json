@@ -1,0 +1,41 @@
+{
+  "skill_name": "dbx",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "查一下 192.168.0.6 上 WeightData 那张表有哪些字段，然后按 id 倒序给我前 20 行",
+      "should_trigger": true,
+      "expected_output": "先 dbx_list_connections 按 Host 匹配到连接 ID，再 dbx_list_databases / dbx_describe_table 取列定义，最后 dbx_execute_query 带 connection_id/database/sql 查询；不猜连接 ID 与列名",
+      "expectations": [
+        "先调用 dbx_list_connections 拿到 connection_id 而不是猜",
+        "用 dbx_describe_table 或 dbx_get_schema_context 取真实列名",
+        "dbx_execute_query 带 connection_id 与 database",
+        "不编造工具名或参数"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "这行的备注字段被截断了，帮我把它读全",
+      "should_trigger": true,
+      "expected_output": "把查询收窄到目标行与目标列，用 cell_char_limit（默认 200、最大 4000）与 cell_char_offset（默认 0、最大 1000000）沿 offset 滑动读完",
+      "expectations": [
+        "使用 cell_char_limit / cell_char_offset 展开长值",
+        "先收窄到目标行和列再扩字符上限",
+        "说明 cell_char_limit 最大 4000"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "做个每天凌晨 3 点半把备份目录镜像同步到备份服务器的定时任务",
+      "should_trigger": true,
+      "expected_output": "走 schedule_create 两阶段：先不带 confirmToken 拿预览与 60 秒一次性 token，把预览摘要给用户确认，再原样参数带 token 创建；说明 kind=sync 是镜像会删目标多余文件、需要 allow_delete",
+      "expectations": [
+        "先调 dbx_files__schedule_create 不带 confirmToken 拿预览",
+        "确认后原样参数加 confirmToken 执行",
+        "选用五段 cron 表达式 30 3 * * *",
+        "指出 sync 镜像会删除目标多余文件、可用 maxDelete 兜底",
+        "创建前提示先做 dryRun 的计划核对"
+      ]
+    }
+  ]
+}

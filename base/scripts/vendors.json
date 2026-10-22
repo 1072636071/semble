@@ -10,6 +10,7 @@
   ],
   "managedPrefixes": [
     "jxx-",
+    "dbx",
     "huawei-cloud-",
     "seo-",
     "tdai-",
