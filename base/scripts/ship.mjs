@@ -422,6 +422,7 @@ function loadConfig(configPath, userHomeOverride) {
     userHome,
     buckets,
     managedPrefixes,
+    preserveOnInstall: raw.preserveOnInstall && typeof raw.preserveOnInstall === 'object' && !Array.isArray(raw.preserveOnInstall) ? raw.preserveOnInstall : {},
     skillsBase,
     agentsBase,
     vendors,
@@ -708,6 +709,42 @@ function runDerive(config, { dryRun }) {
   return { plan, errors };
 }
 
+// 安装时保护「技能运行时状态」子目录（如 quarkclouddrive 的登录态 deepseek/）。
+// 直拷分支会 rmrf 整个目标目录再复制，状态目录必须先进临时区暂存、覆盖完再放回。
+function stashPreserved(destDir, rels) {
+  const stashes = [];
+  for (const rel of rels) {
+    const p = path.join(destDir, rel);
+    if (!fs.existsSync(p)) continue;
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-preserve-'));
+    const tmp = path.join(tmpRoot, 'payload');
+    try {
+      fs.renameSync(p, tmp);
+    } catch {
+      copyDir(p, tmp);
+      fs.rmSync(p, { recursive: true, force: true });
+    }
+    stashes.push({ rel, from: tmp, tmpRoot });
+  }
+  return stashes;
+}
+function restorePreserved(destDir, stashes) {
+  for (const s of stashes) {
+    const dest = path.join(destDir, s.rel);
+    try {
+      fs.rmSync(dest, { recursive: true, force: true });
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      try {
+        fs.renameSync(s.from, dest);
+      } catch {
+        copyDir(s.from, dest);
+      }
+    } finally {
+      try { fs.rmSync(s.tmpRoot, { recursive: true, force: true }); } catch { /* 忽略清理失败 */ }
+    }
+  }
+}
+
 // ---------------------------------------------------------------- install
 
 function targetSkillsDir(config, vendor, project) {
@@ -780,8 +817,11 @@ function runInstall(config, { dryRun, project }) {
               failures.push({ code: 'E_PARSE', file: skill.srcPath, vendor: vendor.id, detail: `Kimi 归一化失败，回退原样复制: ${e.message}`, action: `fallback raw copy for ${skill.name}` });
             }
           }
+          const preserveRels = (config.preserveOnInstall || {})[skill.name] || [];
+          let stashes = [];
           if (!dryRun) {
             try {
+              stashes = stashPreserved(destDir, preserveRels);
               if (kimiContent !== null) {
                 fs.mkdirSync(destDir, { recursive: true });
                 fs.writeFileSync(path.join(destDir, 'SKILL.md'), kimiContent, 'utf-8');
@@ -791,9 +831,11 @@ function runInstall(config, { dryRun, project }) {
                 copyDir(skill.dir, destDir);
               }
             } catch (e) {
+              restorePreserved(destDir, stashes);
               failures.push({ code: 'E_INSTALL', file: destDir, vendor: vendor.id, detail: `安装失败: ${e.message}`, action: `skip ${vendor.label} install of ${skill.name}` });
               continue;
             }
+            restorePreserved(destDir, stashes);
           }
           const expectedHash = kimiContent !== null
             ? crypto.createHash('sha256').update(kimiContent, 'utf-8').digest('hex')

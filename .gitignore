@@ -220,6 +220,9 @@ semble-js/
 # 临时文件（约定见 AGENTS.md「临时文件」：脚本/输出/日志分类存放，不入库）
 .temp/
 
+# 夸克网盘 Skill 运行时状态（登录态 config.json、搜索产物等，按副本落盘，不入库）
+base/skills/productivity/quarkclouddrive/deepseek/
+
 # CodeArts
 
 .codegraph/

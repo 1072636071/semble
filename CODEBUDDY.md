@@ -42,6 +42,15 @@ dsh-agent-studio（DeepSeek Harness Agent Studio）的配置管理真源在本�
 
 `~/.agents/skills/dsh-agent-studio-config/` 是 **kimi 厂商归一化后的派生物，不是真源**：kimi 厂商会把 frontmatter 归一为 `name + description`（`x-install`、`metadata` 等字段被剥掉，见 `ship.mjs` 的 `kimiStyleFrontmatter`），所以它与仓库源必然有 frontmatter 差异，**别据此判断分叉**。判断是否同步要比 `references/` 与 `scripts/` 的文件哈希；真源与安装副本冲突时一律以仓库为准。`base/skills/code/dsh-plugin-dev/` 同理。
 
+### 第三方技能：quarkclouddrive（夸克网盘）
+
+夸克网盘官方 Skill 以**原样分发**方式入库：真源是 `base/skills/productivity/quarkclouddrive/`（`SKILL.md` + `references/` + `scripts/`）。它是 plain `SKILL.md`（无 `SKILL.src.md`），走 `ship.mjs` 的 `srcMode=false` 直拷分支，不做厂商派生；`managedPrefixes` 已含 `quarkclouddrive`，所以 `node base/scripts/ship.mjs install` 会把它同步到全部全局技能目录（含 dsh 读取的 `~/.agents/skills`）。
+
+- **升级**：官方 `bash scripts/install.sh` 会从 `open-api-drive.quark.cn/agent/v1/skill_config` 拉最新 zip 就地覆盖 `SKILL.md` / `references/` / `scripts/`。升级后把新内容回灌仓库真源，再跑一次 `ship install`，不要只留安装副本。
+- **授权**：配置落在 `<副本>/<agentId>/config.json`（`agentId` 由 `node scripts/quark-drive.cjs resolve-agent` 决定，本机为 `deepseek`）。登录命令 `node <副本>/scripts/quark-drive.cjs login --token <agent_auth_code>`；`agent_auth_code` 一次性且很快过期，过期就走 `login`（浏览器 OAuth）。
+- **登录态保护**：`vendors.json` 的 `preserveOnInstall` 声明 `quarkclouddrive: ["deepseek"]`，`ship.mjs` 安装该技能前会把 `deepseek/` 暂存、覆盖完再放回，因此 `ship install` 不再清掉登录态。登录态**不入库**（`.gitignore` 已排除 `deepseek/`），换机器或换用户需重新登录。令牌备份在本机 `~/.quarkclouddrive/login-deepseek.json`：其他副本报未授权时用它覆盖 `<副本>/deepseek/config.json` 即可，免去重新授权。
+- **卸载**：按官方两步——先 `bash scripts/uninstall.sh` 撤销授权并清除配置，再删除技能目录。
+
 ### 临时文件
 
 所有临时脚本统一放在仓库 `.temp/scripts/` 下；其他临时文件（脚本输出、日志等）也要分类，放在 `.temp/` 的子目录下（如 `.temp/output/`、`.temp/logs/`），保证仓库根目录干净。

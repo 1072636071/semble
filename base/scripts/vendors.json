@@ -5,15 +5,20 @@
     "seo-geo",
     "code",
     "kimi",
-    "TDB-AM"
+    "TDB-AM",
+    "storytold"
   ],
   "managedPrefixes": [
     "jxx-",
     "huawei-cloud-",
     "seo-",
     "tdai-",
-    "weknora-"
+    "weknora-",
+    "quarkclouddrive"
   ],
+  "preserveOnInstall": {
+    "quarkclouddrive": ["deepseek"]
+  },
   "skillsSource": "../skills",
   "agentsSource": "../agent",
   "vendors": {
