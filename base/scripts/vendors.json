@@ -21,9 +21,6 @@
   "preserveOnInstall": {
     "quarkclouddrive": ["deepseek"]
   },
-  "foreignInstalled": {
-    "ego-browser": ["opencode", "kimi", "workbuddy"]
-  },
   "skillsSource": "../skills",
   "agentsSource": "../agent",
   "vendors": {
