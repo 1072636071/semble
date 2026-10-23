@@ -14,7 +14,7 @@ AGENTS.md 和 CODEBUDDY.md 内容必须保持一致。
 
 **验收点闭包纪律（2026-10-21 起，覆盖全部涉工单技能）**：AC 唯一权威源 = `base/skills/engineering/jxx-to-tickets/references/acceptance-criteria.md`（判据正文只在这份，其他技能只留动作 + pointer）。
 三道闸各一条命令：**生产闸** `node base/scripts/ac-audit.mjs <功能目录> --strict`；**执行闸** `node base/scripts/ac-audit.mjs <工单文件>`；**审查闸** `git diff origin/main...HEAD` 逐条 AC 自己取证。
-放行条件与退出码语义全在规范里（§四 / §五 / §七），本文件不复述。
+放行条件与退出码语义全在规范里（§四 / §五 / §七 / §八），本文件不复述。
 
 ## Agent skills
 

@@ -6,7 +6,7 @@
  * 内容判断归人和审查 agent。规范正文：jxx-to-tickets/references/acceptance-criteria.md
  *
  * 用法：node ac-audit.mjs <目录|单文件> [--strict] [--json]
- *   --strict  额外要求 map.md 存在可解析的 AC 覆盖矩阵
+ *   --strict  额外要求 map.md 存在可解析的 AC 覆盖矩阵，且「## 覆盖闸」节可解析（§八）
  *   --json    机器可读
  *
  * 退出码：0 = 过；1 = 有硬问题；2 = 没有工单类文件（预期 defer）；3 = 用法错误 / 路径不存在。
@@ -140,6 +140,117 @@ function hasMatrix(dir) {
   return /^\s*\|.*\|\s*(AC-\d+|无)/m.test(text) || /AC-\d+/.test(text);
 }
 
+// —— 覆盖闸（§八）：map.md 的「## 覆盖闸」节，三源逐条对到工单 AC ——
+const COVERAGE_HEADING = /^#{1,6}\s*覆盖闸\s*$/;
+const SECTION_HEADING = /^#{1,6}\s/;
+const COVERAGE_COLUMNS = [
+  { name: '源', test: (c) => c === '源' },
+  { name: '条目', test: (c) => /^条目/.test(c) },
+  { name: '工单', test: (c) => c === '工单' },
+  { name: 'AC', test: (c) => /^ac$/i.test(c) },
+  { name: '判定', test: (c) => c === '判定' },
+];
+
+function splitRow(line) {
+  return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
+}
+
+function isDivider(cells) {
+  return cells.length > 0 && cells.every((c) => /^:?-{2,}:?$/.test(c));
+}
+
+function isBlankCell(value) {
+  const v = (value || '').trim();
+  return v === '' || v === '—' || v === '-';
+}
+
+// 判定按前缀判合法，允许带附注；容错 `gap -> 已补`。返回 null = 不合法，'gap' = 裸缺口。
+function classifyVerdict(cell) {
+  const norm = (cell || '').replace(/\s+/g, '').replace(/->/g, '→');
+  if (!norm) return 'empty';
+  const at = (prefix) => {
+    if (!norm.startsWith(prefix)) return false;
+    const next = norm.slice(prefix.length, prefix.length + 1);
+    return next === '' || /[（(—\-:：]/.test(next);
+  };
+  if (norm.startsWith('gap')) {
+    if (at('gap→已补')) return 'gap→已补';
+    return 'gap';
+  }
+  if (at('covered')) return 'covered';
+  if (at('rejected')) return 'rejected';
+  if (at('defer')) return 'defer';
+  return null;
+}
+
+function auditCoverageGate(mapFile) {
+  const issues = [];
+  const lines = fs.readFileSync(mapFile, 'utf8').split(/\r?\n/);
+  const head = lines.findIndex((line) => COVERAGE_HEADING.test(line));
+  if (head < 0) {
+    issues.push({ level: 'hard', msg: '缺覆盖闸：map.md 应有「## 覆盖闸」节，把用户诉求 / 决策 / PRD 逐条对到工单 AC，判定四选一' });
+    return issues;
+  }
+  let end = lines.length;
+  for (let i = head + 1; i < lines.length; i += 1) {
+    if (SECTION_HEADING.test(lines[i])) { end = i; break; }
+  }
+  const tableRows = [];
+  for (let i = head + 1; i < end; i += 1) {
+    if (/^\s*\|/.test(lines[i])) tableRows.push({ no: i + 1, cells: splitRow(lines[i]) });
+  }
+  if (!tableRows.length) {
+    issues.push({ level: 'hard', line: head + 1, msg: '覆盖闸节里解析不出表格：应有表头 源 / 条目（原文摘录）/ 工单 / AC / 判定' });
+    return issues;
+  }
+  const cols = {};
+  const missingCols = [];
+  for (const col of COVERAGE_COLUMNS) {
+    const idx = tableRows[0].cells.findIndex((c) => col.test(c));
+    if (idx < 0) missingCols.push(col.name);
+    else cols[col.name] = idx;
+  }
+  if (missingCols.length) {
+    issues.push({ level: 'hard', line: tableRows[0].no, msg: '覆盖闸表头缺列：' + missingCols.join(' / ') + '（五列：源 / 条目 / 工单 / AC / 判定）' });
+    return issues;
+  }
+  const dataRows = tableRows.slice(1).filter((r) => !isDivider(r.cells));
+  for (const row of dataRows) {
+    const cell = (name) => (row.cells[cols[name]] || '').trim();
+    const raw = cell('判定');
+    const kind = classifyVerdict(raw);
+    if (kind === 'empty') {
+      issues.push({ level: 'hard', line: row.no, msg: '覆盖闸第 ' + row.no + ' 行判定为空——每行必须给判定（covered / gap→已补 / rejected / defer）' });
+      continue;
+    }
+    if (kind === 'gap') {
+      issues.push({ level: 'hard', line: row.no, msg: '覆盖闸第 ' + row.no + ' 行是未处置的 gap——补工单或补 AC 后改判 gap→已补；不做由用户给 rejected，延后写 defer 去向' });
+      continue;
+    }
+    if (!kind) {
+      issues.push({ level: 'hard', line: row.no, msg: '覆盖闸第 ' + row.no + ' 行判定「' + raw + '」不合法——只有 covered / gap→已补 / rejected / defer 四种，没有第五种' });
+      continue;
+    }
+    if (kind === 'covered' || kind === 'gap→已补') {
+      const missing = ['工单', 'AC'].filter((name) => isBlankCell(cell(name)));
+      if (missing.length) {
+        issues.push({ level: 'hard', line: row.no, msg: '覆盖闸第 ' + row.no + ' 行判定 ' + kind + ' 但 ' + missing.join(' / ') + ' 列为空——必须给工单编号 + AC 编号（仅相关不算覆盖）' });
+      }
+      continue;
+    }
+    if (!/[（(][^）)]+[）)]/.test(raw)) {
+      issues.push({
+        level: 'soft',
+        line: row.no,
+        msg: kind === 'rejected'
+          ? '覆盖闸第 ' + row.no + ' 行判定 rejected 缺附注——必须写用户确认原话 + 轮次（rejected 只能由用户给）'
+          : '覆盖闸第 ' + row.no + ' 行判定 defer 缺附注——必须写去向文件 / 里程碑编号（无去向按 gap 计）',
+      });
+    }
+  }
+  return issues;
+}
+
 function main() {
   const argv = process.argv.slice(2);
   if (!argv.length || argv[0].startsWith('-')) {
@@ -161,8 +272,13 @@ function main() {
   const results = files.map(auditTicket);
   if (strict) {
     const dir = fs.statSync(target).isDirectory() ? target : path.dirname(target);
+    const mapFile = path.join(dir, 'map.md');
     if (!hasMatrix(dir)) {
-      results.push({ file: path.join(dir, 'map.md'), acs: [], real: [], issues: [{ level: 'hard', msg: '缺 AC 覆盖矩阵：map.md 应有「## AC 覆盖矩阵」节，且行内出现 AC 编号（用户故事 ↔ 工单 ↔ AC）' }] });
+      results.push({ file: mapFile, acs: [], real: [], issues: [{ level: 'hard', msg: '缺 AC 覆盖矩阵：map.md 应有「## AC 覆盖矩阵」节，且行内出现 AC 编号（用户故事 ↔ 工单 ↔ AC）' }] });
+    }
+    if (fs.existsSync(mapFile)) {
+      const gate = auditCoverageGate(mapFile);
+      if (gate.length) results.push({ file: mapFile, acs: [], real: [], issues: gate });
     }
   }
   const hard = results.reduce((n, r) => n + r.issues.filter((i) => i.level === 'hard').length, 0);

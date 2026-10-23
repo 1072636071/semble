@@ -38,6 +38,16 @@ const ERR = '- [ ] AC-2 [错误路径] 当参数非法时，返回 400 且 body.
 const REG = '- [ ] AC-3 [回归] 当跑全量测试时，退出码 0 —— 验证:机器 pnpm test\n';
 const NEG = '- [ ] AC-4 [负向] 本次 diff 不新增依赖 —— 验证:机器 git diff origin/main -- *lock*\n';
 
+const TICKET = '# 01 导出\n\n' + HEAD + OK + ERR + REG + NEG;
+const MATRIX = '# map\n\n## AC 覆盖矩阵\n\n| 用户故事 | 工单 | AC |\n|---|---|---|\n| US-1：用户可导出 | 03 | AC-2 |\n\n';
+const GATE_OK = '## 覆盖闸\n\n| 源 | 条目（原文摘录） | 工单 | AC | 判定 |\n|---|---|---|---|---|\n'
+  + '| 诉求 | 「导出要能选时间范围」 | 03 | AC-2 | covered |\n'
+  + '| 决策 | 「不做增量导出，只做全量」 | — | — | rejected（用户第 4 轮确认） |\n'
+  + '| PRD | 用户故事 2：用户可撤销上一次导入 | 04 | AC-1 | gap→已补 |\n';
+const GATE_HEAD = '## 覆盖闸\n\n| 源 | 条目 | 工单 | AC | 判定 |\n|---|---|---|---|---|\n';
+
+const withGate = (gate, matrix = MATRIX) => makeDir({ '01-x.md': TICKET, 'map.md': matrix + gate });
+
 test('合规工单：主路径 + 错误路径 + 回归 + 负向 → exit 0', () => {
   const dir = makeDir({ '01-x.md': '# x\n\n' + HEAD + OK + ERR + REG + NEG });
   const r = run([dir]);
@@ -129,4 +139,58 @@ test('没有工单类文件 → exit 2', () => {
   const dir = makeDir({ 'notes.md': '# 笔记\n\n随便写点。\n' });
   const r = run([dir]);
   assert.equal(r.status, 2);
+});
+
+test('--strict：覆盖矩阵 + 覆盖闸节齐备 → exit 0', () => {
+  const dir = withGate(GATE_OK);
+  const r = run([dir, '--strict']);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+test('--strict：map.md 缺 ## 覆盖闸 节 → exit 1', () => {
+  const dir = makeDir({ '01-x.md': TICKET, 'map.md': MATRIX });
+  const r = run([dir, '--strict']);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /缺覆盖闸/);
+});
+
+test('--strict：判定值不在四种之内 → exit 1', () => {
+  const dir = withGate(GATE_HEAD + '| 诉求 | 「导出要能选时间范围」 | 03 | AC-2 | done |\n');
+  const r = run([dir, '--strict']);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /不合法/);
+});
+
+test('--strict：裸 gap（未处置缺口）→ exit 1', () => {
+  const dir = withGate(GATE_HEAD + '| PRD | 用户故事 3：批量导入 | — | — | gap |\n');
+  const r = run([dir, '--strict']);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /未处置的 gap/);
+});
+
+test('--strict：covered 行缺工单 → exit 1', () => {
+  const dir = withGate(GATE_HEAD + '| 诉求 | 「导出要能选时间范围」 | — | AC-2 | covered |\n');
+  const r = run([dir, '--strict']);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /工单 列为空/);
+});
+
+test('--strict：gap -> 已补 容错合法 → exit 0', () => {
+  const dir = withGate(GATE_HEAD + '| PRD | 用户故事 2：用户可撤销上一次导入 | 04 | AC-1 | gap -> 已补 |\n');
+  const r = run([dir, '--strict']);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+test('--strict：rejected 无附注 → 软问题（exit 0）', () => {
+  const dir = withGate(GATE_HEAD + '| 决策 | 「不做增量导出」 | — | — | rejected |\n');
+  const r = run([dir, '--strict']);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /缺附注/);
+});
+
+test('--strict：没有工单类文件仍 exit 2，且不查覆盖闸', () => {
+  const dir = makeDir({ 'notes.md': '# 笔记\n\n随便写点。\n' });
+  const r = run([dir, '--strict']);
+  assert.equal(r.status, 2);
+  assert.doesNotMatch(r.stdout, /覆盖闸/);
 });
