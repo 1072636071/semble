@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.0 — 2026-10-23
+
+**PRD「后续修订」改指 ticket-flow**：状态 / 标签 / 认领用写腿（`--set status=… --set labels=a,b`）、打卡与评论附 `--comment`，一条命令完成「改本地 md + 推服务器」；正文整篇修订改完 md 后跑只读腿 `--file <PRD.md>` 收敛（内部 get 最新版 + `version_conflict` 重试一次）。写腿不 create，首次上行仍走 `ticket-uplink` / `jxx_ticket_call create`（`ticket_no`/`id`/`version` 留痕口径不变）；项目无该 CLI 时回退 MCP 双写（`get` 最新 `version` → `update`，409 先对账再推）。
+
 ## 1.3.1 — 2026-10-21
 
 生产闸口径统一：`0` 放行；`2` 仅在 PRD 全 defer、AC 交工单层时放行并写明落地位置；`3` 是调用错误必须修正重跑；`1` 不得发布。模板里重复的覆盖矩阵要求删掉，只留「用户故事」节一处 + 指针；写死的「12 类」改为「覆盖清单（14 类，见规范 §一）」。

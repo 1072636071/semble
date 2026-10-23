@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.18.0 — 2026-10-23
+
+**服务器对齐改指 ticket-flow 写腿（分发产物同步）**：状态流转 / 打卡 / 评论在项目内有 `tools/ticket-flow.mjs` 时用一条写腿命令完成「改本地 md + 推服务器」（`--set status=… --comment "…"`），服务器侧失败还原原始 md 字节、exit 3；`--comment` 撞上服务器版本前进 exit 2，按条目 `server`/`local`/`resolution` 裁决后重跑。项目无该 CLI 时回退 `jxx_ticket_call update`（先 `get` 最新 `version`）；写腿不 create，新建仍走 `create` / `ticket-uplink`。
+
+- `SKILL.md`「服务器优先 + bootstrap」节的「服务器对齐默认纪律」段改写：写腿一条命令 + 三态退出码 + 只读腿做整篇收敛 + MCP 兜底。
+- `assets/PROTOCOL.tmpl.md` §0「工单真源」行同步（已 init 的项目需同步 `control/PROTOCOL.md`——`init` 只在建板时渲染，无升级命令）。
+- `references/ADR-010-server-first-tickets.md` 决策 1 与影响面同步（ADR 决策不变：服务器仍是真源，离线降级照旧）。
+
+## 0.17.0 — 2026-10-23
+
+**协议侧对齐「审查归派活方」**（配合 jxx-implement 1.9.0）：开发 worker 是被派子代理时不自审、不自造审查报告，交付硬出口由三段收成两段（`pending-review` + AC 证据 / `ac-audit` / 防劣化门禁 5 条 / commit+push），审查与 `done` 裁定归编排者（自己跑 `/jxx-code-review` 或派 reviewer 三实例）。起因：worker 侧技能面缺 `jxx-code-review`，协议却把「审全部变更」列为可交付前置，实测只能产出「同会话自审」并要求 lead 裁决。
+
+- `assets/PROTOCOL.tmpl.md` §2：推进方式改两段硬出口 + 新增「代码审查不归开发 worker」条；交付段与成果条目的审查报告改由审查方落盘/填指针；§5.1 角色表 worker 行去掉「自审」、reviewer 行注明审查归属。
+- 已 init 的项目需同步 `control/PROTOCOL.md`（`init` 只在建板时渲染，无升级命令）。
+
 ## 0.16.1 — 2026-10-21
 
 文档侧收敛：`PROTOCOL.tmpl.md` §3 第一段删掉劣化门禁判据复述，改为「按 `/jxx-code-review` 步骤 0c 跑五条」，只保留协议独有的动作（谁在什么时候跑）。原因：判据正文只在权威规范存在一份。

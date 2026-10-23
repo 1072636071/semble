@@ -3,7 +3,7 @@ name: jxx-ticket-board
 description: 工单公告板：多 worktree 并行协作，本会话即领导者。触发词：工单看板、领卡、auto、合并。
 disable-model-invocation: false
 metadata:
-  version: 0.16.1
+  version: 0.18.0
 argument-hint: init [--in-project] [--repo <git-url>] | board | verify | ledger --action <文本> | merge-check --id <卡id> | auto --tickets <工单文件列表>
 ---
 
@@ -43,7 +43,7 @@ argument-hint: init [--in-project] [--repo <git-url>] | board | verify | ledger 
 - `board.mjs rm-wt --ticket <单卡id>` — 回收**工作树 + 分支两件**。分支该不该删由合入实况裁定：`origin/main..ticket/<卡id>` 零领先才自动删；仍有领先默认保留并报明领先数（不静默丢活），`--delete-branch` 强删、`--keep-branch` 保留。一次一卡，红线 §7。**远端分支两条硬出口（v0.15.1）**：`rm-wt` 与 `verify` 都只看本地——远端 `origin/ticket/<卡id>` 残留要人工闭环：删前 `git diff --stat <原hash> <重放后hash>` 实证零丢失（rebase 场景原 hash 不在 main 链，不许凭记忆删），删后 `git ls-remote --heads origin ticket/<卡id>` 空输出才算回收完整（协议 §3 第四段）。
 - `board.mjs verify` 新增**回收对账**：已收口（done/archived）的卡若还挂着 `wt/<id>` 或零领先的 `ticket/<id>` 分支 ⇒ `MISMATCH` 点名并给出可照做的 `rm-wt` 命令；领先 main 的分支只报 `INFO`（那是暂存活，盲删等于丢活）。这条闸门是收口闭环的守门人——**看到 `MISMATCH 未回收…` 就是第四段没做完**，不是噪声。详见 PROTOCOL §3（含冲突分诊表）与 `references/ADR-012-close-the-loop.md`。
 
-**服务器优先 + bootstrap（v0.13.0，默认）**：服务器（jxx-ticket REST = 线上 `/tickets` 看板）是工单真源，本地 md 是创作面与离线投影。**线上工作目录 = 该项目 repo_key 在服务器 `jxx_tickets` 中出现**；开工前先 `node tools/jxx-bootstrap.mjs --root <项目根>`——线上无该 repo_key 工单时**自动先创建**（种子工单 + 投影基准）再操作，已有则幂等退出；离线降级照常直写本地 md。**服务器对齐默认纪律（2026-10-15 起）**：卡面记录的工单评论/正文修订与状态流转，先改本地 md 再以服务器最新 `version` 作 `base_version` 双写；**批量 push 的 id 必须从当次 `list` 实测逐条核对**，不得凭表格手抄（2026-10-15 T131–T135 串位事故教训）；工具面总入口 = 项目内 `agents/skills/jxx-ticket-router/SKILL.md`（项目技能，`read` 加载；项目未提供该文件时以 MCP `tools/list` 自披露 schema 为准）。详见 `references/ADR-010-server-first-tickets.md` 与 PROTOCOL §0。
+**服务器优先 + bootstrap（v0.13.0，默认）**：服务器（jxx-ticket REST = 线上 `/tickets` 看板）是工单真源，本地 md 是创作面与离线投影。**线上工作目录 = 该项目 repo_key 在服务器 `jxx_tickets` 中出现**；开工前先 `node tools/jxx-bootstrap.mjs --root <项目根>`——线上无该 repo_key 工单时**自动先创建**（种子工单 + 投影基准）再操作，已有则幂等退出；离线降级照常直写本地 md。**服务器对齐默认纪律（2026-10-15 起；v0.18.0 起走写腿）**：卡面记录的工单状态流转 / 打卡 / 评论，项目内有 `tools/ticket-flow.mjs` 时用写腿一条命令完成「改本地 md + 推服务器」：`node tools/ticket-flow.mjs --root <项目根> --file <单条工单md> --set status=<本地词表> --comment "<一句话>"`（exit 0 收敛 / exit 2 评论撞上「服务器版本已前进」按条目 `server`/`local`/`resolution` 裁决后重跑 / exit 3 本地已还原或未变）——**不要再先手改 md 再推**；写腿只推本次真改字段，正文整篇修订用只读腿 `--file` 收敛。**项目没有该 CLI 时回退 MCP 双写**：先改本地 md → `get` 拿最新 `version` 作 `base_version` → `jxx_ticket_call update`；**批量 push 的 id 必须从当次 `list` 实测逐条核对**，不得凭表格手抄（2026-10-15 T131–T135 串位事故教训）；工具面总入口 = 项目内 `agents/skills/jxx-ticket-router/SKILL.md`（项目技能，`read` 加载；项目未提供该文件时以 MCP `tools/list` 自披露 schema 为准）。详见 `references/ADR-010-server-first-tickets.md` 与 PROTOCOL §0。
 
 **步骤打卡与断线续接（v0.15.2 起，与服务器对齐纪律配套）**：处理工单时在工单文件列 `**处理步骤：**` 清单（每步一行 `- [ ]`），**每完成一步就地打卡并按服务器对齐纪律同步服务器副本**——线上线下同步更新，打卡即存档；会话中断/换人续接从打卡现场直接恢复，不重做已完成步骤。卡面（`control/cards/`）与工单 md 的打卡区不双写两套——打卡现场以**工单 md**为真源，卡面只带状态与指针。
 

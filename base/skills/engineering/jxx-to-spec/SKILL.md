@@ -3,7 +3,7 @@ name: jxx-to-spec
 description: 将当前对话转化为 spec（规格文档）并发布到 issue tracker——不访谈，仅综合已有讨论。触发词：写 spec、to spec。
 disable-model-invocation: false
 metadata:
-  version: 1.3.1
+  version: 1.4.0
 ---
 
 本技能将当前对话上下文和代码库理解转化为规格文档（你可能称之为 PRD）。不要访谈用户——仅综合你已知的内容。
@@ -35,7 +35,7 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 PRD 本地落盘的**同一步**内必须同步上行服务器工单系统（jxx-ticket）——不存在「先本地、服务器以后再说」：项目已接入服务器工单（repo_key 在 `jxx_tickets` 中出现）时，PRD 上行是发布动作的一部分，未经上行的 PRD 视为发布未完成。工具面与参数契约见项目内 `agents/skills/jxx-ticket-router/SKILL.md`（项目技能，`read` 加载；项目未提供该文件时以 MCP `tools/list` 自披露 schema 为准），`jxx_ticket_push` / `jxx_ticket_call`；配套 CLI 仓可直接 `node tools/ticket-uplink.mjs --root <仓库根>`，幂等按 repo_key+title 判重：
 
 - **新建**：PRD 落盘后立即上行（labels 带 `prd:<NN>-<slug>` 归组），把服务器回写的 ticket_no + id + version 记入 PRD 正文或本地评论留痕；
-- **后续修订**：先改本地 md → `get` 拿最新 `version` 作 `base_version` → 更新服务器（乐观锁；409 冲突先对账再推，不盲目重试）；
+- **后续修订（v1.4.0 起走写腿）**：项目内有 `tools/ticket-flow.mjs` 时——**状态 / 标签 / 认领**用一条写腿完成「改本地 md + 推服务器」：`node tools/ticket-flow.mjs --root <仓库根> --file <PRD.md> --set status=<本地词表> [--set labels=a,b]`；**打卡 / 评论**附 `--comment "<一句话>"`（写腿不 create、也不改自由正文）；**正文整篇修订**改完 md 后跑只读腿 `node tools/ticket-flow.mjs --root <仓库根> --file <PRD.md>` 收敛（内部 get 最新版，`version_conflict` 自动重拉重试一次）。退出码：0 收敛 / 2 评论撞上「服务器版本已前进」按条目 `server`/`local`/`resolution` 裁决后重跑 / 3 本地已还原或未变。**不要先手改状态或标签再手工 update。**项目没有该 CLI 时回退 MCP 双写：`get` 拿最新 `version` 作 `base_version` → `jxx_ticket_call update`（409 冲突先对账再推，不盲目重试）；
 - **批量安全**：批量 push 的 id 必须从当次 `list` 实测逐条核对，不得凭表格手抄——串位会把正文写进邻居工单（2026-10-15 实测事故）；
 - **离线降级**：仅当服务器不可达时才允许只写本地，回连后 `jxx_ticket_sync`（给投影根）对账收口。
 

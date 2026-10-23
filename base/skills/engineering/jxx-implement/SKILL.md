@@ -3,7 +3,7 @@ name: jxx-implement
 description: 按工单或 spec 实现：worktree 开发、看板流转、合并收口。触发词：实现、implement。
 disable-model-invocation: false
 metadata:
-  version: 1.8.1
+  version: 1.10.0
 ---
 
 实现用户在 spec 或工单中描述的工作。
@@ -31,8 +31,20 @@ node tools/jxx-bootstrap.mjs --root <项目根>        # 缺则创建（种子�
 
 - 项目已接入 ⇒ `already-bootstrapped`，继续正常流程；
 - **新项目（线上无该 repo_key 工单）⇒ 自动先创建**：种子工单（`【bootstrap】<项目名> 工作区开通`）+ 本地投影基准，然后才进行后续操作；
-- **状态流转 / 正文修订 / 打卡上报：常规双写一条命令**（PRD 127 · 2026-10-17 起默认，不再手工编排 MCP 往返）：改完本地 md 后跑 `node tools/ticket-flow.mjs --root <仓库根> [--file <单条md>]`——它内部做完匹配（state 精确 → repo_key+title 回退）→ 无匹配 create / 有差异 update（内部 get 最新版 → update，`version_conflict` 自动重拉重试一次）→ 刷新 state，幂等可重跑；`--dry-run` 零写入预演。MCP 四把工具（`jxx_ticket_call` / `get` / `list` / `push`）**降级为 exit 2 兜底路径**：仅当项目未接 `tools/ticket-flow.mjs` 或该命令不可用时才回到它（口径见项目内 `agents/skills/jxx-ticket-router/SKILL.md`，项目技能、`read` 加载，项目未提供该文件时以 MCP `tools/list` 自披露 schema 为准「快速通道」节）。服务不可达时照常直写本地 md（离线降级），回连后 `jxx_ticket_sync` 收口。
-- **正文与评论同样双写（v1.5.0 起默认纪律）**：实现过程中往工单文件追加的评论、修订的验收点/正文，先改本地 md，再以服务器最新 `version` 作 `base_version` 推服务器副本——服务器是真源，只改本地等于没记录。
+- **状态流转 / 打卡 / 评论：写腿一条命令**（v1.10.0 起默认，2026-10-23）：项目内有 `tools/ticket-flow.mjs` 时，直接
+  `node tools/ticket-flow.mjs --root <仓库根> --file <单条工单md> --set status=<本地词表> --comment "<一句话>"`——一条命令内部完成
+  「改本地 md + 推服务器」（payload 只含本次真改的字段；`version_conflict` 自动重拉重试一次），**不要再先手改 md 再推**。
+  字段白名单 `status | title | labels | assignee`：`--set labels=a,b`、`--set assignee=<人|空>`（空 = 取消认领）。退出码：0 收敛；
+  2 = 评论撞上「服务器版本已前进」，按条目自带 `server` / `local` / `resolution` 裁决后重跑；3 = 参数 / 状态映射 / 未匹配 / 传输失败，
+  本地 md 已还原或未变（stdout 带 `rolled_back:true` 即已回滚）。**新建仍走 `tools/ticket-uplink.mjs` / `jxx_ticket_call create`——写腿不 create**。
+- **整篇收敛与批量仍用只读腿**：`node tools/ticket-flow.mjs --root <仓库根> [--file <单条md>] [--dry-run]`——内部匹配（state 精确 →
+  repo_key+title 回退）→ 有差异 update（同一写腿的乐观锁重试）→ 刷 state，幂等可重跑。**写腿只推本次真改字段，不替你整篇对齐服务器**；
+  改验收点 / 改正文段落这类自由文本修订，改完 md 后跑只读腿 `--file` 收敛。
+- **兜底路径**：项目没有 `tools/ticket-flow.mjs`（或该命令不可用）时回退 MCP 双写——先改本地 md → `get` 拿最新 `version` 作
+  `base_version` → `jxx_ticket_call update`（409 先对账再推，不盲目重试），工具面见项目内 `agents/skills/jxx-ticket-router/SKILL.md`
+  （项目技能、`read` 加载）。服务不可达时照常直写本地 md（离线降级），回连后 `jxx_ticket_sync` 收口。
+- **正文与评论同样双写（v1.5.0 起；v1.10.0 起评论走写腿）**：实现过程中往工单追加的评论用同一条写腿命令的 `--comment`
+  （可与 `--set status=…` 合并成一次）；修订验收点 / 正文段落写进 md 后跑只读腿 `--file` 收敛。服务器是真源，只改本地等于没记录。
 - **批量 push 的 id 必须实测核对**：从当次 `list`/`get` 结果逐条取 id，不得凭表格或记忆手抄——串位会把正文写进邻居工单（2026-10-15 实测事故：T131–T135 四条错位，靠乐观锁 409 + 标签过滤 `list` 对账才发现）。
 - 本仓无 `tools/jxx-bootstrap.mjs` 的项目（未接此套工具）：以「`jxx_ticket_call list` 按 repo_key 查询 + 无则 `create` 种子工单」同语义手动执行（口径见 `references/ADR-010-server-first-tickets.md`）。
 
@@ -40,7 +52,7 @@ node tools/jxx-bootstrap.mjs --root <项目根>        # 缺则创建（种子�
 
 开工时先把本单的执行步骤写成 `**处理步骤：**` 清单追加进工单文件（放在 `**验收标准：**` 之后、`## 评论` 之前），每步一行 `- [ ]`；**每完成一步就地打卡**（`- [ ]` → `- [x]`，步尾注日期，必要时补一行执行事实如 commit 号 / 关键产出指针），并按上方「服务器优先」纪律同步服务器副本——**线上线下同步更新，打卡即存档**。会话中断、换会话或换人续接时，**从工单文件的打卡现场直接恢复**（读到哪步打勾就从哪步继续），不重做已完成步骤、不凭记忆重建进度。
 
-- 步骤清单在动手前列（领卡后第一时间），粒度 = 单会话内可完成的动作级（如「领卡 → add-wt → 写 X → 跑测试 → 自审」）；发现新步骤随时补行；
+- 步骤清单在动手前列（领卡后第一时间），粒度 = 单会话内可完成的动作级（如「领卡 → add-wt → 写 X → 跑测试 → 机械自检」）；发现新步骤随时补行；
 - 打卡与代码提交解耦：打卡更新随下次 commit 顺带入库即可，**不因打卡单独发 commit**，但打卡动作本身不得攒——完成一步打一步；
 - 续接入口：新会话先读工单文件的 `**处理步骤：**` 打卡区 + `## 评论` 时间线 + 服务器副本（用 `node tools/ticket-flow.mjs --root <仓库根> --dry-run` **零写入预演**看差异，或兜底用 `jxx_ticket_call get`），三方对齐后再动手；三方不一致时以服务器为准并回写本地。
 
@@ -57,11 +69,18 @@ node tools/jxx-bootstrap.mjs --root <项目根>        # 缺则创建（种子�
 
 以下三步是实现的硬出口——不执行视为未完成（三步同样是 `**处理步骤：**` 清单的组成部分，完成即打卡）：
 
+**审查归属（v1.9.0）：审查属于派活方，不属于执行者。** 一份 diff 只审一次，审的人是会话链上有决策权的那层：
+
+| 谁在跑本技能 | 审查怎么办 |
+|---|---|
+| 主会话自己执行（你就是派活方，没有上级） | 自己跑 `/jxx-code-review`，通过后自己置 `done` |
+| 被派为子代理执行（有派活方 / 编排者） | **跳过审查步**：交付移卡到待终审位，由派活方跑 `/jxx-code-review`（或派 reviewer）后裁定；执行者不跑、不声称「自审通过」、不自造审查报告 |
+
 - [ ] **标记待审查**：第一轮功能开发完成（代码写完、本地类型检查与单测通过）后，将工单 `Status:` 置为 `pending-review`（待审查），在提交前保存。
   **AC 前置（v1.8.0）**：AC 勾选区全部 `- [x]` 且逐条带证据；未全勾不得置 `pending-review`。
-- [ ] **代码审查**：调用 `/jxx-code-review` 审查所有变更（diff 基准 = origin/main——所有工单分支都从 main 拉出）。审查通过前不得提交；审查有发现项时按下方流程修复后重新审查。
+- [ ] **代码审查**（**被派子代理跳过本步**，见上方「审查归属」）：调用 `/jxx-code-review` 审查所有变更（diff 基准 = origin/main——所有工单分支都从 main 拉出）。审查通过前不得提交；审查有发现项时按下方流程修复后重新审查。
   **AC 前置（v1.8.0）**：审查按 AC 逐条判定 `met` / `partial` / `missing`（规范第五节）；判定表缺项或仍有未勾 AC 的审查不算通过。
-- [ ] **标记结束并提交**：代码审查通过（或无发现项、用户明确确认无视）后，将工单 `Status:` 置为 `done`（结束），再将工作 commit 到**工单分支** `ticket/<卡id>`（worktree 内）。**置 `done` 的唯一责任方 = 执行者**（审查者的步骤 6 只复核与报告，不代置）。commit message 遵循 conventional commits 格式，body 说明变更原因。
+- [ ] **标记结束并提交**：代码审查通过（或无发现项、用户明确确认无视）后，将工单 `Status:` 置为 `done`（结束），再将工作 commit 到**工单分支** `ticket/<卡id>`（worktree 内）。**置 `done` 的裁定权 = 派活方**（主会话自干时即执行者自己；审查未通过时执行者不得自行置 `done`；审查者的步骤 6 只复核与报告，不代置）。commit message 遵循 conventional commits 格式，body 说明变更原因。
   **AC 前置（v1.8.0）**：`node <jxx-to-tickets 技能目录>/scripts/ac-audit.mjs <工单文件>` 退出码 0；非 0 先按报告修 AC，再置 `done`。
 
 ### 防劣化门禁（独立执行，不采信他人结论）
@@ -82,7 +101,7 @@ git diff $B...HEAD -- '*lock*' '*package.json'   # 4 依赖与配置清单
 
 ### 交付（硬出口之后）
 
-- [ ] **交付移卡**：commit 整齐、`git push origin ticket/<卡id>` 后，在卡的「交付记录」追加提交范围 + 审查报告指针，并按卡内「## AC 覆盖表」逐条写实（编号 | 类别 | 期望结果 | 自报判定 | 证据坐标），然后 `board.mjs card-move --root <项目根> --id <卡id> --to review`（卡到待终审位），刷看板（`board.mjs html --root <项目根>`），回报「已交付待终审」。**合并不是本技能的事**——合并专员把工单分支回合 main（PROTOCOL §3，含 PRD 工单，v0.14.0 起）；技术受阻才暂存 PRD 分支或 blocked，且必须向用户汇报不能回合的原因。
+- [ ] **交付移卡**：commit 整齐、`git push origin ticket/<卡id>` 后，在卡的「交付记录」追加提交范围（审查报告指针由做审查的一方审完后填），并按卡内「## AC 覆盖表」逐条写实（编号 | 类别 | 期望结果 | 自报判定 | 证据坐标），然后 `board.mjs card-move --root <项目根> --id <卡id> --to review`（卡到待终审位），刷看板（`board.mjs html --root <项目根>`），回报「已交付待终审」。**合并不是本技能的事**——合并专员把工单分支回合 main（PROTOCOL §3，含 PRD 工单，v0.14.0 起）；技术受阻才暂存 PRD 分支或 blocked，且必须向用户汇报不能回合的原因。
 
 ### 交付之后：收口是四段闭环（v0.15.0 起，PROTOCOL §3）
 
@@ -96,6 +115,8 @@ git diff $B...HEAD -- '*lock*' '*package.json'   # 4 依赖与配置清单
 工单状态流转：`ready-for-agent` → `pending-review`（功能开发完）→ `done`（审查通过）。完整生命周期见 `docs/agents/issue-tracker.md` 的「工单状态与生命周期」节。
 
 ### 审查发现问题时的处理流程
+
+本节面向**做审查的一方**（主会话或 reviewer）。被派执行者不跑审查；派活方回传的发现项按「返工」处理（卡改回 `.claimed`，改完重交）。
 
 当 `/jxx-code-review` 返回的报告中存在发现项时，按以下步骤执行：
 

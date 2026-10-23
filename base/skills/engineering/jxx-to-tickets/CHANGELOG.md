@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.0 — 2026-10-23
+
+**工单「后续修订」改指 ticket-flow**：状态 / 标题 / 标签 / 认领用写腿（`--set status=… --set title=… --set labels=a,b`）、打卡与评论附 `--comment`，一条命令完成「改本地 md + 推服务器」；验收点/正文段落修订改完 md 后跑只读腿 `--file <单条工单md>` 收敛。写腿不 create，新建工单仍走批量 `ticket-uplink` / `jxx_ticket_push` / `create`（ticket_no + id + version 留痕口径不变）；项目无该 CLI 时回退 MCP 双写（`get` 最新 `version` → `update`），批量 push 的 id 核对纪律不变。
+
 ## 1.5.0 — 2026-10-23
 
 **覆盖闸：生成后自检是否完全覆盖「用户诉求 / 决策 / PRD」**（防少做、防降低标准）：

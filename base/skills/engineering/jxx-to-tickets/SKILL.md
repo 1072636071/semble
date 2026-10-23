@@ -3,7 +3,7 @@ name: jxx-to-tickets
 description: 将计划、spec 或对话拆解为带阻塞边（blocking edges）的追踪弹工单，发布到 issue tracker。触发词：拆工单、生成工单、to tickets。
 disable-model-invocation: false
 metadata:
-  version: 1.5.0
+  version: 1.6.0
 ---
 
 # 转化工单
@@ -130,7 +130,7 @@ node <本技能目录>/scripts/ac-audit.mjs "<仓库绝对路径>/.scratch/<NN>-
 工单本地落盘的**同一步**内必须同步上行服务器工单系统（jxx-ticket）——不存在「先本地、服务器以后再说」：项目已接入服务器工单（repo_key 在 `jxx_tickets` 中出现）时，工单上行是发布动作的一部分，未经上行的工单视为发布未完成。工具面与参数契约见项目内 `agents/skills/jxx-ticket-router/SKILL.md`（项目技能，`read` 加载；项目未提供该文件时以 MCP `tools/list` 自披露 schema 为准），`jxx_ticket_push` / `jxx_ticket_call`；配套 CLI 仓可直接 `node tools/ticket-uplink.mjs --root <仓库根>`，幂等按 repo_key+title 判重：
 
 - **新建（本技能第 5 步的组成部分）**：全部工单落盘后立即批量上行（labels 带 `prd:<NN>-<slug>` 归组；type=ticket、status 按实体状态机映射），把服务器回写的 ticket_no + id + version 记入各工单评论与 PRD 映射表留痕；PRD 本体尚未上行的，同批上行；
-- **后续修订**：先改本地 md → `get` 拿最新 `version` 作 `base_version` → 更新服务器（乐观锁；409 冲突先对账再推，不盲目重试）；
+- **后续修订（v1.6.0 起走写腿）**：项目内有 `tools/ticket-flow.mjs` 时——**状态 / 标题 / 标签 / 认领**用一条写腿完成「改本地 md + 推服务器」：`node tools/ticket-flow.mjs --root <仓库根> --file <单条工单md> --set status=<本地词表> [--set labels=a,b]`；**打卡 / 评论**附 `--comment "<一句话>"`（写腿不 create、也不改自由正文）；**验收点 / 正文段落修订**改完 md 后跑只读腿 `node tools/ticket-flow.mjs --root <仓库根> --file <单条工单md>` 收敛（内部 get 最新版，`version_conflict` 自动重拉重试一次）。退出码：0 收敛 / 2 评论撞上「服务器版本已前进」按条目 `server`/`local`/`resolution` 裁决后重跑 / 3 本地已还原或未变。**不要先手改状态或标签再手工 update。**项目没有该 CLI 时回退 MCP 双写：`get` 拿最新 `version` 作 `base_version` → `jxx_ticket_call update`（409 冲突先对账再推，不盲目重试）；
 - **批量安全**：批量 push 的 id 必须从当次 `list` 实测逐条核对，不得凭表格手抄——串位会把正文写进邻居工单（2026-10-15 实测事故：T131–T135 四条错位，靠标签过滤 `list` + 乐观锁拒绝才发现并修复）；
 - **离线降级**：仅当服务器不可达时才允许只写本地，回连后 `jxx_ticket_sync`（给投影根）对账收口；
 - **删除**：服务器无 delete——本地删单时服务器对应单走 `update { status: "archived" }` 软删，两侧一致。

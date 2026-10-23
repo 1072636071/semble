@@ -2,7 +2,7 @@
 name: jxx-code-review
 description: 审查自固定点以来的变更，多维度并行取证。触发词：code review、审查代码。
 metadata:
-  version: 1.3.1
+  version: 1.4.0
 ---
 
 审查 `HEAD` 与用户指定固定点（fixed point）之间的 diff。**审查维度数由执行模式决定**：
@@ -263,7 +263,7 @@ ocr delegate rule <path1> <path2> ...
 - **审查者只复核与报告，不代置 `done`**：本步骤产出结论（通过 / 发现项 + AC 覆盖表），`Status:` 由执行者在审查通过后置（`/jxx-implement` 完成步骤第三节）。
 - 审查**有发现项且用户选择修复**时，工单保持在 `pending-review`，待修复并重新审查通过后由执行者置 `done`。
 
-**服务器对齐（v1.2.0 起默认纪律）**：项目已接入服务器工单（repo_key 在 `jxx_tickets` 中出现）时，状态置变在改本地 md 的同时以服务器最新 `version` 作 `base_version` 双写服务器（`jxx_ticket_call update`，工具面见项目内 `agents/skills/jxx-ticket-router/SKILL.md`，项目技能、`read` 加载，项目未提供该文件时以 MCP `tools/list` 自披露 schema 为准）；服务器不可达时只写本地（离线降级），回连后 `jxx_ticket_sync` 收口。
+**服务器对齐（v1.2.0 起默认；v1.4.0 起走写腿）**：项目已接入服务器工单（repo_key 在 `jxx_tickets` 中出现）时，状态置变不再手改 md 再推——项目内有 `tools/ticket-flow.mjs` 且工单在 `.scratch/<NN>-<slug>/` 下时，一条写腿命令完成「改本地 md + 推服务器」：`node tools/ticket-flow.mjs --root <仓库根> --file <单条工单md> --set status=<本地词表> [--comment "<审查结论 / 返工要求>"]`。exit 0 收敛；exit 2 = 评论撞上「服务器版本已前进」，按条目自带 `server`/`local`/`resolution` 裁决后重跑；exit 3 = 本地已还原或未变（`rolled_back:true` = 已回滚），按错误文案处置。**项目没有该 CLI 时回退 MCP 双写**：先改本地 md → `get` 拿最新 `version` 作 `base_version` → `jxx_ticket_call update`（409 先对账再推，不盲目重试；工具面见项目内 `agents/skills/jxx-ticket-router/SKILL.md`，项目技能、`read` 加载）。服务器不可达时只写本地（离线降级），回连后 `jxx_ticket_sync` 收口。
 
 工单状态流转见 `docs/agents/issue-tracker.md` 的「工单状态与生命周期」节。
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.8.0 — 2026-10-23
+
+**步骤 0b 双写段改指 ticket-flow 写腿**：各工单的状态流转 / 打卡 / 评论改为一条 `node tools/ticket-flow.mjs --root <项目根> --file <单条工单md> --set status=… --comment "…"`（一条完成「改本地 md + 推服务器」，exit 0 / 2 / 3 三态判读，exit 3 时本地已还原或未变），不再「先改本地 md 再推」；写腿只推本次真改字段，验收点/正文整篇修订仍用只读腿 `--file` 收敛；PRD 本体上行与新建工单仍走 `jxx_ticket_call create`（写腿不 create）。项目无该 CLI 时回退 MCP 双写（先改本地 md → `get` 最新 `version` → `jxx_ticket_call update`），批量 push 的 id 核对纪律不变。
+
+- 步骤 0b 重写：bootstrap / PRD create 保留，双写段换写腿 + 三态退出码 + 兜底回退；编排者随 worker 提示词下发该纪律。
+- 步骤 3 worker 段：「每完成一步就地打卡并双写服务器」明确为用写腿命令双写。
+
 ## 1.7.1 — 2026-10-23
 
 1b「AC → 工单映射缺口审查」同步覆盖闸：除 §一 覆盖矩阵，还读 `map.md` 的 `## 覆盖闸`（规范 §八）——生产侧新闸把 用户诉求、决策（含明确不做）与 PRD 三源逐条对到 AC，执行侧据此复核，同一判据只在上游权威源维护一份。

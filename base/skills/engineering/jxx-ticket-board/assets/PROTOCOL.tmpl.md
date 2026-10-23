@@ -25,7 +25,7 @@
 ```
 
 - **工单卡**：一个 md 文件 = 一张卡 = 一个 `.scratch\` 工单 = 一个分支，严格 1:1（薄卡：卡只放指针与协调记录，**成果正文一律进 git 分支**）。
-- **工单真源（服务器优先，ADR-010）**：服务器（jxx-ticket REST = 线上 /tickets 看板）是工单真源，本地 md 是创作面与离线投影。开工前先 `node tools/jxx-bootstrap.mjs --root <项目根>`——线上无该 repo_key 工单时**自动先创建**（种子工单 + 投影基准）再操作；已有则幂等退出。状态流转双写服务器（`jxx_ticket_call update`）；离线时照常直写本地 md，回连 `jxx_ticket_sync` 收口。
+- **工单真源（服务器优先，ADR-010）**：服务器（jxx-ticket REST = 线上 /tickets 看板）是工单真源，本地 md 是创作面与离线投影。开工前先 `node tools/jxx-bootstrap.mjs --root <项目根>`——线上无该 repo_key 工单时**自动先创建**（种子工单 + 投影基准）再操作；已有则幂等退出。状态流转 / 打卡 / 评论在项目内有 `tools/ticket-flow.mjs` 时用写腿一条命令完成（`node tools/ticket-flow.mjs --root <项目根> --file <单条工单md> --set status=… --comment "…"`——一条命令同时改本地 md 与服务器，服务器侧失败还原本地 md、exit 3；**不要先手改 md 再推**）；没有该 CLI 时回退 `jxx_ticket_call update`（先 `get` 拿最新 `version` 作 `base_version`）。离线时照常直写本地 md，回连 `jxx_ticket_sync` 收口。
 - **三条正交轴（D9，别再往目录里塞第二件事）**：
 
   | 轴 | 载体 | 取值 |
@@ -71,11 +71,12 @@
 
 ## 2. 开发组规则
 
-- **推进方式（强制）**：领到开发卡后全程用 `/jxx-implement` 技能推进（harness 未装该技能 → 卡记 blocked 回报用户，不得裸写绕过）。其三段完成硬出口——①工单 `Status:` 置 `pending-review` ②`/jxx-code-review` 审全部变更、有发现项即修复重审、通过前不得提交 ③审查通过后工单置 `done` 并 commit 到分支——**全部做完才是本卡可交付的前置条件**。
-- 交付 = 移动卡：jxx-implement 三段出口完成后，在卡「交付记录」追加提交范围 + 审查报告指针，并把**工单 AC 逐条写进卡的「AC 覆盖表」**（编号 | 类别 | 期望结果 | 自报判定 | 证据坐标，表下附越界/豁免声明——合并专员将逐项自己取证，写虚的会被打回）。**移卡到 review 的硬出口**：AC 全勾 + 每条证据齐全 + `ac-audit` 退出码 0，缺一不得移卡（判据见 `/jxx-code-review` 步骤 0c），然后
+- **推进方式（强制）**：领到开发卡后全程用 `/jxx-implement` 技能推进（harness 未装该技能 → 卡记 blocked 回报用户，不得裸写绕过）。**交付硬出口（v0.16.0 两段）**——① 工单 `Status:` 置 `pending-review`；② AC 全勾且逐条带证据 + `ac-audit` 退出码 0 + 就地跑完防劣化门禁 5 条 + commit/push 到 `ticket/<卡id>`——**两段全做完才算可交付**。
+- **代码审查不归开发 worker**：审查归派活方（编排者 / 主会话）。开发 worker 是被派子代理 ⇒ 跳过审查步，交付到 `.review` 位等派活方跑 `/jxx-code-review`（或派 reviewer 三实例）后裁定 `done`；执行者不跑审查、不声称「自审通过」、不自造审查报告。只有主会话自己领卡执行时，才由它在同一会话里跑审查并自置 `done`。
+- 交付 = 移动卡：jxx-implement 交付硬出口完成后，在卡「交付记录」追加提交范围（审查报告指针由做审查的一方审完后填），并把**工单 AC 逐条写进卡的「AC 覆盖表」**（编号 | 类别 | 期望结果 | 自报判定 | 证据坐标，表下附越界/豁免声明——合并专员将逐项自己取证，写虚的会被打回）。**移卡到 review 的硬出口**：AC 全勾 + 每条证据齐全 + `ac-audit` 退出码 0，缺一不得移卡（判据见 `/jxx-code-review` 步骤 0c），然后
   `mv open\<卡id>.claimed.md open\<卡id>.review.md`（或 `card-move --to review`），**刷看板（§1.2 的 html 命令）**，并回报用户"已交付待终审"。
 - 组内其余流程自定（jxx 系列技能照常），但成果必须满足：
-  1. 一切成果（代码、工单文档增量、**审查报告**）都在 `ticket/<卡id>` 分支上；审查报告放分支内 `.scratch/<工单>/reviews/`，审查报告即 /jxx-code-review 产物（干净视角执行，针对 `git diff {{BASE_BRANCH}}...ticket/<卡id>`）。
+  1. 一切成果（代码、工单文档增量、**审查报告**）都在 `ticket/<卡id>` 分支上；审查报告放分支内 `.scratch/<工单>/reviews/`，由**做审查的一方**（主会话 / reviewer，干净视角、针对 `git diff {{BASE_BRANCH}}...ticket/<卡id>`）落盘；开发 worker 执行时不自造审查报告。
   2. 分支已 commit 整齐（无未提交残留），已 `git push origin ticket/<卡id>`（remote 是成果备份面）。
 - 返工：卡被改回 `open\<卡id>.claimed.md`（终审意见写在卡的「流转追加段」）→ 继续在原 worktree/分支干活，改完再交。
 - **交付后现场不归你管**：合并专员复核、预演、合入后按 §3 第四段回收 `wt/<卡id>` 与已合入的 `ticket/<卡id>` 分支。**别自己删**（可能还在返工路径上），也别假设现场会永远在——交付即意味着你这一轮的原 worktree 随时可能被回收。
@@ -170,8 +171,8 @@ node <skill>/scripts/board.mjs rm-wt --root <root> --ticket <单卡id>
 | 角色 | 职责 | 启动方式 |
 |------|------|---------|
 | **编排者（orchestrator）** | 投卡 → spawn worker → 监控进度 → 触发审查 → 触发合入 | 用户 `/jxx-ticket-board auto` 启动 |
-| **开发 worker** | 领卡 → 实现 → 自审 → 交付 | 编排者 spawn |
-| **审查者（reviewer）** | 三维度独立审查代码 | 编排者 spawn（3 个并行实例） |
+| **开发 worker** | 领卡 → 实现 → 机械自检（AC 证据 + `ac-audit` + 防劣化门禁 5 条）→ 交付；**不自审** | 编排者 spawn |
+| **审查者（reviewer）** | 三维度独立审查代码（审查归属编排者；执行者不跑） | 编排者 spawn（3 个并行实例），或编排者自己跑 `/jxx-code-review` |
 | **合并专员（merger）** | 处理合并 + 冲突解决 | 编排者 spawn |
 
 ### 5.2 编排者规则

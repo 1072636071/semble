@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.0 — 2026-10-23
+
+**§6「服务器对齐」改指 ticket-flow 写腿**：审查后的状态置变 / 返工要求评论，项目内有 `tools/ticket-flow.mjs` 且工单在 `.scratch/<NN>-<slug>/` 下时，用一条写腿命令完成「改本地 md + 推服务器」（`--set status=… --comment "…"`），不再手改 md 再 `jxx_ticket_call update`；exit 0 收敛 / exit 2 版本前进按条目裁决后重跑 / exit 3 本地已还原或未变（`rolled_back:true`）。项目无该 CLI 时回退 MCP 双写（先改本地 md → `get` 最新 `version` → `update`，409 先对账再推）。
+
 ## 1.3.1 — 2026-10-21
 
 文档侧收敛：0c 加「先跑 ac-audit 机械闸」并把硬问题计入发现项；劣化门禁表收敛为「项 | 命令」（公共符号与行为基线各给可执行命令），判据指向规范 §四；置 `done` 前置补「AC 覆盖表非空且无未审」，`done` 由执行者置、审查者只报告。原因：判据正文只在权威规范存在一份。

@@ -3,7 +3,7 @@ name: jxx-wayfinder
 description: 规划超过单会话承载的大型工作：在 issue tracker 上建共享调查地图，逐个解决工单直到路径清晰。触发词：wayfinder、寻路、迷雾。
 disable-model-invocation: false
 metadata:
-  version: 1.3.1
+  version: 1.4.0
 ---
 
 一个松散的想法到来了——大到单个 agent 会话无法承载，且笼罩在迷雾中：从这里到**目的地**的路径尚不可见。寻路就是找到那条路径，而不是冲向目的地。此技能将路径绘制为 repo issue tracker 上的**共享地图**，然后逐一处理其工单，直到路径清晰。
@@ -127,7 +127,7 @@ Wayfinder 默认是**规划**：每个工单解决一个决策，地图在路径
 3. 解决它——**按需缩放**：按需获取任何相关或已关闭工单的完整正文；调用 `## 备注` 块中命名的技能。如果不确定，使用 `/jxx-grilling` 和 `/jxx-domain-modeling`。**步骤打卡（v1.3.0 起默认纪律）**：动手前把本单的调查步骤列成 `**处理步骤：**` 清单追加进工单正文，每完成一步就地打卡（`- [ ]`→`- [x]` + 步尾日期）并按服务器对齐纪律双写服务器——中途断了，下一个会话从打卡现场直接续接，不重走已完成的调查步。
 4. 记录解决方案：将答案作为**解决评论**发布，**关闭** issue，并向地图的决策进展**追加上下文指针**。决策型工单直接标记为 `resolved`（轻量终态）即可；若此工单是产出代码的实现型工单，则改用完整实现生命周期——第一轮功能开发完成后置 `pending-review`（待审查），经 `/jxx-code-review` 通过后置 `done`（结束），详见 `docs/agents/issue-tracker.md` 的「工单状态与生命周期」节。
 
-   **服务器对齐（v1.1.0 起默认纪律）**：项目已接入服务器工单（repo_key 在 `jxx_tickets` 中出现）时，地图与工单的创建、解决评论、关闭、状态置变在写本地 tracker 的同一步内双写服务器（`jxx_ticket_call create/update`，工具面见项目内 `agents/skills/jxx-ticket-router/SKILL.md`，项目技能、`read` 加载，项目未提供该文件时以 MCP `tools/list` 自披露 schema 为准）；服务器不可达时只写本地（离线降级），回连后 `jxx_ticket_sync` 收口。
+   **服务器对齐（v1.1.0 起默认；v1.4.0 起走写腿）**：项目已接入服务器工单（repo_key 在 `jxx_tickets` 中出现）时——**新建地图 / 工单仍走 `jxx_ticket_call create`**（写腿不 create，标签如 `wayfinder:map` 走 `create` 的 labels）；**解决评论、关闭、状态置变**在项目内有 `tools/ticket-flow.mjs` 且工单落在 `.scratch/<NN>-<slug>/` 下时，用一条写腿命令完成「改本地 md + 推服务器」：`node tools/ticket-flow.mjs --root <仓库根> --file <单条工单md> --comment "<解决评论>" [--set status=<本地词表>]`（exit 0 收敛 / exit 2 评论撞上「服务器版本已前进」按条目 `server`/`local`/`resolution` 裁决后重跑 / exit 3 本地已还原或未变）。**项目没有该 CLI 时回退 MCP 双写**：先改本地 tracker → `get` 拿最新 `version` 作 `base_version` → `jxx_ticket_call update`（冲突先对账再推，工具面见项目内 `agents/skills/jxx-ticket-router/SKILL.md`，项目技能、`read` 加载）。服务器不可达时只写本地（离线降级），回连后 `jxx_ticket_sync` 收口。
 5. 添加新浮现的工单（创建后连接）；毕业答案已使其可 spec 化的任何迷雾，从**尚未明确**中清除每个已毕业的迷雾块使其只作为新工单存在。如果答案揭示一个工单——此工单或另一个——位于目的地之外，**将其排除在范围之外**而非在路径上解决它。如果决策使地图其他部分失效，更新或删除那些工单。
 
 用户可能并行运行未阻塞的工单，所以预期其他会话会并发编辑 tracker。
