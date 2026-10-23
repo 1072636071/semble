@@ -423,6 +423,9 @@ function loadConfig(configPath, userHomeOverride) {
     buckets,
     managedPrefixes,
     preserveOnInstall: raw.preserveOnInstall && typeof raw.preserveOnInstall === 'object' && !Array.isArray(raw.preserveOnInstall) ? raw.preserveOnInstall : {},
+    // 上游自带安装器维护的目标：<技能名>: [vendorId...]。这些目录由第三方应用写入（可能带只读 ACL），
+    // 本仓安装器不碰，记为 skipped 而非失败——否则每次 install 都因 EPERM 报错。
+    foreignInstalled: raw.foreignInstalled && typeof raw.foreignInstalled === 'object' && !Array.isArray(raw.foreignInstalled) ? raw.foreignInstalled : {},
     skillsBase,
     agentsBase,
     vendors,
@@ -806,6 +809,11 @@ function runInstall(config, { dryRun, project }) {
           installed.push({ dest: destFile, expectedHash: expected, vendor: vendor.id, skillsTarget });
         } else {
           const destDir = path.join(skillsTarget, skill.name);
+          const foreign = (config.foreignInstalled || {})[skill.name] || [];
+          if (foreign.includes(vendor.id)) {
+            skipped.push(`${vendor.label}: ${skill.name} 由上游安装器维护（${destDir}），本仓跳过`);
+            continue;
+          }
           // Kimi Work 风格适配：普通 SKILL.md 也把 frontmatter 归一化为 name + description；
           // 解析失败则回退原样复制（与透传派生行为一致）。
           let kimiContent = null;

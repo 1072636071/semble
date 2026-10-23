@@ -463,3 +463,38 @@ test('agent src：派生为 4 家适配版', () => {
   const ca = fs.readFileSync(path.join(gen, 'codearts', 'huawei-cloud-codebuddy-jxx-coach.md'), 'utf-8');
   assert.match(ca, /# jxx-coach \(EN\)/);
 });
+
+// ---------------------------------------------------------------- 上游自有安装器
+
+test('foreignInstalled：上游维护的目标跳过、不覆盖、不算失败', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-foreign-'));
+  const userHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-foreign-home-'));
+  try {
+    const config = {
+      buckets: ['productivity'],
+      managedPrefixes: ['ego-browser'],
+      skillsSource: 'skills',
+      foreignInstalled: { 'ego-browser': ['opencode'] },
+      vendors: {
+        opencode: { label: 'OpenCode', derive: true, user: { skills: '~/.agents/skills' } },
+        codebuddy: { label: 'CodeBuddy', derive: true, user: { skills: '~/.codebuddy/skills' } },
+      },
+    };
+    writeFile(root, 'vendors.json', JSON.stringify(config, null, 2));
+    writeFile(root, 'skills/productivity/ego-browser/SKILL.md', '---\nname: ego-browser\ndescription: upstream skill\n---\n\n# ego\n');
+    const foreignDest = path.join(userHome, '.agents', 'skills', 'ego-browser');
+    fs.mkdirSync(foreignDest, { recursive: true });
+    fs.writeFileSync(path.join(foreignDest, 'SKILL.md'), 'upstream copy', 'utf-8');
+
+    const res = spawnSync(process.execPath, [SHIP, '--config', path.join(root, 'vendors.json'), '--user-home', userHome, 'install'], { encoding: 'utf-8' });
+    const all = res.stdout + res.stderr;
+    assert.equal(res.status, 0, all);
+    assert.equal(fs.readFileSync(path.join(foreignDest, 'SKILL.md'), 'utf-8'), 'upstream copy', '上游副本不应被覆盖');
+    assert.ok(fs.existsSync(path.join(userHome, '.codebuddy', 'skills', 'ego-browser', 'SKILL.md')), '其他厂商应正常安装');
+    assert.match(all, /由上游安装器维护/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(userHome, { recursive: true, force: true });
+  }
+});
+

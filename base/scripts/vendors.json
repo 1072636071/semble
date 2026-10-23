@@ -15,10 +15,14 @@
     "seo-",
     "tdai-",
     "weknora-",
-    "quarkclouddrive"
+    "quarkclouddrive",
+    "ego-browser"
   ],
   "preserveOnInstall": {
     "quarkclouddrive": ["deepseek"]
+  },
+  "foreignInstalled": {
+    "ego-browser": ["opencode", "kimi", "workbuddy"]
   },
   "skillsSource": "../skills",
   "agentsSource": "../agent",

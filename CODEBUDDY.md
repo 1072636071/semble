@@ -51,6 +51,16 @@ dsh-agent-studio（DeepSeek Harness Agent Studio）的配置管理真源在本�
 - **登录态保护**：`vendors.json` 的 `preserveOnInstall` 声明 `quarkclouddrive: ["deepseek"]`，`ship.mjs` 安装该技能前会把 `deepseek/` 暂存、覆盖完再放回，因此 `ship install` 不再清掉登录态。登录态**不入库**（`.gitignore` 已排除 `deepseek/`），换机器或换用户需重新登录。令牌备份在本机 `~/.quarkclouddrive/login-deepseek.json`：其他副本报未授权时用它覆盖 `<副本>/deepseek/config.json` 即可，免去重新授权。
 - **卸载**：按官方两步——先 `bash scripts/uninstall.sh` 撤销授权并清除配置，再删除技能目录。
 
+### 第三方技能：ego-browser（ego lite 浏览器）
+
+ego lite 自带的浏览器技能以**原样分发**方式入库：真源是 `base/skills/productivity/ego-browser/`（`SKILL.md` + `references/` + `scripts/` + `agents/` + `assets/` + `learnings/`）。它是 plain `SKILL.md`（无 `SKILL.src.md`），走 `ship.mjs` 的 `srcMode=false` 直拷分支；`vendors.json` 的 `managedPrefixes` 含 `ego-browser`，所以 `node base/scripts/ship.mjs install` 会把它同步到全部全局技能目录（含 dsh 读取的 `~/.agents/skills`）。
+
+- **上游源**：ego lite 应用安装目录下的 `ego-skills/ego-browser/`——本机为 `C:\Program Files\Citro Labs\ego lite\Application\<版本>\ego-skills\ego-browser`（当前 0.6.0.16）。仓库副本与该目录逐字一致；升级 ego 后从新的版本目录回灌仓库，再跑 `ship install`，不要只留安装副本。
+- **运行时引导**：技能正文只教一件事——任何浏览器任务前先跑 `ego-browser skill`，按它打印的（与安装版本匹配的）用法指南执行；升级 ego 或输出提示时重跑。
+- **learnings 是生长状态**：`learnings/` 随使用增长，仓库里存的只是 ego 出厂 seed。真正生长的目录（`~/.agents/skills`、`~/.workbuddy/skills`）在 `foreignInstalled` 里被跳过，所以积累不会被覆盖；本仓装到其他厂商的那几份是 seed 副本，ego 不往那里写，重装冲掉也无损失，因此**不再**登记 `preserveOnInstall`（那是给 quarkclouddrive 登录态那种「本仓安装、又要保住运行时状态」的目录用的）。
+- **上游安装器占位**：`vendors.json` 的 `foreignInstalled` 声明 `ego-browser: ["opencode", "kimi", "workbuddy"]`——这三处目标里 ego 自己装过一份（目录连同 Program Files 的只读 ACL 一起复制下来，普通用户无写权限），本仓安装器不触碰，记为**跳过**而非失败；其余厂商（codebuddy / codeartsdoer / trae-cn / qoder-cn / qwenworkcn）由本仓正常安装。收编那三处需先以管理员删除旧副本。
+- **不随本仓改造**：第三方技能不改写、不翻译、不压缩 description——保持与上游逐字一致，否则下次回灌即冲突。
+
 ### 临时文件
 
 所有临时脚本统一放在仓库 `.temp/scripts/` 下；其他临时文件（脚本输出、日志等）也要分类，放在 `.temp/` 的子目录下（如 `.temp/output/`、`.temp/logs/`），保证仓库根目录干净。
