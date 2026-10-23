@@ -1,6 +1,6 @@
 ---
 name: dbx
-description: 引导使用 DBX 数据库桌面客户端的 MCP（宿主工具名 mcp__dbx__<原生名>，43 个：连接管理/结构探查/SQL 执行/会话与事务/Redis/Kafka 与 RabbitMQ/Salesforce 写入/文件同步与定时备份）。当用户说「跑个 SQL」「查一下 192.168.0.6 上那张表」「看下库结构」「这表有哪些字段」「连库写个查询」「这个长文本字段读全」「先 USE 再查」「批量跑脚本」「看看 Redis 的 key」「peek 一下 Kafka 消息」「做个定时备份/同步」「把结果在 DBX 里打开」时使用。关键词：dbx / SQL / 数据库 / 表结构 / MySQL / SQL Server / Redis / Kafka / RabbitMQ / 备份。
+description: DBX 数据库客户端 MCP：SQL、库结构、Redis/Kafka、备份同步。触发词：跑 SQL、看库结构、dbx。
 metadata:
   version: 1.0.0
 ---

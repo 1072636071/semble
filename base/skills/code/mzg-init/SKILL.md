@@ -1,6 +1,6 @@
 ---
 name: mzg-init
-description: 为当前目录（任意项目）初始化 mzg（zvec-grep fork）代码索引。当用户需要：(1) 对某个目录/仓库跑 mzg 建索引，(2) 检查 mzg 索引状态（是否就绪/过期），(3) 重建或删除 mzg 索引，(4) 把 mzg 接入某个 agent harness（--install --target），(5) 报错 ROOT_NOT_FOUND、索引未配置、needs an update 等问题时使用。零依赖 Node 脚本，一条命令完成「状态探测 → 建索引 → 就绪校验」。
+description: 为目录建 mzg 代码索引，并查状态、重建、接入 harness。触发词：建索引、mzg。
 metadata:
   version: 1.0.0
 ---

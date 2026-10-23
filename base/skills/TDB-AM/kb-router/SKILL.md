@@ -1,6 +1,6 @@
 ---
 name: kb-router
-description: 知识路由——决定知识存到/查询哪个知识库：WeKnora（文档 / 知识 / 图片）还是灵枢（记忆 / 技能 / 任务）。当 agent 要保存知识/素材/fact/图片/wiki、或用户问"知识放哪""存到哪个库""WeKnora 和灵枢怎么分工"时使用。触发词：知识路由、知识放哪、WeKnora、灵枢、kb 召回。
+description: 知识路由：知识存到或查哪个库（WeKnora 文档 / 灵枢记忆）。触发词：知识放哪、kb 路由。
 version: 0.3.0
 x-install: true
 metadata:

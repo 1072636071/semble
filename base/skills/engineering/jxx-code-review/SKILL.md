@@ -1,6 +1,6 @@
 ---
 name: jxx-code-review
-description: 审查自固定点（commit、branch、tag 或 merge-base）以来的变更；检测到 ocr CLI 走委托模式 3 维度（标准+spec+规则），未装则降级 2 维度（标准+spec），各维度并行子 agent 并排报告。当用户想审查 branch、PR、进行中的变更，或要求“review since X”/“review 自 X 以来”时使用。触发词：code review、审查代码。
+description: 审查自固定点以来的变更，多维度并行取证。触发词：code review、审查代码。
 metadata:
   version: 1.3.1
 ---

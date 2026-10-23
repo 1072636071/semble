@@ -1,6 +1,6 @@
 ---
 name: jxx-setup-skills
-description: 为仓库配置工程技能环境：issue tracker、triage 标签、领域文档、项目技能目录（docs/agents/skills/ 与 AGENTS.md 技能清单），并检测/询问安装 OCR。首次使用前运行一次；项目技能增删改后用它同步清单。触发词：setup skills、初始化环境、同步技能清单。
+description: 为仓库配置工程技能环境：tracker、triage 标签、领域文档、技能清单。触发词：setup skills、初始化环境。
 disable-model-invocation: false
 metadata:
   version: 1.5.0

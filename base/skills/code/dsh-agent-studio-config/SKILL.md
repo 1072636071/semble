@@ -1,6 +1,6 @@
 ---
 name: dsh-agent-studio-config
-description: 统一维护 dsh-agent-studio（DeepSeek Harness Agent Studio 插件）的运行配置：备份/读取现状、新建代理并复刻三面（提示词集/工具集/技能集）、改提示词段/工具集/技能集、绑定/解绑预设、回滚、POST 后验证。走插件 HTTP 配置通道（GET/POST /api/dsh-agent-studio/config），把一次真实工单（115-01）踩过的坑固化成「照着做就不会错」的操作手册与零依赖脚本。当需要配置或修改 dsh-agent-studio、配代理 agent、建/改提示词集（promptSets）或工具集（toolSets）或技能集（skillSets）、绑定预设（bindings）、studio 配置回滚、配子代理花名册（children）、理解或规避「绑定即接管」语义时使用。触发词：配置/修改 dsh-agent-studio、配代理 agent、提示词集、工具集、技能集、绑定预设、studio 回滚、子代理花名册、绑定即接管。
+description: 维护 dsh-agent-studio 配置：提示词集、工具集、技能集、绑定预设。触发词：studio 配置、提示词集、绑定预设。
 x-install: true
 x-scope: global
 metadata:

@@ -1,6 +1,6 @@
 ---
 name: jxx-caveman
-description: 极简输出模式——保留全部技术内容，删除全部废话。当用户要求"简洁点""别说废话""压缩输出""caveman""原始人模式""terse"，或当前输出明显注水（客套、填充词、重复复述、装饰性表格）时使用。
+description: 极简输出：删废话留技术内容，输出注水时也触发。触发词：简洁点、别说废话、caveman。
 x-install: true
 metadata:
   version: 1.1.0

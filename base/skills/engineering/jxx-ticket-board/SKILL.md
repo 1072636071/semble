@@ -1,6 +1,6 @@
 ---
 name: jxx-ticket-board
-description: 工单公告板：把 git 仓库开成多 worktree 并行协作场，本会话即领导者。触发词：公告板、领卡、投卡、工单看板、auto、自动编排、合并、回收工作空间。
+description: 工单公告板：多 worktree 并行协作，本会话即领导者。触发词：工单看板、领卡、auto、合并。
 disable-model-invocation: false
 metadata:
   version: 0.16.1

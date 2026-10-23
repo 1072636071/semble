@@ -1,6 +1,6 @@
 ---
 name: jxx-grill-me
-description: 对计划或设计穷追不舍地 grill（追问），直到我们达成共同理解。当用户想在构建前对计划做压力测试，或使用任何 "grill" 触发词时启用。
+description: grill 计划或设计，逐轮追问到无遗留问题。触发词：grill、一起决策。
 metadata:
   version: 1.0.0
 disable-model-invocation: false

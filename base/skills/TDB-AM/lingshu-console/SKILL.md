@@ -1,6 +1,6 @@
 ---
 name: lingshu-console
-description: 灵枢资源管理台——「人主动管理灵枢资源」的诉求渠道：把自然语言管理诉求翻译成对灵枢 7 工具面的调用编排（查数据 memory_list/recall/graph，改记忆 memory_manage 的 edit/status/restore/delete，找图 memory_image，管项目库 memory_project_kb），并指路 lumen 全景页（页面可直接编辑/删除/恢复单条记忆，工单 89-04）。当用户说「看看灵枢里有什么 / 改这条记忆 / 删掉这条 / 恢复 / 灵枢数据全景 / 帮我管一下记忆」时使用。触发词：灵枢管理、灵枢资源、改记忆、删记忆、恢复记忆、记忆统计、灵枢全景、lumen。
+description: 灵枢资源管理：查改删记忆、找图、管项目库、lumen 全景。触发词：灵枢管理、改记忆、删记忆。
 version: 0.1.0
 x-scope: global
 disable-model-invocation: false

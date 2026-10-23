@@ -1,10 +1,6 @@
 ---
 name: jxx-grill-with-memorial
-description: >
-  通过 grill（穷追不舍的访谈）打磨计划或设计，全过程持久化到 memorial 奏报目录。
-  证据先行：有疑问先查一手资料（项目代码 → 索引 → MCP → 官方文档 → 社区）再开口，不用世界知识冒充事实。
-  当用户想讨论方案、梳理需求、澄清设计、做技术决策时使用。
-  触发词: memorial, 奏报, grill 方案, 讨论设计, 梳理需求, 分析需求。
+description: grill 计划或设计，全程落 memorial 奏报。触发词：memorial、奏报、讨论设计、梳理需求。
 metadata:
   version: 1.2.0
 ---

@@ -1,6 +1,6 @@
 ---
 name: jxx-ask-matt
-description: 询问该用哪个技能或流程（flow）——本仓库技能的路由器。触发词：哪个技能、怎么选技能、router。
+description: 本仓库技能路由器：该用哪个技能、哪条流程。触发词：哪个技能、怎么选技能、router。
 disable-model-invocation: false
 metadata:
   version: 1.0.0

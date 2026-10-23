@@ -1,6 +1,6 @@
 ---
 name: jxx-implement
-description: 按 spec 或工单实现：在工单 worktree 开发、走统一看板流转，收口四段（复核→预演冲突→合 main→回收）。触发词：实现、implement、工单实现。
+description: 按工单或 spec 实现：worktree 开发、看板流转、合并收口。触发词：实现、implement。
 disable-model-invocation: false
 metadata:
   version: 1.8.1
