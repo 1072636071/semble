@@ -59,7 +59,7 @@ ego lite 自带的浏览器技能以**原样分发**方式入库：真源是 `ba
 - **运行时引导**：技能正文只教一件事——任何浏览器任务前先跑 `ego-browser skill`，按它打印的（与安装版本匹配的）用法指南执行；升级 ego 或输出提示时重跑。
 - **learnings 是生长状态**：`learnings/` 随使用增长，仓库里存的只是 ego 出厂 seed。真正生长的目录（`~/.agents/skills`、`~/.workbuddy/skills`）在 `foreignInstalled` 里被跳过，所以积累不会被覆盖；本仓装到其他厂商的那几份是 seed 副本，ego 不往那里写，重装冲掉也无损失，因此**不再**登记 `preserveOnInstall`（那是给 quarkclouddrive 登录态那种「本仓安装、又要保住运行时状态」的目录用的）。
 - **上游安装器占位**：`vendors.json` 的 `foreignInstalled` 声明 `ego-browser: ["opencode", "kimi", "workbuddy"]`——这三处目标里 ego 自己装过一份（目录连同 Program Files 的只读 ACL 一起复制下来，普通用户无写权限），本仓安装器不触碰，记为**跳过**而非失败；其余厂商（codebuddy / codeartsdoer / trae-cn / qoder-cn / qwenworkcn）由本仓正常安装。收编那三处需先以管理员删除旧副本。
-- **不随本仓改造**：第三方技能不改写、不翻译、不压缩 description——保持与上游逐字一致，否则下次回灌即冲突。
+- **本仓只有两处扩展，回灌后必须重放**：① `references/local-install.md`——本机 ego 组件落点（`ego-browser` 命令行 junction、安装根与版本目录、用户数据、7 处技能副本及只读 ACL、上游回灌步骤）；② `SKILL.md` 的 description 末尾一句本机标注「本机默认外置浏览器技能」（外加 References 里指向①的一行）。除这两处，其余与上游**逐字一致**——第三方技能不改写、不翻译、不压缩描述。回灌后核对 `git diff` 应只剩这两处 + 上游版本号变化。
 
 ### 临时文件
 

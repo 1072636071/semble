@@ -1,0 +1,73 @@
+# 本机 ego 组件位置（jxx 维护，非上游内容）
+
+本文件由 JwikisSkills 维护，记录**这台机器**上 ego lite 相关组件的落点。回灌上游时保留本文件，不要用上游目录内容覆盖。
+机器指纹：Windows，用户 `jxc123`，ego lite `0.6.0.16`（2026-10-23 实测）。
+
+## 命令行入口
+
+`ego-browser` 由 ego lite 安装时注册进用户 PATH，不是一个独立安装的包。
+
+| 项 | 值 |
+|---|---|
+| PATH 条目（HKCU） | `C:\Users\jxc123\.local\share\ego\active_version_dir` |
+| 该目录 | Junction → `C:\Program Files\Citro Labs\ego lite\Application\0.6.0.16` |
+| 可执行文件 | `...\active_version_dir\ego-browser.exe`（= 版本目录里的同一个 exe） |
+| 验证 | `(Get-Command ego-browser).Source`；或直接 `& "...\ego-browser.exe" skill` |
+
+注意两条：
+
+- PATH 里这一条用的是混合分隔符（`~\.local/share/ego\active_version_dir`），Windows 照样认，别以为写错了。
+- **升级后旧终端拿的还是旧 PATH**；已开着的会话里 `ego-browser` 可能解析不到。新开终端，或直接走绝对路径。
+- `ego-browser skill` 打印的用法指南版本与本机安装版本绑定：实测输出 `[ego-browser:skill] ego-browser usage guide v2.1.0`。
+
+## 安装根
+
+| 用途 | 路径 |
+|---|---|
+| 应用根 | `C:\Program Files\Citro Labs\ego lite\` |
+| 启动器 | `...\ego lite\Application\ego.exe` |
+| 当前版本目录 | `...\ego lite\Application\0.6.0.16\` |
+| 浏览器主程序 | `...\Application\0.6.0.16\ego-browser.exe` |
+| 技能载荷（上游真源） | `...\Application\0.6.0.16\ego-skills\ego-browser\`（22 个文件，SKILL.md 哈希 `AE3EBD9A…`） |
+| 本地跑批守护 | `...\Application\0.6.0.16\local-ego-daemon\` |
+| 安装器 / 更新器 | `...\Application\SetupMetrics\`、`%LOCALAPPDATA%\Citro Labs\EgoUpdater\` |
+
+## 用户数据
+
+| 用途 | 路径 |
+|---|---|
+| Chromium 用户配置文件（cookies / 缓存 / 扩展 / 登录态） | `C:\Users\jxc123\AppData\Local\Citro Labs\ego lite\User Data\` |
+| ego 的空间状态（`space-<n>.json`） | `C:\Users\jxc123\.ego-browser\state\` |
+| 更新遥测 | `C:\Users\jxc123\AppData\Local\Citro Labs\ego lite\update_telemetry.json` |
+
+清理 cookie / 缓存 / 存储前先读 [clearing-state.md](clearing-state.md)——有些清理会波及整个配置文件。
+
+## 技能副本（同一份技能，7 处落点）
+
+| 落点 | 谁维护 | 可写 |
+|---|---|---|
+| `~/.agents/skills/ego-browser`（dsh 读这里） | ego 自带安装器 | **否**，只读 ACL |
+| `~/.workbuddy/skills/ego-browser` | ego 自带安装器 | **否**，只读 ACL |
+| `~/.codebuddy/skills/ego-browser` | 本仓 `ship install` | 是 |
+| `~/.codeartsdoer/skills/ego-browser` | 本仓 `ship install` | 是 |
+| `~/.trae-cn/skills/ego-browser` | 本仓 `ship install` | 是 |
+| `~/.qoder-cn/skills/ego-browser` | 本仓 `ship install` | 是 |
+| `~/.qwenworkcn/skills/ego-browser` | 本仓 `ship install` | 是 |
+
+前两处由 ego 安装器写入，**连同 `C:\Program Files` 的只读 ACL 一起复制下来**：普通用户在该目录下连新建文件都被拒（`Access to the path ... is denied`），`icacls` 也改不动（需管理员）。本仓 `vendors.json` 的 `foreignInstalled` 因此把 `opencode` / `kimi` / `workbuddy` 三个目标标为跳过。
+
+后果：**改仓库副本不会更新 `~/.agents/skills` 那份**（dsh 看到的就是旧的）。要收编：管理员删掉 `~/.agents/skills/ego-browser` 与 `~/.workbuddy/skills/ego-browser`，再从 `vendors.json` 的 `foreignInstalled` 里移除对应平台，跑一次 `node base/scripts/ship.mjs install`。
+
+## 上游回灌
+
+ego 升级后，版本目录变成 `Application\<新版本>\`，`active_version_dir` junction 由 ego 自己改指。
+
+```powershell
+# 以仓库根为 cwd
+$src = 'C:\Program Files\Citro Labs\ego lite\Application\<新版本>\ego-skills\ego-browser'
+robocopy $src base\skills\productivity\ego-browser /E /NFL /NDL /NJH /NJS /NP
+node base/scripts/ship.mjs install
+node base/scripts/ship.mjs check
+```
+
+回灌会覆盖本文件与 `SKILL.md` 里的本机标注——重放两处：本文件重新落盘，`SKILL.md` description 末尾那句「本机默认外置浏览器技能」补回。
