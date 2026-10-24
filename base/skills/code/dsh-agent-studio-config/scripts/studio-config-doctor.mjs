@@ -39,7 +39,7 @@ async function studioFetch(url, options) {
   const text = await res.text();
   let body = null;
   try { body = JSON.parse(text); } catch { body = { ok: false, error: '响应不是 JSON：' + text.slice(0, 200) }; }
-  return { status: res.body === null ? status : res.status, body, text };
+  return { status: res.status, body, text };
 }
 import fs from 'node:fs';
 import path from 'node:path';
@@ -54,6 +54,8 @@ const USAGE = [
   '  --file       改用本地配置文件（{ok,config} 外壳或纯体都吃），不联网',
   '  --json        机器可读输出（单行 JSON，含 findings 数组）',
   '  --strict      有 error 级发现时退出码 1（CI / 门禁用）',
+  '  --root <dir>  项目根：把 <dir>/agents/skills 收进技能解析面（项目级技能，坑⑥）',
+  '  --observation <file|live>  用 GET /observation（或本地快照）交叉核对实际投递的工具面',
 ].join('\n');
 
 const args = parseArgs(process.argv.slice(2), USAGE);
@@ -78,6 +80,37 @@ if (args['--file']) {
 }
 if (!config) { console.error('配置为空（' + source + '）：agent-studio 尚未初始化'); process.exit(1); }
 
+// —— file 模式额外警告：本地快照可能已与 live 脱节（实测坑：拿过期快照改配置会把已修的项静默改回去）——
+let driftNote = '';
+if (args['--file']) {
+  try {
+    checkUrlAllowed(origin);
+    const lr = await studioFetch(origin + '/api/dsh-agent-studio/config', { method: 'GET', headers: { Origin: origin } });
+    if (lr.status === 200 && lr.body && lr.body.ok === true && lr.body.config) {
+      const live = lr.body.config;
+      const keys = ['agents', 'promptSets', 'toolSets', 'skillSets'];
+      const diffs = [];
+      for (const k of keys) {
+        const a = JSON.stringify((config[k] || []).map((x) => x.id));
+        const b = JSON.stringify((live[k] || []).map((x) => x.id));
+        if (a !== b) diffs.push(k + ' id 集不同');
+      }
+      const lb = JSON.stringify((live.bindings || {}).presets || []);
+      const cb = JSON.stringify((config.bindings || {}).presets || []);
+      if (lb !== cb) diffs.push('bindings 不同');
+      // 逐集内容浅比较（技能/工具/段数量）
+      for (const k of ['toolSets', 'skillSets']) {
+        const lm = new Map((live[k] || []).map((x) => [x.id, JSON.stringify(x)]));
+        for (const it of config[k] || []) {
+          const l = lm.get(it.id);
+          if (l && l !== JSON.stringify(it)) diffs.push(k + '「' + it.id + '」内容与 live 不同');
+        }
+      }
+      driftNote = diffs.length ? '⚠️ 本地快照与 live 有 ' + diffs.length + ' 处差异（' + diffs.slice(0, 5).join('；') + (diffs.length > 5 ? ' …' : '') + '）——在快照上改配置会把 live 里已修/已变的项静默改回去。要基于现状改就先重新 GET。' : '本地快照与 live 一致';
+    } else driftNote = 'live 拉取失败（HTTP ' + lr.status + '），无法比对快照新旧';
+  } catch (e) { driftNote = 'live 拉取异常（' + e.message + '），无法比对快照新旧'; }
+}
+
 // —— 工具面词汇表（全池并集；用于识别「话术里提到的工具名」）——
 const TOOL_UNIVERSE = new Set();
 for (const t of config.toolSets || []) for (const n of t.tools || []) TOOL_UNIVERSE.add(n);
@@ -86,6 +119,40 @@ for (const s of config.skillSets || []) for (const n of s.skills || []) SKILL_UN
 // 平台技能名（不一定在池里出现过的写法），避免把叙述里的词误判成技能名
 const SKILL_HINT = /^(?:jxx-[a-z0-9-]+|open-code-review(?:-delegate)?|kb-router|weknora-kb-ops|weknora-model-ops|lingshu-console|red-green-evidence|deploy-router|session-digest-round|dsh-agent-studio-config|dsh-host-change-verify|dsh-plugin-dev|jxx-ticket-router|memory-gateway(?:-weknora)?|tdai-agent-setup|tdai-memory-capture|find-skills|humanizer|impeccable|mzg-init|ima-skill|browser-skill|kimi-webbridge)$/;
 const TOOL_HINT = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*(?:__[a-z0-9_-]+)?$/;
+
+// —— 解析面：技能名到底存不存在（坑⑥ 的机械面）——
+// 权威源只有两个：① live GET /skills（平台解析真值，在线模式才拉）；② --root 给的 agents/skills（项目级技能）。
+// file 模式额外兜底扫 ~/.agents/skills（本技能的分发宿主），不扫其余厂商目录——各厂商副本不齐，扫了就是噪声。
+const RESOLVED_SKILLS = new Set();
+const RESOLVED_SOURCES = [];
+function scanSkillDir(dir, label) {
+  try {
+    const names = fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory() && !d.name.startsWith('.')).map((d) => d.name);
+    for (const n of names) RESOLVED_SKILLS.add(n);
+    RESOLVED_SOURCES.push(label + ' ' + names.length + ' 个');
+  } catch { /* 目录不存在就跳过 */ }
+}
+if (args['--root']) {
+  scanSkillDir(path.resolve(args['--root'], 'agents', 'skills'), '项目技能');
+  scanSkillDir(path.resolve(args['--root'], '.agents', 'skills'), '项目 .agents 技能');
+}
+if (args['--file']) {
+  const home = process.env.USERPROFILE || process.env.HOME || '';
+  if (home) scanSkillDir(path.join(home, '.agents', 'skills'), '用户级 ~/.agents/skills');
+}
+let liveSkillsNote = '未拉取';
+let liveSkillsOk = false;
+if (!args['--file']) {
+  try {
+    checkUrlAllowed(origin);
+    const sr = await studioFetch(origin + '/api/dsh-agent-studio/skills', { method: 'GET', headers: { Origin: origin } });
+    if (sr.status === 200 && sr.body && sr.body.ok === true) {
+      for (const sk of sr.body.skills || []) if (sk && sk.name) RESOLVED_SKILLS.add(sk.name);
+      liveSkillsNote = 'live /skills ' + (sr.body.skills || []).length + ' 个（source=' + (sr.body.source || '?') + '）';
+      liveSkillsOk = true;
+    } else liveSkillsNote = '拉取失败 HTTP ' + sr.status;
+  } catch (e) { liveSkillsNote = '拉取异常 ' + e.message; }
+}
 
 // —— 全景：逐代理解析三面 ——
 const promptSetById = new Map((config.promptSets || []).map((s) => [s.id, s]));
@@ -248,12 +315,73 @@ for (const pool of ['agents', 'promptSets', 'toolSets', 'skillSets']) {
   }
 }
 
+// ⑩ 幽灵技能（坑⑥ 机械面）：配置里引用了但解析面找不到 → 静默不注入。
+// 只在有权威面时判 error：live /skills（在线）或 --root（项目技能在场）。都没给就整段跳过——
+// 本地扫描面天然不全，硬判只会制造假阳性。
+if (liveSkillsOk || args['--root']) {
+  const phantom = [];
+  for (const ss of config.skillSets || []) {
+    for (const n of ss.skills || []) {
+      if (RESOLVED_SKILLS.has(n)) continue;
+      if (!phantom.some((x) => x.name === n)) phantom.push({ name: n, sets: [] });
+      phantom.find((x) => x.name === n).sets.push(ss.id);
+    }
+  }
+  for (const ph of phantom) {
+    const users = (config.agents || []).filter((a) => (a.skillSets || []).some((id) => ph.sets.includes(id))).map((a) => a.name || a.id);
+    const msg = '幽灵技能 `' + ph.name + '`：被集 ' + ph.sets.join('、') + ' 引用，但解析面找不到（' + (RESOLVED_SOURCES.join('/') || '无') + (liveSkillsOk ? '/live' : '') + '）→ 静默不注入（坑⑥）。影响代理：' + (users.join('、') || '（无代理装载）');
+    err(msg);
+  }
+} else {
+  warn('幽灵技能检查已跳过（既没拉到 live /skills 也没给 --root）：解析面不全，硬判会假阳性。在线模式复跑可判。');
+}
+
+// ⑪ observation 交叉核对（最硬的真值）：会话实际可见工具 vs 代理工具集并集
+// 只有观测到会话的代理能核（子代理按需 spawn，没会话就没有 observation）。
+if (args['--observation']) {
+  let obsBody = null;
+  if (args['--observation'] === 'live') {
+    if (!args['--file']) {
+      try {
+        checkUrlAllowed(origin);
+        const or = await studioFetch(origin + '/api/dsh-agent-studio/observation', { method: 'GET', headers: { Origin: origin } });
+        if (or.status === 200 && or.body && or.body.ok === true) obsBody = or.body;
+      } catch { /* 拉不到就不核，不假装核过 */ }
+    }
+  } else {
+    try { obsBody = JSON.parse(fs.readFileSync(path.resolve(args['--observation']), 'utf8')); } catch { /* 坏文件不核 */ }
+  }
+  if (!obsBody) {
+    warn('observation 交叉核对未执行（拿不到快照）：工具面只做了配置内自洽，没对实际投递');
+  } else {
+    const MECH = obsBody.mechanismTools || ['run_code', 'structured_output'];
+    const seen = new Set();
+    for (const sess of obsBody.sessions || []) {
+      const vis = (sess.tools && sess.tools.visible) || [];
+      // 用「工具并集 ⊇ visible」反推：哪个代理的工具集能解释这个会话
+      for (const a of agents) {
+        if (seen.has(a.id)) continue;
+        const pool = new Set(a.tools);
+        const covers = vis.every((t) => MECH.includes(t) || pool.has(t));
+        const explains = vis.filter((t) => !MECH.includes(t) && pool.has(t)).length >= 3;
+        if (!covers || !explains) continue;
+        seen.add(a.id);
+        const lack = [...pool].filter((t) => !vis.includes(t));
+        const extra = vis.filter((t) => !MECH.includes(t) && !pool.has(t));
+        if (lack.length) warn((a.name || a.id) + ' · observation：工具集里有 ' + lack.length + ' 个工具在该会话不可见（' + lack.slice(0, 6).join(', ') + (lack.length > 6 ? ' …' : '') + '）——可能该预设不收或快照过期');
+        if (extra.length) warn((a.name || a.id) + ' · observation：会话可见工具不在工具集里（' + extra.slice(0, 6).join(', ') + (extra.length > 6 ? ' …' : '') + '）——并集口径与实投不一致');
+      }
+    }
+    if (!seen.size) warn('observation 有快照但匹配不到任何代理（会话可能是未绑定的官方 subagent，或工具集已大变）');
+  }
+}
+
 const errCount = findings.filter((f) => f.level === 'error').length;
 const warnCount = findings.filter((f) => f.level === 'warn').length;
 
 if (args['--json']) {
   console.log(JSON.stringify({
-    source, pools: {
+    source, drift: driftNote || undefined, pools: {
       agents: (config.agents || []).length,
       promptSets: (config.promptSets || []).length,
       toolSets: (config.toolSets || []).length,
@@ -262,13 +390,17 @@ if (args['--json']) {
     },
     agents: agents.map((a) => ({ id: a.id, name: a.name, background: a.background, bound: a.bound, children: a.children, promptSets: a.prompt.ids, toolSets: a.tool.ids, skillSets: a.skill.ids, sections: a.prompt.sections, tools: a.tool.items, skills: a.skill.items, orderedSections: a.orderedCount })),
     findings,
+    resolution: { skills: RESOLVED_SOURCES, liveSkills: liveSkillsNote, liveSkillsOk, resolvableSkillCount: RESOLVED_SKILLS.size },
     summary: { error: errCount, warn: warnCount },
   }));
 } else {
   const W = 22;
-  const pad = (s, n) => { s = String(s); return s.length >= n ? s : s + ' '.repeat(n - s.length); };
-  const padL = (s, n) => { s = String(s); return s.length >= n ? s : ' '.repeat(n - s.length) + s; };
+  // CJK 宽显格：按显示宽度补空格，表格才对得齐（中文名占两格）
+  const dw = (x) => { let w = 0; for (const ch of String(x)) w += /[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6]/.test(ch) ? 2 : 1; return w; };
+  const pad = (x, n) => { x = String(x); const d = n - dw(x); return d <= 0 ? x : x + ' '.repeat(d) };
+  const padL = (x, n) => { x = String(x); const d = n - dw(x); return d <= 0 ? x : ' '.repeat(d) + x };
   console.log('# agent 中心配置体检（' + source + '）');
+  if (driftNote) console.log(driftNote);
   console.log('池: agents ' + (config.agents || []).length + ' · promptSets ' + (config.promptSets || []).length + ' · toolSets ' + (config.toolSets || []).length + ' · skillSets ' + (config.skillSets || []).length + ' · bindings ' + (((config.bindings || {}).presets) || []).length);
   console.log('');
   console.log('| 代理 | 后台 | 绑定 | 段 | 工具 | 技能 | 子代理 | 提示词集 / 工具集 / 技能集 |');
@@ -281,6 +413,7 @@ if (args['--json']) {
   if (!findings.length) console.log('  无。三面与话术一致，无空集、无悬空引用、无坑⑮ 双份文本。');
   for (const f of findings) console.log('  [' + (f.level === 'error' ? 'ERROR' : 'warn ') + '] ' + f.msg);
   console.log('');
+  console.log('技能解析面: ' + (RESOLVED_SOURCES.length ? RESOLVED_SOURCES.join(' · ') : '（未扫到技能目录）') + ' · ' + liveSkillsNote + ' · 可判定 ' + RESOLVED_SKILLS.size + ' 个技能名');
   console.log('口径：error = 会静默失效或已被平台拒；warn = 该看但不一定坏。修法见 SKILL.md 与 references/pitfalls.md。');
 }
 

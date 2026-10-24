@@ -76,6 +76,16 @@ node $skill/studio-config-doctor.mjs --strict                          # 有 err
 | warn | 该看但不一定坏 | 技能面为空（确实不需要就在 note 写「无技能面」消警）；工具集漏 `skill` 工具（坑⑦） |
 | ok | — | 预留 |
 
+**五个可选面**（按需加，都是只读）：
+
+| 面 | 命令 | 抓什么 |
+|---|---|---|
+| 幽灵技能 | `--root <项目根>` | 配置里引用了但解析面找不到的技能名（坑⑥）：live `/skills` ∪ 项目 `agents/skills`。缺 `--root` 时项目技能会被误判，所以这条只在给了 `--root` 或在线模式下才判 error |
+| 实投核对 | `--observation live`（或本地快照文件） | 会话实际可见工具 vs 代理工具集并集——唯一能证明「工具真发出去了」的真值 |
+| 快照漂移 | `--file x.json`（自动） | 本地快照与 live 的差异数；在过期快照上改配置会把 live 已修的项静默改回 |
+| 机器可读 | `--json` | 单行 JSON，接 CI / 门禁 |
+| 非零退出 | `--strict` | 有 error 退 1，配 `npm run check:all` 一类闸 |
+
 **为什么值得单独一把**：POST 的 200 只证明形状合法——错字、漏装、双份文本全都能进 live 然后静默不生效。`verify` 证明「写进去了」，`doctor` 证明「配得对」。两件事缺一不可。
 
 修法：error 逐条回流程 A/B/C 改配置再 POST；修完必须复跑到 error 0。

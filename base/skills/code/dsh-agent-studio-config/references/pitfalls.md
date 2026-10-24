@@ -103,6 +103,13 @@
   ③ 空集、悬空引用、绑定预设的空面，全是合法配置。
 - **预防/修法**：动配置前后跑 `scripts/studio-config-doctor.mjs`（live / `--file` / `--json` / `--strict`）——它把上面三类 + 全部结构面做成一张表，error 级发现项逐条修到 0。**有意留空的面**（如不需要技能的纯 CLI 模式）在代理 `note` 里写「无技能面」，把 warn 消成已知决策，而不是留着噪音。
 
+## ⑰ 过期快照上改配置 = 静默回滚已修的项
+
+- **现象**：doctor 报的问题明明修过，改完再跑又回来了；或某次 POST 后某个技能/工具「自己不见了」。
+- **根因**：`--file backup.json` 那份快照是早先 GET 的。此后 live 又被别的会话 / 别的 POST 改过。在旧快照上增改再整池 POST，**数组整体替换语义**会把快照之后发生的所有改动一次性覆盖回旧值——没有版本冲突、没有报错（写入端点没有乐观锁）。
+- **实证（2026-10-24）**：先在快照 A 上给 `reviewer-spec-skills` 补了 `jxx-to-tickets` 并 POST 成功；随后拿一份**更早的**快照 B 做另一处修改并 POST——`jxx-to-tickets` 被静默抹掉，doctor 立刻报回同一条 error。
+- **预防/修法**：① 每次要改配置前**重新 GET** 一份新备份（SKILL.md 标准操作流第 4c 步），别复用旧文件；② doctor 的 `--file` 模式会自动与 live 比对并报「与 live 有 N 处差异」，看到这条就重新取快照；③ 改完跑 doctor 复检 error 归零，别只信 POST 的 200。
+
 ## 实操纪律（从上面提炼）
 
 1. 任何 POST 前：validate 过 + doctor error 0 + bindings 心里有数；任何 POST 后：verify 过 + doctor 复跑 error 0。

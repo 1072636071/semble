@@ -29,10 +29,11 @@ metadata:
 | 2 复刻 | 拿三面真值 | `GET /observation`（get 脚本 `--observation`）；采不到目标预设就降级：复刻现网已装载集 + observation 交叉核验（见 pitfalls ⑤） | 段/工具/技能清单齐全，机制工具 `run_code`/`structured_output` 核对 |
 | 3 构造 | 在备份上增改 | 手工/脚本拼新配置（**六池**：agents/promptSets/toolSets/skillSets/runtimeContextOff/bindings 全给） | 新代理默认**不绑定**；不动 bindings |
 | 4 校验 | 本地静态校验 | `scripts/studio-config-validate.mjs proposed.json` | 退出码 0、无 error（warning 逐条人审） |
-| 4b 体检 | **当前配置哪里会静默失效** | `scripts/studio-config-doctor.mjs`（live）/ `--file proposed.json`（待生效） | error 0 才继续；error = 话术↔三面不一致 / 坑⑮ 双份文本 / 空面 / 悬空引用 |
+| 4b 体检 | **当前配置哪里会静默失效** | `scripts/studio-config-doctor.mjs`（live）/ `--file proposed.json`（待生效） | error 0 才继续；error = 话术↔三面不一致 / 坑⑮ 双份文本 / 空面 / 悬空引用 / 幽灵技能 |
+| 4c 取新快照 | 基于**现状**改配置前重取备份 | `scripts/studio-config-get.mjs --out backup.json` | 过期快照上改配置 = 把 live 已修的项静默改回（doctor --file 会报「与 live 有 N 处差异」） |
 | 5 POST | dry-run → apply | `scripts/studio-config-post.mjs proposed.json`（默认 dry-run，`--apply` 才真写） | 返回 `200 {"ok":true,...}`，人审 warnings |
 | 6 验证 | 回读对拍 | `scripts/studio-config-verify.mjs proposed.json --backup backup.json` | live 与期望深相等、bindings 与备份逐字未动、diff 只含本次新增/改动条目 |
-| 6b 复检 | live 再体检一次 | `scripts/studio-config-doctor.mjs --origin <origin>` | error 0；warn 逐条裁决（有意留空就在 note 写「无技能面」消警） |
+| 6b 复检 | live 再体检一次 | `scripts/studio-config-doctor.mjs --origin <origin> --root <项目根>` | error 0；warn 逐条裁决（有意留空就在 note 写「无技能面」消警）。要核对实投再加 `--observation live` |
 
 回滚：`scripts/studio-config-rollback.mjs backup.json`（默认 dry-run，`--apply` 才写）——从 `{ok,config}` 备份剥壳出纯体 POST 回去。四个端到端流程（新建未绑定代理 / 改提示词段 / 绑定解绑 / 回滚）见 [references/workflows.md](references/workflows.md)。
 
