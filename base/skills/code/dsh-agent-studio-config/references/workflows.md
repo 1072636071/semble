@@ -57,6 +57,29 @@
 4. 验证：`node $skill/studio-config-verify.mjs <重新构造的期望文件> --origin $origin --backup backup.json`；最简验证 = 再跑一次 get 存 after-rollback.json，与备份 `.config` 深相等。
 5. 回退后新开会话即恢复；已存在会话下次装配也回到回滚配置。
 
+## 体检（每个流程的第 4b / 6b 步展开）
+
+**动配置前后各跑一次**，零写入、零风险：
+
+```bash
+node $skill/studio-config-doctor.mjs                                   # live 现状
+node $skill/studio-config-doctor.mjs --file proposed.json              # 待生效配置
+node $skill/studio-config-doctor.mjs --json                            # 机器可读（接门禁）
+node $skill/studio-config-doctor.mjs --strict                          # 有 error 退出码 1
+```
+
+它回答两个问题：**当前到底配了什么**（每代理的段/工具/技能计数 + 装载了哪些集）+ **哪里会静默失效**。发现项分三级：
+
+| 级别 | 判据 | 典型症状 |
+|---|---|---|
+| error | 会静默失效，或已被平台拒 | 话术要求用某工具/技能但三面没装（坑①/⑥）；坑⑮ 双份文本不一致；绑定预设但工具面/段面为空（坑⑨）；池 id 重复；children/bindings 悬空引用 |
+| warn | 该看但不一定坏 | 技能面为空（确实不需要就在 note 写「无技能面」消警）；工具集漏 `skill` 工具（坑⑦） |
+| ok | — | 预留 |
+
+**为什么值得单独一把**：POST 的 200 只证明形状合法——错字、漏装、双份文本全都能进 live 然后静默不生效。`verify` 证明「写进去了」，`doctor` 证明「配得对」。两件事缺一不可。
+
+修法：error 逐条回流程 A/B/C 改配置再 POST；修完必须复跑到 error 0。
+
 ## 配完如何新开会话验证（每个流程的第 6 步展开）
 
 在目标预设下**新开**一个会话（001 坑⑦：新开会话是最干净的验证路径），逐条核对：

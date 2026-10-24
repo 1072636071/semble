@@ -86,9 +86,26 @@
 - **根因**：导出含未保存草稿；id 是唯一键。
 - **预防/修法**：API 回滚（`studio-config-rollback.mjs`）走整体替换没有撞 id 问题；面板导入只作人肉兜底，导入后记得「保存改动」才落盘（115-01 §3）。
 
+## ⑮ 改了 promptSets 但子代理提示词没变（orderedSections 接管旧路）
+
+- **现象**：POST 改 `promptSets[i].sections[].text` 后 `GET /config`、`studio-config-verify` 全 PASS，但新派出的子代理 system prompt 仍是旧文本（2026-10-23 实测：developer 的角色规则改了两轮、子代理照旧带旧句）。
+- **根因**（apply.js:309-337）：代理对象上还有 `orderedSections`。它与 `promptSets` **同时非空时新路接管**——装配期走 orderedSections 里的段清单与段内联 `text`，promptSets 只当兜底。改了 promptSets 等于改了一条没人走的路。
+- **判据**：读 `GET /config` 的 `agents[].orderedSections`；有该项（非空数组）且对应段带 `text` ⇒ 真正生效的是它。日志里能看见 `orderedSections 与 promptSets 同时非空 = 新路接管旧路`（apply.js:333-336）。
+- **预防/修法**：改角色/人设等段文本时，**两处都改**：`agents[].orderedSections[].text`（生效）+ `promptSets[].sections[].text`（同步，防旧路回潮后读到旧文）。改完必须派一个只读探针子代理，回读它 session 日志里的 system prompt 才算验证（GET 回读对拍只能证明"写进去了"）。
+- **为什么容易踩**：八池校验只看形状，不校验两处一致；`studio-config-validate.mjs` 也不会报。
+
+## ⑯ 配好了 ≠ 配对了（doctor 补的机械面）
+
+- **现象**：POST 返回 200、`verify` 全 PASS，但子代理运行期「话术让用的工具被 guard 拦」「技能目录里找不到某技能」「改了两轮角色段文本子代理照旧带旧句」。
+- **根因**：写入端点只做形状/重叠校验（api.js:297-320）；`verify` 只对拍「写没写进去」，不对拍「配得对不对」。三类漂移全部合法地活着：
+  ① 话术与工具/技能面是两份独立数据，端点不查一致性（坑①的机制面）；
+  ② `orderedSections` 与 `promptSets` 双份文本可各改一处（坑⑮）；
+  ③ 空集、悬空引用、绑定预设的空面，全是合法配置。
+- **预防/修法**：动配置前后跑 `scripts/studio-config-doctor.mjs`（live / `--file` / `--json` / `--strict`）——它把上面三类 + 全部结构面做成一张表，error 级发现项逐条修到 0。**有意留空的面**（如不需要技能的纯 CLI 模式）在代理 `note` 里写「无技能面」，把 warn 消成已知决策，而不是留着噪音。
+
 ## 实操纪律（从上面提炼）
 
-1. 任何 POST 前：validate 过 + bindings 心里有数；任何 POST 后：verify 过。
+1. 任何 POST 前：validate 过 + doctor error 0 + bindings 心里有数；任何 POST 后：verify 过 + doctor 复跑 error 0。
 2. 复刻永远以 observation/现网集为源，不凭记忆抄清单（⑨⑫）。
 3. 工具集先想 `skill`（⑦），PTC 先想 sdk/ptc-only（⑧），话术先对工具面（①）。
 4. 派活只走 studio_* 两把（⑪），验证只信新会话（坑⑦/②）。
