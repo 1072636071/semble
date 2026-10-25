@@ -1,0 +1,35 @@
+{
+  "skill_name": "jxx-agnes-image",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我生成一张 16:9 的 2K 电影感产品主图，主题是玻璃立方体放在白色摄影棚背景上",
+      "expected_output": "使用 jxx-agnes-image 的 text 子命令：--size 2K --ratio 16:9，提示词含主体+场景+光照+质量要求；返回 url 与落盘路径",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "把这张照片改成赛博朋克夜景，保留原来的构图（图片在 D:/photos/street.png）",
+      "expected_output": "使用 img2img 子命令，本地文件自动转 Data URI；提示词显式要求保留原始构图",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "用这两张角色图合成一张奇幻战斗海报，第一张是主角第二张是反派",
+      "expected_output": "使用 compose 子命令传 2 张 --image；提示词说明每张参考图的角色与图间关系",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "我要 base64 格式的图片，直接拿去调另一个接口",
+      "expected_output": "使用 --format b64 与 --b64-stdout；说明 return_base64 顶层开关与 extra_body.response_format 的区别",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "生成图片报 400，说 response_format 有问题",
+      "expected_output": "指出 response_format 不能放请求体顶层，必须放 extra_body.response_format；并确认脚本已固化正确形状",
+      "files": []
+    }
+  ]
+}

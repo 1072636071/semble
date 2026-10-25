@@ -1,0 +1,23 @@
+{
+  "skill_name": "jxx-html-craft",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我把这次压测的结果整理成一个 HTML 报告页",
+      "expected_output": "agent 加载 jxx-html-craft，生成自包含单文件 HTML：完整 head 五件套、语义地标、内联 CSS、自建字阶与配色、tabular-nums 数据表、8 项自检通过，且压测数字标注来源或示意",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "写一个单文件工具页，输入 JSON 输出格式化预览",
+      "expected_output": "agent 加载 jxx-html-craft：内联 JS 无控制台报错、代码块等宽且横向可滚动、375px 宽度无横向滚动、按钮有 hover/disabled 态、键盘焦点可见",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "给我们的新产品做一个正式的 landing page",
+      "expected_output": "agent 判定为重量级设计：以本技能质量底线为基础，升级到 impeccable 走方向/模式/验证轮次，而不是只用底线草草交付",
+      "files": []
+    }
+  ]
+}

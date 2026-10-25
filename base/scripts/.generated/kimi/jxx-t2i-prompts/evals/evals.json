@@ -1,0 +1,35 @@
+{
+  "skill_name": "jxx-t2i-prompts",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "用 Midjourney 画一张 3D 写实国风美女，月光庭院，侧身回眸",
+      "expected_output": "命中内置模板 portrait-guofeng-3d：按八模块填槽，补 Midjourney 参数（--ar --style），负面词转成 --no；给出可直接投喂的一段提示词，并说明若要改朝换代只改两格。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "帮我写个赛博朋克雨夜街头的出图提示词，用 Flux",
+      "expected_output": "库内无精确命中 → 按 sourcing.md 的渠道配方搜（或直接按其骨架现场拼）；给出 scene-cinematic 骨架变体 + Flux 自然语言句式，不混用 SD 权重语法。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "这张图效果很好，存下来以后复用",
+      "expected_output": "走 harvest-protocol：先 new 生成骨架（或 copy 内置模板 fork），填实 id/name/category/tags/source/verified 与六小节，示例 ≥40 字符无占位符，跑 add 入库，向用户回报库路径与索引更新。",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "即梦上画国风美女，总出成 2D 怎么办",
+      "expected_output": "读 platforms.md 的即梦段（自然语言整句），给出改写：加 3D CGI / Unreal Engine 5 / 3d anime style 权重说明，并说明该平台负面词支持情况；不套 Midjourney 参数。",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "把这个提示词存下来，以后我在这个项目里还要用",
+      "expected_output": "走 harvest：写全局库 ~/.agents/t2i-prompts/<id>.md，add 后自动镜像到 <项目根>/.scratch/t2i-prompts/ 并重建项目 index.md；回报两处路径，说明项目副本随仓库提交、check 能验漂移。",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "skill_name": "jxx-agnes-video",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "生成一段 5 秒的 16:9 视频：雨后未来城市街道，霓虹倒影，银色跑车驶过",
+      "expected_output": "使用 run text 子命令，--seconds 5，size 固定 720P；返回 video_id 并轮询到 completed 给出 mp4 路径",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "让这张图作为首帧、那张图作为尾帧，生成人物转身走向窗边的视频",
+      "expected_output": "使用 run keyframe + --first-frame/--last-frame；说明两者至少一个，且都需公网 URL",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "以这个角色形象为参考生成一段花田奔跑视频，要保持外观一致",
+      "expected_output": "使用 run reference + --image；提示词用 <Picture 1> 指代素材；images ≤ 5",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "参考这段音频的节奏生成夜间驾驶画面",
+      "expected_output": "使用 run reference + --audio；提示词用 <Audio 1> 指代；audios ≤ 3",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "查询刚才那个视频任务好了没，video_id 是 task_xxx",
+      "expected_output": "使用 query --video-id，带 model_name=agnes-video-2.5-flash；说明纯 video_id 仅适用 text 模式",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "生成视频一直报 video_queue_full 怎么办",
+      "expected_output": "说明这是实测发现的服务端队列满限制，脚本已内置 5 次退避重试；仍失败则稍后重试或错峰",
+      "files": []
+    }
+  ]
+}
