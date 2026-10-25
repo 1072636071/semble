@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.0 — 2026-10-25
+
+**涉及 UI 的功能写 PRD 前先问「UI 验收谁做」**：第 2 步末尾新增询问（默认 agent 不代验——不开浏览器、不截图，UI 体验项进 `HUMAN-CHECK.md`；用户要求代验时 PRD 对应 AC 记 `验证:人工 <HUMAN-CHECK 第 n 条>` 并标授权）；模板「验收点（AC）」节补一句口径，pointer 指向 `jxx-to-tickets/references/acceptance-criteria.md` §二之一（唯一权威源，不复制判据）。起因：下游 developer 拿浏览器做 UI 验收，单卡多轮取证拖慢交付。
+
 ## 1.4.0 — 2026-10-23
 
 **PRD「后续修订」改指 ticket-flow**：状态 / 标签 / 认领用写腿（`--set status=… --set labels=a,b`）、打卡与评论附 `--comment`，一条命令完成「改本地 md + 推服务器」；正文整篇修订改完 md 后跑只读腿 `--file <PRD.md>` 收敛（内部 get 最新版 + `version_conflict` 重试一次）。写腿不 create，首次上行仍走 `ticket-uplink` / `jxx_ticket_call create`（`ticket_no`/`id`/`version` 留痕口径不变）；项目无该 CLI 时回退 MCP 双写（`get` 最新 `version` → `update`，409 先对账再推）。

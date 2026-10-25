@@ -3,7 +3,7 @@ name: jxx-to-tickets
 description: 将计划、spec 或对话拆解为带阻塞边（blocking edges）的追踪弹工单，发布到 issue tracker。触发词：拆工单、生成工单、to tickets。
 disable-model-invocation: false
 metadata:
-  version: 1.6.0
+  version: 1.7.0
 ---
 
 # 转化工单
@@ -50,6 +50,7 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 - 改代码的工单**必须**同时有 `[回归]` 与 `[负向]`（规范 §四）。
 - AC 编号工单内唯一、从 1 连续，跨工单不复用。
 - 覆盖矩阵落 `map.md` 的 `## AC 覆盖矩阵`（规范 §一）。
+- **含 UI 的工单**：第 4 步必须问用户「是否需要 agent 代做 UI 验收」。**默认不需要**——UI 类 AC 写成机器可断言形态（组件测试断 DOM / 文案 / 状态、e2e 用例、接口字段），剩下来的体验项落 `.scratch/<NN>-<slug>/HUMAN-CHECK.md` 等真人；agent 不主动开浏览器取证（规范 §二之一）。
 
 </ac-closure-rules>
 
@@ -71,6 +72,7 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 - 是否有工单应合并或进一步拆分？
 - 验收点是否够严：每条 AC 能不能被人一眼判成「做了 / 没做」？抽 2–3 条念给用户，问他「这样写，桩能过吗」。
 - 覆盖闸有没有空洞：用户说过的话、敲定的决策、PRD 条目，有没有哪条没落到任何 AC？（判据见规范 §八）
+- **涉及 UI 的工单：要不要 agent 代做 UI 验收？** 默认不要——agent 不主动开浏览器、不截图取证，UI 体验项进 `HUMAN-CHECK.md` 等真人；你要的话，对应 AC 记 `验证:人工 <HUMAN-CHECK 第 n 条>` 并写明「用户授权 agent 代验」（规范 §二之一）。
 
 迭代直到用户批准拆解。
 

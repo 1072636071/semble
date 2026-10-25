@@ -2,7 +2,7 @@
 /**
  * ac-audit.mjs — 验收点（AC）机械校验。
  *
- * 只查形式，不判内容：编号连续性、验证方式标注、禁词、类别覆盖、豁免声明。
+ * 只查形式，不判内容：编号连续性、验证方式标注、禁词、浏览器操作冒充机器证据、类别覆盖、豁免声明。
  * 内容判断归人和审查 agent。规范正文：jxx-to-tickets/references/acceptance-criteria.md
  *
  * 用法：node ac-audit.mjs <目录|单文件> [--strict] [--json]
@@ -25,6 +25,10 @@ const CHECKLIST_HEAD = /AC\s*勾选区/;
 const DECL_HEAD = /AC\s*覆盖声明/;
 const BANNED_WORDS = ['正确','正常','合理','良好','完整','友好','稳定','健壮','优化','改进','完善','支持','兼容','等等','若干','适当','尽可能','必要时','按需'];
 const BANNED_PATTERNS = [{ re: /等(?=[。，；、)\s]|$)/, label: '等' }, { re: /[及和]\s*其他/, label: '及其他' }];
+// 浏览器操作（截图 / 点页面 / 肉眼）不可复现、不可 grep，不构成机器证据（规范 §二 铁律 7）：
+// 只查「验证:机器」后面的载荷——「验证:人工」里写截图取证是合法的。
+const MACHINE_VERIFY = /验证\s*[:：]\s*机器\s+([^\n]*)/;
+const BROWSER_EVIDENCE = ['截图', '抓图', '肉眼', '手动点', '手点', '点页面', '点开页面', '看一眼', '人工点击', '浏览器里看'];
 // .jxx-tickets 是服务器工单投影（pull 覆盖写入），不是创作面：审它会误判，且本地补 AC 会被下次 pull 冲掉。
 const SKIP_DIRS = new Set(['reviews', '.jxx-tickets', 'node_modules', '.git', '.temp']);
 const SKIP_FILES = new Set(['map.md', 'milestones.md', 'human-check.md']);
@@ -113,6 +117,11 @@ function auditTicket(file) {
     }
     if (!ac.category) issues.push({ level: 'soft', line: ac.line, msg: 'AC-' + ac.no + ' 缺类别标签（[主路径] / [错误路径] / [回归] 等）' });
     if (!VERIFY.test(ac.body)) issues.push({ level: ac.inChecklist ? 'soft' : strictLevel, line: ac.line, msg: 'AC-' + ac.no + ' 缺验证方式或载荷（须写 验证:机器 <用例名|命令> 或 验证:人工 <HUMAN-CHECK 条目>）' });
+    const mv = ac.body.match(MACHINE_VERIFY);
+    if (mv) {
+      const bad = BROWSER_EVIDENCE.filter((w) => mv[1].includes(w));
+      if (bad.length) issues.push({ level: 'soft', line: ac.line, msg: 'AC-' + ac.no + ' 把浏览器操作当机器证据（' + bad.join(' / ') + '）——截图 / 点页面 / 肉眼不可复现，改写成组件测试断言 DOM / 文案 / 状态、e2e 用例或接口响应字段' });
+    }
     const hit = new Set(BANNED_WORDS.filter((w) => ac.body.includes(w)));
     for (const p of BANNED_PATTERNS) if (p.re.test(ac.body)) hit.add(p.label);
     if (hit.size) issues.push({ level: 'soft', line: ac.line, msg: 'AC-' + ac.no + ' 命中禁词（' + [...hit].join(' / ') + '）——模糊措辞无法机械核对' });

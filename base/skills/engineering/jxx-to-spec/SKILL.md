@@ -3,7 +3,7 @@ name: jxx-to-spec
 description: 将当前对话转化为 spec（规格文档）并发布到 issue tracker——不访谈，仅综合已有讨论。触发词：写 spec、to spec。
 disable-model-invocation: false
 metadata:
-  version: 1.4.0
+  version: 1.5.0
 ---
 
 本技能将当前对话上下文和代码库理解转化为规格文档（你可能称之为 PRD）。不要访谈用户——仅综合你已知的内容。
@@ -17,6 +17,8 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 2. 勾画出测试该功能的 seam。优先使用已有 seam 而非新建。使用尽可能高层的 seam。如果需要新 seam，在最高可能的位置提出。代码库中 seam 越少越好——理想数量是一。
 
 与用户确认这些 seam 是否符合预期。
+
+本功能**涉及 UI**（新增或改动界面、交互、用户可感知的输出）时，**写 PRD 前先问一次**：是否需要 agent 代做 UI 验收？默认不需要——agent 不主动开浏览器、不截图取证，UI 体验项进 `.scratch/<NN>-<slug>/HUMAN-CHECK.md` 等真人验；用户要求代验时，PRD 对应 AC 记 `验证:人工 <HUMAN-CHECK 第 n 条>` 并写明「用户授权 agent 代验」。判据见 `jxx-to-tickets` 技能 `references/acceptance-criteria.md` §二之一。
 
 3. 使用下面的模板编写规格文档，然后发布到项目 issue tracker。应用 `ready-for-agent` triage 标签——无需额外 triage。
 
@@ -81,6 +83,7 @@ PRD 本地落盘的**同一步**内必须同步上行服务器工单系统（jxx
 
 - **PRD 层 AC 是承诺下限**：工单层可细分（拆条、补错误路径与边界），但**不得少于** PRD 层承诺的验收点，不得删条、不得降级。
 - 每条落成机械可核对的句式：`- [ ] AC-<n> [<类别>] 当 … 时，…，则 … —— 验证:机器 <用例名|命令>`；写不出可观测结果的不算 AC。
+- **含 UI 的条目**：默认写成机器可断言形态（组件测试断 DOM / 文案 / 状态、e2e 用例、接口字段）；只有用户明确要求 agent 代验的才记 `验证:人工 <HUMAN-CHECK 第 n 条>` 并标授权（规范 §二之一）。浏览器截图不是机器证据。
 
 ## 实现决策
 

@@ -3,7 +3,7 @@ name: jxx-implement
 description: 按工单或 spec 实现：worktree 开发、看板流转、合并收口。触发词：实现、implement。
 disable-model-invocation: false
 metadata:
-  version: 1.11.0
+  version: 1.12.0
 ---
 
 实现用户在 spec 或工单中描述的工作。
@@ -66,6 +66,7 @@ node tools/jxx-bootstrap.mjs --root <项目根>        # 缺则创建（种子�
 2. **无 AC 就停手**：工单没有任何 `AC-<n>` 行（或只有「实现 X 功能」这类无断言行）⇒ **不写代码**，先按规范补 AC 或退回生产侧（`jxx-to-spec` / `jxx-to-tickets`），补完重来。
 3. **做完一条勾一条**：`- [ ] AC-n` → `- [x] AC-n`，**同一行追加证据**，行格式收敛为 `- [x] AC-<n> | 证据：<用例名 / 命令 + 退出码 / 文件:行>`——不复抄类别与验证方式（复抄会与 `ac-audit` 的类别统计打架）。证据必须自己跑出来，不抄他人结论、不写「已验证」。
 4. **全勾才交审**：AC 全部 `- [x]` 且逐条带证据，是置 `pending-review` 的前置；留未勾项就交审 ⇒ 交付不完整，直接退回。
+5. **默认不开浏览器验收（v1.12.0）**：AC 证据只能是命令 / 用例名 / `文件:行`——截图、点页面、肉眼观察不算机器证据。UI 类 AC 要么做成机器可断言的形态（组件测试断 DOM / 文案 / 状态、e2e 用例、接口响应字段），要么记 `验证:人工` 进 `.scratch/<NN>-<slug>/HUMAN-CHECK.md` 等真人验。**除非用户明确要求你代做 UI 验收**，不主动拉浏览器做验收、不为「看一下效果」开浏览器；被授权时代验记录按 `jxx-to-tickets` 技能 `references/acceptance-criteria.md` §二之一 留授权痕迹（授权原话 / 轮次）与取证内容，结果仍是人工项，不升格为机器证据。
 
 ## 完成步骤（不可跳过）
 
