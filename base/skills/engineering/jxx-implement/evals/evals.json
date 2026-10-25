@@ -3,5 +3,10 @@
     "name": "implement-basic",
     "prompt": "根据这个 PRD 实现功能",
     "expected_behavior": "应使用 TDD 方法实现功能，定期运行类型检查和测试，完成后进行代码审查"
+  },
+  {
+    "name": "implement-ticket-reference-preflight",
+    "prompt": "实现工单 T123",
+    "expected_behavior": "在看板、领卡或写盘前，先按项目 issue tracker 契约读取 T123 并向用户复述工单标题；若引用对应多张工单或含义不明，先向用户澄清"
   }
 ]

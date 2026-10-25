@@ -2,6 +2,8 @@
 
 Neon MCP Server 是渐进式发现范式的典型代表。它没有把 Postgres 的所有操作平铺为工具，而是设计了分层的工作流入口。
 
+> 案例细节以 Neon 官方文档为准；协议层事实（字段、能力、弃用清单）一律以本技能 [spec-2026-07-28.md](spec-2026-07-28.md) 为准。
+
 ## 四层工作流
 
 ### 第一层：项目与连接
@@ -69,5 +71,6 @@ npx skills add neondatabase/agent-skills --skill neon-postgres-agent -g -y
 1. **不要 1:1 暴露 API** — 按用户意图/工作流重新组织工具，而非按 API 文档
 2. **工具返回值中嵌入下一步提示** — 让每个工具的 response 成为下一个发现的起点
 3. **用 Skill/Prompt 模板约束 LLM 行为** — 比靠 tool description 更可靠
+3b. **用 tool annotations 标注行为** — 破坏性/只读/幂等/开放世界四类 hint 给客户端做提示；但客户端只在信任 server 时采信，确认仍要走 elicitation
 4. **为危险操作设计预览/回滚机制** — 分支、dry-run、事务等都是好手段
 5. **分层暴露复杂度** — 简单任务只需 2-3 个工具就能完成，高级功能按需展开

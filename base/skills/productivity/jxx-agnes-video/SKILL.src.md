@@ -1,7 +1,7 @@
 ---
 name: jxx-agnes-video
-description: Agnes Video 2.5 Flash 视频生成技能——一条命令覆盖文生视频、首尾帧控制、图片/音频参考三种模式，创建任务后自动轮询到底并下载 mp4，内置 Flash 专属参数预校验（720P、图片≤5、音频≤3、禁参考视频）与队列满/限流退避重试。当用户要生成视频、做短片、图生视频、首尾帧动画、参考图/参考音频生成视频，或提到 agnes video、agnes-video-2.5-flash、Agnes 视频时使用。触发词：生成视频、做视频、文生视频、图生视频、首尾帧、视频参考、agnes 视频。
-version: 1.0.0
+description: Agnes Video 2.5 Flash 视频生成技能——一条命令覆盖文生视频、首尾帧控制、图片/音频参考三种模式，创建任务后自动轮询到底并下载 mp4，内置 Flash 专属参数预校验（720P、图片≤5、音频≤3、禁参考视频）与队列满/限流退避重试。当用户要生成视频、做短片、图生视频、首尾帧动画、参考图/参考音频生成视频，或提到 agnes video、agnes-video-2.5-flash、Agnes 视频时使用。触发词：生成视频、做视频、文生视频、图生视频、首尾帧、视频参考、agnes 视频。注意 2026-10-21 复测服务端队列持续满，四种模式均无法创建任务。
+version: 1.0.2
 x-install: true
 x-vendors:
   codearts:
@@ -43,6 +43,15 @@ node scripts/agnes-video.mjs run keyframe --prompt "..." --first-frame a.png
 node scripts/agnes-video.mjs run reference --prompt "..." --image ref.png
 ```
 
+## Availability (checked 2026-10-21)
+
+The request shape is correct, but the server has no capacity. All four modes fail at task creation with HTTP 503
+`video_queue_full`, even after the built-in five retries; `agnes-video-2.5` returns 403 `insufficient_user_quota`.
+This is service-wide: upstream issue AgnesAI-Models#142 has been open since 2026-10-10, and the team confirmed reduced
+queue capacity. A different API key does not help.
+Treat video generation as currently unavailable, validate locally with `--dry-run`, and do not loop on retries —
+ship images instead (`jxx-agnes-image`) or use another video model.
+
 Keep in sync with the Chinese body below.
 <!--/en-->
 
@@ -65,6 +74,9 @@ Keep in sync with the Chinese body below.
 
 - Node.js >= 18（内置 `fetch`，零依赖）
 - Agnes AI API key（免费档即可，当前限时免费）
+- **当前可用性（2026-10-21 复测）**：四种模式创建任务全部 503 `video_queue_full`，`agnes-video-2.5` 403 `insufficient_user_quota`。
+  这是**全站排队**（官方 issue AgnesAI-Models#142 自 2026-10-10 持续 open，官方承认容量受限），换 key 也一样。
+  别把视频排进生产链路（详见下文「可用性状态」）。
 - **所有媒体 URL 必须公网可访问**，且在任务完成前保持有效。视频接口**不支持** Data URI——本地文件要先上传到公开地址
   （图片接口的 Data URI 能力见 `jxx-agnes-image`）。
 
@@ -217,17 +229,38 @@ export AGNES_API_KEY="sk-..."
 
 重试与轮询日志走 stderr，不污染 stdout 的 JSON 结果。
 
-**实测状态（2026-10-20）**：三种模式的请求体已用 `--dry-run` 逐字段比对文档示例一致，
-Flash 四项专属校验与模式规则均在本机验证可正确拦下。
+### 可用性状态（2026-10-21 复测：视频生成实际不可用）
 
-当日 2 小时窗口内 30 次端到端尝试全部未跑通，撞到三类限制：
+请求体、模式规则、Flash 四项校验都正确（`--dry-run` 逐字段比对文档示例一致，专属校验与模式规则本机验证可正确拦下），
+但**服务端没有产能**。
 
-1. HTTP 429 `rate_limit_exceeded`——免费用户创建限额（当日耗尽）
-2. HTTP 503 `video_queue_full`——生成队列满
-3. HTTP 429 `too many video status queries`——**轮询查询也单独计限流**（这一条文档未记载，
-   说明「创建→轮询」链路确实走到过轮询阶段）
+| 时间 | 方式 | 结果 |
+|---|---|---|
+| 2026-10-20 | 2 小时窗口 30 次端到端尝试 | 全部失败：429 `rate_limit_exceeded` / 503 `video_queue_full` / 429 `too many video status queries` |
+| 2026-10-21 17:24–17:32 | `run` 四种模式（text / keyframe / 图片参考 / 音频参考），各含内置 5×20s 退避 | 4/4 创建全部 503 `video_queue_full` |
+| 2026-10-21 17:33–17:45 | 12 分钟裸 POST 探测 5 轮（每 3 分钟一轮） | `agnes-video-2.5-flash` 5/5 `503 video_queue_full`；`agnes-video-2.5` 5/5 `403 insufficient_user_quota` |
+| 2026-10-21 21:32–21:39 | 3.6 小时后复测 4 轮 | 结果与 17 点完全一致：Flash 每轮 503，2.5 每轮 403 |
 
-脚本的退避重试与轮询逻辑已按文档实现，配额恢复后可直接用。
+**这是服务级容量问题，不是本账号配置问题。** 三路证据：
+
+1. **外部复现**：官方仓库 issue [AgnesAI-Models#142](https://github.com/AgnesAI-Labs/AgnesAI-Models/issues/142)
+   自 2026-10-10 起报告 Flash 视频创建持续 503，多个用户、多个新 key 复现；官方 2026-10-12 回帖承认
+   「用户与生成请求增长，服务端队列容量暂时受限」，建议自动重试或换时间；截至 2026-10-21 仍为 open。
+2. **同 key 其他端点正常**：`POST /v1/images/generations` 返回 200，图片照常出；
+   `GET /agnesapi?video_id=...` 对不存在的 id 返回 404 `task not found`——认证与路由没问题，只有视频创建队列没容量。
+3. **参数侧没问题**：`--dry-run` 与文档示例逐字段一致，Flash 四项校验本地可正确拦下。
+
+结论：视频**接口能力存在、但创建队列当前拿不到位置**。免费 Flash 队列长期满（全站排队，与 prompt、模式、秒数、画幅无关）；
+付费 `agnes-video-2.5` 在这个 key 上是 403 无配额。不能把它当稳定产能，也不能靠换参数、换 key、加退避解决。
+
+处置顺序：
+
+1. 先 `--dry-run` 核对参数（不花配额），确认不是本地参数问题。
+2. 真调用吃 503 `video_queue_full` 就停：最多让内置退避跑一轮，别循环重压，别为绕 503 改 mode/size/model。
+   也别急着换 key——外部报告与官方确认这是全站队列容量，不是单 key 问题。
+3. `403 insufficient_user_quota` 是账号在 `agnes-video-2.5` 上没配额，需要充值或换到有配额的账号，重试无用。
+4. 要交付给人时如实说明视频服务当前不可用：用 `jxx-agnes-image` 出分镜/封面/关键帧，或转外部视频模型。
+   配额恢复后本脚本无需改动即可用。
 
 ## 计费
 
@@ -243,6 +276,7 @@ Flash 四项专属校验与模式规则均在本机验证可正确拦下。
 - [ ] `seconds` 用字符串 `"4"`–`"12"`，`n` 固定 1
 - [ ] 查询用 `video_id` + `model_name`（keyframe/reference 必须带）
 - [ ] 媒体 URL 公网可访问且任务完成前有效
+- [ ] 创建任务吃 503 `video_queue_full` 就按「当前不可用」处理：最多一轮退避，如实告知，不循环重压
 - [ ] key 没进仓库/日志/回显
 
 ## 参考

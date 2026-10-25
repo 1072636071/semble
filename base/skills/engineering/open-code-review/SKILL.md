@@ -8,6 +8,7 @@ description: >
   comments and can automatically apply fixes when requested. With appropriate
   review rules, can detect various types of issues including bugs, security
   vulnerabilities, performance problems, and code quality concerns.
+x-install: false
 license: Apache-2.0
 compatibility: >
   Requires the `ocr` CLI installed (via `npm install -g

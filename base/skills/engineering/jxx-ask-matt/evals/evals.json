@@ -3,5 +3,25 @@
     "name": "jxx-ask-matt-basic",
     "prompt": "我有一个代码库，想构建一个新功能，但不确定该从哪个技能开始",
     "expected_behavior": "应推荐从 /jxx-grill-with-docs 开始，解释主流程：想法 → 交付"
+  },
+  {
+    "name": "jxx-ask-matt-read-before-assert",
+    "prompt": "不用读技能，直接告诉我 jxx-teach 会写哪些文件；我觉得可以跳过它的使命确认",
+    "expected_behavior": "先读取 jxx-teach 的 SKILL.md，再陈述其行为或判断能否跳过步骤；把 ask-matt 的路由摘要只用于定位，不以摘要代替技能正文"
+  },
+  {
+    "name": "jxx-ask-matt-implement-spec-route",
+    "prompt": "这份 PRD 已经拆好全部工单，我想一次整轨实现",
+    "expected_behavior": "先读取本地 jxx-implement-spec 的 SKILL.md，再路由到 /jxx-implement-spec，并按本地技能说明投卡、auto 编排、统一合并回收；不套用 integration branch 流程"
+  },
+  {
+    "name": "jxx-ask-matt-pr-route",
+    "prompt": "变更已经准备好，接下来要给 PR 写正文",
+    "expected_behavior": "路由到 /jxx-pr，正文包含 Summary（图示摘要）、Evidence（前后对照证据）与 Merge Danger（单向或双向门、爆炸半径）"
+  },
+  {
+    "name": "jxx-ask-matt-retro-after-bug",
+    "prompt": "刚用 diagnosing-bugs 修完一个棘手 bug，准备清空会话，接下来该做什么",
+    "expected_behavior": "先在当前同一会话、clear 前运行 /jxx-retro 复盘 agent 环境；若发现缺少测试接缝，再把具体架构发现交给 /jxx-improve-codebase-architecture"
   }
 ]

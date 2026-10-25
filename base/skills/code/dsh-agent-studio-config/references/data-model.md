@@ -33,6 +33,7 @@ schema 真源：`lib/config.js`（dsh-agent-studio@0.1.5），顶层 `Config` �
 | `background` | `'always-background'\|'foreground'\|'model-decides'` | `'model-decides'` | 仅当**被子代理派**时生效（delegate.js:337-339） |
 | `toolPresentation` | `'follow'\|'native'\|'ptc'` | `'follow'` | 跟随预设 / 强制原生 / 强制 PTC |
 | `promptSets` | string[]（有序） | [] | 已装提示词集 id；集顺序 = 段投递顺序（config.js:74-75） |
+| `orderedSections` | Section[]（有序） | 未设置 | **新路**：段级清单（含内联 `text`）。与 `promptSets` 同时非空时**接管** promptSets（apply.js:309-337）；改段文本只改 promptSets 不生效，见坑⑮ |
 | `toolSets` | string[] | [] | 已装工具集 id；装了 = 工具面收窄到并集 |
 | `skillSets` | string[] | [] | 已装技能集 id；装了 = 只暴露并集里的 skill |
 | `children` | string[] | [] | 子代理花名册：指向 agents 池其它成员的 id（悬空引用在列名册时被滤掉，delegate.js:125-136） |

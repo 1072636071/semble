@@ -103,17 +103,17 @@ cache_query_result(key, data) → 后续用 get_cached_result(key) 获取
 
 **问题**：工具调用失败时，LLM 不知道该如何恢复。
 
-**方案**：错误响应中包含恢复建议，而不仅仅是错误码。
+**方案**：执行错误返回 `isError: true`，正文里带**可行动的恢复指引**，而不仅仅是错误码。协议没有定义 `suggested_actions` 字段——恢复建议写在错误文本里，或用 `structuredContent` 带结构化错误体。
 
 ```json
 {
-  "error": "CONNECTION_FAILED",
-  "message": "无法连接到数据库",
-  "suggested_actions": [
-    "检查连接字符串是否正确",
-    "调用 test_connection 工具诊断",
-    "调用 list_available_drivers 查看支持的驱动"
-  ]
+  "content": [
+    {
+      "type": "text",
+      "text": "无法连接到数据库：连接串 host 解析失败。请检查 DSN 的 host 与端口；可调用 test_connection 诊断，或调用 list_available_drivers 查看支持的驱动。"
+    }
+  ],
+  "isError": true
 }
 ```
 
@@ -135,4 +135,33 @@ cache_query_result(key, data) → 后续用 get_cached_result(key) 获取
 功能是否高级/不常用？
 ├─ 是 → 动态展开模式
 └─ 否 → 工作流入口模式
+
+## 链路合并模式（Workflow Consolidation）
+
+**问题**：一条常见用户意图要模型串 3–5 个工具，每个中间结果都过一遍上下文；模型还可能选错顺序。
+
+**方案**：把整条链路合并成一个面向意图的工具，底层在服务端串完。返回时只给最终结论 + 关键中间标识。
+
 ```
+list_users + list_events + create_event  →  schedule_event
+read_logs（全量）                       →  search_logs（只回相关行 + 上下文）
+get_customer_by_id + list_transactions
+  + list_notes                         →  get_customer_context
+```
+
+**适用**：评估指标显示"同一条链路被反复重复调用"时。合并是渐进披露的补充，不是替代——合并后仍可能触发高级工具。
+
+**关键**：合并粒度按**用户意图**切，不按底层 API 切；合并后的工具仍要写 `outputSchema`。
+
+## 显式句柄模式（Explicit Handle）
+
+**问题**：状态要跨多次工具调用保存（购物车、事务、浏览器上下文），但 MCP 没有协议级会话。
+
+**方案**：创建工具返回不透明 handle，后续调用把它当参数传回。
+
+```
+create_basket → { basket_id: "bsk_a1b2c3" }
+add_item(basket_id: "bsk_a1b2c3", ...)
+```
+
+**适用**：任何跨调用状态。**关键**：handle 要 opaque；寿命写进创建工具的 description；每次调用校验授权；对过期/未知 handle 返回明确执行错误，让模型能重建。

@@ -2,7 +2,7 @@
 name: jxx-diagnosing-bugs
 description: 针对棘手 bug 和性能 regression 的诊断循环（diagnosis loop），当用户说"diagnose"/"debug this"或报告东西坏了/抛异常/失败/变慢时使用。
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # 诊断 Bug
@@ -124,12 +124,12 @@ metadata:
 如果正确的接缝存在：
 
 1. 将最小复现转为该接缝处的失败测试。
-2. 看它失败。
+2. 看它失败。若你通过改代码或 fixture 强制制造 red，先与 pristine copy 做 `diff`，证明变异真的落地，再信任这个 red。
 3. 应用修复。
 4. 看它通过。
 5. 对原始（未最小化）场景重新运行阶段 1 反馈循环。
 
-## 阶段 6 — 清理 + 复盘
+## 阶段 6 — 清理
 
 声明完成之前必需：
 
@@ -138,5 +138,3 @@ metadata:
 - [ ] 所有 `[DEBUG-...]` 插桩已移除（`grep` 前缀）
 - [ ] 一次性 prototype 已删除（或移至明确标记的调试位置）
 - [ ] 被证明正确的假设陈述在 commit / PR 消息中 — 让下一个调试者学到
-
-**然后问：什么本可以防止这个 bug？** 如果答案涉及架构变更（没有好的测试接缝、纠缠的调用者、隐藏的耦合），将具体信息交接给 `/jxx-improve-codebase-architecture` 技能。在修复到位**之后**而非之前给出推荐——你现在比开始时有更多信息。

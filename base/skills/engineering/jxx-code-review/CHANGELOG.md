@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.0 — 2026-10-24
+
+- §3「识别标准来源」收紧为主动动作：搜索仓库中所有记录代码编写规范的文件；`CODING_STANDARDS.md` 与 `CONTRIBUTING.md` 若存在必须列入（上游 `3da8c01116264675eeefbd6e9d59c734de9095cc`）。
+- 保留 Fowler 基线、OCR 委托、AC 审查、服务器写腿与子代理后台/并行纪律；未移植 foreground sub-agents，VERDICT 裸行契约未改。新增标准来源搜索 eval。基础 eval 同步多维与 AC 口径。
+
 ## 1.4.0 — 2026-10-23
 
 **§6「服务器对齐」改指 ticket-flow 写腿**：审查后的状态置变 / 返工要求评论，项目内有 `tools/ticket-flow.mjs` 且工单在 `.scratch/<NN>-<slug>/` 下时，用一条写腿命令完成「改本地 md + 推服务器」（`--set status=… --comment "…"`），不再手改 md 再 `jxx_ticket_call update`；exit 0 收敛 / exit 2 版本前进按条目裁决后重跑 / exit 3 本地已还原或未变（`rolled_back:true`）。项目无该 CLI 时回退 MCP 双写（先改本地 md → `get` 最新 `version` → `update`，409 先对账再推）。

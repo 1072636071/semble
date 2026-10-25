@@ -46,8 +46,8 @@
 | action | 必需参数 | 语义 |
 | --- | --- | --- |
 | `status` | — | 服务健康 + 记忆统计 + 身份观测（mdcg_whoami） |
-| `edit` | `node_id` + 非空 `content` | **整块覆盖**改（内核无原地改：同 node_id 重写；写前自动 mdcg_get 取原文与 layer） |
-| `delete` | `node_id`（建议带 `reason`） | **软删除**进 trash，可 restore；reason 进遗忘史 |
+| `edit` | `node_id` + 非空 `content` | **整块覆盖**改（内核无原地改：同 node_id 重写；写前自动 mdcg_get 取原文与 layer）。⚠ `anchor` 等不可篡改层抛 `ProtectionError`（需 `override=True`，本面不透传）⇒ 见 SKILL.md 纪律 6「软删 + 重记」 |
+| `delete` | `node_id`（建议带 `reason`） | **软删除**进 trash，可 restore；reason 进遗忘史。受保护层节点删端点透传 `override=True`（留快照，可 `restore`） |
 | `restore` | `node_id` | 从 trash 撤回 |
 | `export` | `format`(json/markdown) + 可选 `filter{layer,tags,time_start,time_end}` | 返回 `{ok, format, count, payload}`（payload 是完整导出文本） |
 | `sync` | `direction`(pull/push) + `path` | pull=本地 JSONL 会话文件摄取进库；push=按 filter 导出落盘 |

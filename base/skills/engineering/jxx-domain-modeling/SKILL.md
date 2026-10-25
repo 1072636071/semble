@@ -1,8 +1,8 @@
 ---
 name: jxx-domain-modeling
-description: 主动构建和锐化项目的领域模型（domain model）。当用户想确定领域术语或统一语言（ubiquitous language）、记录架构决策（ADR），或其他技能需要维护领域模型时使用。
+description: 主动构建和锐化项目的领域模型（domain model）。讨论代码库术语、写或编辑 CONTEXT.md、记录或编辑 ADR 时使用。
 metadata:
-  version: 1.5.0
+  version: 1.6.0
 ---
 
 # 领域建模

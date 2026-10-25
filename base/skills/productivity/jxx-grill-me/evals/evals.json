@@ -2,6 +2,6 @@
   {
     "name": "jxx-grill-me-basic",
     "prompt": "我有一个新功能的设计方案，帮我追问一下",
-    "expected_behavior": "启动 grilling 追问会话，对方案逐层提问"
+    "expected_behavior": "调用 /jxx-grilling 执行访谈，不在本技能复制访谈循环；决策以 markdown 块留在聊天中，不写本地文件或 CONTEXT.md"
   }
 ]

@@ -226,3 +226,6 @@ base/skills/productivity/quarkclouddrive/deepseek/
 # CodeArts
 
 .codegraph/
+
+# mzg 语义索引缓存（rocksdb 运行时文件，机器产物，不入库）
+.mzg/

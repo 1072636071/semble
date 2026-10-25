@@ -85,8 +85,9 @@ const USAGE = [
   '',
   'Env: AGNES_API_KEY',
   '',
-  '已知服务端限制（2026-10-20 实测，非文档记载）：',
-  '  503 video_queue_full    生成队列满 - 稍后重试；run/create 已内置退避重试',
+  '已知服务端限制（2026-10-20/21 实测，非文档记载）：',
+  '  503 video_queue_full    生成队列满 - 已内置退避重试；2026-10-21 复测四模式持续 503，当前基本不可用',
+  '  403 insufficient_user_quota 账号无该模型配额（agnes-video-2.5）- 重试无用',
   '  429 rate_limit_exceeded 免费用户限流 - 错峰重试或升级 Token Plan',
 ].join('\n');
 
@@ -162,9 +163,10 @@ function errorHints(status, bodyText) {
   if (status === 400 && /images length/.test(t)) hints.push('reference 模式 images 最多 ' + MAX_IMAGES + ' 张');
   if (status === 400 && /audios length/.test(t)) hints.push('reference 模式 audios 最多 ' + MAX_AUDIOS + ' 段');
   if (status === 400 && /videos is not supported/.test(t)) hints.push('Flash 不支持参考视频，不要传 videos');
-  if (status === 503 || /video_queue_full/.test(t)) hints.push('生成队列满：稍后重试（已内置退避重试）');
+  if (status === 503 || /video_queue_full/.test(t)) hints.push('生成队列满：已内置退避重试；2026-10-21 复测四种模式持续 503，全站队列容量受限（上游 issue AgnesAI-Models#142 自 2026-10-10 open），换 key 无效——别循环重试，改走 jxx-agnes-image 出分镜或外部视频模型');
+  if (/insufficient_user_quota/.test(t)) hints.push('账号在该模型上无配额（agnes-video-2.5 付费档常见）：换 key 或充值，重试无用');
   if (status === 429 || /rate_limit/.test(t)) hints.push('免费用户限流：错峰重试或升级 Token Plan');
-  if (status === 401 || status === 403) hints.push('API key 无效/过期/无权限');
+  if (status === 401 || (status === 403 && !/insufficient_user_quota/.test(t))) hints.push('API key 无效/过期/无权限');
   if (!hints.length) hints.push('查看返回体 detail/message 字段');
   return hints;
 }
@@ -298,7 +300,9 @@ async function createTask(o, apiKey) {
     }
     die(EXIT.API, '创建任务失败 HTTP ' + res.status, { body: json, hints: errorHints(res.status, text) });
   }
-  die(EXIT.API, '创建任务在多次队列退避后仍失败');
+  die(EXIT.API, '创建任务在多次队列退避后仍失败', {
+    hints: ['生成队列满：内置退避 5 次仍是 503；全站队列容量受限（AgnesAI-Models#142），换 key 无效——别循环重压，改走 jxx-agnes-image 出分镜/封面或外部视频模型'],
+  });
 }
 
 async function queryTask(videoId, apiKey, withModelName) {

@@ -3,10 +3,12 @@ name: jxx-implement
 description: 按工单或 spec 实现：worktree 开发、看板流转、合并收口。触发词：实现、implement。
 disable-model-invocation: false
 metadata:
-  version: 1.10.0
+  version: 1.11.0
 ---
 
 实现用户在 spec 或工单中描述的工作。
+
+用户传入工单引用时，先按项目 issue tracker 契约读取该工单，并向用户复述工单标题，再开始任何看板、领卡或写盘操作。引用有歧义时先问，不得猜测。
 
 尽可能在预先约定的接缝（seam）处使用 `/jxx-tdd`。
 

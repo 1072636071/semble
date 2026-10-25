@@ -2,12 +2,12 @@
 name: jxx-handoff
 description: 将当前对话压缩成 handoff 交接文档，供下一个 agent 接续。触发词：交接、handoff、保存上下文。
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 argument-hint: "下一个会话将用于什么？"
 disable-model-invocation: false
 ---
 
-撰写一份交接文档，总结当前对话内容，使新的 agent 能够继续工作。保存到用户操作系统的临时目录——而非当前工作区。
+撰写一份交接文档，总结当前对话内容，使新的 agent 能够继续工作。保存到用户操作系统的临时目录——而非当前工作区。临时目录必须确定性解析：Unix 使用 `$TMPDIR`，未设置时回退 `/tmp`；Windows 使用 `%TEMP%`（PowerShell 可用 `$env:TEMP`）。写完后向用户报告所写文件的绝对路径。
 
 在文档中包含"建议技能"部分，推荐 agent 应调用的技能。
 

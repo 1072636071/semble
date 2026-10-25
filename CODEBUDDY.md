@@ -61,6 +61,14 @@ ego lite 自带的浏览器技能以**原样分发**方式入库：真源是 `ba
 - **上游安装器占位（已收编 · 2026-10-23）**：ego 曾自己往 `~/.agents/skills` 与 `~/.workbuddy/skills` 装过一份，目录连同 Program Files 的只读 ACL 一起复制下来（普通用户连新建文件都被拒），因此一度用 `vendors.json` 的 `foreignInstalled` 把它标成跳过。本次以管理员删旧副本 + 重跑 `ship install` 收编，`foreignInstalled` 条目已移除——7 处目标现在全部由本仓维护（各 23 文件 = 22 上游 + `local-install.md`）。旧副本备份在 `~/.ego-backup-20261023/`。
 - **本仓只有两处扩展，回灌后必须重放**：① `references/local-install.md`——本机 ego 组件落点（`ego-browser` 命令行 junction、安装根与版本目录、用户数据、7 处技能副本及只读 ACL、上游回灌步骤）；② `SKILL.md` 的 description 末尾一句本机标注「本机默认外置浏览器技能」（外加 References 里指向①的一行）。除这两处，其余与上游**逐字一致**——第三方技能不改写、不翻译、不压缩描述。回灌后核对 `git diff` 应只剩这两处 + 上游版本号变化。
 
+### 第三方技能：open-code-review（只留仓库真源，不外装）
+
+官方 `open-code-review` 技能**只在仓库内保留真源**：`base/skills/engineering/open-code-review/SKILL.md` 的 frontmatter 带 `x-install: false`（`ship.mjs` 语义：不装），所以 `ship install` 不再把它铺到任何用户级 / 项目级技能目录。
+
+- **同族技能不受影响**：`open-code-review-delegate` 未标 `x-install`，仍按缺省用户级分发到全部平台目录。
+- **旧副本必须手工删**：`managedPrefixes` 不含 `open-code-review`，且残留清理以「源中全部技能名」为准（源里仍有这个技能，就不算残留），`ship install` 不会自动清；2026-10-23 已手工删掉 10 处 `skills/open-code-review`：`~/.agents`、`~/.codeartsdoer`、`~/.codebuddy`、`~/.config/codeartsdoer`、`~/.config/opencode`、`~/.qoder-cn`、`~/.qwenworkcn`、`~/.trae-cn`、`~/.workbuddy`、`~/.workbuddy-ai`。
+- **恢复分发**：删掉 `SKILL.md` 里那行 `x-install: false`，再跑 `node base/scripts/ship.mjs install`。
+
 ### 临时文件
 
 所有临时脚本统一放在仓库 `.temp/scripts/` 下；其他临时文件（脚本输出、日志等）也要分类，放在 `.temp/` 的子目录下（如 `.temp/output/`、`.temp/logs/`），保证仓库根目录干净。

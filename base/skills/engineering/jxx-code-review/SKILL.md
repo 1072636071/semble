@@ -2,7 +2,7 @@
 name: jxx-code-review
 description: 审查自固定点以来的变更，多维度并行取证。触发词：code review、审查代码。
 metadata:
-  version: 1.4.0
+  version: 1.5.0
 ---
 
 审查 `HEAD` 与用户指定固定点（fixed point）之间的 diff。**审查维度数由执行模式决定**：
@@ -196,7 +196,7 @@ ocr delegate rule <path1> <path2> ...
 
 ### 3. 识别标准来源
 
-仓库中记录代码编写规范的任何内容，如 `CODING_STANDARDS.md` 或 `CONTRIBUTING.md`。
+搜索仓库中所有记录代码编写规范的文件。`CODING_STANDARDS.md` 与 `CONTRIBUTING.md` 若存在，必须列入标准来源清单。
 
 除仓库文档外，标准轴始终携带以下**代码异味基线** — 一组固定的 Fowler 代码异味（《重构》第 3 章），即使仓库无文档也适用。两条规则约束它：
 

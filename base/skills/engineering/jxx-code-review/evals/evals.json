@@ -2,6 +2,11 @@
   {
     "name": "jxx-code-review-basic",
     "prompt": "审查自 main 分支以来的变更",
-    "expected_behavior": "应确定固定点，识别规格来源和标准来源，并行启动标准和规格两个子 agent，汇总双轴报告"
+    "expected_behavior": "应确定固定点，识别规格来源和标准来源；按 OCR 可用性选择委托模式 3 维（标准、spec、规则）或内置模式 2 维（标准、spec），并行取证并完成逐 AC 判定后汇总报告"
+  },
+  {
+    "name": "jxx-code-review-standards-search",
+    "prompt": "审查当前 diff；仓库里有 CONTRIBUTING.md，docs 下还有一份编码规范",
+    "expected_behavior": "主动搜索仓库中所有记录代码编写规范的文件，将 CONTRIBUTING.md 与 docs 下的编码规范都列入标准来源；若存在 CODING_STANDARDS.md 也必须列入，不能只凭已知文件名猜测"
   }
 ]

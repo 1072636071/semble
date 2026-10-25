@@ -1,7 +1,7 @@
 ---
 name: jxx-agnes-image
 description: Agnes Image 2.5 Flash 图像生成/编辑技能——一条命令完成文生图、图生图、多图合成，支持 1K/2K/3K/4K 尺寸档位与 8 种宽高比、URL 或 Base64 输出、本地图片自动转 Data URI，内置队列满/限流退避重试与按错误码给的修复提示。当用户要生成图片、画图、改图、风格迁移、多图合成、海报/封面/产品图/社交媒体素材，或提到 agnes image、agnes-image-2.5-flash、Agnes 绘图时使用。触发词：生图、画图、生成图片、改图、图生图、多图合成、风格迁移、agnes 绘图。
-version: 1.0.0
+version: 1.0.1
 x-install: true
 x-vendors:
   codearts:
@@ -42,6 +42,9 @@ node scripts/agnes-image.mjs text --prompt "..." --size 2K --ratio 16:9
 node scripts/agnes-image.mjs img2img --prompt "..." --image input.png
 node scripts/agnes-image.mjs compose --prompt "..." --image a.png --image b.png
 ```
+
+Reference images are supported; failures are usually HTTP 503 `image queue is full` (server-side congestion), not a
+restriction on reference images. Back off and retry, or generate a text-only variant meanwhile.
 
 Keep in sync with the Chinese body below.
 <!--/en-->
@@ -181,12 +184,28 @@ export AGNES_API_KEY="sk-..."
 |---|---|
 | HTTP 503 `image queue is full` | 自动退避重试 4 次（每次 15s）；仍失败则报错并提示稍后再试 |
 | HTTP 429 `rate_limit_exceeded`（免费用户限流） | 自动退避重试 3 次（每次 30s） |
+| HTTP 400 `invalid_request`：`image must be a public http(s) URL or valid image base64` | 服务端抓不到参考图 URL（实测 wikimedia 图床被拒）。脚本不做预检，改用本地文件（自动转 Data URI）或 Agnes 自己的输出 URL |
 
 重试日志走 stderr（`[retry] ...`），不污染 stdout 的 JSON 结果，可放心 `| jq`。
 
-**实测状态（2026-10-20）**：文生图、Base64 输出、图生图、多图合成都已跑通。
-503 队列满是该服务的常态（与 prompt 无关），高峰期可能连续数十分钟不可用——脚本内置退避能扛过短时拥堵，
-长时拥堵只能错峰再试。
+### 2026-10-21 实测：参考图可用，瓶颈是队列
+
+**结论：带参考图的调用没有被禁用。** 图生图与多图合成都能出图；失败几乎全部是 503 队列容量问题，
+不是权限、账号、参数或「参考图不让用」。
+
+| 事实 | 实测证据（2026-10-21 16:50–17:15，同一 key 同一时段） |
+|---|---|
+| 参考图可用 | `img2img` 4 次探测 2 次成功（均靠内置 503 退避翻盘）；另一轮 1 次直接成功；`compose` 2 张参考图 1 次成功（经 1 次退避） |
+| 文生图队列健康 | `text` 2/2 首次请求即成功，零重试 |
+| 参考图队列常年拥堵 | 同一时段带参考图的 5 次调用**全部先吃 503**，靠退避成功 3 次，耗尽 4×15s 仍失败 2 次 |
+| 输入形态不影响成败 | Agnes storage HTTPS URL 与本地 Data URI 都出现过 503；8×8 像素的极小 Data URI 也照吃 503 |
+
+处置顺序：
+
+1. 看 `message`：`image queue is full` = 容量，错峰重试；`image must be a public http(s) URL ...` = 参考图抓不到，换输入。
+2. 参考图优先**本地文件路径**（脚本转 Data URI），别用第三方图床；Agnes 自己的输出 URL 也可用。
+3. 退避 4×15s 仍失败就别连续重压，隔几分钟再跑；同一时段文生图往往照常可用，可先出 text 版占位。
+4. 不要为了绕 503 去改 `model` / `size` / `extra_body` 形状——参数是对的，重试才是解法。
 
 ## 计费
 
@@ -201,6 +220,8 @@ export AGNES_API_KEY="sk-..."
 - [ ] 要可预期尺寸就用档位式 `size` + `ratio`
 - [ ] 图生图/多图合成的输入图放 `extra_body.image`
 - [ ] 没有把 `response_format` 放顶层，没有传 `tags: ["img2img"]`
+- [ ] 参考图用本地文件（自动 Data URI）或 Agnes 输出 URL，不用第三方图床
+- [ ] 报 503 `image queue is full` 先重试/错峰，不改参数、不换模型
 - [ ] key 没进仓库/日志/回显
 
 ## 参考

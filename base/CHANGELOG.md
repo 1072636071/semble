@@ -1,5 +1,42 @@
 # mattpocock-skills
 
+## 选择性同步 2026-10-24（上游 84fdeffd..5beb35b）
+
+已审查区间 126 commits（96 non-merge）；本次按既定方案选择性移植 11 项，不是全量覆盖。
+
+### 移植（11 项）
+
+1. **jxx-diagnosing-bugs 1.1.0**：阶段 5 强制制造 red 后先与 pristine copy 做 diff，证明变异落地；阶段 6 改为「清理」，删除 post-mortem，修复后的 retro 与架构发现路由交由 jxx-ask-matt。
+2. **jxx-tdd 1.1.0**：每个候选测试接缝补一行「能抓住什么、漏掉什么」。
+3. **jxx-grilling 1.2.0**：保留 frontier 轮次，补 Q1/Q2 同轮示例、题间 HR，以及 yes=接受推荐答案硬规则；evals 同步。
+4. **jxx-grill-me 1.1.0**：改为调用 /jxx-grilling，不复制访谈循环；保留本地输入/输出/异常处理与聊天 markdown、无状态不写 CONTEXT 语义。
+5. **jxx-handoff 1.1.0**：确定性解析 OS 临时目录，不写当前工作区，写完报告文件绝对路径。
+6. **jxx-wizard 1.1.0**：scripts/template.sh 完整同步上游 origin/main，包含 readline、.env quoting、symlink、EOF、opener 与 run_wizard 全文件解析修复；本地路径与链接不变。
+7. **jxx-teach 1.1.0**：工作区路径锚定调用目录，*-FORMAT.md 仍从技能目录解析；测验正确答案位置必须变化，保留 x-install:false。
+8. **jxx-implement 1.11.0**：任何看板/领卡/写盘前置之前，先按项目 issue tracker 契约读取用户传入的工单引用并复述标题；歧义先问。服务器契约、双写、AC、审查归属与合并流程不变。
+9. **jxx-code-review 1.5.0**：§3 改为主动搜索全部编码标准文件，CODING_STANDARDS.md / CONTRIBUTING.md 存在即必须列入；本地多维审查、OCR、AC、服务器写腿与子代理纪律不变。
+10. **jxx-ask-matt 1.1.0**：断言或跳过技能步骤前必读 SKILL.md；补本地 implement-spec 整轨、pr、retro 路由与 Bug 修复后 retro/架构交接；code-review 改按本地多维口径描述。
+11. **jxx-domain-modeling 1.6.0**：description 覆盖代码库术语、写或编辑 CONTEXT.md、记录或编辑 ADR；删除「其他技能需要维护领域模型」尾部分支，保留正文 CONTEXT 名称，并补直接编辑 ADR 的触发 eval。
+
+### 不移植
+
+- 全局去 em-dash、YAML 与工具措辞排版改动。
+- CONTEXT.md → GLOSSARY.md 改名；本地继续使用 CONTEXT.md。
+- GitHub/GitLab 专用 setup / to-tickets 改动；本地没有对应文件或流程。
+- implement-spec 的 integration branch；本地采用统一看板、auto 编排与统一合并回收，机制不同。
+- resolving-merge-conflicts 删除；本地含看板扩展，保留该技能。
+- chief-of-staff 实验新技能。
+- wayfinder 的 triage / PR 约束；需另做本地服务器状态机适配，本轮不直接移植。
+
+### 已含最新实质内容
+
+- jxx-retro 与 jxx-pr 已含上游最新实质内容，本轮无需改动。
+
+### 基线勘误
+
+- 旧「同步 2026-08-11」标题中的上游 1.4.0 为误记，已改为 1.2.3+2 commits；SHA 范围 d574778f..84fdeffd 不变。
+- 证据：上游 84fdeffd 的 package.json 记录 version 1.2.3；git describe --tags --always 84fdeffd 返回 v1.2.3-2-g84fdeff。
+
 ## 确定性生成器产出合规工单 2026-10-21
 
 ### 修复（`issue-flow.mjs` 生成即违规）
@@ -107,7 +144,7 @@
 
 - 工单 11（试点）：需在 `official-domestic-website` 项目端到端验证，试点指引见 `.scratch/03-seo-geo-skill-suite/issues/11-pilot-guide.md`。
 
-## 同步 2026-08-11（上游 1.0.1 → 1.4.0，`d574778f..84fdeffd`）
+## 同步 2026-08-11（上游 1.0.1 → 1.2.3+2 commits，`d574778f..84fdeffd`）
 
 ### 重大变更
 

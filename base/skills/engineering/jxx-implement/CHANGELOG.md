@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.11.0 — 2026-10-24
+
+- 在看板、领卡与写盘前置之前新增工单引用预检：用户传入工单引用时，先按项目 issue tracker 契约读取工单并向用户复述标题；引用有歧义先问（上游 `6d6a5b9072f47ee7ba1d972d8ce0ee98b7ed4394`）。
+- 不改变服务器契约、双写、AC、审查归属或合并流程；新增引用预检 eval。无需同步 TencentDB-Agent-Memory 服务端。
+
 ## 1.10.0 — 2026-10-23
 
 **双写升级为写腿一条命令**（配合权威仓 ticket-flow 写腿）：状态流转 / 打卡 / 评论不再「先改本地 md 再跑 flow」，改为一条 `node tools/ticket-flow.mjs --root <仓库根> --file <单条工单md> --set status=… --comment "…"` 直接完成「改本地 md + 推服务器」；服务器侧失败还原原始 md 字节（stdout `rolled_back:true`）、exit 3；`--comment` 撞上服务器版本前进 exit 2，按条目 `server`/`local`/`resolution` 裁决后重跑。起因：两遍流程（手改 md + 跑 flow）每张单多一遍编辑、且中途失败会留「本地已改、服务器未改」的半态，写腿把「不留半态」变成命令内保证。

@@ -3,12 +3,14 @@ name: jxx-ask-matt
 description: 本仓库技能路由器：该用哪个技能、哪条流程。触发词：哪个技能、怎么选技能、router。
 disable-model-invocation: false
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # 问 Matt
 
 记不住每个技能？问就是了。
+
+陈述某技能做什么、或建议跳过其步骤之前，必须先读该技能的 `SKILL.md`；本文件的路由摘要只用于定位，不能作为断言或省略步骤的依据。
 
 一个**流程**是贯穿多个技能的路径。大多数路径沿一条**主流程**运行，两条**入口**汇入其中。其余技能要么独立，要么作为底层词汇层运行。
 
@@ -19,14 +21,22 @@ metadata:
 1. **`/jxx-grill-with-docs`** — 通过穷追不舍地追问来打磨想法。当你在**工作目录**中工作时从这里开始：它是有状态的，会将学到的内容保留在 `CONTEXT.md` 和 ADR 中。（不在工作目录中工作？用 `/jxx-grill-me`，见独立技能。两者都运行相同的 `/jxx-grilling` 原语；`grill-with-docs` 是会留下文档记录的版本。）**复杂/需跨会话的方案用 `/jxx-grill-with-memorial`**（持久化奏报、中断续接、调查委派、收尾审核）。
 2. **分支 — 能否在对话中解决所有问题？** 如果某个问题需要可运行的答案（状态、业务逻辑、需要看到的 UI），则绕行 prototype（prototype 活在自己的目录里，所以对话上下文不随行）：用 **`/jxx-handoff`** 导出对话（它在阶段边界中扮演自己的角色，见[阶段边界](#阶段边界)），然后 **`/jxx-prototype`** 用一次性代码回答问题——保留为 `prototype/<name>` 分支上的主要来源，随时可复访。
 3. **分支 — 这是多会话构建吗？**
-   - **是** → **`/jxx-to-spec`**（将线程转为 spec），然后用 **`/jxx-to-tickets`** 将其拆分为追踪弹式工单，每个工单声明其**阻塞边**。在本地跟踪器上是 `.scratch/<NN>-<feature>/issues/` 中以 blockers-first 排序的文件（`<NN>` 为从 `01` 起的全局递增顺序号），你手工推进；每个工单启动 **`/jxx-implement`**，**并在工单之间 `/clear`**——每个工单都是自包含的，上一个工单的上下文可以丢弃。
+   - **是** → **`/jxx-to-spec`**（将线程转为 spec），然后用 **`/jxx-to-tickets`** 将其拆分为追踪弹式工单，每个工单声明其**阻塞边**。再按执行范围二选一：
+     - **逐工单**：在本地跟踪器上是 `.scratch/<NN>-<feature>/issues/` 中以 blockers-first 排序的文件（`<NN>` 为从 `01` 起的全局递增顺序号），你手工推进；每个工单启动 **`/jxx-implement`**，**并在工单之间 `/clear`**——每个工单都是自包含的，上一个工单的上下文可以丢弃。
+     - **整轨**：需要一次执行整份 spec 时，先读本地 **`/jxx-implement-spec`** 的 `SKILL.md`，再按该技能使用「投卡、auto 编排、统一合并回收」机制；不要凭本摘要复述或替换其流程。
    - **否** → 就在当前上下文窗口中直接 **`/jxx-implement`**。
 
-   无论哪种方式，**`/jxx-implement`** 内部驱动 **`/jxx-tdd`** 来构建每个 issue——逐次红绿循环——然后结束前运行 **`/jxx-code-review`**，对 diff 进行双轴 review（标准 + spec），最后 commit。当你只想用测试优先的方式构建具体行为而不需要完整 spec 时，单独使用 **`/jxx-tdd`**；当你想对照固定点 review 分支或 PR 时，单独使用 **`/jxx-code-review`**。
+   无论哪种方式，实现都驱动 **`/jxx-tdd`** 逐次红绿循环构建行为；**`/jxx-code-review`** 按本地现行多维口径审查 diff（标准 + spec + 可用时规则，并逐条核对 AC），随后按对应本地技能完成 commit、合并与回收。当你只想用测试优先的方式构建具体行为而不需要完整 spec 时，单独使用 **`/jxx-tdd`**；当你想对照固定点 review 分支或 PR 时，单独使用 **`/jxx-code-review`**。
+
+   工作以 PR 交付时，用 **`/jxx-pr`** 撰写正文：**Summary**（图示摘要）、**Evidence**（前后对照证据）、**Merge Danger**（单向/双向门与爆炸半径）。
+
+4. **`/jxx-retro`** — 在阶段或会话收尾时复盘 agent 的**环境**：导航指针、自动化检查、编码标准、steering、工具经济性等；目标是改善未来运行，不是再审一次代码。
 
 ### 上下文卫生
 
 将步骤 1–3 保持在**一个不间断的上下文窗口**中——不要在 `/jxx-to-tickets` 之前压缩或清除——这样追问、spec 和工单都建立在相同的思考基础上。每个 `/jxx-implement` 随后重新开始，从工单出发工作。
+
+**`/jxx-retro`** 必须在它要回顾的会话内、`/clear` 前运行；已经 clear 时，改为向它提供该会话日志。
 
 这里的限制是**[智能区域](https://www.aihero.dev/ai-coding-dictionary/smart-zone)**：模型仍能敏锐推理的窗口（最先进模型上约 150k token）。如果会话在 `/jxx-to-tickets` 之前接近此限制，不要在退化状态下继续——在最近的阶段边界 **`/compact`**（见[阶段边界](#阶段边界)）。
 
@@ -38,7 +48,7 @@ metadata:
 
   triage 仅适用于**你未创建的** issue——bug 报告、收到的功能请求、任何原始传入的内容。`/jxx-to-tickets` 产出的工单已经是 agent 可用的，所以**不要对它们再做 triage**。
 
-- **出了问题** → **`/jxx-diagnosing-bugs`**。针对棘手的 bug：第一眼看不出来的、间歇性 flake、在两个已知良好状态之间悄然引入的 regression。它坚持先建立**紧密反馈循环（feedback loop）**——一个已经能在此 bug 上变红的命令——然后才进行理论分析，再用 regression 测试修复。当复盘发现没有好的接缝来锁定 bug 时，它会交接给 **`/jxx-improve-codebase-architecture`**。
+- **出了问题** → **`/jxx-diagnosing-bugs`**。针对棘手的 bug：第一眼看不出来的、间歇性 flake、在两个已知良好状态之间悄然引入的 regression。它坚持先建立**紧密反馈循环（feedback loop）**——一个已经能在此 bug 上变红的命令——然后才进行理论分析，再用 regression 测试修复。修复到位后，先在**同一会话**运行 **`/jxx-retro`** 复盘什么本可防止 bug；若发现没有好的测试接缝，再把具体架构发现交给 **`/jxx-improve-codebase-architecture`**。
 
 - **一项庞大而模糊的工作——全新项目或大型功能构建，超出一个会话能承载的范围** → **`/jxx-wayfinder`**。当从这里到目的地的路径尚不可见时，它在 issue tracker 上用调查工单绘制一张**共享地图**，逐一解决——产出**决策，而非交付物**——直到迷雾散去、路径清晰。然后它汇入主流程的 **`/jxx-to-spec`**（或者，如果工作实际上足够小，直接到 **`/jxx-implement`**）。**`/jxx-grill-with-docs`** 锐化你在一个会话中能把握的想法，wayfinder 则用于你无法把握的想法。
 
@@ -66,7 +76,7 @@ wayfinder 完成调查后交出接力棒——它自己不构建。汇入主流�
 完全脱离主流程。
 
 - **`/jxx-grill-me`** — 与 `/jxx-grill-with-docs` 相同的穷追不舍的追问，但适用于**不在工作目录中工作**的情况。无状态：不在本地保存任何东西，不构建 `CONTEXT.md`——将决策以 markdown 块形式留在聊天中。用于锐化任何不在仓库中的计划或设计。
-- **`/jxx-grilling`** — 两者之下共享的 grill 原语：按轮推进的 frontier 访谈——每一轮提问当前未解决的极小决策集，每个问题附上推荐答案。`/jxx-grill-with-docs` 和 `/jxx-grill-me` 都是它的有状态包装。
+- **`/jxx-grilling`** — 两者之下共享的 grill 原语：按轮推进的 frontier 访谈——每一轮提问当前未解决的极小决策集，每个问题附上推荐答案。`/jxx-grill-with-docs` 是有文档状态包装，`/jxx-grill-me` 是无文档状态入口；二者都复用 `/jxx-grilling`。
 - **`/jxx-resolving-merge-conflicts`** — 当 merge 或 rebase 产生冲突时使用。读懂*双方*分支的意图，以保留两者的方式解决冲突。走工单看板流时另有两步：先用 `board.mjs merge-check` 预演分诊（内存预演，不落现场；二进制冲突的报法是 `warning: Cannot merge binary files` 而非括号里的类型），且**解完 diff 已变 ⇒ 必须重跑 `/jxx-code-review`**（原审查失效）；非机械冲突交回开发组。
 - **`/jxx-git-auth`** — 需要 Git 凭据时：push/clone 报 401/403、操作私有仓库、调平台 API 或用 `gh` CLI。加载 cnb / GitHub / Gitee 令牌并注入当前操作；令牌源在仓库之外，技能内只存路径。模型可自动调用。
 - **`/jxx-caveman`** — 需要极简输出时：用户要求简洁/别说废话，或输出明显注水。只删废话，技术内容全留；安全警告与不可逆确认时自动恢复正常表达。`stop caveman` / `normal mode` 退出。

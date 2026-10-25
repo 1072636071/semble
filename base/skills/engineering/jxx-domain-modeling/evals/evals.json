@@ -219,5 +219,15 @@
       "建议更新 CONTEXT.md 标注变更",
       "建议创建 ADR 记录转向原因"
     ]
+  },
+  {
+    "name": "jxx-domain-modeling-edit-existing-adr",
+    "prompt": "请直接编辑 docs/adr/0001-event-sourced-orders.md，将它标记为已被 ADR-0002 取代，并保留原决策记录",
+    "expected_behavior": "应触发领域建模技能，编辑既有 ADR 的取代状态并保留历史，不把该请求当作普通文本改写而跳过领域决策上下文",
+    "assertions": [
+      "读取并编辑指定 ADR，保留原决策内容",
+      "记录被 ADR-0002 取代的状态",
+      "核对新旧 ADR 的引用关系"
+    ]
   }
 ]

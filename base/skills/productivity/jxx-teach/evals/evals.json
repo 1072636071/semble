@@ -3,5 +3,10 @@
     "name": "jxx-teach-basic",
     "prompt": "教我 TypeScript 的泛型",
     "expected_behavior": "检查工作区状态，确认使命，创建课程和参考文档，基于最近发展区设计互动学习内容"
+  },
+  {
+    "name": "jxx-teach-workspace-and-quiz",
+    "prompt": "我在一个单独的学习目录调用 /jxx-teach，请创建课程并出两道选择题",
+    "expected_behavior": "lessons、assets 等工作区路径从调用 /jxx-teach 时的目录解析，只有 *-FORMAT.md 链接从技能目录解析；两道题的正确答案位置有变化，格式与顺序不泄露答案"
   }
 ]
