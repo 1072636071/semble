@@ -1,6 +1,6 @@
 ---
 name: jxx-ticket-board
-description: 工单公告板：多 worktree 并行协作，本会话即领导者。触发词：工单看板、领卡、auto、合并。
+description: "工单公告板：多 worktree 并行协作，本会话即领导者。当用户说工单看板、领卡、auto、合并时触发。"
 disable-model-invocation: false
 metadata:
   version: 0.18.0

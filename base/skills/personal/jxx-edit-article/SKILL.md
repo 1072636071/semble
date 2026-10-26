@@ -1,6 +1,6 @@
 ---
 name: jxx-edit-article
-description: 通过重组章节（sections）、提升清晰度、精炼文字（prose）来编辑（edit）改进文章（article）；用户想编辑、修订或改进文章草稿时使用。
+description: "编辑改进文章：重组章节、提升清晰度、精炼文字。当用户要修订或改进文章草稿时触发。不代写新内容。"
 disable-model-invocation: false
 metadata:
   version: 1.0.0

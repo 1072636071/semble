@@ -1,6 +1,6 @@
 ---
 name: jxx-to-tickets
-description: 将计划、spec 或对话拆解为带阻塞边（blocking edges）的追踪弹工单，发布到 issue tracker。触发词：拆工单、生成工单、to tickets。
+description: "将计划、spec 或对话拆解为带阻塞关系的工单，发布到 issue tracker。当用户说拆工单、生成工单、to tickets 时触发。不写实现代码。"
 disable-model-invocation: false
 metadata:
   version: 1.7.0

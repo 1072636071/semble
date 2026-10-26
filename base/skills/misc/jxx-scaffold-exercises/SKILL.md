@@ -1,6 +1,6 @@
 ---
 name: jxx-scaffold-exercises
-description: 创建包含 sections、problems、solutions、explainers 且通过 lint 的练习目录结构（scaffold exercises）。当用户想要搭建练习骨架（stub）或设置新的 course section 时使用。
+description: "创建练习目录结构（sections / problems / solutions / explainers）并过 lint。当用户要搭练习骨架或新建 course section 时触发。"
 metadata:
   version: 1.0.0
 ---

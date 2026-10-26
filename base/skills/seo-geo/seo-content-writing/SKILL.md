@@ -1,6 +1,6 @@
 ---
 name: seo-content-writing
-description: '编写 SEO 优化的文章、博客帖子、落地页与产品描述，覆盖关键词、标题层级、snippet 与证据边界。Use when the user asks to "write SEO content", "SEO文章写作", "内容优化", "帮我写文章", "create blog post", "SEO copywriting", or "write me a blog post". 不用于 AI 引用/GEO 就绪度评分——用 geo-content-optimizer；不用于更新衰减的存量内容——用 content-refresher。'
+description: "编写 SEO 文章、博客、落地页与产品描述。当用户要写 SEO 内容、写文章、写落地页时触发。不做 GEO 就绪度评分，不更新存量内容。"
 x-install: project
 metadata:
   version: 1.0.0

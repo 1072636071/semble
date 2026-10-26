@@ -1,32 +1,12 @@
 ---
 name: seo-router
-description: SEO/GEO 技能族族内路由器——用自然语言路由到审查模板、写作模板、五件套或已生成的子技能（seo-geo-audit/blog-writer）；检测套件缺失时引导安装。触发词："SEO""GEO""帮我查关键词""审查这篇文章""写一篇博客""外链分析""竞品分析""技术审计""keyword research""review this article""write a blog""backlink analysis""competitor analysis""technical audit""AI 可见性""llms.txt"。与工程族 jxx-ask-matt 并列，一族一路由。
+description: "SEO/GEO 技能族路由器。当用户提到 SEO、GEO、挖词、外链分析、竞品分析、技术审计、写博客时触发，分流到族内技能。与 jxx-ask-matt 并列，一族一路由。"
 x-install: project
 metadata:
   version: 1.0.0
   author: seo-geo-skill-suite
   tags: [seo, geo, router, dispatcher, installer]
-  triggers:
-    [
-      SEO,
-      GEO,
-      帮我查关键词,
-      审查这篇文章,
-      写一篇博客,
-      外链分析,
-      竞品分析,
-      技术审计,
-      keyword research,
-      review this article,
-      write a blog,
-      backlink analysis,
-      competitor analysis,
-      technical audit,
-      AI 可见性,
-      llms.txt,
-      内容写作,
-      seo help,
-    ]
+  triggers: [SEO, GEO, 帮我查关键词, 审查这篇文章, 写一篇博客, 外链分析, 竞品分析, 技术审计, keyword research, review this article, write a blog, backlink analysis, competitor analysis, technical audit, AI 可见性, llms.txt, 内容写作, seo help]
 ---
 
 # SEO/GEO 技能族路由器

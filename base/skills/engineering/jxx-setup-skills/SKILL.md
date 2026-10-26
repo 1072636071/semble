@@ -1,6 +1,6 @@
 ---
 name: jxx-setup-skills
-description: 为仓库配置工程技能环境：tracker、triage 标签、领域文档、技能清单。触发词：setup skills、初始化环境。
+description: "为仓库配置工程技能环境：issue tracker、triage 标签、领域文档、技能清单。当用户说 setup skills、初始化环境时触发。每个仓库跑一次。"
 disable-model-invocation: false
 metadata:
   version: 1.5.0

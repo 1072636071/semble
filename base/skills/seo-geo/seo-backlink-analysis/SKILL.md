@@ -1,6 +1,6 @@
 ---
 name: seo-backlink-analysis
-description: '为 off-page SEO 分析外部 referring domain、anchor text 分布、toxic link 与竞品链接缺口。当用户说"analyze backlinks"、"外链分析"、"反向链接"、"check link profile"、"find toxic links"、"link building opportunities"、"referring domains"、"who links to me"、"disavow links"、"谁链接到我"或"有垃圾外链"时使用。不用于内链——请用 internal-linking-optimizer。'
+description: "分析外部引荐域、锚文本分布、有毒链接与竞品链接缺口。当用户说外链分析、反向链接、谁链接到我、垃圾外链时触发。不管内链。"
 x-install: project
 metadata:
   version: 1.0.0

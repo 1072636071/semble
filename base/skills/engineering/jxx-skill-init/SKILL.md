@@ -1,6 +1,6 @@
 ---
 name: jxx-skill-init
-description: 在本仓库新增一个 SKILL：ship init 生成骨架并按仓库约定填充。触发词：新建技能、新增 SKILL、写个 skill、add skill。
+description: "在本仓库新增一个 SKILL，一次创建即过 check 门禁。当用户说新建技能、新增 SKILL、写个 skill 时触发。只建骨架与规范填充，不做技能评审。"
 disable-model-invocation: false
 x-install: true
 x-vendors:
@@ -58,7 +58,7 @@ node base/scripts/ship.mjs init --type skill --name <技能名> --bucket <桶>
 
 打开生成的 `SKILL.src.md`，替换占位符。字段说明见 [references/frontmatter.md](references/frontmatter.md)：
 
-- `name`、`description`：必填
+- `name`、`description`：必填；`description` 按四要素写（能力 + 场景 + 触发词 + 边界），模板见 [references/frontmatter.md](references/frontmatter.md) 的「description 四要素模板」
 - `x-vendors`：CodeArts 派生需要 `description-en`（5 行编号列表，英文）
 - `x-install`：分发控制（`true` / `project` / `false`）
 

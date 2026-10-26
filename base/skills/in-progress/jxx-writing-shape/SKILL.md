@@ -1,6 +1,6 @@
 ---
 name: jxx-writing-shape
-description: 写作 exploit——将原始素材逐段塑造（shape）为完整文章。
+description: "写作 exploit 阶段：把原始素材逐段塑造成完整文章。当用户有素材要成文时触发。"
 disable-model-invocation: false
 metadata:
   version: 1.0.0

@@ -1,6 +1,6 @@
 ---
 name: mzg-init
-description: 为目录建 mzg 代码索引，并查状态、重建、接入 harness。触发词：建索引、mzg。
+description: "为目录建 mzg 代码索引，并查状态、重建、接入 harness。当用户说建索引、mzg 时触发。"
 metadata:
   version: 1.0.0
 ---

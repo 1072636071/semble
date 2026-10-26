@@ -1,6 +1,6 @@
 ---
 name: jxx-wait-what
-description: 当 agent 刚解释或描述了什么而用户不理解时使用。以简化技术英语和共享词汇重讲上一段回答。
+description: "当 agent 刚说过什么而用户没听懂时，用更简单的说法重讲上一段回答。当用户说没看懂、wait what 时触发。"
 disable-model-invocation: false
 metadata:
   version: 1.0.0

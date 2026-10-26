@@ -1,6 +1,6 @@
 ---
 name: seo-keyword-research
-description: '为 SEO 与 GEO 规划发现、评分并聚类关键词。当用户说"find keywords"、"挖词"、"搜什么词"、"keyword research"、"search volume analysis"、"keyword difficulty"、"topic clusters"、"long-tail keywords"、"what should I write about"、"关键词研究"、"内容选题"、"关键词分析"、"长尾关键词"或"帮我挖词"时使用。按 search volume、keyword difficulty、intent 与 topic cluster 排序。不用于竞品相对的覆盖缺口——请用 seo-competitor-analysis。'
+description: "发现、评分并聚类关键词，按搜索量、难度、意图与主题簇排序。当用户说挖词、找关键词、关键词研究、内容选题时触发。不做竞品覆盖缺口。"
 x-install: project
 metadata:
   version: 1.0.0

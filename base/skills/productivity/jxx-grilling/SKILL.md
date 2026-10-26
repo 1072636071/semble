@@ -1,6 +1,6 @@
 ---
 name: jxx-grilling
-description: 对计划或设计穷追不舍地 grill（追问）用户。当用户想在构建前对计划做压力测试，或使用任何 "grill" 触发词时启用。
+description: "对计划或设计穷追不舍地追问。当用户想在构建前压力测试计划，或使用任何 grill 触发词时启用。"
 metadata:
   version: 1.2.0
 ---

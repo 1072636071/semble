@@ -1,6 +1,6 @@
 ---
 name: jxx-diagnosing-bugs
-description: 针对棘手 bug 和性能 regression 的诊断循环（diagnosis loop），当用户说"diagnose"/"debug this"或报告东西坏了/抛异常/失败/变慢时使用。
+description: "针对棘手 bug 与性能回归的诊断循环。当用户说 diagnose、debug this，或报告东西坏了、抛异常、变慢时触发。根因未明不动手改。"
 metadata:
   version: 1.1.0
 ---

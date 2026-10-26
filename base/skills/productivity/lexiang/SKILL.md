@@ -1,7 +1,7 @@
 ---
 name: lexiang
 version: 1.0.0
-description: 乐享知识库 MCP 的统一入口与路由。当用户提到「乐享」「lexiang」「乐享知识库」并需要搜索、阅读、创建、编辑、上传、导入或配置时使用；也覆盖「乐享 MCP 怎么用」「乐享工具」「乐享连不上」「乐享 401」等。本技能说明连接方式、工具面（preset）、动态发现流程，并按任务类型路由到 lexiang-search / lexiang-writer / lexiang-blocks / lexiang-files / lexiang-connectors / lexiang-setup 六个分域技能。
+description: "乐享知识库 MCP 的统一入口与路由。当用户提到乐享、lexiang、乐享知识库并要搜索、阅读、创建、编辑、上传或配置时触发。按任务类型分流到分域技能。"
 ---
 
 # 乐享知识库 MCP 使用引导
@@ -56,7 +56,7 @@ description: 乐享知识库 MCP 的统一入口与路由。当用户提到「�
 3. **链接拼接**：三级域名直接拼；顶级域名末尾加 `?company_from=`。
 4. **修改前先读**：`block_fetch_page` → `block_update_page`，最小范围改。
 5. **不编造** ID / URL / Block 内容；参数不确定以 `get_tool_schema` 为准。
-6. **文件上传三步**：`file_apply_upload` → HTTP PUT → `file_commit_upload`，不能跳过上传。
+6. **文件上传三步**：`file_apply_upload` → HTTP PUT → `file_commit_upload`，不能跳过上传。上传前向用户确认目标知识库与文件名；覆盖同名文件前必须显式确认。
 
 ## 参考
 

@@ -1,6 +1,6 @@
 ---
 name: kb-router
-description: 知识路由：知识存到或查哪个库（WeKnora 文档 / 灵枢记忆）。触发词：知识放哪、kb 路由。
+description: "知识路由：一份内容该存到或查哪个库（WeKnora 文档 / 灵枢记忆）。当用户问知识放哪、要不要进知识库时触发。不执行上传。"
 version: 0.3.0
 x-install: true
 metadata:

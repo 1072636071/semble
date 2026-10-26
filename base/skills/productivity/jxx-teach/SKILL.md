@@ -1,6 +1,6 @@
 ---
 name: jxx-teach
-description: 在当前工作区内 teach（教授）用户新技能或概念，当用户想学某主题或提到"教学"时使用。
+description: "在当前工作区内教用户新技能或概念。当用户想学某主题、说教学时触发。不写产品代码。"
 metadata:
   version: 1.1.0
 argument-hint: "你想学习什么？"

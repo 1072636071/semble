@@ -1,6 +1,6 @@
 ---
 name: seo-technical-audit
-description: '审计 crawlability、indexing、Core Web Vitals、robots.txt、sitemap、canonical、redirect 与 migration 的技术 SEO 健康度。Use when the user asks to "check technical SEO", "技术SEO", "网站速度", "核心网页指标", "索引问题", "Google找不到页面", "site speed", "Core Web Vitals", "crawlability", "robots.txt", or "site migration". 不用于 on-page 标签或内容——用 seo-content-writing。'
+description: "审计技术 SEO 健康度：爬取、索引、核心网页指标、robots.txt、sitemap、规范化与跳转。当用户说技术 SEO、网站速度、索引问题、站点迁移时触发。不做页面内容优化。"
 x-install: project
 metadata:
   version: 1.0.0

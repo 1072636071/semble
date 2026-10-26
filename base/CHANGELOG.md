@@ -1,5 +1,61 @@
 # mattpocock-skills
 
+## 技能宪章 + 机器闸 2026-10-26
+
+把「AI Skills 该怎么写」从散落的经验变成唯一权威源 + 可重复的机器信号。
+
+### 新增
+
+- `docs/agents/skill-charter.md`——**技能宪章**，与质量宪章平级。十条原则（名称触发 / 职责单一 / 渐进式披露 / 命令式 / 输入输出接口 / 边界失败 / 模糊归 Skill 确定性归脚本 / 可验证 / 版本化 / 安全前置），每条给判据 + 对照 + 机器闸规则码，附描述模板与自查清单。定位：Skill 是可触发、可执行、可验证、可维护的标准化能力说明，不是提示词。
+- `base/scripts/skill-lint.mjs`——按宪章对 `base/skills/**` 做只读扫描的机器闸。规则 `sk-00` / `sk-00b` / `sk-01a` / `sk-01b` / `sk-02`..`sk-10`，分数 100 起扣（P0 −25 / P1 −8 / P2 −2 / info 不扣）。CLI：默认摘要 + 最差 30、`--json`、`--strict`（有 P0 则 exit 1）、`--verbose`、`--root`、`--md`/`--out`。
+- `base/scripts/test/skill-lint.test.mjs`——23 项用例（阈值、降级解析、第三方判定、只读性断言）。
+- `docs/report/skill-audit-2026-10-26.md`——全量审计报告：99 技能画像、P0 一条、P1 逐条人工判读、仓库级 5 处漂移，附修复状态。
+
+### 修（宪章落地的第一批）
+
+- `jxx-improve-codebase-architecture` / `jxx-mcp-design`：description 补触发语（`sk-01a` P1）。
+- `jxx-agnes-video`：「建议 1–2s 一次」改为「每 1–2s 一次」（`sk-04` 模糊词）。
+- `lexiang`：上传链路补「上传前确认目标知识库；覆盖同名文件必须显式确认」（`sk-10`）。
+- `jxx-prototype`：推送分支补「推之前确认远端与分支名，不允许静默执行」（`sk-10`）。
+- `seo-audit-template` / `seo-blog-template` / `seo-router`：`metadata.triggers` 的多行 flow 序列归一为单行——此前 `ship.mjs` 的子集 YAML 解析器会抛错，只靠 `getXInstall` 正则兜底才没炸。
+- `jxx-skill-init`：`references/frontmatter.md` 的 description 规范从两要素改成四要素（能力 + 场景 + 触发词 + 边界），`SKILL.md` 第 3 步同步指过去。
+
+### 修（仓库级漂移）
+
+- `CONTEXT.md`：TDB-AM 桶的技能清单按实测重写——旧版列的 `dsh-tdai-routing` / `panel-admin` / `tdai-remote-ops` / `tdai-wiki-local` 四个技能从未落地，在用的 `kb-router` / `lingshu-console` / `weknora-kb-ops` 三个一个都没登记。
+- `base/skills/README.md` 与 `安装.md`：桶表补齐 7 个分发桶 + 3 个不分发桶 + `docs/`，加「以 `vendors.json` 的 `buckets` 为准」表头；README 的「状态」列换成「分发」（是/否），消除「并列却不区分发布」的误解源。
+
+### 退役（2026-10-26 决策）
+
+- `base/skills/TDB-AM/tdai-codegraph-local` 整目录删除（14 个文件）。理由：有 `references/` + `scripts/` 却无入口文件，任何厂商都加载不了；其记忆面已在此前提交 `d4e91ab9` 削减过一轮。`skill-lint --strict` 因此回到 exit 0。
+- `base/skills/engineering/jxx-caveman` 整目录删除。理由：输出风格真正生效的通道是 `docs/agents/agent-personas.md` 的 `caveman-sections` 提示词集，技能只是它的说明书；留着只是重复一份规则。三处引用（`base/skills/README.md`、`engineering/README.md`、`jxx-ask-matt`）同步摘除。`samll/` 桶的英文原版保持不分发，作为仓库存档。
+
+### description 压缩（常驻成本）
+
+description 是每轮都在付的上下文成本，原先把实现细节（文件路径、CLI 参数、内部字段名、能力清单）写进去。本轮压缩 **65 个自研技能**，合计 **7,057 到 4,339 字符（-39%）**，第三方技能一个没动。
+
+压缩原则：描述只答「何时调用」——能力一句 + 场景 + 触发词 + 边界。实现细节下沉正文，正文里本来就有。
+
+最长几个的变化：
+
+| 技能 | 原 | 现 |
+|---|---|---|
+| `seo-keyword-research` | 332 | 64 |
+| `seo-technical-audit` | 327 | 90 |
+| `seo-backlink-analysis` | 289 | 59 |
+| `jxx-agnes-video` | 293 | 88 |
+| `lexiang` | 257 | 76 |
+| `jxx-html-craft` | 244 | 79 |
+
+其中 seo 族的重复触发词列表（同一批词在 description、`metadata.triggers`、正文 Quick Start 里各写一遍）压成一处。
+
+机器闸新增 `sk-01c`：description 命中文件路径 / CLI 参数 / 内部字段名（snake_case、camelCase）即记 P2，防止这份成本再长回来。
+
+### 门禁接入
+
+`ship check` 现在顺带跑 `skill-lint --strict`（子进程调用，`E_SKILL_P0`）：任何技能目录缺入口文件、或 frontmatter 解析不出 name/description，`ship check` 直接非零退出。此前这类错误只会在 `ship install` 时静默少装一个技能。
+
+P0 先清零再接门禁——否则 `ship check` 会永久红。
 ## 选择性同步 2026-10-24（上游 84fdeffd..5beb35b）
 
 已审查区间 126 commits（96 non-merge）；本次按既定方案选择性移植 11 项，不是全量覆盖。

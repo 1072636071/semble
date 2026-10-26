@@ -1,6 +1,6 @@
 ---
 name: seo-competitor-analysis
-description: '将竞品的关键词、内容、backlink、AI 引用与流量份额基准化为优势、劣势与行动计划。当用户说"analyze competitors"、"竞品分析"、"竞争对手"、"competitive intelligence"、"competitor SEO"、"why do they outrank me"或"对标分析"时使用。不用于成对 topic 覆盖缺口图——请用 content-gap-analysis。'
+description: "将竞品的关键词、内容、外链、AI 引用与流量份额基准化为优劣势与行动计划。当用户说竞品分析、竞争对手、对标分析时触发。不做成对 topic 覆盖缺口。"
 x-install: project
 metadata:
   version: 1.0.0

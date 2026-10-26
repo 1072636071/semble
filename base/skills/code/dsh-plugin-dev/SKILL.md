@@ -1,6 +1,6 @@
 ---
 name: dsh-plugin-dev
-description: 开发、打包、发布 dsh 插件。触发词：dsh 插件、Cordis、插件配置。
+description: "开发、打包、发布 dsh 插件。当用户说 dsh 插件、Cordis、插件配置时触发。"
 metadata:
   version: 1.2.2
 ---

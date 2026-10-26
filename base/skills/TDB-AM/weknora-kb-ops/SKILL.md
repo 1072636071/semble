@@ -1,6 +1,6 @@
 ---
 name: weknora-kb-ops
-description: WeKnora 知识库运营：上传去重、标签、审计、批量改名。触发词：指定知识库、灌图、图片去重。
+description: "指定 WeKnora 知识库的运营：上传去重、标签、审计、批量改名。当用户说指定知识库、灌图、图片去重时触发。"
 version: 2.6.0
 x-install: true
 ---

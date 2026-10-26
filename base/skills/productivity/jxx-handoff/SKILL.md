@@ -1,6 +1,6 @@
 ---
 name: jxx-handoff
-description: 将当前对话压缩成 handoff 交接文档，供下一个 agent 接续。触发词：交接、handoff、保存上下文。
+description: "将当前对话压缩成 handoff 交接文档，供下一个 agent 接续。当用户说交接、handoff、保存上下文时触发。"
 metadata:
   version: 1.1.0
 argument-hint: "下一个会话将用于什么？"

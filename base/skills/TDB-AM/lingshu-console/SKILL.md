@@ -1,6 +1,6 @@
 ---
 name: lingshu-console
-description: 灵枢资源管理：查改删记忆、找图、管项目库、lumen 全景；记忆过时失效时先与用户核实再软删+重记。触发词：灵枢管理、改记忆、删记忆、记忆过时、重新记忆。
+description: "灵枢资源管理：查改删记忆、找图、管项目库。当用户说灵枢管理、改记忆、删记忆、记忆过时时触发。删前先与用户核实。"
 version: 0.2.0
 x-scope: global
 disable-model-invocation: false

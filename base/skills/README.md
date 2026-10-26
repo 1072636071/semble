@@ -6,14 +6,22 @@
 >
 > **演进关系**：jxx 系列技能（`engineering/jxx-*`，含统一工作流三技能 jxx-ticket-board / jxx-implement / jxx-implement-spec）与 **TencentDB-Agent-Memory（含 jxx-ticket 服务端 MyWeKnora fork 与线上 /tickets 看板）同时演进**——JwikisSkills 是该项目的子项目，机制变更须双向同步（详见仓库根 `AGENTS.md`「与 TencentDB-Agent-Memory 的关系」节）。
 
-| 桶              | 说明                 | 状态   |
-| --------------- | -------------------- | ------ |
-| `engineering/`  | 日常代码工作         | 推广   |
-| `productivity/` | 日常非代码工作流工具 | 推广   |
-| `misc/`         | 保留但很少使用       | 不推广 |
-| `personal/`     | 绑定个人配置         | 不推广 |
-| `in-progress/`  | 尚未准备发布的草稿   | 不推广 |
-| `deprecated/`   | 不再使用             | 已废弃 |
+> **桶清单以 `base/scripts/vendors.json` 的 `buckets` 为准**，下表只解释各桶定位；「分发」列的判据就是它是否在 `buckets` 里。
+
+| 桶              | 说明                 | 分发 |
+| --------------- | -------------------- | ---- |
+| `engineering/`  | 日常代码工作         | 是   |
+| `productivity/` | 日常非代码工作流工具 | 是   |
+| `code/`         | dsh / dbx / 索引类工具技能 | 是 |
+| `kimi/`         | Kimi 专属技能        | 是   |
+| `TDB-AM/`       | TencentDB-Agent-Memory 技能族 | 是 |
+| `storytold/`    | ArtCraft 编译工具族  | 是   |
+| `seo-geo/`      | SEO/GEO 营销域技能族（仅项目级） | 是 |
+| `misc/`         | 保留但很少使用       | 否   |
+| `personal/`     | 绑定个人配置         | 否   |
+| `in-progress/`  | 尚未准备发布的草稿   | 否   |
+| `samll/`        | 上游 caveman / code-reviewer 英文原版（未进 `buckets`，不分发） | 否 |
+| `docs/`         | 技能族自带的 ADR / memorial，不是技能 | — |
 
 > **Hook 标注约定**：含 Hook 的技能在其条目后加 `🪝[厂商…]` 角标，标明该技能依赖的 Agent 厂商 hook 机制（详见 [HARNESS-SPEC.md §10](../HARNESS-SPEC.md)）。目标厂商为 **openCode / CodeBuddy / 华为 CodeArts / Trae**。图例：`🪝[openCode]` = 仅 openCode；`🪝[openCode/CodeBuddy/Trae]` = 已适配多家；`🪝[CodeArts]` = 华为码道插件；`🪝[git]` = 厂商无关 git hook。
 
@@ -54,7 +62,6 @@
 - **[impeccable](./engineering/impeccable/SKILL.md)** 🪝[待改造] — 设计、重塑、打磨前端界面，提供工艺级视觉与 UX。其 `hook*.mjs` runner 思路（一个内核 + 多 manifest）可复用，但当前 manifest 矩阵为 Claude Code 系四家，**未对齐 openCode/CodeBuddy/CodeArts/Trae**，待改造。
 - **[resolving-merge-conflicts](./engineering/jxx-resolving-merge-conflicts/SKILL.md)** — 解决合并冲突。
 - **[git-auth](./engineering/jxx-git-auth/SKILL.md)** — 加载 cnb / GitHub / Gitee 访问令牌并注入当前操作（HTTPS remote、API 头、`gh` CLI）。令牌源在仓库外，技能内只存路径。
-- **[caveman](./engineering/jxx-caveman/SKILL.md)** — 极简输出模式：保留全部技术内容，删除全部废话。安全警告与不可逆确认时自动恢复正常表达。
 - **[grill-with-memorial](./engineering/jxx-grill-with-memorial/SKILL.md)** — 通过 grill 打磨计划或设计，全过程持久化到 memorial 奏报目录。证据先行：有疑问先查一手资料，不用世界知识冒充事实。支持中断续接、调查委派、收尾审核。
 - **[wizard](./engineering/jxx-wizard/SKILL.md)** — 生成交互式 bash 向导，引导人完成手动多步流程，捕获值并写入 `.env` 或 CI 密钥。
 

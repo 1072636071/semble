@@ -1,6 +1,6 @@
 ---
 name: jxx-git-auth
-description: 加载 Git 平台访问令牌（cnb / GitHub / Gitee），供 push、clone 私有仓库、调用平台 API 或 gh CLI 等需要凭据的操作使用。当遇到 push/clone 报 401/403、认证失败、需要 token / 密钥 / 凭据 / 访问令牌，或要操作私有仓库时使用。
+description: "加载 Git 平台访问令牌。当 push/clone 报 401/403、认证失败、需要 token，或要操作私有仓库时触发。令牌源在仓库外，技能内只存路径。"
 x-install: true
 metadata:
   version: 1.4.0

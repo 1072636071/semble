@@ -1,6 +1,6 @@
 ---
 name: jxx-migrate-to-shoehorn
-description: 将测试文件从 `as` 类型断言（type assertion）迁移到 @total-typescript/shoehorn；当用户提到 shoehorn、想在测试中替换 `as` 或需要部分测试数据时触发。
+description: "将测试文件从 `as` 类型断言迁移到 @total-typescript/shoehorn。当用户提到 shoehorn、想替换 `as` 或需要部分测试数据时触发。"
 metadata:
   version: 1.0.0
 ---

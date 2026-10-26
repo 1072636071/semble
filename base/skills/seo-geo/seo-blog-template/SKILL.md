@@ -1,20 +1,12 @@
 ---
 name: seo-blog-template
-description: SEO/GEO 写作模板（skill-as-generator）——追问收集项目内容架构知识（内容集合、frontmatter 契约、分类枚举、渲染约定、缩略图映射、设计令牌），在项目级技能目录生成固定名 blog-writer 子技能，内置样式模板与写作/自检 checklist；检测既有子技能时进入升级模式。触发词："生成写作技能"、"写作模板"、"blog template"、"升级写作技能"、"configure blog writer"。
+description: "SEO/GEO 写作模板（生成器）：追问项目内容架构，生成固定名 blog-writer 子技能。当用户要生成或升级写作技能时触发。不直接写文章。"
 x-install: project
 metadata:
   version: 1.0.0
   author: seo-geo-skill-suite
   tags: [seo, geo, blog, writing, template, generator, skill-as-generator]
-  triggers:
-    [
-      生成写作技能,
-      写作模板,
-      blog template,
-      升级写作技能,
-      configure blog writer,
-      生成 blog-writer,
-    ]
+  triggers: [生成写作技能, 写作模板, blog template, 升级写作技能, configure blog writer, 生成 blog-writer]
 ---
 
 # SEO/GEO 写作模板（skill-as-generator）

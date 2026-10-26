@@ -1,6 +1,6 @@
 ---
 name: jxx-grill-me
-description: grill 计划或设计，逐轮追问到无遗留问题。触发词：grill、一起决策。
+description: "grill 计划或设计，逐轮追问到无遗留问题。当用户说 grill、一起决策时触发。无状态，不落 CONTEXT.md。"
 metadata:
   version: 1.1.0
 disable-model-invocation: false

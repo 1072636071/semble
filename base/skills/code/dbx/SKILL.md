@@ -1,6 +1,6 @@
 ---
 name: dbx
-description: DBX 数据库客户端 MCP：SQL、库结构、Redis/Kafka、备份同步。触发词：跑 SQL、看库结构、dbx。
+description: "DBX 数据库客户端：跑 SQL、看库结构、Redis/Kafka、备份同步。当用户说跑 SQL、看库结构、dbx 时触发。"
 metadata:
   version: 1.0.0
 ---

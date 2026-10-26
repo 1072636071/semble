@@ -1,6 +1,6 @@
 ---
 name: jxx-to-spec
-description: 将当前对话转化为 spec（规格文档）并发布到 issue tracker——不访谈，仅综合已有讨论。触发词：写 spec、to spec。
+description: "将当前对话转化为 spec 并发布到 issue tracker。当用户说写 spec、to spec 时触发。不访谈，只综合已有讨论。"
 disable-model-invocation: false
 metadata:
   version: 1.5.0

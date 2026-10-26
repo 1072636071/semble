@@ -1,6 +1,6 @@
 ---
 name: jxx-obsidian-vault
-description: 在 Obsidian vault 中搜索、创建、管理笔记（note），使用 wikilinks 与 index notes（索引笔记）；当用户想在 Obsidian 中查找、创建或整理笔记时使用。
+description: "在 Obsidian vault 中搜索、创建、整理笔记，使用 wikilinks 与索引笔记。当用户要在 Obsidian 里找、建或整理笔记时触发。"
 metadata:
   version: 1.0.0
 ---

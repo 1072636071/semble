@@ -1,6 +1,6 @@
 ---
 name: jxx-writing-fragments
-description: 写作（writing）explore 阶段——挖掘原始碎片，暂不构建结构。
+description: "写作 explore 阶段：挖掘原始碎片，暂不构建结构。当用户要先把素材吐出来时触发。"
 disable-model-invocation: false
 metadata:
   version: 1.0.0

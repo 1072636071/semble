@@ -1,6 +1,6 @@
 ---
 name: jxx-grill-with-docs
-description: grill 计划或设计，同时产出 ADR 与词汇表。触发词：grill、讨论设计。
+description: "grill 计划或设计，同时产出 ADR 与词汇表。当用户说 grill、讨论设计，且在工作目录里时触发。"
 metadata:
   version: 1.1.0
 disable-model-invocation: false

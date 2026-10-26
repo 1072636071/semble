@@ -1,6 +1,6 @@
 ---
 name: jxx-triage
-description: 将 issue 与外部 PR 推过 triage 状态机：分类、验证、必要时 grill，产出 agent 可执行简报。触发词：triage、分类。
+description: "将 issue 与外部 PR 推过 triage 状态机，产出 agent 可执行简报。当用户说 triage、分类、清积压时触发。不对自己产出的工单再做 triage。"
 disable-model-invocation: false
 metadata:
   version: 1.2.0

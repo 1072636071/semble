@@ -48,15 +48,16 @@ _避免使用_：为项目限定技能发明 ship 之外的分发通道
 **seo-geo 桶 / `seo-` 前缀家族**：
 `base/skills/seo-geo/` 桶承载 SEO/GEO 营销域技能族（审查模板、写作模板、五件套、`seo-router` 路由器），统一 `seo-` 前缀并注册进 `managedPrefixes`。特例：该族**仅项目级分发**（`x-install: project`），首次进场由 `ship --project` 哑拷贝，进场后生命周期由项目内 `seo-router` 兼任（ADR 0005）。
 
-**TDB-AM 桶 / `tdai-` 前缀家族**：
-`base/skills/TDB-AM/` 桶承载 TencentDB-Agent-Memory（TDAI）能力抽象技能族：
-- `dsh-tdai-routing`：DSH harness ↔ TDAI 路由双向接线（早期命名例外，无 `tdai-` 前缀）
-- `panel-admin`：Panel 管理域总入口（wiki/code-graph/llm-upstream/agent-团队/用量，早期命名例外）
-- `tdai-remote-ops`：运维远端——SSH 为主 + HTTP 快速巡检；容器/配置/构建部署/数据备份，仅 TDAI 栈
-- `tdai-codegraph-local`：本地 Code_Graph——常驻本地 KS + 用户级 MCP，单守护进程多仓库（ADR：单守护多仓库 / 编译件分发）
-- `tdai-wiki-local`：本地 Wiki——远端 wiki 生命周期 + 查询（复用守护 MCP 兜底转发，ADR：wiki 兜底转发）
+**TDB-AM 桶（TDAI 接入与知识面）**：
+`base/skills/TDB-AM/` 桶承载 TencentDB-Agent-Memory（TDAI）的**接入与使用面**技能，不含 Panel 运维与远端部署（那部分在本仓之外）：
+- `kb-router`：知识路由——文档/知识/图片去 WeKnora，记忆/技能/任务去灵枢（三分流判据）
+- `weknora-kb-ops`：指定知识库的运营面——上传去重、标签、审计、批量改名（含各库档案与凭据腿约定）
+- `lingshu-console`：灵枢资源管理——查改删记忆、找图、管项目库
+- `tdai-codegraph-local`（**仅有 `references/` + `scripts/`，缺入口文件，当前不可加载**）：本地 Code_Graph 守护进程与 MCP，见 `docs/report/skill-audit-2026-10-26.md` P0-1
 
-`tdai-` 前缀已注册进 `managedPrefixes`（ship 清理范围），`TDB-AM` 已加入 `buckets`。本地工作根 `~/.tdai/`（runtime/config/state/data）为该族运行时约定。技能族制品随发布仓库 `cnb.cool/hanjiangxue_xiaoxiao/jx-ai` 分发。
+`tdai-` 前缀仍留在 `managedPrefixes` 里（历史清理范围，当前无技能使用该前缀）；`TDB-AM` 在 `buckets` 中。本地工作根 `~/.tdai/`（runtime/config/state/data）为该族运行时约定。技能族制品随发布仓库 `cnb.cool/hanjiangxue_xiaoxiao/jx-ai` 分发。
+
+> **2026-10-26 修正**：本节旧版列了 `dsh-tdai-routing` / `panel-admin` / `tdai-remote-ops` / `tdai-wiki-local` 四个技能，实测四者在本仓都不存在（`panel-admin` 仅在 `TencentDB-Agent-Memory/.temp/` 的旧输出里留有副本；其余三个本仓与对端项目均无——旧列表是规划态，从未落地）；同时漏登 `kb-router` / `weknora-kb-ops` / `lingshu-console` 三个在用的技能。清单以 `Get-ChildItem base/skills/TDB-AM` 为准，本处已按实测重写。
 
 **令牌源外置**：
 凭据类技能（首例 `jxx-git-auth`）在技能内只声明**仓库外机密文件的路径**，令牌值运行时读取、永不写入仓库任何文件。理由是技能会经 **ship** 分发到全部平台目录——一旦入库即等于向所有安装点扩散密钥。

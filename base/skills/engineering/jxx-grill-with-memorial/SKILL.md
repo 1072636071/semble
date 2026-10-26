@@ -1,6 +1,6 @@
 ---
 name: jxx-grill-with-memorial
-description: grill 计划或设计，全程落 memorial 奏报。触发词：memorial、奏报、讨论设计、梳理需求。
+description: "grill 计划或设计，全程落 memorial 奏报。当用户说 memorial、奏报、梳理需求时触发。适合需跨会话续接的方案。"
 metadata:
   version: 1.2.0
 ---

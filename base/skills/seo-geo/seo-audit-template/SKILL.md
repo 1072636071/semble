@@ -1,20 +1,12 @@
 ---
 name: seo-audit-template
-description: SEO/GEO 审查模板（skill-as-generator）——追问收集项目参数，在项目级技能目录生成固定名 seo-geo-audit 子技能，覆盖真实性 + SEO/GEO + 样式一致性三维度审查；检测既有子技能时进入升级模式（版本比对 → 旧参数重新生成 → diff 确认 → 覆盖）。触发词："生成审查技能"、"审查模板"、"seo audit template"、"升级审查技能"、"configure audit skill"。
+description: "SEO/GEO 审查模板（生成器）：追问项目参数，生成固定名 seo-geo-audit 子技能。当用户要生成或升级审查技能时触发。不直接做审查。"
 x-install: project
 metadata:
   version: 1.0.0
   author: seo-geo-skill-suite
   tags: [seo, geo, audit, template, generator, skill-as-generator]
-  triggers:
-    [
-      生成审查技能,
-      审查模板,
-      seo audit template,
-      升级审查技能,
-      configure audit skill,
-      生成 seo-geo-audit,
-    ]
+  triggers: [生成审查技能, 审查模板, seo audit template, 升级审查技能, configure audit skill, 生成 seo-geo-audit]
 ---
 
 # SEO/GEO 审查模板（skill-as-generator）

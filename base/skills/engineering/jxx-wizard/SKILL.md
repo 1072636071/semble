@@ -1,6 +1,6 @@
 ---
 name: jxx-wizard
-description: 生成一个交互式 bash 向导，引导人完成手动多步流程——在 Web 控制台里点来点去、创建账号、生成密钥、配置 OAuth、打开开关。当 agent 卡在一个需要人来完成的步骤，且步骤多到 checklist 不够用、或值必须一路捕获时使用。
+description: "生成一个交互式 bash 向导，引导人完成手动多步流程。当 agent 卡在一串需要人操作的步骤、checklist 不够用时触发。不替人执行那些步骤。"
 metadata:
   version: 1.1.0
 ---

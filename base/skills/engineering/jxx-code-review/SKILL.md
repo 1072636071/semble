@@ -1,6 +1,6 @@
 ---
 name: jxx-code-review
-description: 审查自固定点以来的变更，多维度并行取证。触发词：code review、审查代码。
+description: "审查固定点以来的变更，多维度并行取证。当用户说 code review、审查代码时触发。不改代码，只出问题清单与判定。"
 metadata:
   version: 1.5.0
 ---

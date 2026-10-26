@@ -1,6 +1,6 @@
 ---
 name: jxx-to-questionnaire
-description: 把对话中 agent 答不了的待决问题转成措辞中立的问卷，产出可交付 md 交人填写。触发词：问卷、questionnaire、问别人。
+description: "把对话中 agent 答不了的待决问题转成措辞中立的问卷。当用户说问卷、questionnaire、要问别人时触发。不代替人回答问题。"
 disable-model-invocation: false
 metadata:
   version: 1.0.0

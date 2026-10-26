@@ -1,6 +1,6 @@
 ---
 name: jxx-research
-description: 调研主题、收集资料、写报告、技术选型。触发词：调研、写报告、技术选型。
+description: "调研主题、收集资料、写报告、技术选型。当用户说调研、写报告、技术选型时触发。"
 metadata:
   version: 2.2.1
 ---

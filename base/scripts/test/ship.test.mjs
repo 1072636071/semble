@@ -443,6 +443,32 @@ test('derive：门禁失败记录错误但不中断其他源', () => {
   assert.ok(fs.existsSync(path.join(gen, 'opencode', 'jxx-healthy', 'SKILL.md')), 'jxx-healthy 照常派生');
 });
 
+// ---------------------------------------------------------------- 技能宪章机器闸
+
+test('check：技能目录缺入口文件（skill-lint P0）⇒ 非零退出', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-lint-'));
+  const userHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-lint-home-'));
+  const config = {
+    buckets: ['engineering'],
+    managedPrefixes: ['jxx-'],
+    skillsSource: 'skills',
+    vendors: {
+      opencode: { label: 'OpenCode', derive: false, user: { skills: '~/.agents/skills' }, project: { skills: '.opencode/skills' } },
+    },
+  };
+  writeFile(root, 'vendors.json', JSON.stringify(config, null, 2));
+  writeFile(root, 'skills/engineering/jxx-ok/SKILL.md', '---\nname: jxx-ok\ndescription: ok skill with trigger. 触发词：ok。\nmetadata:\n  version: 1.0.0\n---\n\n# ok\n');
+  // 有资产目录、没有入口文件 ⇒ sk-00b P0
+  writeFile(root, 'skills/engineering/jxx-orphan/references/note.md', 'orphan');
+
+  const ok = run(['check'], userHome, path.join(root, 'vendors.json'));
+  assert.equal(ok.code, 1, '有 P0 时 check 必须非零：' + ok.all);
+  assert.match(ok.stderr, /E_SKILL_P0/);
+
+  fs.rmSync(path.join(root, 'skills/engineering/jxx-orphan'), { recursive: true, force: true });
+  const clean = run(['check'], userHome, path.join(root, 'vendors.json'));
+  assert.equal(clean.code, 0, 'P0 清掉后 check 应通过：' + clean.all);
+});
 // ---------------------------------------------------------------- 工单 05
 
 test('agent：平面文件复制到已声明 agents 目录的平台', () => {
@@ -497,4 +523,3 @@ test('foreignInstalled：上游维护的目标跳过、不覆盖、不算失败'
     fs.rmSync(userHome, { recursive: true, force: true });
   }
 });
-

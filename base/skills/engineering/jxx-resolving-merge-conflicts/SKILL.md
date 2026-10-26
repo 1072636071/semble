@@ -1,6 +1,6 @@
 ---
 name: jxx-resolving-merge-conflicts
-description: 解决进行中的 merge/rebase 冲突，保留双方意图。触发词：合并冲突、解冲突。
+description: "解决进行中的 merge/rebase 冲突，保留双方意图。当用户说合并冲突、解冲突时触发。不替人决定放弃哪一侧。"
 metadata:
   version: 1.1.0
 ---

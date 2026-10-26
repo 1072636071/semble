@@ -1,6 +1,6 @@
 ---
 name: jxx-wayfinder
-description: 规划超过单会话承载的大型工作：在 issue tracker 上建共享调查地图，逐个解决工单直到路径清晰。触发词：wayfinder、寻路、迷雾。
+description: "为超过单会话承载的大型工作建共享调查地图，逐个解决直到路径清晰。当用户说 wayfinder、寻路、一片迷雾时触发。不直接写实现。"
 disable-model-invocation: false
 metadata:
   version: 1.4.0

@@ -16,6 +16,10 @@ AGENTS.md 和 CODEBUDDY.md 内容必须保持一致。
 三道闸各一条命令：**生产闸** `node base/scripts/ac-audit.mjs <功能目录> --strict`；**执行闸** `node base/scripts/ac-audit.mjs <工单文件>`；**审查闸** `git diff origin/main...HEAD` 逐条 AC 自己取证。
 放行条件与退出码语义全在规范里（§四 / §五 / §七 / §八），本文件不复述。
 
+## 技能与文档判据（宪章 · 唯一权威源）
+
+写或改任何 Skill 前按**技能宪章**自检四个词——**可触发、可执行、可验证、可维护**。判据正文只在 `docs/agents/skill-charter.md`（十条原则 + 描述模板 + 自查清单），机器闸 `node base/scripts/skill-lint.mjs --strict`；怎么算做完见 `docs/agents/quality-charter.md`。
+
 ## Agent skills
 
 ### Issue tracker

@@ -7,6 +7,7 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_CONFIG = path.join(__dirname, 'vendors.json');
@@ -977,10 +978,26 @@ function runVerify(config, installed) {
 
 // ---------------------------------------------------------------- check
 
+// 技能宪章机器闸：ship check 顺带跑 skill-lint，任何 P0（frontmatter 解析不出
+// name/description、技能目录缺入口文件）都算分发链硬故障，必须挡住。
+// 用子进程而非 import：skill-lint 是独立 CLI，保持其可单独运行的契约不变。
+function runSkillLintGate(config) {
+  const lintPath = path.join(__dirname, 'skill-lint.mjs');
+  if (!fs.existsSync(lintPath)) return [];
+  const skillsBase = config.skillsBase;
+  const res = spawnSync(process.execPath, [lintPath, '--strict', '--root', skillsBase], { encoding: 'utf-8' });
+  if (res.status === 0) return [];
+  const out = String(res.stderr || '') + String(res.stdout || '');
+  const m = out.match(/存在 P0 级发现（(\d+) 条）/);
+  const count = m ? m[1] : '?';
+  return [{ code: 'E_SKILL_P0', vendor: '*', file: skillsBase, detail: `skill-lint --strict 报 ${count} 条 P0（frontmatter 解析失败或技能目录缺入口文件），详见 node base/scripts/skill-lint.mjs --strict` }];
+}
+
 function runCheck(config) {
   const errors = [];
   const { errors: deriveErrors } = runDerive(config, { dryRun: true });
   errors.push(...deriveErrors);
+  errors.push(...runSkillLintGate(config));
   return errors;
 }
 

@@ -1,6 +1,6 @@
 ---
 name: dsh-agent-studio-config
-description: 维护 dsh-agent-studio 配置：提示词集、工具集、技能集、绑定预设。触发词：studio 配置、提示词集、绑定预设。
+description: "维护 dsh-agent-studio 配置：提示词集、工具集、技能集、绑定预设。当用户说 studio 配置、提示词集、绑定预设时触发。"
 x-install: true
 x-scope: global
 metadata:

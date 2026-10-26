@@ -1,6 +1,6 @@
 ---
 name: jxx-implement-spec
-description: 按 spec/PRD 整轨实现：投卡、auto 编排、合并回收。触发词：实现 spec、实现全部工单。
+description: "按整份 spec/PRD 批量推进实现。当用户说实现 spec、实现全部工单、整轨跑时触发。单工单不要用这个。"
 disable-model-invocation: false
 metadata:
   version: 1.8.1

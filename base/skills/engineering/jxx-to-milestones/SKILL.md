@@ -1,6 +1,6 @@
 ---
 name: jxx-to-milestones
-description: 把已发布工单归组为可独立上线、可单独回滚的里程碑（MILESTONES.md），按里程碑逐个交付。触发词：里程碑、分批发布、milestones。
+description: "把已发布工单归组为可独立上线、可单独回滚的里程碑。当用户说里程碑、分批发布、milestones 时触发。不改工单内容。"
 disable-model-invocation: false
 metadata:
   version: 1.1.1
