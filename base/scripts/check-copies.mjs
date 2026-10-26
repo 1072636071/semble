@@ -157,6 +157,20 @@ function normalizeEol(buf) {
 }
 
 /**
+ * 写副本前先保证父目录存在。
+ *
+ * 技能目录里不一定已经有 `scripts/`——全新登记一个「给缺脚本的技能补副本」时，
+ * `writeFileSync` 会当场 ENOENT 把整个 `--fix` 打断（2026-10-26 实测：给五个
+ * 调用方补 ac-audit 副本时，必须先手建目录才能跑通）。修法就地把目录补出来，
+ * 让 `--fix` 真正做到「一条命令收敛」。
+ *
+ * @param {string} fileAbs - 目标副本的绝对路径。
+ */
+function ensureParentDir(fileAbs) {
+  fs.mkdirSync(path.dirname(fileAbs), { recursive: true });
+}
+
+/**
  * 校验（或修复）全部副本。
  * @param {{fix?: boolean}} [opts] fix=true 用本源覆盖副本
  * @returns {{results: {file: string, status: 'OK'|'FIXED'|'DRIFT'|'EOL'|'MISSING'}[], unregistered: string[]}}
@@ -173,7 +187,10 @@ export function checkCopies({ fix = false } = {}) {
     }
     const srcBuf = fs.readFileSync(srcAbs);
     if (!fs.existsSync(destAbs)) {
-      if (fix) fs.writeFileSync(destAbs, srcBuf);
+      if (fix) {
+        ensureParentDir(destAbs);
+        fs.writeFileSync(destAbs, srcBuf);
+      }
       results.push({ file: dest, status: fix ? 'FIXED' : 'MISSING' });
       continue;
     }
@@ -184,7 +201,10 @@ export function checkCopies({ fix = false } = {}) {
     }
     // 内容相同、仅行尾不同（CRLF vs LF）→ 仍判不一致：副本要与本源字节相同
     const status = normalizeEol(srcBuf).equals(normalizeEol(destBuf)) ? 'EOL' : 'DRIFT';
-    if (fix) fs.writeFileSync(destAbs, srcBuf);
+    if (fix) {
+      ensureParentDir(destAbs);
+      fs.writeFileSync(destAbs, srcBuf);
+    }
     results.push({ file: dest, status: fix ? 'FIXED' : status });
   }
 
