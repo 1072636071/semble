@@ -38,6 +38,8 @@ AGENTS.md 和 CODEBUDDY.md 内容必须保持一致。
 
 ### 安装脚本（ship）
 
+> **安装清单**：`ship install` 会在每个目标 skills 目录写 `.ship-installed.json`，记录本仓装过的技能名。残留清理以它为准（无清单时回退内容指纹），所以**前缀相同但不是本仓装的技能不会被删**。别手删这个文件——删了之后清理会退化为「只认内容指纹」，更保守但不彻底。
+
 `base/scripts/ship.mjs` 负责跨厂商分发 Skills/Agent，缺省跑全流程（派生+安装+验证+清理），子命令 `init`/`derive`/`install`/`check`。厂商清单与安装目录全部由 `base/scripts/vendors.json` 配置驱动，脚本零硬编码。其中 QoderWork 的用户级目标为 `~/.qwenworkcn/skills`。脚本用 `detectUserHome()` 自动定位用户目录（`os.homedir()` → `USERPROFILE`/`HOME` → 常见用户根目录），也可用 `--user-home <dir>` 覆盖。常用：`node ship.mjs install`、`--dry-run` 预览、`check` 门禁预检。
 
 ### dsh-agent-studio 配置管理（真源在本仓）

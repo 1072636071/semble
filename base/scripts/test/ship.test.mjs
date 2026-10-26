@@ -356,6 +356,31 @@ test('install：残留清理覆盖 seo- 前缀', () => {
   assert.match(r.stdout, /cleaned seo-stale/);
 });
 
+test('SEC-03 回归：前缀像本仓但非本仓安装的技能不被清理', () => {
+  const own = path.join(fixture.userHome, '.codebuddy', 'skills', 'jxx-my-own-skill');
+  fs.mkdirSync(own, { recursive: true });
+  fs.writeFileSync(path.join(own, 'SKILL.md'), '---\nname: jxx-my-own-skill\ndescription: 用户自建\n---\n', 'utf-8');
+  const r = run(['install']);
+  assert.equal(r.code, 0);
+  assert.ok(fs.existsSync(path.join(own, 'SKILL.md')), '用户自建的同前缀技能不得被残留清理删除');
+  assert.match(r.stdout, /keep jxx-my-own-skill/);
+  assert.doesNotMatch(r.stdout, /cleaned jxx-my-own-skill/);
+});
+
+test('SEC-02 回归：x-install 带行尾注释时仍按 false 处理（不分发）', () => {
+  const dir = path.join(fixture.root, 'skills', 'productivity', 'jxx-annotated');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, 'SKILL.md'),
+    '---\nname: jxx-annotated\ndescription: annotated x-install. 触发词：测试。\nx-install: false   # 按需手动安装\n---\n\n# annotated\n',
+    'utf-8',
+  );
+  const r = run(['install']);
+  assert.equal(r.code, 0);
+  for (const v of ['.agents', '.codebuddy', '.codeartsdoer', '.trae-cn']) {
+    assert.ok(!fs.existsSync(path.join(fixture.userHome, v, 'skills', 'jxx-annotated')), `x-install: false 带注释时不应装进 ${v}`);
+  }
+});
 test('install：src 技能的 CodeArts 派生副本（前缀改名）不被残留清理误删', () => {
   const r = run(['install']);
   assert.equal(r.code, 0);

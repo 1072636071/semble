@@ -482,6 +482,20 @@ function listAgents(config) {
   return result;
 }
 
+// x-install 取值归一化。YAML 允许 `x-install: false   # 说明` 这种行尾注释，
+// 但子集解析器 parseScalar 会把它整体当字符串（"false   # 说明"），
+// 于是 `v === false` 不成立、静默退回 'user'——`kimi-webbridge` 因此被误分发到 7 家平台
+// （2026-10-26 安全审查 SEC-02）。这里先剥注释再比较，两条解析路径共用。
+function normalizeXInstallValue(v) {
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  if (v === null || v === undefined) return '';
+  let s = String(v).trim();
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) s = s.slice(1, -1).trim();
+  const hash = s.indexOf(' #');
+  if (hash >= 0) s = s.slice(0, hash).trim();
+  return s.toLowerCase();
+}
+
 // x-install 语义：缺省 / true → 'user'（用户级 + 项目级均装）；'project' → 仅项目级；false → 不装
 function getXInstall(filePath) {
   let meta = {};
@@ -495,15 +509,15 @@ function getXInstall(filePath) {
     if (fm) {
       const line = fm[1].split(/\r?\n/).find((l) => /^\s*x-install\s*:/.test(l));
       if (line) {
-        const v = line.split(/:/).slice(1).join(':').trim();
+        const v = normalizeXInstallValue(line.split(/:/).slice(1).join(':').trim());
         if (v === 'false') return false;
         if (v === 'project') return 'project';
         if (v === 'true') return 'user';
       }
     }
   }
-  const v = meta['x-install'];
-  if (v === false) return false;
+  const v = normalizeXInstallValue(meta['x-install']);
+  if (v === 'false') return false;
   if (v === 'project') return 'project';
   return 'user';
 }
@@ -758,6 +772,43 @@ function targetAgentsDir(config, vendor, project) {
   return project ? vendor.projectAgents : vendor.userAgents;
 }
 
+// 安装清单：记录本仓往这个 skills 目录装过哪些名字（残留清理的归属判据，SEC-03）。
+// 只看 managedPrefixes 前缀会删掉用户自建的同名开头技能（实测 jxx-my-own-skill 被删）。
+// 清单存在 => 只清理清单里的名字；清单缺失（升级后第一次跑）=> 回退到内容指纹判定，
+// 仍不认的目录一律保留——宁可留一份旧残留（下次起被清单覆盖），也不误删用户技能。
+const INSTALL_MANIFEST = '.ship-installed.json';
+
+function readInstallManifest(skillsTarget) {
+  try {
+    const p = path.join(skillsTarget, INSTALL_MANIFEST);
+    if (!fs.existsSync(p)) return null;
+    const data = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    return Array.isArray(data && data.names) ? new Set(data.names) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeInstallManifest(skillsTarget, names) {
+  try {
+    const p = path.join(skillsTarget, INSTALL_MANIFEST);
+    const prev = readInstallManifest(skillsTarget) || new Set();
+    const merged = Array.from(new Set([...prev, ...names])).sort();
+    fs.writeFileSync(p, JSON.stringify({ updatedAt: new Date().toISOString(), names: merged }, null, 2) + '\n', 'utf-8');
+  } catch { /* 清单写失败不影响安装，只是下次清理更保守 */ }
+}
+
+// 无清单时的回退判据：内容指纹。目录里没有 SKILL.md（空目录/半次安装残骸）按残留处理。
+function looksInstalledByThisRepo(destDir, knownHashes) {
+  const skillMd = path.join(destDir, 'SKILL.md');
+  if (!fs.existsSync(skillMd)) return true;
+  try {
+    return knownHashes.has(sha256(skillMd));
+  } catch {
+    return false;
+  }
+}
+
 function runInstall(config, { dryRun, project }) {
   const installed = []; // { dest, expectedHash }
   const skipped = [];
@@ -774,6 +825,26 @@ function runInstall(config, { dryRun, project }) {
     const d = deriveSkill(vendor, s, config);
     return d.error ? s.name : d.name;
   }));
+  // 残留下的「本仓产物」指纹表（每个厂商一份，惰性计算）。
+  // 收录：源 SKILL.md / SKILL.src.md 原文哈希 + 该厂商派生渲染结果的哈希。
+  const knownHashesCache = new Map();
+  const knownHashesFor = (vendor) => {
+    if (knownHashesCache.has(vendor.id)) return knownHashesCache.get(vendor.id);
+    const set = new Set();
+    for (const s of allSkills) {
+      for (const f of [s.srcPath, path.join(s.dir, 'SKILL.md')]) {
+        try { if (fs.existsSync(f)) set.add(sha256(f)); } catch { /* 忽略读失败 */ }
+      }
+      if (s.srcMode) {
+        const d = deriveSkill(vendor, s, config);
+        if (!d.error) {
+          try { set.add(crypto.createHash('sha256').update(renderDerived(d), 'utf-8').digest('hex')); } catch { /* 忽略渲染失败 */ }
+        }
+      }
+    }
+    knownHashesCache.set(vendor.id, set);
+    return set;
+  };
   // 危险操作护栏：禁止 rmrf 这些根目录自身或其祖先
   const guards = [config.configDir, config.projectRoot, config.skillsBase, config.agentsBase, config.userHome];
 
@@ -855,20 +926,39 @@ function runInstall(config, { dryRun, project }) {
     }
 
     // 残留清理（仅 skills 目录，只动 managedPrefixes 前缀）
+    // 归属判据（2026-10-26 安全审查 SEC-03）：光看前缀会删掉用户自建的同名开头技能
+    // （实测 jxx-my-own-skill / tdai-my-own-skill）。只有「本仓曾经装过」的才算残留——
+    // 判据优先用安装清单（.ship-installed.json），无清单时回退内容指纹；两样都不认的一律不碰。
     if (skillsTarget && fs.existsSync(skillsTarget) && !dryRun) {
       const expectedNames = expectedNamesFor(vendor);
+      const manifest = readInstallManifest(skillsTarget);
+      const installedNames = [];
       for (const entry of fs.readdirSync(skillsTarget, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
+        // 先登记「当前应存在的名字」——清单必须记全量，不能只记前缀命中的，
+        // 否则 kb-router / lexiang 这类无前缀技能永远进不了清单，以后就再也清不掉。
+        if (expectedNames.has(entry.name)) { installedNames.push(entry.name); continue; }
         if (!config.managedPrefixes.some((p) => entry.name.startsWith(p))) continue;
-        if (expectedNames.has(entry.name)) continue;
+        const entryDir = path.join(skillsTarget, entry.name);
+        // 空目录 / 没有入口文件 ⇒ 必然是装了一半的残骸（用户技能一定带 SKILL.md）
+        const hasEntry = fs.existsSync(path.join(entryDir, 'SKILL.md'));
+        if (hasEntry) {
+          const owned = manifest ? manifest.has(entry.name) : looksInstalledByThisRepo(entryDir, knownHashesFor(vendor));
+          if (!owned) {
+            skipped.push(`keep ${entry.name} from ${vendor.label}（前缀像本仓、但不是本仓装的 ⇒ 视为用户自有技能，不清理）`);
+            continue;
+          }
+        }
         try {
-          rmrf(path.join(skillsTarget, entry.name), guards);
+          rmrf(entryDir, guards);
         } catch (e) {
-          failures.push({ code: 'E_CLEAN', file: path.join(skillsTarget, entry.name), vendor: vendor.id, detail: `残留清理失败: ${e.message}`, action: 'continue' });
+          failures.push({ code: 'E_CLEAN', file: entryDir, vendor: vendor.id, detail: `残留清理失败: ${e.message}`, action: 'continue' });
           continue;
         }
         skipped.push(`cleaned ${entry.name} from ${vendor.label}`);
       }
+      // 清单只记「本次仍存在」的名字：已装但被清掉的自然退出，下次不再需要前缀兜底。
+      writeInstallManifest(skillsTarget, installedNames);
     }
   }
 

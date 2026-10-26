@@ -56,6 +56,15 @@ description 是每轮都在付的上下文成本，原先把实现细节（文�
 `ship check` 现在顺带跑 `skill-lint --strict`（子进程调用，`E_SKILL_P0`）：任何技能目录缺入口文件、或 frontmatter 解析不出 name/description，`ship check` 直接非零退出。此前这类错误只会在 `ship install` 时静默少装一个技能。
 
 P0 先清零再接门禁——否则 `ship check` 会永久红。
+
+### 安全修复（2026-10-26 审计后）
+
+`docs/report/skill-security-audit-2026-10-26.md` 报 15 条，两条 High 是本仓 `ship.mjs` 的真缺陷，已修并带回归测试：
+
+- **SEC-02 · `x-install: false   # 注释` 失效**：`parseScalar` 把整串当字符串，`v === false` 不成立，静默退回 `user`。`kimi-webbridge` 因此被分发到 7 家平台——它能的却是「用你的真实登录态操作任意网站」。新增 `normalizeXInstallValue()` 先剥行尾注释，主路径与正则兜底共用；已删掉 7 处误装副本。
+- **SEC-03 · 残留清理误删用户技能**：清理只看 `managedPrefixes` 前缀，实测把用户的 `jxx-my-own-skill` 删了。新增安装清单 `<skills>/.ship-installed.json` 记录本仓装过的名字，无清单时回退内容指纹；两样都不认的一律保留并打 `keep` 提示。
+
+两条修复各配一条回归测试（`ship.test.mjs`），测试数 219 → 222。
 ## 选择性同步 2026-10-24（上游 84fdeffd..5beb35b）
 
 已审查区间 126 commits（96 non-merge）；本次按既定方案选择性移植 11 项，不是全量覆盖。
