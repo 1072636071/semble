@@ -3,7 +3,7 @@ name: jxx-implement-spec
 description: "按整份 spec/PRD 批量推进实现。当用户说实现 spec、实现全部工单、整轨跑时触发。单工单不要用这个。"
 disable-model-invocation: false
 metadata:
-  version: 1.8.1
+  version: 1.8.2
 ---
 
 你拿到了一份 spec/PRD（`.scratch/<NN>-<slug>/PRD.md` + `issues/*.md`）。目标：把这份 PRD 的**全部工单**经统一流水线（开发 → 审查 → 合并 → **回收**）交付到 **main**——每张工单审查通过后默认直合 main（v0.14.0 起，ADR-011）；技术受阻的暂存 PRD 分支 `ticket/<NN>-<slug>`，收口时清入 main。**收口是四段闭环**（v0.15.0，ADR-012）：复核 → 合入前 `merge-check` 预演冲突面 → 合入 main → `rm-wt` 回收工作空间（工作树 + 已合入分支）；第四段以前没有判据，实测积下大量孤儿分支与挂着的 worktree。
@@ -15,13 +15,14 @@ metadata:
 ## 步骤
 
 0. **看板就位（in-project 统一布局）**：项目根无 `control/workspace.json` 则先
-   `node <jxx-ticket-board>/scripts/board.mjs init --root <项目根>`（自动判定 in-project：wt/ 与 control/ 落在项目里，快照走 control/ 嵌套 git，不进产品仓历史）。有则跳过。
+   `node <jxx-ticket-board 技能目录>/scripts/board.mjs init --root <项目根>`（自动判定 in-project：wt/ 与 control/ 落在项目里，快照走 control/ 嵌套 git，不进产品仓历史）。有则跳过。
+   **`jxx-ticket-board` 没装时不要硬跑这条**：那就是没有看板，整轨执行面不成立——先装它，或改走 `jxx-implement` 的单工单流，不要编造 `control/` 目录。
 
 0b. **服务器工作区 bootstrap（服务器优先 · v1.2.0 默认）**：`node tools/jxx-bootstrap.mjs --root <项目根>`——线上无该 repo_key 工单时**自动先创建**（种子工单 + 本地投影基准）再继续；已有则幂等退出。PRD 本体经 `jxx_ticket_call create` 上行（labels 带 `prd:<NN>-<slug>`；**写腿不 create**）。**v1.8.0 起各工单的状态流转 / 打卡 / 评论走写腿一条命令**：`node tools/ticket-flow.mjs --root <项目根> --file <单条工单md> --set status=<本地词表> --comment "<一句话>"`——一条命令完成「改本地 md + 推服务器」（payload 只含本次真改字段，`version_conflict` 自动重拉重试一次）；exit 0 收敛 / exit 2 评论撞上「服务器版本已前进」按条目 `server`/`local`/`resolution` 裁决后重跑 / exit 3 本地已还原或未变（`rolled_back:true` = 已回滚）。**不要再先手改 md 再推**；写腿只推本次真改字段，验收点/正文段落这类整篇修订改完 md 后跑只读腿 `--file` 收敛。**项目没有 `tools/ticket-flow.mjs` 时回退 MCP 双写**：先改本地 md → `get` 拿最新 `version` 作 `base_version` → `jxx_ticket_call update`（409 先对账再推），批量 push 的 id 从当次 `list` 实测逐条核对（串位会把正文写进邻居工单，2026-10-15 实测事故）。编排者把这套纪律随 worker 提示词下发；worker 侧细则见 jxx-implement v1.10.0 同名节，口径见 `references/ADR-010-server-first-tickets.md`（jxx-ticket-board 技能内）。
 
 1. **读任务图**：读 PRD 与全部工单，理解任务图与就绪前沿。（PRD 分支 `ticket/<NN>-<slug>` 自 v0.14.0 起**不再预建**——只在工单合并受阻时由合并专员惰性创建作暂存道，PROTOCOL §3。）
 
-1b. **AC → 工单映射缺口审查（v1.7.0 起，投卡之前，不可跳过）**：读 PRD 与 `.scratch/<NN>-<slug>/map.md` 的「## AC 覆盖矩阵」与「## 覆盖闸」（节名与列义见 `jxx-to-tickets` 技能 `references/acceptance-criteria.md` §一 / §八；覆盖闸另查 用户诉求、决策 两源），逐条用户故事核对「用户故事 → 工单 → AC」链路，产出**缺口清单**（用户故事编号 / 缺什么 / 该补哪张工单）。任一用户故事未被任何工单的 `AC-<n>` 覆盖 ⇒ **停止编排**，先补工单（退回 `jxx-to-tickets` 或就地补 AC），再跑 `node <jxx-to-tickets 技能目录>/scripts/ac-audit.mjs <功能目录> --strict` 至硬问题 0、缺口清单清空，才进步骤 2。
+1b. **AC → 工单映射缺口审查（v1.7.0 起，投卡之前，不可跳过）**：读 PRD 与 `.scratch/<NN>-<slug>/map.md` 的「## AC 覆盖矩阵」与「## 覆盖闸」（节名与列义见 `jxx-to-tickets` 技能 `references/acceptance-criteria.md` §一 / §八；该技能没装则按 `map.md` 既有节名沿用，缺节就照 §一 的「用户故事 → 工单 → AC」三列自建。覆盖闸另查 用户诉求、决策 两源），逐条用户故事核对「用户故事 → 工单 → AC」链路，产出**缺口清单**（用户故事编号 / 缺什么 / 该补哪张工单）。任一用户故事未被任何工单的 `AC-<n>` 覆盖 ⇒ **停止编排**，先补工单（退回 `jxx-to-tickets` 或就地补 AC），再跑 `node <jxx-to-tickets 技能目录>/scripts/ac-audit.mjs <功能目录> --strict` 至硬问题 0、缺口清单清空，才进步骤 2。
 
 2. **整批投卡**：对每张 `**Status:** ready-for-agent` 的工单投卡——
    `board.mjs new-card --root <项目根> --id <NN>-<MM>-<slug> --level <L1-L4> --model <档位> --ticket-file <工单绝对路径> [--deps <阻塞卡id>]`。
@@ -41,7 +42,7 @@ metadata:
    - 审查过 → `git -C <项目根> fetch` → rebase PRD 分支到最新 `origin/main` → 合入 main 并 push；无暂存（全部工单已直合 main）→ 跳过清入；
    - 把 `PRD.md` 的 `**Status:**` 置 `done`（随合并提交或在 main 工作区另提）；暂存清不进 main 时按 §3 硬性要求向用户汇报原因，**且不回收现场**（活还没上 main）；
    - **回收本 PRD 全部残留现场**：逐张 `board.mjs rm-wt --ticket <单卡id>`（**一次一卡**，红线见 PROTOCOL §7），清掉各工单的 worktree 与已合入分支——这是收口的最后一步，不做等于没收口；收完 `verify` 应以「零条未回收」告终；
-   - **收口前置（v1.7.0）**：对每个工单文件跑 `node <jxx-to-tickets 技能目录>/scripts/ac-audit.mjs <工单文件>`，退出码必须全为 0；且 PRD 覆盖矩阵无空洞（每条用户故事至少 1 个判 `met` 的 AC）。任一不满足 ⇒ 不得宣布收口。
+   - **收口前置（v1.7.0）**：对每个工单文件跑 `node <本技能目录>/scripts/ac-audit.mjs <工单文件>`，退出码必须全为 0（脚本随本技能分发，副本与 `jxx-to-tickets` 同源；万一缺失，按 `jxx-to-tickets/references/acceptance-criteria.md` 自查，不得跳过）；且 PRD 覆盖矩阵无空洞（每条用户故事至少 1 个判 `met` 的 AC）。任一不满足 ⇒ 不得宣布收口。
    - 记账、刷看板（`board.mjs html --root <项目根>`），向用户汇报：合入 commit、各工单去向、**未能回合 main 的卡及原因**、遗留事项。
 
 5. **散工单不属于本技能**：无 PRD 的单张工单走 `/jxx-implement`（合入目标自动 = main，审查通过确认没影响后由合并专员直合 main）。

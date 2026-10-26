@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.1 — 2026-10-26
+
+- 「验收点机械闸」改为调用**本技能目录**的 `scripts/ac-audit.mjs`（副本随技能分发，与 `jxx-to-tickets` 同源），并补降级：副本缺失时按规范正文自查。起因：分发是一次一个技能目录，原写法 `<jxx-to-tickets 技能目录>` 在只装了本技能的部署里必然 missing。`../jxx-to-tickets/references/…` 相对路径同理改成技能名引用 + 自查口径。
+
 ## 1.5.0 — 2026-10-24
 
 - §3「识别标准来源」收紧为主动动作：搜索仓库中所有记录代码编写规范的文件；`CODING_STANDARDS.md` 与 `CONTRIBUTING.md` 若存在必须列入（上游 `3da8c01116264675eeefbd6e9d59c734de9095cc`）。

@@ -3,7 +3,7 @@ name: jxx-implement
 description: "按工单或 spec 实现功能，走到合并收口。当用户说实现、implement、接这个工单时触发。不写 spec，不拆工单。"
 disable-model-invocation: false
 metadata:
-  version: 1.12.0
+  version: 1.12.1
 ---
 
 实现用户在 spec 或工单中描述的工作。
@@ -84,7 +84,7 @@ node tools/jxx-bootstrap.mjs --root <项目根>        # 缺则创建（种子�
 - [ ] **代码审查**（**被派子代理跳过本步**，见上方「审查归属」）：调用 `/jxx-code-review` 审查所有变更（diff 基准 = origin/main——所有工单分支都从 main 拉出）。审查通过前不得提交；审查有发现项时按下方流程修复后重新审查。
   **AC 前置（v1.8.0）**：审查按 AC 逐条判定 `met` / `partial` / `missing`（规范第五节）；判定表缺项或仍有未勾 AC 的审查不算通过。
 - [ ] **标记结束并提交**：代码审查通过（或无发现项、用户明确确认无视）后，将工单 `Status:` 置为 `done`（结束），再将工作 commit 到**工单分支** `ticket/<卡id>`（worktree 内）。**置 `done` 的裁定权 = 派活方**（主会话自干时即执行者自己；审查未通过时执行者不得自行置 `done`；审查者的步骤 6 只复核与报告，不代置）。commit message 遵循 conventional commits 格式，body 说明变更原因。
-  **AC 前置（v1.8.0）**：`node <jxx-to-tickets 技能目录>/scripts/ac-audit.mjs <工单文件>` 退出码 0；非 0 先按报告修 AC，再置 `done`。
+  **AC 前置（v1.8.0）**：`node <本技能目录>/scripts/ac-audit.mjs <工单文件>` 退出码 0；非 0 先按报告修 AC，再置 `done`。脚本随本技能分发（副本与 `jxx-to-tickets` 同源）；万一缺失，按 `jxx-to-tickets/references/acceptance-criteria.md` 自查后再置 `done`，不要跳过这一步。
 
 ### 防劣化门禁（独立执行，不采信他人结论）
 

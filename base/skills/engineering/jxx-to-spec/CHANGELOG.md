@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.1 — 2026-10-26
+
+- 发布前自检改调本技能目录的 `scripts/ac-audit.mjs`（副本随技能分发），并补缺失时的降级。
+
 ## 1.5.0 — 2026-10-25
 
 **涉及 UI 的功能写 PRD 前先问「UI 验收谁做」**：第 2 步末尾新增询问（默认 agent 不代验——不开浏览器、不截图，UI 体验项进 `HUMAN-CHECK.md`；用户要求代验时 PRD 对应 AC 记 `验证:人工 <HUMAN-CHECK 第 n 条>` 并标授权）；模板「验收点（AC）」节补一句口径，pointer 指向 `jxx-to-tickets/references/acceptance-criteria.md` §二之一（唯一权威源，不复制判据）。起因：下游 developer 拿浏览器做 UI 验收，单卡多轮取证拖慢交付。
