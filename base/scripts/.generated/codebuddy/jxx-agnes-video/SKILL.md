@@ -1,6 +1,6 @@
 ---
 name: jxx-agnes-video
-description: Agnes Video 2.5 Flash 视频生成技能——一条命令覆盖文生视频、首尾帧控制、图片/音频参考三种模式，创建任务后自动轮询到底并下载 mp4，内置 Flash 专属参数预校验（720P、图片≤5、音频≤3、禁参考视频）与队列满/限流退避重试。当用户要生成视频、做短片、图生视频、首尾帧动画、参考图/参考音频生成视频，或提到 agnes video、agnes-video-2.5-flash、Agnes 视频时使用。触发词：生成视频、做视频、文生视频、图生视频、首尾帧、视频参考、agnes 视频。注意 2026-10-21 复测服务端队列持续满，四种模式均无法创建任务。
+description: Agnes Video 文生视频、图生视频、首尾帧与参考图/音频。当用户要生成视频、做短片、图生视频、首尾帧动画时触发。触发词：生成视频、文生视频、图生视频、agnes 视频。
 version: 1.0.2
 allowed-tools:
   - run_terminal_command
@@ -94,7 +94,7 @@ export AGNES_API_KEY="sk-..."
 ### 3. 读结果
 
 - 创建成功：stdout JSON 含 `video_id`（**查询要用它，不是 `id`/`task_id`**）。
-- 轮询日志走 stderr：`[poll] status=... progress=...`，建议 1–2s 一次。
+- 轮询日志走 stderr：`[poll] status=... progress=...`，每 1–2s 一次。
 - 完成时 stdout JSON 含 `status: "completed"`、`url` 与 `download: { file, bytes }`。
 - `internal_status` / `internal_progress` 是**内部字段**，即使还是 `pending`/`0` 也以 `status` / `progress` 为准。
 

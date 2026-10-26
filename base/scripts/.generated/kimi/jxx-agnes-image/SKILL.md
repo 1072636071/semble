@@ -1,6 +1,6 @@
 ---
 name: jxx-agnes-image
-description: Agnes Image 2.5 Flash 图像生成/编辑技能——一条命令完成文生图、图生图、多图合成，支持 1K/2K/3K/4K 尺寸档位与 8 种宽高比、URL 或 Base64 输出、本地图片自动转 Data URI，内置队列满/限流退避重试与按错误码给的修复提示。当用户要生成图片、画图、改图、风格迁移、多图合成、海报/封面/产品图/社交媒体素材，或提到 agnes image、agnes-image-2.5-flash、Agnes 绘图时使用。触发词：生图、画图、生成图片、改图、图生图、多图合成、风格迁移、agnes 绘图。
+description: Agnes Image 生图与改图。当用户要生成图片、画图、改图、多图合成、风格迁移、做海报封面时触发。触发词：生图、画图、改图、图生图、agnes 绘图。
 ---
 
 <!--en-->

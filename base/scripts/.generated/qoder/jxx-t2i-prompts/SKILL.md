@@ -1,6 +1,6 @@
 ---
 name: jxx-t2i-prompts
-description: 文生图提示词模板库与组稿流程：取模板、按平台改组稿、库里没有就按渠道搜、把跑通的好模板沉淀进用户库。触发词：文生图、提示词、提示词模板、AI 绘画、画图提示词、出图、Midjourney 提示词、Flux、SDXL、即梦、Seedream、通义万相、Nano Banana、图生图。
+description: 文生图提示词模板库与组稿流程。当用户要文生图提示词、画图提示词、按平台改组稿时触发。触发词：文生图、提示词、AI 绘画、出图。
 disable-model-invocation: false
 ---
 
