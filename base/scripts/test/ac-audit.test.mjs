@@ -194,3 +194,127 @@ test('--strict：没有工单类文件仍 exit 2，且不查覆盖闸', () => {
   assert.equal(r.status, 2);
   assert.doesNotMatch(r.stdout, /覆盖闸/);
 });
+
+// —— AC 引用核对（--strict 档）——
+// 覆盖 map.md 引用不存在的工单 / AC、PRD AC 断号、PRD AC 范围缩写、缺 PRD AC 对照表。
+
+const PRD = '# PRD\n\n**Status:** ready-for-agent\n\n## 验收点（AC）\n\n'
+  + '- [ ] AC-1 [主路径] 当导出时，返回 200 —— 验证:机器 tests/a.test.ts::ok\n'
+  + '- [ ] AC-2 [错误路径] 当参数非法时，返回 400 —— 验证:机器 tests/a.test.ts::bad\n'
+  + '- [ ] AC-3 [回归] 当跑全量时，退出码 0 —— 验证:机器 pnpm test\n';
+
+const ISSUE01 = '# 01 导出\n\n' + HEAD + OK + ERR + REG + NEG; // AC-1..AC-4
+
+// map.md 带「## 覆盖闸」节 + 「## PRD AC 对照」表
+const MAP_FULL = '# map\n\n## AC 覆盖矩阵\n\n| 用户故事 | 工单 | AC 编号 |\n|---|---|---|\n'
+  + '| US-1 用户可导出 | 01 | AC-1 |\n\n'
+  + '## PRD AC 对照\n\n| PRD AC | 实施工单与 AC |\n|---|---|\n'
+  + '| AC-1 | 01: AC-1 |\n'
+  + '| AC-2 | 01: AC-2 |\n'
+  + '| AC-3 | 01: AC-3 |\n\n'
+  + '## 覆盖闸\n\n| 源 | 条目（原文摘录） | 工单 | AC | 判定 |\n|---|---|---|---|---|\n'
+  + '| 诉求 | 「导出要能选时间范围」 | 01 | AC-1 | covered |\n';
+
+const withIssues = (map, extra = {}) => makeDir({
+  'issues/01-export.md': ISSUE01,
+  'PRD.md': PRD,
+  'map.md': map,
+  ...extra,
+});
+
+test('--strict AC 引用核对：合法矩阵 + PRD AC 逐条对照 → exit 0', () => {
+  const dir = withIssues(MAP_FULL);
+  const r = run([dir, '--strict']);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+test('--strict AC 引用核对：覆盖闸引用不存在的工单号 → exit 1', () => {
+  const dir = withIssues(MAP_FULL.replace(
+    '| 诉求 | 「导出要能选时间范围」 | 01 | AC-1 | covered |',
+    '| 诉求 | 「导出要能选时间范围」 | 09 | AC-1 | covered |',
+  ));
+  const r = run([dir, '--strict']);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /工单 9 在 issues\/ 下不存在/);
+});
+
+test('--strict AC 引用核对：覆盖闸引用工单里不存在的 AC → exit 1', () => {
+  const dir = withIssues(MAP_FULL.replace(
+    '| 诉求 | 「导出要能选时间范围」 | 01 | AC-1 | covered |',
+    '| 诉求 | 「导出要能选时间范围」 | 01 | AC-9 | covered |',
+  ));
+  const r = run([dir, '--strict']);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /引用的 AC-9 在工单 1/);
+});
+
+test('--strict AC 引用核对：工单侧范围引用越界（AC-1—AC-9）→ exit 1', () => {
+  const dir = withIssues(MAP_FULL.replace(
+    '| 诉求 | 「导出要能选时间范围」 | 01 | AC-1 | covered |',
+    '| 诉求 | 「导出要能选时间范围」 | 01 | AC-1—AC-9 | covered |',
+  ));
+  const r = run([dir, '--strict']);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /引用的 AC-9 在工单 1/);
+});
+
+test('--strict AC 引用核对：PRD AC 断号（PRD 有 AC-3 但对照表漏指）→ exit 1', () => {
+  const dir = withIssues(MAP_FULL.replace('| AC-3 | 01: AC-3 |\n', ''));
+  const r = run([dir, '--strict']);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /漏指 PRD AC-3/);
+});
+
+test('--strict AC 引用核对：PRD AC 列用范围缩写 → exit 1', () => {
+  const dir = withIssues(MAP_FULL.replace(
+    '| AC-1 | 01: AC-1 |\n| AC-2 | 01: AC-2 |\n| AC-3 | 01: AC-3 |\n',
+    '| AC-1—AC-3 | 01: AC-1 / AC-2 / AC-3 |\n',
+  ));
+  const r = run([dir, '--strict']);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /范围缩写/);
+});
+
+test('--strict AC 引用核对：PRD AC 对照表重复指同一条 PRD AC → exit 1', () => {
+  const dir = withIssues(MAP_FULL.replace(
+    '| AC-3 | 01: AC-3 |\n',
+    '| AC-3 | 01: AC-3 |\n| AC-3 | 01: AC-4 |\n',
+  ));
+  const r = run([dir, '--strict']);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /重复出现/);
+});
+
+test('--strict AC 引用核对：PRD AC 对照表指向不存在的工单 AC → exit 1', () => {
+  const dir = withIssues(MAP_FULL.replace('| AC-2 | 01: AC-2 |', '| AC-2 | 01: AC-7 |'));
+  const r = run([dir, '--strict']);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /引用的 AC-7 在工单 1/);
+});
+
+test('--strict AC 引用核对：有覆盖闸节但缺 PRD AC 对照表 → exit 1', () => {
+  const dir = withIssues(
+    '# map\n\n## AC 覆盖矩阵\n\n| 用户故事 | 工单 | AC 编号 |\n|---|---|---|\n'
+    + '| US-1 用户可导出 | 01 | AC-1 |\n\n'
+    + '## 覆盖闸\n\n| 源 | 条目（原文摘录） | 工单 | AC | 判定 |\n|---|---|---|---|---|\n'
+    + '| 诉求 | 「导出要能选时间范围」 | 01 | AC-1 | covered |\n',
+  );
+  const r = run([dir, '--strict']);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /缺「PRD AC 对照」表/);
+});
+
+test('--strict AC 引用核对：老目录（map.md 无覆盖闸节）不因引用核对判红', () => {
+  // 143 / 145 等老目录：map.md 没有「## 覆盖闸」节，不触发 AC 引用核对
+  const dir = makeDir({
+    'issues/01-export.md': ISSUE01,
+    'PRD.md': PRD,
+    'map.md': '# map\n\n## AC 覆盖矩阵\n\n| 用户故事 | 工单 | AC 编号 |\n|---|---|---|\n| US-1 用户可导出 | 01 | AC-1 |\n',
+  });
+  const r = run([dir, '--strict']);
+  // 老目录本来就因缺覆盖闸判红，但报错必须是「缺覆盖闸」而不是「引用核对」
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /缺覆盖闸/);
+  assert.doesNotMatch(r.stdout, /AC 引用核对|漏指|范围缩写/);
+});
+

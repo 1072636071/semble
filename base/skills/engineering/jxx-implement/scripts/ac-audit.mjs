@@ -6,8 +6,17 @@
  * 内容判断归人和审查 agent。规范正文：jxx-to-tickets/references/acceptance-criteria.md
  *
  * 用法：node ac-audit.mjs <目录|单文件> [--strict] [--json]
- *   --strict  额外要求 map.md 存在可解析的 AC 覆盖矩阵，且「## 覆盖闸」节可解析（§八）
+ *   --strict  额外要求 map.md 存在可解析的 AC 覆盖矩阵，且「## 覆盖闸」节可解析（§八），
+ *             并做「AC 引用核对」（引用必须指回真实工单与 PRD，见下）
  *   --json    机器可读
+ *
+ * AC 引用核对（--strict 档；只在 map.md 有「## 覆盖闸」节的目录触发，老目录不因此判红）：
+ *   1) 覆盖闸「工单」列的工单号必须在 issues/ 下有对应文件（工单号 = 文件名前缀数字）；
+ *      「AC」列引用的 AC 必须在该工单文件里真实存在——范围写法会展开后逐个核对，越界即硬问题。
+ *   2) map.md 的「PRD AC 对照」表：「PRD AC」列必须逐条单写（AC-1—AC-5 这类范围缩写 = 硬问题）；
+ *      PRD.md 的每条 AC 必须在该表出现且只出现一次（漏指 / 重复都判硬问题）；
+ *      「实施工单与 AC」列的工单号与工单 AC 同样按 1) 核对。
+ *   3) 有「## 覆盖闸」节但缺「PRD AC 对照」表，而 PRD.md 存在 AC 行 = 硬问题（补表并逐条展开）。
  *
  * 退出码：0 = 过；1 = 有硬问题；2 = 没有工单类文件（预期 defer）；3 = 用法错误 / 路径不存在。
  *
@@ -260,6 +269,253 @@ function auditCoverageGate(mapFile) {
   return issues;
 }
 
+// —— AC 引用核对（--strict 档）：覆盖闸与 PRD AC 对照表里的引用必须指回真实工单 / PRD ——
+// 只在 map.md 有「## 覆盖闸」节的目录触发；老目录（无覆盖闸节）不因此判红。
+
+const AC_REF_RE = /AC-(\d+)(?:\s*[-—–~至]\s*(?:AC-)?(\d+))?/g;
+const AC_RANGE_RE = /AC-\d+\s*[-—–~至]\s*(?:AC-)?\d+/;
+
+// issues/<nn>-*.md → 该工单真实存在的 AC 编号集合
+function readIssueAcs(dir) {
+  const issuesDir = path.join(dir, 'issues');
+  const out = new Map();
+  if (!fs.existsSync(issuesDir)) return out;
+  for (const name of fs.readdirSync(issuesDir).sort()) {
+    if (!/\.md$/i.test(name)) continue;
+    const m = name.match(/^(\d+)/);
+    if (!m) continue;
+    const text = fs.readFileSync(path.join(issuesDir, name), 'utf8');
+    const acs = new Set();
+    for (const line of text.split(/\r?\n/)) {
+      const am = line.match(AC_LINE);
+      if (am) acs.add(Number(am[2]));
+    }
+    out.set(Number(m[1]), { file: name, acs });
+  }
+  return out;
+}
+
+// 抽文件里全部 AC 编号（PRD 的真源 AC 集合）
+function extractAcNumbers(text) {
+  const set = new Set();
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(AC_LINE);
+    if (m) set.add(Number(m[2]));
+  }
+  return set;
+}
+
+// 解析「工单：AC 列表」引用列：按 ; ；切段，段首 NN: 给工单号，段内 AC 逐个展开（含范围）
+function parseAcRefs(cell) {
+  const refs = [];
+  for (const seg of String(cell || '').split(/[;；]/)) {
+    const pm = seg.match(/^\s*(\d{1,3})\s*[：:]/);
+    const ticket = pm ? Number(pm[1]) : null;
+    const body = pm ? seg.slice(pm[0].length) : seg;
+    const acs = [];
+    for (const m of body.matchAll(AC_REF_RE)) {
+      const a = Number(m[1]);
+      const b = m[2] ? Number(m[2]) : null;
+      if (b === null) acs.push(a);
+      else for (let n = Math.min(a, b); n <= Math.max(a, b); n++) acs.push(n);
+    }
+    if (acs.length) refs.push({ ticket, acs });
+  }
+  return refs;
+}
+
+// 解析「工单」列：04、05 / 01—13 展开成编号列表
+function parseTicketNos(cell) {
+  const s = String(cell || '').trim();
+  if (!s || isBlankCell(s)) return [];
+  const out = [];
+  for (const m of s.matchAll(/(\d{1,3})(?:\s*[-—–~]\s*(\d{1,3}))?/g)) {
+    const a = Number(m[1]);
+    const b = m[2] ? Number(m[2]) : null;
+    if (b === null) out.push(a);
+    else for (let n = Math.min(a, b); n <= Math.max(a, b); n++) out.push(n);
+  }
+  return out;
+}
+
+// 逐个核对引用：工单必须在 issues/ 下存在，AC 必须在该工单里真实存在
+function verifyAcRefs(refs, ticketNos, tickets, where, issues) {
+  for (const ref of refs) {
+    let targets;
+    if (ref.ticket !== null) targets = [ref.ticket];
+    else if (ticketNos.length) targets = [...new Set(ticketNos)];
+    else continue; // 裸 AC 且本行没有工单上下文——无从归属，跳过
+    const existing = targets.filter((t) => tickets.has(t));
+    for (const t of targets) {
+      if (existing.includes(t)) continue;
+      if (ticketNos.includes(t)) continue; // 工单列已单独报过，避免同一处重复点名
+      issues.push({ level: 'hard', msg: where + '引用的工单 ' + t + ' 在 issues/ 下不存在——工单号必须对得上 issues/<nn>-*.md' });
+    }
+    if (!existing.length) continue;
+    for (const ac of ref.acs) {
+      if (existing.some((t) => tickets.get(t).acs.has(ac))) continue;
+      const desc = existing
+        .map((t) => t + '（' + tickets.get(t).file + ' 实有 ' + [...tickets.get(t).acs].sort((a, b) => a - b).map((n) => 'AC-' + n).join(' / ') + '）')
+        .join(' / ');
+      issues.push({ level: 'hard', msg: where + '引用的 AC-' + ac + ' 在工单 ' + desc + ' 里不存在' });
+    }
+  }
+}
+
+// 覆盖闸表逐行核对引用
+function auditCoverageGateRefs(mapFile, tickets) {
+  const issues = [];
+  if (!tickets.size) return issues; // 没有 issues/ 目录 = 不是 issues/ 布局，跳过工单号核对
+  const lines = fs.readFileSync(mapFile, 'utf8').split(/\r?\n/);
+  const head = lines.findIndex((line) => COVERAGE_HEADING.test(line));
+  if (head < 0) return issues;
+  let end = lines.length;
+  for (let i = head + 1; i < lines.length; i++) {
+    if (SECTION_HEADING.test(lines[i])) { end = i; break; }
+  }
+  const tableRows = [];
+  for (let i = head + 1; i < end; i++) {
+    if (/^\s*\|/.test(lines[i])) tableRows.push({ no: i + 1, cells: splitRow(lines[i]) });
+  }
+  if (!tableRows.length) return issues;
+  const cols = {};
+  for (const col of COVERAGE_COLUMNS) {
+    const idx = tableRows[0].cells.findIndex((c) => col.test(c));
+    if (idx >= 0) cols[col.name] = idx;
+  }
+  if (cols['工单'] === undefined || cols['AC'] === undefined) return issues;
+  const dataRows = tableRows.slice(1).filter((r) => !isDivider(r.cells));
+  for (const row of dataRows) {
+    const cell = (name) => (row.cells[cols[name]] || '').trim();
+    const ticketNos = parseTicketNos(cell('工单'));
+    for (const t of new Set(ticketNos)) {
+      if (tickets.has(t)) continue;
+      issues.push({ level: 'hard', line: row.no, msg: '覆盖闸第 ' + row.no + ' 行引用的工单 ' + t + ' 在 issues/ 下不存在——工单号必须对得上 issues/<nn>-*.md' });
+    }
+    verifyAcRefs(parseAcRefs(cell('AC')), ticketNos, tickets, '覆盖闸第 ' + row.no + ' 行', issues);
+  }
+  return issues;
+}
+
+// PRD AC 对照表：逐条单写 + PRD 每条 AC 出现且只出现一次 + 引用核对
+function auditPrdAcTable(dir, mapFile, tickets) {
+  const issues = [];
+  const lines = fs.readFileSync(mapFile, 'utf8').split(/\r?\n/);
+  const prdFile = path.join(dir, 'PRD.md');
+  const prdAcs = fs.existsSync(prdFile) ? extractAcNumbers(fs.readFileSync(prdFile, 'utf8')) : new Set();
+
+  let head = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^#{1,6}\s.*PRD\s*AC/.test(lines[i])) { head = i; break; }
+  }
+  if (head < 0) {
+    if (prdAcs.size) {
+      issues.push({ level: 'hard', msg: 'map.md 有「## 覆盖闸」节但缺「PRD AC 对照」表——PRD.md 有 ' + prdAcs.size + ' 条 AC，必须补该表并逐条展开' });
+    }
+    return issues;
+  }
+  let end = lines.length;
+  for (let i = head + 1; i < lines.length; i++) {
+    if (SECTION_HEADING.test(lines[i])) { end = i; break; }
+  }
+  const tableRows = [];
+  for (let i = head + 1; i < end; i++) {
+    if (/^\s*\|/.test(lines[i])) tableRows.push({ no: i + 1, cells: splitRow(lines[i]) });
+  }
+  if (!tableRows.length) {
+    issues.push({ level: 'hard', line: head + 1, msg: 'PRD AC 对照节里解析不出表格：应有表头 PRD AC / 实施工单与 AC' });
+    return issues;
+  }
+  const prdCol = tableRows[0].cells.findIndex((c) => /PRD\s*AC/i.test(c));
+  const implCol = tableRows[0].cells.findIndex((c) => /工单/.test(c));
+  if (prdCol < 0 || implCol < 0) {
+    issues.push({ level: 'hard', line: tableRows[0].no, msg: 'PRD AC 对照表头缺列：' + (prdCol < 0 ? 'PRD AC / ' : '') + (implCol < 0 ? '实施工单与 AC' : '') });
+    return issues;
+  }
+  const seen = new Map();
+  const dataRows = tableRows.slice(1).filter((r) => !isDivider(r.cells));
+  for (const row of dataRows) {
+    const prdCell = (row.cells[prdCol] || '').trim();
+    const implCell = (row.cells[implCol] || '').trim();
+    if (!prdCell) {
+      issues.push({ level: 'hard', line: row.no, msg: 'PRD AC 对照表第 ' + row.no + ' 行的 PRD AC 为空——每行写一条 PRD AC' });
+      continue;
+    }
+    if (AC_RANGE_RE.test(prdCell)) {
+      issues.push({ level: 'hard', line: row.no, msg: 'PRD AC 对照表第 ' + row.no + ' 行用了范围缩写「' + prdCell + '」——PRD AC 必须逐条单写，把范围拆成一行一条' });
+      continue;
+    }
+    const nums = [...prdCell.matchAll(/AC-(\d+)/g)].map((m) => Number(m[1]));
+    if (nums.length !== 1) {
+      issues.push({ level: 'hard', line: row.no, msg: 'PRD AC 对照表第 ' + row.no + ' 行写了 ' + nums.length + ' 条 PRD AC（' + prdCell + '）——必须一行一条，逐条展开' });
+      continue;
+    }
+    const prdAc = nums[0];
+    if (prdAcs.size && !prdAcs.has(prdAc)) {
+      issues.push({ level: 'hard', line: row.no, msg: 'PRD AC 对照表第 ' + row.no + ' 行的 AC-' + prdAc + ' 在 PRD.md 里不存在' });
+    }
+    if (seen.has(prdAc)) {
+      issues.push({ level: 'hard', line: row.no, msg: 'PRD AC 对照表里 AC-' + prdAc + ' 重复出现（首次在第 ' + seen.get(prdAc) + ' 行）——每条 PRD AC 只写一行' });
+    } else {
+      seen.set(prdAc, row.no);
+    }
+    if (tickets.size) verifyAcRefs(parseAcRefs(implCell), [], tickets, 'PRD AC 对照表第 ' + row.no + ' 行（AC-' + prdAc + '）', issues);
+  }
+  if (prdAcs.size) {
+    for (const n of [...prdAcs].sort((a, b) => a - b)) {
+      if (seen.has(n)) continue;
+      issues.push({ level: 'hard', msg: 'PRD AC 对照表漏指 PRD AC-' + n + '——PRD.md 的每一条 AC 都要在对照表里出现一次' });
+    }
+  }
+  return issues;
+}
+
+// 「## AC 覆盖矩阵」表：工单号与 AC 引用同样要指回真实工单
+function auditMatrixRefs(mapFile, tickets) {
+  const issues = [];
+  if (!tickets.size) return issues; // 没有 issues/ 目录 = 不是 issues/ 布局，跳过工单号核对
+  const lines = fs.readFileSync(mapFile, 'utf8').split(/\r?\n/);
+  let head = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^#{1,6}\s.*AC\s*覆盖矩阵/.test(lines[i])) { head = i; break; }
+  }
+  if (head < 0) return issues;
+  let end = lines.length;
+  for (let i = head + 1; i < lines.length; i++) {
+    if (SECTION_HEADING.test(lines[i])) { end = i; break; }
+  }
+  const tableRows = [];
+  for (let i = head + 1; i < end; i++) {
+    if (/^\s*\|/.test(lines[i])) tableRows.push({ no: i + 1, cells: splitRow(lines[i]) });
+  }
+  if (!tableRows.length) return issues;
+  const ticketCol = tableRows[0].cells.findIndex((c) => c === '工单');
+  const acCol = tableRows[0].cells.findIndex((c) => /^ac/i.test(c));
+  if (ticketCol < 0 || acCol < 0) return issues;
+  const dataRows = tableRows.slice(1).filter((r) => !isDivider(r.cells));
+  for (const row of dataRows) {
+    const cell = (name) => (row.cells[name] || '').trim();
+    const ticketNos = parseTicketNos(cell(ticketCol));
+    for (const t of new Set(ticketNos)) {
+      if (tickets.has(t)) continue;
+      issues.push({ level: 'hard', line: row.no, msg: 'AC 覆盖矩阵第 ' + row.no + ' 行引用的工单 ' + t + ' 在 issues/ 下不存在——工单号必须对得上 issues/<nn>-*.md' });
+    }
+    verifyAcRefs(parseAcRefs(cell(acCol)), ticketNos, tickets, 'AC 覆盖矩阵第 ' + row.no + ' 行', issues);
+  }
+  return issues;
+}
+
+function auditAcReferences(dir, mapFile) {
+  const lines = fs.readFileSync(mapFile, 'utf8').split(/\r?\n/);
+  if (!lines.some((line) => COVERAGE_HEADING.test(line))) return []; // 老目录无覆盖闸节——不判红
+  const tickets = readIssueAcs(dir);
+  return [
+    ...auditMatrixRefs(mapFile, tickets),
+    ...auditCoverageGateRefs(mapFile, tickets),
+    ...auditPrdAcTable(dir, mapFile, tickets),
+  ];
+}
+
 function main() {
   const argv = process.argv.slice(2);
   if (!argv.length || argv[0].startsWith('-')) {
@@ -288,6 +544,8 @@ function main() {
     if (fs.existsSync(mapFile)) {
       const gate = auditCoverageGate(mapFile);
       if (gate.length) results.push({ file: mapFile, acs: [], real: [], issues: gate });
+      const refs = auditAcReferences(dir, mapFile);
+      if (refs.length) results.push({ file: mapFile, acs: [], real: [], issues: refs });
     }
   }
   const hard = results.reduce((n, r) => n + r.issues.filter((i) => i.level === 'hard').length, 0);
