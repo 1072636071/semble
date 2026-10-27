@@ -175,3 +175,23 @@ AgentSchema（config.js:62-82）：`id / name / note / model{provider,model,reas
 - 本次 POST 服务端 warnings 全是「技能正文提到别的技能，但该技能不在这个代理的技能集里」，属既有配置状态，与本次改动无关，逐条判定为「不必须」，未处理。
 - live `/skills` 从 99 涨到 117，是因为同批 `ship install` 刷新了用户级技能目录——doctor 的技能解析面计数会随分发变化，不要把它当配置漂移来查。
 
+### 2026-10-27 · jxx-lead 两段角色规则去重（消除与名册段/彼此的真重复）
+
+**动因**：提示词自检端点（工单 02/03 判据）报出两处真重复——`studio:jxx-team` ↔ `studio:available-subagents`（角色枚举与「查名册」boilerplate 讲了两遍）、`studio:jxx-team` ↔ `studio:memory-reminder`（「一条命令看输出」例子逐字重复）。裁决：不合并段落，**去重内容**——名册段（代码生成）是角色清单唯一真源，规则段只留判据。
+
+**改动范围**（只动 text，未动 id / name / note / 三面装载 / bindings）：
+
+| 位置 | 段名 | 改动 |
+|---|---|---|
+| agents[jxx-lead].orderedSections + promptSets[jxx-lead-rules].sections（两处逐字同步，坑⑮） | studio:jxx-team | ① 「看名册 → 派给 researcher（找资料）/ reviewer（审代码）/ developer（写代码）/ summarizer（记忆与总结）」→「派活先 `studio_list_subagents` 看名册、按各行 description 选人，再 `studio_delegate`——角色清单的唯一真源是名册段，本段不复述角色枚举」；② 「（派 developer）」→「（交给名册里的开发角色）」；③ 删「`studio_list_subagents` 查名册与状态」（B 路线里与名册段逐字重叠） |
+| 同上两处 | studio:memory-reminder | ① 豁免例子「（问概念、闲聊、单条命令看输出）」→「（概念问答、闲聊、看一条命令的输出这类）」（消与 jxx-team 例子的逐字重叠）；② 「每次产独立条目，不并发改写同一条。」→「每次写入新建条目，不要回改既有同一条。」（消与 summarizer 名册行 description 的逐字重叠） |
+
+**条款正文**：以上逐字（旧句 → 新句）。幂等判据：段内含「唯一真源是名册段」/「概念问答」即已改过。
+
+**执行链**（六步全过）：studio-config-get 取快照 → 本地注入（4 份拷贝全改）→ validate error 0 → doctor --file（16 个「幽灵技能」为 --file 模式口径差，对照原始备份 --file 同样 16 ⇒ 非本次引入）→ post dry-run → --apply（服务端 warnings 全是既有技能互指，逐条判「不必须」）→ verify：六池 PASS、bindings 与备份逐字一致、变化只含 jxx-lead 与 jxx-lead-rules → doctor(live) 0·0。
+
+**验证**：端点实跑（新判据 lib + 触发 reconcile 后）`duplicates=0`；文本标记 `唯一真源是名册段`/`概念问答` 在、`派给 researcher`/`单条命令看输出` 不在；反向对照——旧文本快照过新 lib 报 2 条。段面复验由 GET 快照完成；新会话装配后的投递复验：下次该预设新开会话时按 workflows §验证 核对。
+
+**回滚口径**：重新 GET live 快照，把上表 5 处「新句→旧句」反向替换（旧句逐字见本条），六池全量 POST 回去。备份 `.temp/output/cfg/backup-live-fresh.json`（不入库，丢了按本节文本重建）。
+
+**顺带**：本次同时实测确认「配置文本变化触发 reconcile 会顺带换上新 `lib/` 模块」（AGENTS.md 2026-10-27 那节）——改 prompt 与改代码都靠同一次 patch 文本变化生效。
