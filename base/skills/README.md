@@ -78,7 +78,7 @@
 - **[teach](./productivity/jxx-teach/SKILL.md)** — 跨多个会话教授用户新技能或概念。
 - **[to-questionnaire](./productivity/jxx-to-questionnaire/SKILL.md)** — 将对话转化为可交付的问卷文档，交给持有答案的人填写。
 - **[wait-what](./productivity/jxx-wait-what/SKILL.md)** — 没看懂 agent 的解释时，让它用简化技术英语重讲。
-- **[writing-for-agents](./productivity/jxx-writing-for-agents/SKILL.md)** — 为 agent 编写文档（AGENTS.md、README、技能）的参考。核心概念：context pointer、context/cognitive load、leading word、pruning；要求准确第一，中英混杂，简短贴切。
+- **[writing-for-agents](./productivity/jxx-writing-for-agents/SKILL.md)** — 为 agent 编写文档（AGENTS.md、README、技能）的参考。核心概念：context pointer、context/cognitive load、leading word、pruning、歧义（缺信息 → 消歧四动作）；要求准确第一，中英混杂，简短贴切。
 
 ### 模型调用
 

@@ -1,4 +1,4 @@
-﻿# 生产力
+# 生产力
 
 通用工作流工具，非代码专用。
 
@@ -11,7 +11,7 @@
 - **[teach](./jxx-teach/SKILL.md)** — 跨多个会话教授用户新技能或概念，以当前目录作为有状态教学工作区。
 - **[to-questionnaire](./jxx-to-questionnaire/SKILL.md)** — 将对话转化为可交付的问卷文档，交给持有答案的人填写，答案与问卷一同返回。
 - **[wait-what](./jxx-wait-what/SKILL.md)** — agent 刚解释的内容没看懂时，让它用简化技术英语和共享词汇重讲。
-- **[writing-for-agents](./jxx-writing-for-agents/SKILL.md)** — 为 agent 编写文档（AGENTS.md、README、技能）的参考：context pointer、两种 load、信息层级、leading word、pruning。
+- **[writing-for-agents](./jxx-writing-for-agents/SKILL.md)** — 为 agent 编写文档（AGENTS.md、README、技能）的参考：context pointer、两种 load、信息层级、leading word、pruning、歧义（缺信息优先于用错词）。
 
 ## 模型调用
 

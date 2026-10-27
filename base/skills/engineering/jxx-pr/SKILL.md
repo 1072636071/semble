@@ -3,7 +3,7 @@ name: jxx-pr
 description: "撰写 PR 正文：Summary / Evidence / Merge Danger 三段。当用户要写 PR 描述、PR 正文、pull request 时触发。不改代码。"
 disable-model-invocation: false
 metadata:
-  version: 1.0.0
+  version: 1.1.0
   credits:
     skill: show-me
     author: Dex Horthy
@@ -37,6 +37,8 @@ metadata:
 ## 分节说明
 
 跳过一切前言，行文简短。使用 `CONTEXT.md` 中用户的领域语言。
+
+**读者不只有一个。** 人读 Summary 判断该不该合，后续 agent 读它重建上下文。落笔前过四问——谁改的（范围）、改了什么、怎么验的、什么情况下不该合；四项缺哪项写「待确认：<缺什么>」，不写成含糊的默认。Evidence 只写自己跑过的命令与输出，没跑的不写。
 
 ### Summary
 

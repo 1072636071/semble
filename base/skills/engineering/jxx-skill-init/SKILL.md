@@ -19,7 +19,7 @@ x-vendors:
     license: MIT
   trae: {}
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # 新增 SKILL
@@ -69,6 +69,7 @@ node base/scripts/ship.mjs init --type skill --name <技能名> --bucket <桶>
 - 主体：按工作流/步骤/检查清单组织，用祈使句
 - 解释 why，而非堆 MUST
 - 引用 references/ 子文件时，说明什么时候去读
+- **每条要求都要能被 agent 判成「做了 / 没做」**：写清谁执行、对什么、什么时候、例外是什么，缺一项就是把它推给读者猜。写法判据见 `jxx-writing-for-agents` 技能「歧义」节，不在此复述
 
 **英文正文**（`<!--en-->` 和 `<!--/en-->` 之间）：
 - CodeArts 派生需要。如果正文全是中文，必须提供英文块

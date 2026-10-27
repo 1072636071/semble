@@ -2,7 +2,7 @@
 name: jxx-handoff
 description: "将当前对话压缩成 handoff 交接文档，供下一个 agent 接续。当用户说交接、handoff、保存上下文时触发。"
 metadata:
-  version: 1.1.0
+  version: 1.2.0
 argument-hint: "下一个会话将用于什么？"
 disable-model-invocation: false
 ---
@@ -12,6 +12,10 @@ disable-model-invocation: false
 在文档中包含"建议技能"部分，推荐 agent 应调用的技能。
 
 不要重复已被其他制品（spec、计划、ADR、issue、commit、diff）记录的内容。应改为引用其路径或 URL。
+
+**读者是 agent，接续就是它的执行前提。**写进文档前把四项写成结论——谁接手、接着做什么、从哪一步起、什么情况算做完。四项里有一项你不知道，写「待确认：<缺什么>」，别写成含糊的默认。
+- 交接关掉了对话上下文，读者没有你的记忆：指代写全（不写「那个方案」），路径写绝对路径。
+- 未决事项写状态与下一步，不留「酌情处理」——那等于让它自己定。
 
 隐去敏感信息，如 API 密钥、密码或个人身份信息。
 
