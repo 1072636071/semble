@@ -4,7 +4,7 @@ description: "维护 dsh-agent-studio 配置：提示词集、工具集、技能
 x-install: true
 x-scope: global
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # dsh-agent-studio 配置统一维护
@@ -53,6 +53,8 @@ metadata:
 - **不硬编码端口/密钥**：端口默认 `http://127.0.0.1:3080`，可用 `--origin` 改；studio 本地 HTTP **不用 API key**（围栏是 Origin/host 校验 + 写头 `x-dsh-agent-studio:1`），不要发明鉴权。
 - **UTF-8 无 BOM + LF**：所有配置 JSON 与脚本产物用 UTF-8（无 BOM）+ LF。PowerShell 5.1 发中文 body 必须发字节（`[Text.Encoding]::UTF8.GetBytes`），字符串 body 会把中文刷成 `?`（坑④）。
 - **话术与工具面必须一致**：提示词段里让 agent 用某工具，该工具就必须在它装载的 toolSets 并集里，否则执行期 guard 拦（「能看不能调」）（坑①/M1）。
+- **改段文本两处都改**：`agents[].orderedSections[].text`（生效的那份）+ `promptSets[].sections[].text`（同步防旧路回潮）；改完派一个只读探针子代理、抄回它自己收到的段落才算验证——GET 回读只证明「写进去了」（坑⑮）。
+- **live 改动必须落变更记录**：写进 [references/config-recipe.md](references/config-recipe.md) §10，四条齐全——改动范围（哪些代理哪个段）、条款正文逐字、验证链、备份不在时的回滚口径。`.temp/output/*.json` 被 `.gitignore` 排除、不入库，只留一份临时备份等于没有留档。
 
 ## 资源索引
 
@@ -62,7 +64,7 @@ metadata:
 | [references/data-model.md](references/data-model.md) | 四池+bindings schema、字段表、装载重叠规则、数组整体替换 |
 | [references/pitfalls.md](references/pitfalls.md) | 14 条坑（现象→根因→预防/修法），动手前过一遍 |
 | [references/workflows.md](references/workflows.md) | 四个端到端流程 + 新会话验证清单 |
-| [references/config-recipe.md](references/config-recipe.md) | 115-01 实录层：十条坑逐条展开 + 实操坑 A–H + 33 项自检方法论 + 提交前 checklist（数字为 2026-10-10/11 时点实测，复刻以当次为准） |
+| [references/config-recipe.md](references/config-recipe.md) | 115-01 实录层：十条坑逐条展开 + 实操坑 A–H + 33 项自检方法论 + 提交前 checklist（数字为 2026-10-10/11 时点实测，复刻以当次为准）；§10 **变更记录** = live 配置改动实录（条款逐字 + 验证链 + 备份不在时的回滚口径） |
 | [scripts/studio-config-get.mjs](scripts/studio-config-get.mjs) | GET /config 落盘备份（只读） |
 | [scripts/studio-config-validate.mjs](scripts/studio-config-validate.mjs) | POST 前本地校验（只读） |
 | [scripts/studio-config-doctor.mjs](scripts/studio-config-doctor.mjs) | **配置体检**（只读）：全景表 + 一致性发现项。动配置前后各跑一次 |

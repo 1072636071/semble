@@ -117,3 +117,61 @@ AgentSchema（config.js:62-82）：`id / name / note / model{provider,model,reas
 - [ ] POST 字节纪律（§7-G②），先本地监听器演练（0x3F=0）
 - [ ] 三方比对 backup/after/live deep-equal 实证
 - [ ] 审查报告 VERDICT 行裸行（坑 H）
+
+## 10. 变更记录（live 配置的改动实录）
+
+> 每条记录写清：改了哪些代理的哪个段、条款正文逐字、验证链、回滚口径。备份 JSON 落在 `.temp/output/`（`.gitignore` 已排除，**不入库**）——所以回滚不能依赖备份文件存在，要按下面 §10 的回滚口径重建。
+
+### 2026-10-27 · 14 个代理的角色规则段追加「歧义」条款
+
+**动因**：把 `jxx-writing-for-agents` 1.3.0 新增的「歧义」判据下发到每个会写「给 agent 读」文档的角色上（技能正文是条件加载，角色段是常驻，两者职责不同：段里只留可执行条款 + pointer，不复制判据正文）。
+
+**改动范围**（只动文本，未动 id / name / note / 三面 / bindings）：
+
+| 代理 id | 段名 | 所在 promptSet id |
+|---|---|---|
+| jxx-lead | studio:jxx-team | jxx-lead-rules |
+| researcher | studio:role-researcher | researcher-rules |
+| reviewer | studio:role-reviewer | reviewer-rules |
+| developer | studio:role-developer | developer-rules |
+| summarizer | studio:role-summarizer | summarizer-rules |
+| reviewer-spec | studio:role-reviewer-spec | reviewer-spec-rules |
+| doc-reviewer | studio:role-doc-reviewer | doc-reviewer-rules |
+| developer-impl | studio:role-developer-impl | developer-impl-rules |
+| developer-bugfix | studio:role-developer-bugfix | developer-bugfix-rules |
+| developer-refactor | studio:role-developer-refactor | developer-refactor-rules |
+| architect | studio:role-architect | architect-rules |
+| tester | studio:role-tester | tester-rules |
+| integrator | studio:role-integrator | integrator-rules |
+| scribe | studio:role-scribe | scribe-rules |
+
+**未动 11 个**：organizer、blog-editor / blog-researcher / blog-writer / blog-reviewer、novel-editor / novel-organizer / novel-writer、reviewer-std / reviewer-rule / security-reviewer。前 8 个产出给人读的稿子或只做会话整理，后 3 个审的是代码 diff（命名、异味、劣化门禁），不写文档——歧义判据落在它们身上没有可执行对象。reviewer-spec 例外：它逐条判 AC 并要指出「生产侧漏项」，所以装了条款。
+
+核对口径：`agents[].orderedSections` 里含 `**歧义**：写给别人` 的代理数 = 14（与上表一致）；用 `node -e` 扫 live 快照点数，不凭记忆。
+
+**条款正文**（逐字，追加在段末，前导一个空行）：
+
+```markdown
+**歧义**：写给别人（人或 agent）读的文档、工单、派活 prompt，落笔前过四问——谁执行、对什么做、什么时候做、例外是什么。四项缺哪项就写成「待确认：<缺什么>」，不写成含糊的默认；有冲突处写明「以谁为准」。判据见 `jxx-writing-for-agents` 技能「歧义」节。
+```
+
+**两处都改**（坑⑮）：`agents[].orderedSections[].text`（真正生效的那份）与 `promptSets[].sections[].text`（同步，防旧路回潮）。只改 promptSets 会 POST 成功、verify 全 PASS、子代理照旧带旧句。
+
+**执行姿势**（可复现，一次性的注入脚本落在 `.temp/scripts/studio-add-ambiguity.mjs`，**不入库**）：
+
+1. `studio-config-get.mjs` 从 live 取快照（带 `{ok,config}` 外壳，POST 时脚本自动剥壳）；
+2. 按上表逐代理定位段：`agents[].orderedSections` 与 `promptSets[].sections` 两处都找同名段，`text` 已含 `**歧义**` 就跳过（幂等），否则剥掉尾部空白后追加一个空行 + 条款正文；
+3. 写回完整外壳存 proposed.json，**六池全量**不动其它条目；
+4. `studio-config-validate.mjs`（error 0）→ `studio-config-doctor.mjs --file`（须报「本地快照与 live 一致」，否则就是坑⑰ 过期快照，回去重取）→ `studio-config-post.mjs` dry-run → `--apply`；
+5. `studio-config-verify.mjs proposed.json --backup <本次快照>`：六池 PASS + bindings 与备份逐字一致 + 变化清单只含上表 14 个 agent 与对应 14 个 promptSet；
+6. `studio-config-doctor.mjs`（live）error 0 / warn 0；
+7. 探针子代理复验（见下）。
+
+**验证**：`studio_delegate` 派一个只读探针（doc-reviewer），要求逐字抄回自己角色规则段。回帖含该条款 = 生效。GET 回读只能证明「写进去了」，不能证明「投递的是这份」——这就是坑⑮ 的取证方式。
+
+**回滚口径**（备份不在了也照样能用）：重新 GET 一份 live 快照，对每个目标段把 `**歧义**` 起、到该段正文末尾为止的那一段删掉——条款文本以本节上面的逐字块为唯一依据，幂等判据是段内是否含 `**歧义**：写给别人`。然后走同一条 POST 链。单代理手工回滚更快：面板里删那段文本、保存、探针复验。
+
+**顺带记录（同一次改动里学到的）**：
+- 本次 POST 服务端 warnings 全是「技能正文提到别的技能，但该技能不在这个代理的技能集里」，属既有配置状态，与本次改动无关，逐条判定为「不必须」，未处理。
+- live `/skills` 从 99 涨到 117，是因为同批 `ship install` 刷新了用户级技能目录——doctor 的技能解析面计数会随分发变化，不要把它当配置漂移来查。
+
