@@ -44,7 +44,7 @@ AGENTS.md 和 CODEBUDDY.md 内容必须保持一致。
 
 ### dsh-agent-studio 配置管理（真源在本仓）
 
-dsh-agent-studio（DeepSeek Harness Agent Studio）的配置管理真源在本仓库 `code` 桶：`base/skills/code/dsh-agent-studio-config/`（`SKILL.md` + `references/` 四份契约文档 + `scripts/` 五个零依赖 mjs）。改操作手册、改脚本、改坑清单一律改这份仓库副本，改完跑 `node base/scripts/ship.mjs install` 刷新各平台安装副本，再 `check` 过门禁。
+dsh-agent-studio（DeepSeek Harness Agent Studio）的配置管理真源在本仓库 `code` 桶：`base/skills/code/dsh-agent-studio-config/`（`SKILL.md` 入口 + `references/` 契约文档 + `scripts/` 零依赖 mjs，清单以其 SKILL.md 的资源索引为准）。改操作手册、改脚本、改坑清单一律改这份仓库副本，改完跑 `node base/scripts/ship.mjs install` 刷新各平台安装副本，再 `check` 过门禁。
 
 `~/.agents/skills/dsh-agent-studio-config/` 是 **kimi 厂商归一化后的派生物，不是真源**：kimi 厂商会把 frontmatter 归一为 `name + description`（`x-install`、`metadata` 等字段被剥掉，见 `ship.mjs` 的 `kimiStyleFrontmatter`），所以它与仓库源必然有 frontmatter 差异，**别据此判断分叉**。判断是否同步要比 `references/` 与 `scripts/` 的文件哈希；真源与安装副本冲突时一律以仓库为准。`base/skills/code/dsh-plugin-dev/` 同理。
 
