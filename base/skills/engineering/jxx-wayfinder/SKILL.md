@@ -3,7 +3,7 @@ name: jxx-wayfinder
 description: "为超过单会话承载的大型工作建共享调查地图，逐个解决直到路径清晰。当用户说 wayfinder、寻路、一片迷雾时触发。不直接写实现。"
 disable-model-invocation: false
 metadata:
-  version: 1.4.0
+  version: 1.5.0
 ---
 
 一个松散的想法到来了——大到单个 agent 会话无法承载，且笼罩在迷雾中：从这里到**目的地**的路径尚不可见。寻路就是找到那条路径，而不是冲向目的地。此技能将路径绘制为 repo issue tracker 上的**共享地图**，然后逐一处理其工单，直到路径清晰。
@@ -124,7 +124,7 @@ Wayfinder 默认是**规划**：每个工单解决一个决策，地图在路径
 
 1. 加载**地图**——低分辨率视图，不是每个工单正文。
 2. 选择工单。如果用户指定了一个，使用它。否则按顺序取第一个前沿工单。**认领它**：在任何工作之前分配给自己。
-3. 解决它——**按需缩放**：按需获取任何相关或已关闭工单的完整正文；调用 `## 备注` 块中命名的技能。如果不确定，使用 `/jxx-grilling` 和 `/jxx-domain-modeling`。**步骤打卡（v1.3.0 起默认纪律）**：动手前把本单的调查步骤列成 `**处理步骤：**` 清单追加进工单正文，每完成一步就地打卡（`- [ ]`→`- [x]` + 步尾日期）并按服务器对齐纪律双写服务器——中途断了，下一个会话从打卡现场直接续接，不重走已完成的调查步。
+3. 解决它——**按需缩放**：按需获取任何相关或已关闭工单的完整正文；调用 `## 备注` 块中命名的技能。如果不确定，使用 `/jxx-grilling` 和 `/jxx-domain-modeling`。**步骤打卡（v1.3.0 起默认纪律）**：动手前把本单的调查步骤列成 `**处理步骤：**` 清单追加进工单正文，每完成一步就地打卡（`- [ ]`→`- [x]` + 步尾日期）。普通处理步骤只更新本地 Markdown，不调用 `ticket-flow`；认领、阻塞或人工决策、转入 `pending-review`、转入 `done` 与交接这五类协作里程碑才同步服务器。交接前用 `ticket-flow --dir <功能目录>` 批量收敛并处理全部 `needs_judgement`；服务不可达时保留本地进度并显式报告待补报，不引入后台静默上传。完成交接同步后，下一个会话从打卡现场直接续接，不重走已完成的调查步。
 4. 记录解决方案：将答案作为**解决评论**发布，**关闭** issue，并向地图的决策进展**追加上下文指针**。决策型工单直接标记为 `resolved`（轻量终态）即可；若此工单是产出代码的实现型工单，则改用完整实现生命周期——第一轮功能开发完成后置 `pending-review`（待审查），经 `/jxx-code-review` 通过后置 `done`（结束），详见 `docs/agents/issue-tracker.md` 的「工单状态与生命周期」节。
 
    **服务器对齐（v1.1.0 起默认；v1.4.0 起走写腿）**：项目已接入服务器工单（repo_key 在 `jxx_tickets` 中出现）时——**新建地图 / 工单仍走 `jxx_ticket_call create`**（写腿不 create，标签如 `wayfinder:map` 走 `create` 的 labels）；**解决评论、关闭、状态置变**在项目内有 `tools/ticket-flow.mjs` 且工单落在 `.scratch/<NN>-<slug>/` 下时，用一条写腿命令完成「改本地 md + 推服务器」：`node tools/ticket-flow.mjs --root <仓库根> --file <单条工单md> --comment "<解决评论>" [--set status=<本地词表>]`（exit 0 收敛 / exit 2 评论撞上「服务器版本已前进」按条目 `server`/`local`/`resolution` 裁决后重跑 / exit 3 本地已还原或未变）。**项目没有该 CLI 时回退 MCP 双写**：先改本地 tracker → `get` 拿最新 `version` 作 `base_version` → `jxx_ticket_call update`（冲突先对账再推，工具面见项目内 `agents/skills/jxx-ticket-router/SKILL.md`，项目技能、`read` 加载）。服务器不可达时只写本地（离线降级），回连后 `jxx_ticket_sync` 收口。

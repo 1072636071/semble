@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.0 — 2026-10-30
+
+- 调查步骤改为本地逐步打卡、五类协作里程碑同步服务器；交接前批量收敛并处理全部 `needs_judgement`，保留离线待补报，不引入后台静默上传。
+
 ## 1.4.0 — 2026-10-23
 
 **「处理地图」的服务器对齐改指 ticket-flow 写腿**：新建地图/工单仍走 `jxx_ticket_call create`（写腿不 create）；解决评论、关闭、状态置变在项目内有 `tools/ticket-flow.mjs` 且工单在 `.scratch/<NN>-<slug>/` 下时，用一条写腿完成「改本地 md + 推服务器」（`--comment "<解决评论>" [--set status=…]`），exit 0 / 2 / 3 三态判读。项目无该 CLI 时回退 MCP 双写（先改本地 tracker → `get` 最新 `version` → `update`），离线降级 + 回连 `sync` 口径不变。

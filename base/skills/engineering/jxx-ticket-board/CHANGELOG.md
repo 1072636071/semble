@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.19.0 — 2026-10-30
+
+- 技能与 `PROTOCOL.tmpl.md` 统一为本地逐步打卡、五类协作里程碑同步；普通步骤不再调用 `ticket-flow`，交接前批量收敛并处理全部 `needs_judgement`，不引入后台静默上传。
+
 ## 0.18.0 — 2026-10-23
 
 **服务器对齐改指 ticket-flow 写腿（分发产物同步）**：状态流转 / 打卡 / 评论在项目内有 `tools/ticket-flow.mjs` 时用一条写腿命令完成「改本地 md + 推服务器」（`--set status=… --comment "…"`），服务器侧失败还原原始 md 字节、exit 3；`--comment` 撞上服务器版本前进 exit 2，按条目 `server`/`local`/`resolution` 裁决后重跑。项目无该 CLI 时回退 `jxx_ticket_call update`（先 `get` 最新 `version`）；写腿不 create，新建仍走 `create` / `ticket-uplink`。

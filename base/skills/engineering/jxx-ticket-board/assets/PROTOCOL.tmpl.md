@@ -26,6 +26,7 @@
 
 - **工单卡**：一个 md 文件 = 一张卡 = 一个 `.scratch\` 工单 = 一个分支，严格 1:1（薄卡：卡只放指针与协调记录，**成果正文一律进 git 分支**）。
 - **工单真源（服务器优先，ADR-010）**：服务器（jxx-ticket REST = 线上 /tickets 看板）是工单真源，本地 md 是创作面与离线投影。开工前先 `node tools/jxx-bootstrap.mjs --root <项目根>`——线上无该 repo_key 工单时**自动先创建**（种子工单 + 投影基准）再操作；已有则幂等退出。状态流转 / 打卡 / 评论在项目内有 `tools/ticket-flow.mjs` 时用写腿一条命令完成（`node tools/ticket-flow.mjs --root <项目根> --file <单条工单md> --set status=… --comment "…"`——一条命令同时改本地 md 与服务器，服务器侧失败还原本地 md、exit 3；**不要先手改 md 再推**）；没有该 CLI 时回退 `jxx_ticket_call update`（先 `get` 拿最新 `version` 作 `base_version`）。离线时照常直写本地 md，回连 `jxx_ticket_sync` 收口。
+- **同步时机（本地逐步打卡、里程碑上传）**：普通处理步骤只更新本地 Markdown，不调用 `ticket-flow`。认领、阻塞或人工决策、转入 `pending-review`、转入 `done` 与交接这五类协作里程碑才同步服务器；交接前用 `ticket-flow --dir <功能目录>` 批量收敛并处理全部 `needs_judgement`。服务不可达时保留本地进度并显式报告待补报，不引入后台静默上传。
 - **三条正交轴（D9，别再往目录里塞第二件事）**：
 
   | 轴 | 载体 | 取值 |

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.0 — 2026-10-30
+
+- worker 步骤打卡与服务器上传解耦：普通步骤只写本地，五类协作里程碑同步；交接前批量收敛并处理全部 `needs_judgement`，不引入后台静默上传。
+
 ## 1.8.2 — 2026-10-26
 
 - 两处硬依赖补降级：看板脚本改 `node <jxx-ticket-board 技能目录>/scripts/board.mjs` 并写明「该技能没装就不要硬跑、改走 `jxx-implement` 单工单流」；`ac-audit.mjs` 改调本技能目录副本（随技能分发），缺 `jxx-to-tickets` 时按恢复口径自查，不跳过。

@@ -8,9 +8,9 @@ AGENTS.md 和 CODEBUDDY.md 内容必须保持一致。
 
 **JwikisSkills 是 TencentDB-Agent-Memory（`E:\work\sp\TencentDB-Agent-Memory`）的子项目**：jxx 系列技能（`base/skills/engineering/jxx-*`，含统一工作流三技能 jxx-ticket-board / jxx-implement / jxx-implement-spec）**与 TencentDB-Agent-Memory 一起演进**——该项目（含 jxx-ticket 服务端 MyWeKnora fork 与线上 /tickets 看板）的工作流机制变更必须同步反映到本仓技能；本仓 jxx 技能的机制变更也必须同步该项目的服务端与契约文档（`docs/agents/issue-tracker.md` 等）。改 jxx 系列技能时自检：**对端项目是否需要同步改？**（2026-10-01 三技能统一改造：in-project 布局 + 统一看板 + 统一合并流，见 jxx-ticket-board `references/ADR-009-in-project-and-prd-branch.md`）
 
-**服务器对齐默认纪律（2026-10-15 起，覆盖全部涉工单技能）**：凡是创建、修订、流转工单的 jxx 技能（to-spec / to-tickets / implement / implement-spec / code-review / triage / wayfinder / to-milestones），**本地落盘与服务器上行是同一步**，不是可选项——项目已接入服务器工单（repo_key 在 `jxx_tickets` 中出现）时：新建（PRD+工单）落盘即批量上行并回写 ticket_no/id/version 留痕；正文、评论、状态、标签的每次改动先改本地 md 再以服务器最新 `version` 作 `base_version` 乐观锁双写；**批量 push 的 id 必须从当次 `list` 实测逐条核对**（不得凭表格手抄——2026-10-15 T131–T135 串位事故：四条正文错写进邻居工单，靠乐观锁 409 + 标签过滤对账才发现）；删除走 `archived` 软删两侧一致；仅服务器不可达时允许只写本地（离线降级），回连 `jxx_ticket_sync` 收口。工具面总入口 = `jxx-ticket-router` 技能；配套 CLI = TencentDB-Agent-Memory 仓 `tools/ticket-uplink.mjs`（幂等按 repo_key+title 判重）。
+**服务器对齐默认纪律（2026-10-30 修订，覆盖全部涉工单技能）**：凡是创建、修订、流转工单的 jxx 技能（to-spec / to-tickets / implement / implement-spec / code-review / triage / wayfinder / to-milestones），新建（PRD+工单）落盘即批量上行并回写 ticket_no/id/version 留痕；普通正文与处理步骤只写本地，认领、阻塞或人工决策、`pending-review`、`done` 与交接五类里程碑同步服务器。同步时以服务器最新 `version` 作 `base_version` 乐观锁双写；**批量 push 的 id 必须从当次 `list` 实测逐条核对**（不得凭表格手抄——2026-10-15 T131–T135 串位事故：四条正文错写进邻居工单，靠乐观锁 409 + 标签过滤对账才发现）；删除走 `archived` 软删两侧一致；服务器不可达时保留本地进度并显式报告待补报，回连 `jxx_ticket_sync` 收口。工具面总入口 = `jxx-ticket-router` 技能；配套 CLI = TencentDB-Agent-Memory 仓 `tools/ticket-uplink.mjs`（幂等按 repo_key+title 判重）。
 
-**步骤打卡与断线续接（2026-10-15 起，与服务器对齐配套）**：处理工单时把执行步骤列成 `**处理步骤：**` 清单写进工单文件（每步一行 `- [ ]`），**每完成一步就地打卡**（`- [x]` + 步尾日期，必要时一行执行事实）并按服务器对齐纪律同步服务器副本——线上线下同步更新，打卡即存档。会话中断/换会话/换人续接时从打卡现场直接恢复，不重做已完成步骤、不凭记忆重建进度；续接入口 = 工单打卡区 + 评论时间线 + 服务器副本三方对齐，不一致以服务器为准。落地技能：jxx-implement 1.8.0（执行面完整块）、jxx-implement-spec 1.7.0（worker 锚点）、jxx-wayfinder 1.3.0（调查步打卡）、jxx-ticket-board 0.16.0（打卡真源 = 工单 md，卡面只带状态与指针）。
+**步骤打卡与断线续接（2026-10-30 修订，与服务器对齐配套）**：处理工单时把执行步骤列成 `**处理步骤：**` 清单写进工单文件（每步一行 `- [ ]`），**每完成一步就地更新本地 Markdown 打卡**（`- [x]` + 步尾日期，必要时一行执行事实），普通步骤不调用 `ticket-flow`。交接前用 `ticket-flow --dir <功能目录>` 批量收敛并处理全部 `needs_judgement`，不引入后台静默上传；完成交接同步后，会话中断/换会话/换人续接时从打卡现场直接恢复，不重做已完成步骤、不凭记忆重建进度。落地技能：jxx-implement 1.13.0（执行面完整块）、jxx-implement-spec 1.9.0（worker 锚点）、jxx-wayfinder 1.5.0（调查步打卡）、jxx-ticket-board 0.19.0（打卡真源 = 工单 md，卡面只带状态与指针）。
 
 **验收点闭包纪律（2026-10-21 起，覆盖全部涉工单技能）**：AC 唯一权威源 = `base/skills/engineering/jxx-to-tickets/references/acceptance-criteria.md`（判据正文只在这份，其他技能只留动作 + pointer）。
 三道闸各一条命令：**生产闸** `node base/scripts/ac-audit.mjs <功能目录> --strict`；**执行闸** `node base/scripts/ac-audit.mjs <工单文件>`；**审查闸** `git diff origin/main...HEAD` 逐条 AC 自己取证。
@@ -75,6 +75,22 @@ ego lite 自带的浏览器技能以**原样分发**方式入库：真源是 `ba
 - **旧副本必须手工删**：`managedPrefixes` 不含 `open-code-review`，且残留清理以「源中全部技能名」为准（源里仍有这个技能，就不算残留），`ship install` 不会自动清；2026-10-23 已手工删掉 10 处 `skills/open-code-review`：`~/.agents`、`~/.codeartsdoer`、`~/.codebuddy`、`~/.config/codeartsdoer`、`~/.config/opencode`、`~/.qoder-cn`、`~/.qwenworkcn`、`~/.trae-cn`、`~/.workbuddy`、`~/.workbuddy-ai`。
 - **恢复分发**：删掉 `SKILL.md` 里那行 `x-install: false`，再跑 `node base/scripts/ship.mjs install`。
 
+### 自研技能：Craft 套件（子技能只留真源，原文入知识库）
+
+storytold/ArtCraft 13 个子技能（`base/skills/storytold/<app>/SKILL.src.md`：figcraft / vectorcraft / gridcraft / cadcraft / designcraft / deckcraft / soundcraft / filmcraft / effectcraft / photocraft / lightcraft / pdfcraft / wordcraft）**不再外装**，frontmatter 标 `x-install: false`，只装路由 `craft-router`。
+
+- **这是自研资产，不是三方技能**：可运行、可修改、可优化。算着「改行为」时一律改仓内真源，再 `node base/scripts/ship.mjs install` + `check` + `node base/scripts/skill-lint.mjs --strict`。
+- **原文副本在库**：WeKnora `dfaaf6fc-1e5d-4385-a290-58c847d71bcb` 的 `craft/<app>`，条目 `craft-<app>`，索引 `craft-技能索引`。库内是**快照**，改完真源必须用 `PUT /api/v1/knowledge/manual/<id>` 带 `{title, content, status:"publish"}` 回灌，否则 agent 会照过期配方干活。
+- **旧副本必须手工删**（同 `open-code-review`）：残留清理以「源中仍存在的技能名」为准，源留着就不算残留。2026-10-28 已删 7 处技能根共 91 个目录（含 `.codeartsdoer` 的 `huawei-cloud-codebuddy-*` 前缀变体）。
+- **恢复分发**：把某个源的 `x-install` 改回 `true`，再 `node base/scripts/ship.mjs install`。
+- **2026-10-28 优化批（现状基线）**：13 份原文全部升 `0.2.0`、路由升 `0.3.0`。每份改成**可复制实测配方**（命令本机跑过、给真实产物字节数），并补 `输入` / `输出与校验` / `失败出口` 三节；四道闸现状 = 全部 `P0 0 / P1 0 / P2 1`（只剩 `sk-08` 无 evals，库快照型文档技能按此保留），`score 98`，正文 88–143 行。
+- **实测口径（旧文档错的别照抄）**：目录名**没有**尾随空格（`D:\storytoldExe\FigCraft\figcraft-cli.exe`）；`describe` 只有 designcraft / deckcraft / soundcraft / filmcraft 四家有；`--automation-read-root` / `--automation-write-root` **只属 `mcp`**（`run` 传即 `unknown option`）；`commands --json` 不是通用旗标，数条数必须解析 JSON 数组长度（数行会翻倍、grep 字面会虚胖）；`Launcher\artcraft-launcher.exe` 是 GUI，启动即自动更新全部应用，agent 不要跑。
+
+### 不默认安装的技能（`x-install: false`）
+
+- **`jxx-to-questionnaire`**（`base/skills/productivity/`）：2026-10-28 姜先生决定不再自动安装，frontmatter 已标 `x-install: false`，7 处技能目录的旧副本已手工删净（同 `open-code-review` / Craft 的约束：源留着就清不掉）。真源留仓，要临时用就手工拷或把该行改回 `true` 再 `ship install`。
+- **`jxx-perf-iteration`**（`base/skills/engineering/`）：2026-10-28 姜先生决定默认不安装，frontmatter 已标 `x-install: false`，7 处用户级技能目录的旧副本（含 `.codeartsdoer` 的 `huawei-cloud-codebuddy-` 前缀变体）已手工删净。**仅覆盖 Rust / Cargo / criterion 生态**（有意不做语言抽象：非 Rust 项目套这份提示词与护栏会得到似是而非的流程）。真源留仓，要临时用就手工拷或把该行改回 `true` 再 `ship install`。
+
 ### 临时文件
 
 所有临时脚本统一放在仓库 `.temp/scripts/` 下；其他临时文件（脚本输出、日志等）也要分类，放在 `.temp/` 的子目录下（如 `.temp/output/`、`.temp/logs/`），保证仓库根目录干净。
@@ -88,5 +104,17 @@ ego lite 自带的浏览器技能以**原样分发**方式入库：真源是 `ba
 `jxx-setup-skills`（1.5.0 起）给**目标仓库**建 `docs/agents/skills/`（一个技能一个子目录 + `SKILL.md`，可选 `--skills-dir` 改路径、`--no-skills` 关闭），并在 `AGENTS.md` 的 `## Agent skills` 块里维护一节**受管**技能清单：表格夹在 `<!-- jxx-setup-skills:skills:start -->` / `<!-- jxx-setup-skills:skills:end -->` 之间，由扫描目录生成。
 
 - 目标仓库**新增、删除或改动**项目技能（含只改 `description`）后跑 `node <jxx-setup-skills>/scripts/setup.mjs sync-skills --root <仓库根>` 刷新清单，并自动把 `AGENTS.md` 逐字节同步到 `CODEBUDDY.md`。
-- **本仓库自己例外**：技能真源在 `base/skills/**`（跨厂商分发，不落 `docs/agents/skills/`），所以在本仓跑 `jxx-setup-skills` 初始化时应带 `--no-skills`，不要在 `docs/agents/skills/` 造第二份技能副本。
+- **本仓库例外**：本仓唯一项目技能 `tool-intro` 落 `docs/agents/skills/tool-intro/`；其余技能真源仍在 `base/skills/**`（跨厂商分发）。因此在本仓跑 jxx-setup-skills 初始化时**仍带 `--no-skills`**，只对项目技能跑 `sync-skills`，不要在 `docs/agents/skills/` 造第二份 base 技能副本。
 - 目标仓库若已自己维护手写技能清单，脚本**不插第二份**，而是报冲突；给既有清单加一对 `skills:start`/`skills:end` 标记即由脚本接管。
+
+### 项目技能（`docs/agents/skills/`）
+
+本仓项目技能的**唯一存放处**：一个技能一个目录 `docs/agents/skills/<name>/`，入口 `docs/agents/skills/<name>/SKILL.md`（frontmatter 写 `name` + `description`），可选 `references/`、`scripts/`。
+
+**新增、删除或改动任一技能后，必须重跑** `node <jxx-setup-skills 目录>/scripts/setup.mjs sync-skills --root <仓库根>`：它重新扫描该目录并重写下表（标记之间由脚本维护，标记之外的手写内容不会被动），再把 `AGENTS.md` 逐字节同步到 `CODEBUDDY.md`。
+
+<!-- jxx-setup-skills:skills:start -->
+| 技能 | 何时加载 |
+| --- | --- |
+| `tool-intro` | 记录并介绍开发工具（GitHub 项目），生成中文工具档案与 HTML 汇总页 |
+<!-- jxx-setup-skills:skills:end -->
