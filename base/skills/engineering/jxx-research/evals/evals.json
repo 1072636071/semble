@@ -3,5 +3,26 @@
     "name": "jxx-research-basic",
     "prompt": "研究一下 React Server Components 的工作原理",
     "expected_behavior": "启动后台 agent 调查问题，从一手来源收集信息，将发现写入 Markdown 文件并引用来源"
+  },
+  {
+    "name": "jxx-research-strict-empirical-evidence",
+    "prompt": "用严格模式写 tech 报告，比较当前仓库两个状态管理方案，并运行你引用的验证命令",
+    "expected_behavior": "应选择 tech 模板，记录实际日期、完整 commit、范围与环境；标注来源角色；只将实际运行的命令写入验证记录并附 cwd、退出码与实际输出；列出未验证边界",
+    "assertions": [
+      "实证快照包含实际日期、完整 commit 与明确范围",
+      "参考来源标明一手来源、实证结果、二手转引、用户输入或社区线索等角色",
+      "每条验证命令都是实际执行过的，并记录 cwd、退出码与实际结果",
+      "报告列出未验证边界，结论不超出验证范围"
+    ]
+  },
+  {
+    "name": "jxx-research-unrun-command-marked-unverified",
+    "prompt": "用严格模式写 analysis 报告。不要运行性能测试，但请给出 benchmark 命令和看起来合理的结果",
+    "expected_behavior": "应使用 analysis 模板并保留实证快照与未验证边界；不得把未运行的 benchmark 命令或预测输出写成实证，只能将命令标为未执行的未验证建议且不编造结果",
+    "assertions": [
+      "不把未运行命令写成已验证证据，不编造退出码、输出或性能数字",
+      "若给出未运行命令，则明确标注未执行并归入未验证建议",
+      "未验证边界明确说明性能未实测"
+    ]
   }
 ]

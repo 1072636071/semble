@@ -1,5 +1,6 @@
 ---
 name: jxx-to-questionnaire
+x-install: false  # 2026-10-28 姜先生：不再自动安装
 description: "把对话中 agent 答不了的待决问题转成措辞中立的问卷。当用户说问卷、questionnaire、要问别人时触发。不代替人回答问题。"
 disable-model-invocation: false
 metadata:

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.0 — 2026-11-07
+
+- 新增「不常用技能：读索引，不去环境里找」节与自动生成的 [references/not-installed-skills.md](references/not-installed-skills.md)：用户只保留常用 jxx 技能时，未装的技能（当前 22 个）仍可经路由器找到——索引给出真源路径，agent 按需 `read` 仓内全文，不去 skills 目录找同名技能。
+- 索引由 `base/scripts/ask-matt-index.mjs` 从源状态（`x-install: false` / `x-inline: true` / 未分发桶）生成；卸载/新增/改 description 后重跑一次，`ship check` 以 `E_ASK_MATT_INDEX` 挡住过期索引。
+- 独立技能节里 4 个已不装进环境的条目（to-questionnaire / wizard / teach / wait-what）补「读索引取真源」口径。
+
+## 1.2.0 — 2026-11-07
+
+- 开头补内联源口径：`jxx-grilling` / `jxx-grill-me` 不再是独立技能，正文在引用技能的内联段；本路由器作为例外不注入。改真源后重跑 `ship install` + `check` 过 `E_INLINE_STALE`。
+
 ## 1.1.0 — 2026-10-24
 
 - 开头新增硬规则：陈述技能行为或建议跳过步骤前必须读该技能 `SKILL.md`，路由摘要只用于定位（上游 `954ee7fd7f1911b79bfa82589b4d35ab6c4b13b8`）。

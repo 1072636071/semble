@@ -23,7 +23,7 @@
 ```bash
 node base/scripts/sync-html-template.mjs           # 同步到全部目标技能
 node base/scripts/sync-html-template.mjs --check   # 只校验，不一致退出码 1
-node base/scripts/sync-html-template.mjs --skill jxx-tool-intro
+node base/scripts/sync-html-template.mjs --skill tool-intro
 ```
 
 新增会产出 HTML 的技能时：把目录名加进脚本的 `TARGETS`，跑一次同步，再在 SKILL.md 里加「HTML 设计模板」小节。
@@ -91,5 +91,5 @@ node base/scripts/sync-html-template.mjs --skill jxx-tool-intro
 
 ## 生成方式
 
-- **脚本生成**（如 `jxx-tool-intro`）：读取技能内 `assets/html-design.css`、`assets/html-design.js` 内联进页面，保证与模板同源。
+- **脚本生成**（如 `tool-intro`，本仓项目技能）：读取技能内 `assets/html-design.css`、`assets/html-design.js` 内联进页面，保证与模板同源。
 - **模型直接写 HTML**（如 `jxx-teach` 的课程页）：先读 `references/html-template.html`，沿用其类名与 `<style>` 区块，再替换内容。

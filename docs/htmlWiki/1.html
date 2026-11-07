@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub 星日增量 Top 20 · 2026-10-30</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            line-height: 1.6;
+            padding: 32px 16px;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            color: #f0f6fc;
+            margin-bottom: 8px;
+            letter-spacing: -0.3px;
+        }
+        .subtitle {
+            color: #8b949e;
+            font-size: 14px;
+            margin-bottom: 28px;
+            border-bottom: 1px solid #21262d;
+            padding-bottom: 16px;
+        }
+        .subtitle span {
+            color: #58a6ff;
+        }
+        .table-wrap {
+            overflow-x: auto;
+            margin-bottom: 40px;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+            min-width: 720px;
+        }
+        thead {
+            background: #161b22;
+        }
+        th {
+            text-align: left;
+            padding: 12px 16px;
+            color: #8b949e;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #30363d;
+            white-space: nowrap;
+        }
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #21262d;
+            vertical-align: middle;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        tr:hover td {
+            background: #161b22;
+        }
+        .rank {
+            font-weight: 700;
+            color: #f0f6fc;
+            font-variant-numeric: tabular-nums;
+        }
+        .rank.top3 {
+            color: #f78166;
+        }
+        .repo-link {
+            color: #58a6ff;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .repo-link:hover {
+            text-decoration: underline;
+        }
+        .repo-owner {
+            color: #8b949e;
+            font-weight: 400;
+        }
+        .gain {
+            color: #3fb950;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+        .total {
+            color: #8b949e;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+        .lang {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            background: #21262d;
+            color: #c9d1d9;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        /* 项目详情卡片 */
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #f0f6fc;
+            margin: 0 0 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #21262d;
+        }
+        .card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin-bottom: 16px;
+        }
+        .card-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .card-rank {
+            font-size: 14px;
+            font-weight: 700;
+            color: #f78166;
+            min-width: 28px;
+        }
+        .card-name {
+            font-size: 17px;
+            font-weight: 600;
+            color: #58a6ff;
+            text-decoration: none;
+            word-break: break-all;
+        }
+        .card-name:hover {
+            text-decoration: underline;
+        }
+        .card-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            font-size: 13px;
+            color: #8b949e;
+            margin-bottom: 10px;
+        }
+        .card-meta .gain-text {
+            color: #3fb950;
+            font-weight: 600;
+        }
+        .card-desc {
+            font-size: 14px;
+            color: #c9d1d9;
+            line-height: 1.75;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 16px;
+            border-top: 1px solid #21262d;
+            font-size: 12px;
+            color: #484f58;
+            text-align: center;
+        }
+        @media (max-width: 600px) {
+            body { padding: 16px 8px; }
+            h1 { font-size: 22px; }
+            .card { padding: 16px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <h1>GitHub 星日增量 Top 20</h1>
+    <div class="subtitle">
+        数据日期：<span>2026-10-30</span> · 按近 24 小时 Star 增量排序 · 数据来源：GitHub Trending 日榜综合
+    </div>
+
+    <!-- ========== 总览表格 ========== -->
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>项目</th>
+                    <th>24h 增量</th>
+                    <th>总 Star</th>
+                    <th>语言</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="rank top3">1</td>
+                    <td><a class="repo-link" href="https://github.com/morluto/rea" target="_blank" rel="noopener">morluto/<strong>rea</strong></a></td>
+                    <td class="gain">+5,392</td>
+                    <td class="total">407,645</td>
+                    <td><span class="lang">TypeScript</span></td>
+                </tr>
+                <tr>
+                    <td class="rank top3">2</td>
+                    <td><a class="repo-link" href="https://github.com/pbakaus/impeccable" target="_blank" rel="noopener">pbakaus/<strong>impeccable</strong></a></td>
+                    <td class="gain">+2,881</td>
+                    <td class="total">95,212</td>
+                    <td><span class="lang">Rust</span></td>
+                </tr>
+                <tr>
+                    <td class="rank top3">3</td>
+                    <td><a class="repo-link" href="https://github.com/Ebony-Vinyl/dsh-our-free-model" target="_blank" rel="noopener">Ebony-Vinyl/<strong>dsh-our-free-model</strong></a></td>
+                    <td class="gain">+2,092</td>
+                    <td class="total">50,855</td>
+                    <td><span class="lang">JavaScript</span></td>
+                </tr>
+                <tr>
+                    <td class="rank">4</td>
+                    <td><a class="repo-link" href="https://github.com/HKUDS/DeepTutor" target="_blank" rel="noopener">HKUDS/<strong>DeepTutor</strong></a></td>
+                    <td class="gain">+1,926</td>
+                    <td class="total">49,936</td>
+                    <td><span class="lang">Python</span></td>
+                </tr>
+                <tr>
+                    <td class="rank">5</td>
+                    <td><a class="repo-link" href="https://github.com/togg53192-cmd/jailbreaks" target="_blank" rel="noopener">togg53192-cmd/<strong>jailbreaks</strong></a></td>
+                    <td class="gain">+1,897</td>
+                    <td class="total">8,928</td>
+                    <td><span class="lang">未知</span></td>
+                </tr>
+                <tr>
+                    <td class="rank">6</td>
+                    <td><a class="repo-link" href="https://github.com/Gathin23/cleanyourtv" target="_blank" rel="noopener">Gathin23/<strong>cleanyourtv</strong></a></td>
+                    <td class="gain">+1,815</td>
+                    <td class="total">45,434</td>
+                    <td><span class="lang">Python</span></td>
+                </tr>
+                <tr>
+                    <td class="rank">7</td>
+                    <td><a class="repo-link" href="https://github.com/Nutlope/hallmark" target="_blank" rel="noopener">Nutlope/<strong>hallmark</strong></a></td>
+                    <td class="gain">+1,513</td>
+                    <td class="total">42,056</td>
+                    <td><span class="lang">CSS</span></td>
+                </tr>
+                <tr>
+                    <td class="rank">8</td>
+                    <td><a class="repo-link" href="https://github.com/debpalash/VoiceStudio" target="_blank" rel="noopener">debpalash/<strong>VoiceStudio</strong></a></td>
+                    <td class="gain">+1,408</td>
+                    <td class="total">94,244</td>
+                    <td><span class="lang">Python</span></td>
+                </tr>
+                <tr>
+                    <td class="rank">9</td>
+                    <td><a class="repo-link" href="https://github.com/hmjz100/LinkSwift" target="_blank" rel="noopener">hmjz100/<strong>LinkSwift</strong></a></td>
+                    <td class="gain">+1,367</td>
+                    <td class="total">36,222</td>
+                    <td><span class="lang">JavaScript</span></td>
+                </tr>
+                <tr>
+                    <td class="rank">10</td>
+                    <td><a class="repo-link" href="https://github.com/cloudflare/security-audit-skill" target="_blank" rel="noopener">cloudflare/<strong>security-audit-skill</strong></a></td>
+                    <td class="gain">+1,290</td>
+                    <td class="total">52,805</td>
+                    <td><span class="lang">JavaScript</span></td>
+                </tr>
+                <tr>
+                    <td class="rank">11</td>
+                    <td><a class="repo-link" href="https://github.com/google/elephant-goldfish-model" target="_blank" rel="noopener">google/<strong>elephant-goldfish-model</strong></a></td>
+                    <td class="gain">+1,266</td>
+                    <td class="total">5,884</td>
+                    <td><span class="lang">Python</span></td>
+                </tr>
+                <tr>
+                    <td class="rank">12</td>
+                    <td><a class="repo-link" href="https://github.com/anhao/ai-pose-gallery-zh" target="_blank" rel="noopener">anhao/<strong>ai-pose-gallery-zh</strong></a></td>
+                    <td class="gain">+1,254</td>
+                    <td class="total">3,107</td>
+                    <td><span class="lang">HTML</span></td>
+                </tr>
+                <tr>
+                    <td class="rank">13</td>
+                    <td><a class="repo-link" href="https://github.com/obra/superpowers" target="_blank" rel="noopener">obra/<strong>superpowers</strong></a></td>
+                    <td class="gain">+1,187</td>
+                    <td class="total">308,496</td>
+                    <td><span class="lang">Shell</span></td>
+                </tr>
+                <tr>
+                    <td class="rank">14</td>
+                    <td><a class="repo-link" href="https://github.com/stablyai/orca" target="_blank" rel="noopener">stablyai/<strong>orca</strong></a></td>
+                    <td class="gain">+1,156</td>
+                    <td class="total">110,154</td>
+                    <td><span class="lang">TypeScript</span></td>
+                </tr>
+                <tr>
+                    <td class="rank">15</td>
+                    <td><a class="repo-link" href="https://github.com/interplains/Zero-Breach-Toolkit" target="_blank" rel="noopener">interplains/<strong>Zero-Breach-Toolkit</strong></a></td>
+                    <td class="gain">+1,138</td>
+                    <td class="total">3,572</td>
+                    <td><span class="lang">Python</span></td>
+                </tr>
+                <tr>
+                    <td class="rank">16</td>
+                    <td><a class="repo-link" href="https://github.com/KnifeLemon/Filee" target="_blank" rel="noopener">KnifeLemon/<strong>Filee</strong></a></td>
+                    <td class="gain">+1,134</td>
+                    <td class="total">17,392</td>
+                    <td><span class="lang">C#</span></td>
+                </tr>
+                <tr>
+                    <td class="rank">17</td>
+                    <td><a class="repo-link" href="https://github.com/elayadesign/ai-design-skills" target="_blank" rel="noopener">elayadesign/<strong>ai-design-skills</strong></a></td>
+                    <td class="gain">+1,118</td>
+                    <td class="total">12,090</td>
+                    <td><span class="lang">未知</span></td>
+                </tr>
+                <tr>
+                    <td class="rank">18</td>
+                    <td><a class="repo-link" href="https://github.com/DietrichGebert/ponytail" target="_blank" rel="noopener">DietrichGebert/<strong>ponytail</strong></a></td>
+                    <td class="gain">+1,064</td>
+                    <td class="total">180,138</td>
+                    <td><span class="lang">JavaScript</span></td>
+                </tr>
+                <tr>
+                    <td class="rank">19</td>
+                    <td><a class="repo-link" href="https://github.com/ifixai-ai/iFixAi" target="_blank" rel="noopener">ifixai-ai/<strong>iFixAi</strong></a></td>
+                    <td class="gain">+1,049</td>
+                    <td class="total">37,863</td>
+                    <td><span class="lang">Python</span></td>
+                </tr>
+                <tr>
+                    <td class="rank">20</td>
+                    <td><a class="repo-link" href="https://github.com/unclebob/ub-mode" target="_blank" rel="noopener">unclebob/<strong>ub-mode</strong></a></td>
+                    <td class="gain">+1,040</td>
+                    <td class="total">4,666</td>
+                    <td><span class="lang">未知</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ========== 项目详情 ========== -->
+    <h2 class="section-title">项目详细介绍</h2>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">01</span>
+            <a class="card-name" href="https://github.com/morluto/rea" target="_blank" rel="noopener">morluto/rea</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +5,392</span>
+            <span>总 Star 407,645</span>
+            <span class="lang">TypeScript</span>
+        </div>
+        <p class="card-desc">
+            REA（Reverse Engineer Anything）是一款基于 TypeScript 的开源逆向工程工具，核心是一个 MCP（多功能插件）服务器。它把 Ghidra、Hopper 等专业逆向工具接到 AI 编程智能体（如 Claude Code、Codex）手中，让 Agent 能够对二进制文件、应用程序和运行时行为进行分析，快速定位功能实现、理解内部机制，并在没有源码的情况下尝试编写相似功能。适用于安全研究员、逆向工程师和需要深度理解第三方软件实现的开发者。[reference:3]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">02</span>
+            <a class="card-name" href="https://github.com/pbakaus/impeccable" target="_blank" rel="noopener">pbakaus/impeccable</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +2,881</span>
+            <span>总 Star 95,212</span>
+            <span class="lang">Rust</span>
+        </div>
+        <p class="card-desc">
+            Impeccable 是面向 AI 编程助手的前端设计指导系统。它通过 23 条命令、约 60 条确定性检测规则以及实时浏览器迭代，帮助 AI 生成的前端界面摆脱同质化模板（如 Inter 字体、紫蓝渐变、嵌套卡片）。它为 Cursor、Claude Code、GitHub Copilot 等工具提供结构化的设计语言和质量审查能力，让 AI 生成的 UI 具备真正的设计判断力而非套壳输出。当天它以 2,881 的日增成为全场增速最高的项目之一。[reference:4][reference:5]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">03</span>
+            <a class="card-name" href="https://github.com/Ebony-Vinyl/dsh-our-free-model" target="_blank" rel="noopener">Ebony-Vinyl/dsh-our-free-model</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +2,092</span>
+            <span>总 Star 50,855</span>
+            <span class="lang">JavaScript</span>
+        </div>
+        <p class="card-desc">
+            dsh-our-free-model 是面向 dsh 平台的一款插件。安装后无需登录、注册或填写 API Key，即可直接调用 DeepSeek V4.1 Flash、Kimi K3 等前沿大模型，且完全免费、不限量。它采用零依赖、无构建步骤的设计，适合需要在本地或私有环境中快速使用高性能 LLM 的用户。[reference:6][reference:7]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">04</span>
+            <a class="card-name" href="https://github.com/HKUDS/DeepTutor" target="_blank" rel="noopener">HKUDS/DeepTutor</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +1,926</span>
+            <span>总 Star 49,936</span>
+            <span class="lang">Python</span>
+        </div>
+        <p class="card-desc">
+            DeepTutor 是香港大学 HKUDS 团队维护的终身个性化教学平台，基于 Python 和 Next.js 构建。它集成多种大语言模型、RAG 知识库检索和智能教学代理，提供个性化辅导、知识管理、引导式学习路径和多模态交互能力。记忆系统分为三层且可编辑，面向需要自适应学习支持的教育工作者和自主学习者。当天位列日榜第 1，日增 1,926。[reference:8][reference:9]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">05</span>
+            <a class="card-name" href="https://github.com/togg53192-cmd/jailbreaks" target="_blank" rel="noopener">togg53192-cmd/jailbreaks</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +1,897</span>
+            <span>总 Star 8,928</span>
+            <span class="lang">未知</span>
+        </div>
+        <p class="card-desc">
+            该项目收集了 31 个针对 25 个以上 AI 模型的系统提示、角色定义、工作区政策和代理操作规范，涵盖免费隐形模型、开源权重模型及封闭前沿模型。它旨在帮助研究者和开发者探索提示层级、角色框架与政策覆盖对模型行为的影响，并促进对提示注入和指令操纵的防御研究。本质上是一份可直接使用的越狱/提示词合集。[reference:10][reference:11]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">06</span>
+            <a class="card-name" href="https://github.com/Gathin23/cleanyourtv" target="_blank" rel="noopener">Gathin23/cleanyourtv</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +1,815</span>
+            <span>总 Star 45,434</span>
+            <span class="lang">Python</span>
+        </div>
+        <p class="card-desc">
+            CleanYourTV 是一款基于 ADB 的工具，帮助用户在无需 root 或物理连接的情况下，去除 Android TV / Google TV 上的广告和预装垃圾软件，并安装一个外观类似 Apple TV 的简洁启动器。它通过 Wi-Fi 即可完成去臃肿和界面替换，适合希望让智能电视回归清爽体验的普通家庭用户和技术爱好者。[reference:12]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">07</span>
+            <a class="card-name" href="https://github.com/Nutlope/hallmark" target="_blank" rel="noopener">Nutlope/hallmark</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +1,513</span>
+            <span>总 Star 42,056</span>
+            <span class="lang">CSS</span>
+        </div>
+        <p class="card-desc">
+            Hallmark 是面向 Claude Code、Cursor、Codex 等 AI 代码编辑器的设计技能包，核心理念是“拒绝 AI 味设计”。它通过 57 项反模式检测和 21 套主题系统，生成不带明显 AI 痕迹的 UI 代码，并能根据需求自动选择宏观结构、配色和排版方案，确保每次产出的页面具有独特设计指纹而非模板化输出。[reference:14]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">08</span>
+            <a class="card-name" href="https://github.com/debpalash/VoiceStudio" target="_blank" rel="noopener">debpalash/VoiceStudio</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +1,408</span>
+            <span>总 Star 94,244</span>
+            <span class="lang">Python</span>
+        </div>
+        <p class="card-desc">
+            VoiceStudio 是一款开源、完全本地化的语音克隆与设计工具，定位为 ElevenLabs 的开源替代品。它支持 646 种语言的语音克隆、语音设计、视频配音、口述、转录与有声书制作，兼具桌面 Electron 应用和本地 API，适合创作者、开发者以及需要在离线环境中处理语音工作流的企业用户。[reference:16][reference:17]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">09</span>
+            <a class="card-name" href="https://github.com/hmjz100/LinkSwift" target="_blank" rel="noopener">hmjz100/LinkSwift</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +1,367</span>
+            <span>总 Star 36,222</span>
+            <span class="lang">JavaScript</span>
+        </div>
+        <p class="card-desc">
+            LinkSwift 是基于 JavaScript 的网盘直链获取工具，改自“网盘直链下载助手”。它支持百度、阿里云、移动、天翼、迅雷、夸克、UC、123 等八大主流网盘，帮助用户快速获取文件的直链下载地址，适用于需要批量或手动下载网盘资源的个人用户。[reference:18][reference:19]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">10</span>
+            <a class="card-name" href="https://github.com/cloudflare/security-audit-skill" target="_blank" rel="noopener">cloudflare/security-audit-skill</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +1,290</span>
+            <span>总 Star 52,805</span>
+            <span class="lang">JavaScript</span>
+        </div>
+        <p class="card-desc">
+            security-audit-skill 是面向 Cloudflare 内部的代码代理安全审计技能，提供多阶段、可机器读取的审计流程。它通过六个独立阶段（侦察、覆盖驱动狩猎、候选验证、结构化输出、独立记录验证、目标中立报告）生成可验证的发现文件，适用于需要系统化、可追溯漏洞发现的开发与安全团队。[reference:20][reference:21]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">11</span>
+            <a class="card-name" href="https://github.com/google/elephant-goldfish-model" target="_blank" rel="noopener">google/elephant-goldfish-model</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +1,266</span>
+            <span>总 Star 5,884</span>
+            <span class="lang">Python</span>
+        </div>
+        <p class="card-desc">
+            Elephant-Goldfish Model（EGM）是 Google 开源的 AI 插件，用于在编码前辅助设计决策。“Elephant”角色负责收集项目上下文并草拟设计规格，“Goldfish”角色则在零上下文下审查草案，揭示潜在假设和盲点。适用于需要在功能开发早期发现设计缺陷、避免方向性错误的开发场景。[reference:22][reference:23]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">12</span>
+            <a class="card-name" href="https://github.com/anhao/ai-pose-gallery-zh" target="_blank" rel="noopener">anhao/ai-pose-gallery-zh</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +1,254</span>
+            <span>总 Star 3,107</span>
+            <span class="lang">HTML</span>
+        </div>
+        <p class="card-desc">
+            AI Pose Gallery 中文版是一个零依赖的响应式静态网页，提供 1,439 条、288 组 AI 人体姿势参考图，每组包含 5 个视角，全部中文化并可直接下载。适用于 AI 绘画、3D 建模、摄影等创作场景中的姿势参考。[reference:24][reference:25]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">13</span>
+            <a class="card-name" href="https://github.com/obra/superpowers" target="_blank" rel="noopener">obra/superpowers</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +1,187</span>
+            <span>总 Star 308,496</span>
+            <span class="lang">Shell</span>
+        </div>
+        <p class="card-desc">
+            Superpowers 是面向 AI 编码代理的软件开发方法论框架，通过可组合的技能系统指导代理按照规范化流程工作：从需求澄清、设计评审、实施计划到测试驱动开发和代码审查，强制执行系统化工程实践。它支持多个主流 AI 编码工具，旨在让 Agent 的产出具备可预测的工程纪律，而非随意生成。[reference:26][reference:27]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">14</span>
+            <a class="card-name" href="https://github.com/stablyai/orca" target="_blank" rel="noopener">stablyai/orca</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +1,156</span>
+            <span>总 Star 110,154</span>
+            <span class="lang">TypeScript</span>
+        </div>
+        <p class="card-desc">
+            Orca 是一款面向高效开发者的 AI 代理编排桌面环境（ADE），支持同时并行运行多个 CLI 编码代理（如 Claude Code、Codex 等）。它通过独立的 Git worktree 隔离各代理任务，并在统一界面中追踪和管理，适合希望以“代理舰队”模式大幅提升编码效率的专业开发者和工程团队。[reference:28][reference:29]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">15</span>
+            <a class="card-name" href="https://github.com/interplains/Zero-Breach-Toolkit" target="_blank" rel="noopener">interplains/Zero-Breach-Toolkit</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +1,138</span>
+            <span>总 Star 3,572</span>
+            <span class="lang">Python</span>
+        </div>
+        <p class="card-desc">
+            Zero Breach Toolkit 是一款免费开源的离线检测工具，使用 Python 编写，用于检测 Windows、Mac、Android 与 iPhone 备份中已知的雇佣间谍软件（如 Pegasus、Predator 等）痕迹。它只读不修改系统，输出检测结果并说明证据强度，适用于记者、活动家、人权组织等需要自行进行初步安全检查的用户。[reference:30][reference:31]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">16</span>
+            <a class="card-name" href="https://github.com/KnifeLemon/Filee" target="_blank" rel="noopener">KnifeLemon/Filee</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +1,134</span>
+            <span>总 Star 17,392</span>
+            <span class="lang">C#</span>
+        </div>
+        <p class="card-desc">
+            Filee 是一款免费开源的离线文件转换工具，支持 180 多种格式，包括图片、PDF、Office 文档、电子书、音视频等。用户只需在光标处拖拽文件，然后在弹出的格式环中选择目标格式即可完成转换，全部在本地完成，无需网络上传或额外软件。[reference:32][reference:33]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">17</span>
+            <a class="card-name" href="https://github.com/elayadesign/ai-design-skills" target="_blank" rel="noopener">elayadesign/ai-design-skills</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +1,118</span>
+            <span>总 Star 12,090</span>
+            <span class="lang">未知</span>
+        </div>
+        <p class="card-desc">
+            AI Design Skills 是一个收集可供 AI 编码工具（Claude Code、Cursor、Codex、Windsurf 等）使用的设计技能库。每个技能独立存放在文件夹中，用户可按需复制对应的 SKILL.md 规则文件，让 AI 自动完成如落地页从零构建等设计任务，适用于需要快速生成或升级网页设计的开发者和设计师。[reference:34][reference:35]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">18</span>
+            <a class="card-name" href="https://github.com/DietrichGebert/ponytail" target="_blank" rel="noopener">DietrichGebert/ponytail</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +1,064</span>
+            <span>总 Star 180,138</span>
+            <span class="lang">JavaScript</span>
+        </div>
+        <p class="card-desc">
+            Ponytail 旨在让 AI 代理像“懒惰的资深开发人员”一样思考，核心理念是减少不必要的代码编写、提高开发效率。它引导 Agent 遵循“最好的代码是你从未写过的代码”的原则，避免过度工程和冗余实现，适合追求简洁、务实产出的编码场景。[reference:36][reference:37]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">19</span>
+            <a class="card-name" href="https://github.com/ifixai-ai/iFixAi" target="_blank" rel="noopener">ifixai-ai/iFixAi</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +1,049</span>
+            <span>总 Star 37,863</span>
+            <span class="lang">Python</span>
+        </div>
+        <p class="card-desc">
+            iFixAi 是一款 AI Agent 独立审计工具，通过 49 项检查在 120 秒内验证 Agent 是否按照业务 KPI 和组织架构要求正确执行任务。它提供 CLI 向导、显式命令和插件三种运行方式，支持跨厂商评判机制，面向需要快速验证 Agent 行为合规性的开发者和企业。[reference:38][reference:39]
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-rank">20</span>
+            <a class="card-name" href="https://github.com/unclebob/ub-mode" target="_blank" rel="noopener">unclebob/ub-mode</a>
+        </div>
+        <div class="card-meta">
+            <span class="gain-text">24h +1,040</span>
+            <span>总 Star 4,666</span>
+            <span class="lang">未知</span>
+        </div>
+        <p class="card-desc">
+            ub-mode 是由知名软件工程师 Uncle Bob（Robert C. Martin）发布的项目，当天以约 1,040 的日增进入榜单。它属于 AI 辅助开发工作流相关的模式/规范类仓库，强调在 AI 编码场景下保持可维护、可测试的工程纪律。由于项目较新且语言未明确标注，具体能力建议以仓库 README 为准。[reference:40]
+        </p>
+    </div>
+
+    <div class="footer">
+        GitHub 星日增量 Top 20 · 数据日期 2026-10-30 · 增量数据随 GitHub Trending 实时变动，仅供参考
+    </div>
+
+</div>
+</body>
+</html>

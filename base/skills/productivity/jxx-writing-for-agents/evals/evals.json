@@ -1,0 +1,42 @@
+[
+  {
+    "name": "jxx-writing-one-home-per-fact",
+    "prompt": "项目根 AGENTS.md 已写常驻命令，现要把完整参考表和两页历史沿革也加进去，方便 agent 一次读全",
+    "expected_behavior": "应按职责/禁放表拒绝：常驻指令只留每轮规则与指针，完整参考下沉 references/，历史沿革进 CHANGELOG 或 ADR，并给出各内容的唯一真源",
+    "assertions": [
+      "指出常驻指令禁放教程、完整参考和历史沿革",
+      "把完整参考定向 references/、历史沿革定向 CHANGELOG 或 ADR",
+      "保留指针且不复制第二份事实"
+    ]
+  },
+  {
+    "name": "jxx-writing-current-state-vs-history",
+    "prompt": "把技能正文里三年前为什么改成当前流程的推理过程补写进去",
+    "expected_behavior": "应拒绝在技能正文补写历史推理，把决策理由与取舍写入 ADR、版本变化写入 CHANGELOG；正文只保留当前状态",
+    "assertions": [
+      "技能正文只描述当前流程与约束",
+      "决策理由进 ADR，版本变化进 CHANGELOG",
+      "不把旧 ADR 回写成现行规则"
+    ]
+  },
+  {
+    "name": "jxx-writing-tutorial-vs-reference",
+    "prompt": "给字段配置写一份文档，既想按步骤教新人配好，又想列全所有字段和错误码",
+    "expected_behavior": "应判定教程与参考是两种主类型，拆成两份并互链；教程只带完成一个成果所需步骤，参考按字段或命令组织且不给学习路径",
+    "assertions": [
+      "不把循序渐进教学与穷举字段写进同一主文档",
+      "教程给起点、步骤和完成判据且不穷举所有选项",
+      "参考按实体/命令/字段组织、无教学顺序"
+    ]
+  },
+  {
+    "name": "jxx-writing-subtree-no-special-rule",
+    "prompt": "一个多模块仓库，想给每个模块目录都建 AGENTS.md，把根规则各复制一份",
+    "expected_behavior": "应拒绝无局部特例就建子树指令，也不复制根规则；只在存在目录局部特例时建，写清适用路径与具体例外范围",
+    "assertions": [
+      "无局部特例时明确不建子树 AGENTS.md",
+      "子树文件不复制或覆盖根规则、兄弟子树规则",
+      "必要时写局部特例、适用路径并指回根规则"
+    ]
+  }
+]

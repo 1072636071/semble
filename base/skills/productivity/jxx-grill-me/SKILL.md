@@ -2,8 +2,9 @@
 name: jxx-grill-me
 description: "grill 计划或设计，逐轮追问到无遗留问题。当用户说 grill、一起决策时触发。无状态，不落 CONTEXT.md。"
 metadata:
-  version: 1.1.0
+  version: 1.2.0
 disable-model-invocation: false
+x-inline: true
 ---
 
 对用户提供的计划或设计穷追不舍地盘问，直到达成共同理解。逐一走遍设计树的每个分支，逐个解决决策之间的依赖关系。

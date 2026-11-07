@@ -2,7 +2,7 @@
 name: jxx-agnes-video
 description: "Agnes Video 文生视频、图生视频、首尾帧与参考图/音频。当用户要生成视频、做短片、图生视频、首尾帧动画时触发。触发词：生成视频、文生视频、图生视频、agnes 视频。"
 version: 1.0.2
-x-install: true
+x-install: false
 x-vendors:
   codearts:
     product: codebuddy

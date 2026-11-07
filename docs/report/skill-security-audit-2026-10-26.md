@@ -329,7 +329,7 @@ ego lite version.
 
 **5 · `preserveOnInstall` 暂存/放回逻辑** —— `stashPreserved` / `restorePreserved`（`ship.mjs:718-750`）把 `quarkclouddrive/deepseek/` 暂存到 `os.tmpdir()/ship-preserve-*` 再放回，`finally` 里删暂存根。`.gitignore:224` 已排除 `base/skills/productivity/quarkclouddrive/deepseek/`（实测该目录在仓库内不存在）。风险只剩「tmp 目录同机其他用户可读」这层 OS 权限问题，本仓无额外恶化。真正要盯的是 SEC-03：清理是目标目录级删除、不区分归属。
 
-**6 · `jxx-tool-intro` 生成 HTML 的 XSS 面** —— 无。`gen-tool-page.mjs:100-106` 的 `esc()` 转 `& < > "`，全部插值点（title / href / description / tags / code / features）都过 `esc()`，包括 `esc(t.github)` / `esc(t.homepage)` 覆盖 href 注入。数据源是 WebFetch 抓的仓库主页（不可信），落地前已转义。
+**6 · `tool-intro` 生成 HTML 的 XSS 面**（该技能 2026-10-28 迁为本仓项目技能 `docs/agents/skills/tool-intro/`，脚本与转义逻辑未变） —— 无。`gen-tool-page.mjs:100-106` 的 `esc()` 转 `& < > "`，全部插值点（title / href / description / tags / code / features）都过 `esc()`，包括 `esc(t.github)` / `esc(t.homepage)` 覆盖 href 注入。数据源是 WebFetch 抓的仓库主页（不可信），落地前已转义。
 
 **7 · `jxx-ticket-board/scripts/board.mjs` 的命令拼接** —— 已修好。`git()` 走 `execFileSync('git', argv)`（`:44`，注释明写「早先是 `execSync('git ' + cmd)` 的拼串」），`rm-wt` 有 `SEGMENT_RE` 单段白名单 + `rmrf` 的根/保护目录护栏（`:246-259, 1559-1573`），一次只处理一张卡。
 

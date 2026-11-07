@@ -1,10 +1,10 @@
 ---
 name: kb-router
 description: "知识路由：一份内容该存到或查哪个库（WeKnora 文档 / 灵枢记忆）。当用户问知识放哪、要不要进知识库时触发。不执行上传。"
-version: 0.3.0
+version: 0.4.0
 x-install: true
 metadata:
-  version: 0.3.0
+  version: 0.4.0
   author: tdai-memory-suite
   tags: [kb, router, weknora, lingshu, knowledge, memory]
 ---
@@ -85,6 +85,8 @@ metadata:
 
 **库怎么定位（不再询问认领，按派生链）：** 项目库名解析序 = **`workspace_id` 注册表 `kb_name` 映射 > `<git 根 basename>-<ws 段>` > `WEKNORA_PROJECT_KB` > git 根 basename**（本仓映射 `TencentDB-Agent-Memory-1646ck3g ↔ ws-1646ck3g`）。**建库 / 召回 / 图片 / 图片检索四条腿共用同一份解析器**（灵枢 `server/tools/weknora.py:resolve_kb`，PRD 85 工单 10 迁入并补齐派生腿），故「建库的库 = 召回的库 = 图片落的库」是构造出来的，不是靠约定。
 
+> **本机侧另有一份配置**：Node 腿（本机 DSH 连接）走 `<工作区根>/.agents/kb.json`（ADR-0132），详见下节「工作区知识库配置」。上面这条派生链是**服务端**腿的定则，两者不互相替代。
+
 **给本项目灌文档的推荐入口（PRD 83 工单 02 语义，现由灵枢承接）：`memory_project_kb(workspace_id=…, workspace=…)`** ——
 一步确保本项目专属库存在并**返回 `{kb_id, kb_name, created, wiki_enabled}`**，拿 `kb_id` 直接喂下面的 `create_knowledge_from_*`。它比手搓派生链好在三点：① **返回 kb_id**（官方写工具都要显式 id）；② **wiki 默认开**（`wiki` 缺省 true ⇒ 灌进去的文档自动生成 wiki 页）；③ **幂等**（首次 `created:true`，之后 `created:false` 零写入）。**入参 identity 至少给一个**（`workspace_id` 或 `workspace`）——它会真建库，不拿门面 cwd 兜底。
 
@@ -104,6 +106,60 @@ metadata:
 **怎么查：** 跨档模糊查 → **灵枢 `memory_recall`**（`workspace_id` 给上即走 kb 路，按 project→user→other 分桶）；确定在某个库内查 → WeKnora 官方面 `hybrid_search(kb_id, query)`。
 
 **何时仍需问用户：** 仅当 `list_knowledge_bases` 里出现**多个候选库名相近**、无法按派生链唯一确定目标库时，把候选库名转述给用户拍板；派生链能唯一命中就自行执行，不再多问一轮。
+
+## 工作区知识库配置（ADR-0132）
+
+**一份配置决定「这次调用用哪个库」，agent 不再手抄 UUID。** 落点 `<工作区根>/.agents/kb.json`，从工作区内任意目录向上逐级找第一个（判据只看 `.git` 存在性——目录或文件都算，worktree 的 `.git` 是文件）。
+
+schema（`version` 当前只有 1）：
+
+```json
+{
+  "version": 1,
+  "workspace_id": "ws-…",
+  "default": "main",
+  "slots": {
+    "main": { "kb_id": "<uuid>", "name": "项目经验", "usage": "人读备注" }
+  }
+}
+```
+
+| 字段 | 必填 | 参与选库 | 说明 |
+| --- | --- | --- | --- |
+| `version` | 是 | — | 必须 `1` |
+| `slots` | 是 | — | 非空对象 |
+| `default` | 是 | 是 | 缺省时用哪个槽，必须是 `slots` 的键 |
+| 槽 `kb_id` | 是 | 是 | WeKnora 库 UUID（只校验非空，不校验形态） |
+| 槽 `name` | 否 | 是 | `kb` 参数可按 name 命中槽位 |
+| 槽 `usage` | 否 | **否** | 只给人读 |
+| `workspace_id` | 否 | 否 | 声明位 / 预留，**当前无代码消费者**，别当身份锚 |
+
+**怎么定位工作区**：调 WeKnora 工具时多传影子参数 `workspace`（工作区内任意深度子目录都行）。解析序 = `arguments.workspace` > env `WEKNORA_WORKSPACE_ROOT` > 都没有 ⇒ 回 `needs_workspace`。
+
+**槽位解析序**（真源 `tools/lib/kb-config.mjs` 的 `resolveKbTarget`）：
+
+1. 显式 `kb_id` → 直接用它，**不读配置**；
+2. `kb` 是 UUID 字面 → 直接用它，**不读配置**（优先于同名槽位：UUID 无歧义）；
+3. `kb` = `slots` 的键 → 该槽；
+4. `kb` = 某槽的 `name` → 该槽；
+5. `kb` 缺省 → `default` 槽；
+6. `kb` 传了但 2/3/4 都不命中 ⇒ **报错并列出可用槽位，不回落 default**。静默回落的那条路，尽头就是把经验写进素材库。
+
+**缺配置怎么办（`needs_kb_config` 带三条出路，顺序固定）**：
+
+| id | 动作 | 约束 |
+| --- | --- | --- |
+| `pick-existing` | `list_knowledge_bases` 列候选，让用户挑 `kb_id` 写进 `.agents/kb.json` | — |
+| `create-new` | 自建库后写配置 | **必须绑 embed + summary 模型**；不绑时条目永卡 processing、检索恒空 |
+| `skip` | 用户说「先不记」 | 本会话只写本地产出，不落库 |
+
+**MCP 自己不写配置文件** —— 写配置是人的动作（或人指派的 agent 用编辑器写）。别指望反复调工具能把配置补上；配置坏了（坏 JSON / 缺 default / `kb` 不命中）工具侧走 fail-open，不会替你修。
+
+**改 / 删 / 取单条不需要槽位**：`update_knowledge_from_text` / `delete_knowledge` / `get_knowledge` 只吃 `knowledge_id`，与配置无关，也不要求配置存在。
+
+**单库 + 标签的现行口径（不变）**：一个工作区一个库，经验与资料**不拆库**，用 `type:experience` / `type:material` 两个 category 标分型（memorial 057；ADR-0132 D1 维持）。`slots` 是多槽扩展位，当前只启用 `default` 一个槽——别自建「经验库 / 素材库」两槽绕过标签分型。
+
+> **两条腿不同源**：服务器上的灵枢门面（`server/tools/weknora.py`）读不到用户机的 `.agents/kb.json`，仍走显式参数 + `~/.mdcg/workspace-kb.json`。别以为服务端也读这份配置。
 
 ## 分层：终态 WeKnora ↔ 灵枢
 

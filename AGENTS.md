@@ -42,20 +42,29 @@ AGENTS.md 和 CODEBUDDY.md 内容必须保持一致。
 
 `base/scripts/ship.mjs` 负责跨厂商分发 Skills/Agent，缺省跑全流程（派生+安装+验证+清理），子命令 `init`/`derive`/`install`/`check`。厂商清单与安装目录全部由 `base/scripts/vendors.json` 配置驱动，脚本零硬编码。其中 QoderWork 的用户级目标为 `~/.qwenworkcn/skills`。脚本用 `detectUserHome()` 自动定位用户目录（`os.homedir()` → `USERPROFILE`/`HOME` → 常见用户根目录），也可用 `--user-home <dir>` 覆盖。常用：`node ship.mjs install`、`--dry-run` 预览、`check` 门禁预检。
 
+**内联源（`x-inline: true`）**：标了的技能不单独安装，正文由 `ship install` 注入引用技能的 `SKILL.md` 末尾固定 marker 块；当前 `jxx-grilling` + `jxx-grill-me` 作为原语包（`vendors.json` 的 `inlineBundles`）内联进 4 个引用技能，路由技能由 `inlineExcludeConsumers` 排除、保持轻量。安装器靠扫描正文里的 `/<源名>` 识别依赖，**这些字样要保留**；注入块开头明确点破它们是依赖标记、指块内 `###` 段，不是调用外部技能。**改内联源正文或注入逻辑后必须重跑 `ship install` 再 `check`**：块内 manifest 记每个源正文 hash + 注入模板 hash，没重跑就报 `E_INLINE_STALE` 并提示复核依赖技能的描述与流程；源无宿主报 `E_INLINE_ORPHAN`，源含本地相对链接 / `<!--en-->` / 是 `SKILL.src.md` 报 `E_INLINE_LOCAL_LINK` / `E_INLINE_UNSUPPORTED`。细则见 `base/skills/安装.md` 的「内联源」节。
+
+**未安装技能索引**：`jxx-ask-matt` 的 `references/not-installed-skills.md` 列出未随 `ship install` 分发的 jxx 技能（`x-install: false` / `x-inline: true` / 未分发桶）及仓内真源路径；用户只保留常用技能时，路由指示 agent 按路径 `read` 仓内全文，不改 DSH、不临时安装。索引由 `node base/scripts/ask-matt-index.mjs` 生成；卸载/新增/改 description 后必须重跑一次，`ship check` 以 `E_ASK_MATT_INDEX` 挡住过期索引。DSH 侧做不到「catalog 隐藏但可显式加载」（`tool-skill` 的 catalog 与 loader 共用注册表且都要求 `modelInvocable`）。细则见 `base/skills/安装.md` 的「未安装技能索引」节。
+
+**卸载边界**：`ship install` 只清 `vendors.json` 声明的用户级/项目级目标，不清历史用户目录，更不清其它仓库自带的 `docs/agents/skills/` 副本（那些副本随对方仓库 git 走，其 AGENTS.md 通常明写「不需要 ship install」）。新会话里仍出现已卸载技能时，先全盘扫目录定位来源，再逐处清并同步对方清单；详细实录见 `base/CHANGELOG.md` 2026-11-07 内联源条目。
+
 ### dsh-agent-studio 配置管理（真源在本仓）
 
 dsh-agent-studio（DeepSeek Harness Agent Studio）的配置管理真源在本仓库 `code` 桶：`base/skills/code/dsh-agent-studio-config/`（`SKILL.md` 入口 + `references/` 契约文档 + `scripts/` 零依赖 mjs，清单以其 SKILL.md 的资源索引为准）。改操作手册、改脚本、改坑清单一律改这份仓库副本，改完跑 `node base/scripts/ship.mjs install` 刷新各平台安装副本，再 `check` 过门禁。
 
-`~/.agents/skills/dsh-agent-studio-config/` 是 **kimi 厂商归一化后的派生物，不是真源**：kimi 厂商会把 frontmatter 归一为 `name + description`（`x-install`、`metadata` 等字段被剥掉，见 `ship.mjs` 的 `kimiStyleFrontmatter`），所以它与仓库源必然有 frontmatter 差异，**别据此判断分叉**。判断是否同步要比 `references/` 与 `scripts/` 的文件哈希；真源与安装副本冲突时一律以仓库为准。`base/skills/code/dsh-plugin-dev/` 同理。
+`~/.agents/skills/dsh-agent-studio-config/` 是 **kimi 厂商归一化后的派生物，不是真源**：kimi 厂商会把 frontmatter 归一为 `name + description`（`x-install`、`metadata` 等字段被剥掉，见 `ship.mjs` 的 `kimiStyleFrontmatter`），所以它与仓库源必然有 frontmatter 差异，**别据此判断分叉**。判断是否同步要比 `references/` 与 `scripts/` 的文件哈希；真源与安装副本冲突时一律以仓库为准。（`dsh-plugin-dev` 自 2026-11-07 起 `x-install: false`，已不分发，不再有安装副本；口径见「不默认安装的技能」节。）
 
-### 第三方技能：quarkclouddrive（夸克网盘）
+### 第三方技能：quarkclouddrive（夸克网盘）· 已全局卸载，仅留仓内真源
 
-夸克网盘官方 Skill 以**原样分发**方式入库：真源是 `base/skills/productivity/quarkclouddrive/`（`SKILL.md` + `references/` + `scripts/`）。它是 plain `SKILL.md`（无 `SKILL.src.md`），走 `ship.mjs` 的 `srcMode=false` 直拷分支，不做厂商派生；`managedPrefixes` 已含 `quarkclouddrive`，所以 `node base/scripts/ship.mjs install` 会把它同步到全部全局技能目录（含 dsh 读取的 `~/.agents/skills`）。
+夸克网盘官方 Skill 以**原样分发**方式入库：真源是 `base/skills/productivity/quarkclouddrive/`（`SKILL.md` + `references/` + `scripts/`）。plain `SKILL.md`（无 `SKILL.src.md`）。
 
-- **升级**：官方 `bash scripts/install.sh` 会从 `open-api-drive.quark.cn/agent/v1/skill_config` 拉最新 zip 就地覆盖 `SKILL.md` / `references/` / `scripts/`。升级后把新内容回灌仓库真源，再跑一次 `ship install`，不要只留安装副本。
+**2026-11-06 起 `x-install: false`**：11 处用户级技能目录的旧副本已手工删净（`.agents`、`.codebuddy`、`.codeartsdoer`、`.config/codeartsdoer`、`.config/opencode`、`.qoder-cn`、`.qoderworkcn`、`.qwenworkcn`、`.trae-cn`、`.workbuddy`、`.workbuddy-ai`）。要用就从此目录直接 `node scripts/quark-drive.cjs ...`，或把整目录拷进目标 skills 目录；恢复分发 = 把该行改回 `true` 再 `ship install`。库内快照在 WeKnora `dfaaf6fc` 的 `quarkclouddrive/`（22 条，索引 `quarkclouddrive-技能索引`）。
+
+- **升级**：官方 `bash scripts/install.sh` 会从 `open-api-drive.quark.cn/agent/v1/skill_config` 拉最新 zip 就地覆盖 `SKILL.md` / `references/` / `scripts/`。升级后把新内容回灌仓库真源，再回灌库内快照，不要只留安装副本。
 - **授权**：配置落在 `<副本>/<agentId>/config.json`（`agentId` 由 `node scripts/quark-drive.cjs resolve-agent` 决定，本机为 `deepseek`）。登录命令 `node <副本>/scripts/quark-drive.cjs login --token <agent_auth_code>`；`agent_auth_code` 一次性且很快过期，过期就走 `login`（浏览器 OAuth）。
-- **登录态保护**：`vendors.json` 的 `preserveOnInstall` 声明 `quarkclouddrive: ["deepseek"]`，`ship.mjs` 安装该技能前会把 `deepseek/` 暂存、覆盖完再放回，因此 `ship install` 不再清掉登录态。登录态**不入库**（`.gitignore` 已排除 `deepseek/`），换机器或换用户需重新登录。令牌备份在本机 `~/.quarkclouddrive/login-deepseek.json`：其他副本报未授权时用它覆盖 `<副本>/deepseek/config.json` 即可，免去重新授权。
+- **登录态**：不进库（`.gitignore` 已排除 `deepseek/`）。删副本前的登录态已备份到本机 `~/.quarkclouddrive/backup/config-deepseek-20261106.json`（另有 `~/.quarkclouddrive/login-deepseek.json`）；临时用时放回 `<副本>/deepseek/config.json` 即可免重新授权。`vendors.json` 的 `preserveOnInstall` 仍声明 `quarkclouddrive: ["deepseek"]`，恢复分发后 `ship install` 不会清登录态。
 - **卸载**：按官方两步——先 `bash scripts/uninstall.sh` 撤销授权并清除配置，再删除技能目录。
+- **库内大脚本是 base64**：服务端 manual 通道对 minified JS 原样上传会直接断连（ECONNRESET，与体积无关——2,000 B 同样断，base64 下 120,000 rune 正常）。`quark-drive.cjs` 因此存成 `...b64-part01..06` 六段，还原口径与 sha256 写在 part01 头部与索引条目里。
 
 ### 第三方技能：ego-browser（ego lite 浏览器）
 
@@ -88,8 +97,15 @@ storytold/ArtCraft 13 个子技能（`base/skills/storytold/<app>/SKILL.src.md`�
 
 ### 不默认安装的技能（`x-install: false`）
 
+- **`jxx-wizard`**（`base/skills/engineering/`）：2026-11-07 姜先生决定默认不安装，frontmatter 已标 `x-install: false`（升 1.2.0）。12 处旧副本已手工删净：9 处用户级 + `ai-international-trade` 主仓与 2 个 worktree 的 `docs/agents/skills/`（对方 AGENTS/CODEBUDDY/INDEX/README 同步刷新）。`managedPrefixes` 含 `jxx-` 但源仍在仓里，残留清理不认，须显式删。真源留仓，要临时用就手工拷或把该行改回 `true` 再 `ship install`。
+- **`dsh-plugin-dev`**（`base/skills/code/`）：2026-11-07 姜先生决定默认不安装，frontmatter 已标 `x-install: false`，9 处用户级技能目录的旧副本已手工删净（`.agents`、`.codebuddy`、`.codeartsdoer`、`.qoder-cn`、`.qoderworkcn`、`.qwenworkcn`、`.trae-cn`、`.workbuddy`、`.workbuddy-ai`）。**`managedPrefixes` 不含 `dsh-` 前缀且源仍在仓里，`ship` 不会自动清**，恢复或卸载都须显式处理副本。真源留仓，要临时用就手工拷或把该行改回 `true` 再 `ship install`。
 - **`jxx-to-questionnaire`**（`base/skills/productivity/`）：2026-10-28 姜先生决定不再自动安装，frontmatter 已标 `x-install: false`，7 处技能目录的旧副本已手工删净（同 `open-code-review` / Craft 的约束：源留着就清不掉）。真源留仓，要临时用就手工拷或把该行改回 `true` 再 `ship install`。
 - **`jxx-perf-iteration`**（`base/skills/engineering/`）：2026-10-28 姜先生决定默认不安装，frontmatter 已标 `x-install: false`，7 处用户级技能目录的旧副本（含 `.codeartsdoer` 的 `huawei-cloud-codebuddy-` 前缀变体）已手工删净。**仅覆盖 Rust / Cargo / criterion 生态**（有意不做语言抽象：非 Rust 项目套这份提示词与护栏会得到似是而非的流程）。真源留仓，要临时用就手工拷或把该行改回 `true` 再 `ship install`。
+- **`jxx-prototype`**（`base/skills/engineering/`）：2026-11-06 姜先生决定默认不安装，frontmatter 已标 `x-install: false`，11 处用户级技能目录的旧副本已手工删净（`.agents`、`.codebuddy`、`.codeartsdoer`、`.config/codeartsdoer`、`.config/opencode`、`.qoder-cn`、`.qoderworkcn`、`.qwenworkcn`、`.trae-cn`、`.workbuddy`、`.workbuddy-ai`）。真源留仓，要临时用就手工拷或把该行改回 `true` 再 `ship install`。
+- **`lexiang` / `ima-skill` / `quarkclouddrive`**（`base/skills/productivity/`）：2026-11-06 姜先生决定**全局卸载**、仓内保留原文（这三个技能不常用）。三者 frontmatter 均标 `x-install: false`，11 处用户级技能目录的旧副本已手工删净。
+  **仓内即完整原文**：`lexiang/upstream/<技能名>/`（7 个分域技能共 29 文件）、`ima-skill/upstream/`（入口 + 两子模块共 10 文件，含 `ima_api.cjs` 可直接跑）、`quarkclouddrive/`（`SKILL.md` + `references/` + `scripts/`，含 645,910 B 的 `quark-drive.cjs`）。
+  **库内是检索快照**：WeKnora `dfaaf6fc` 的 `lexiang/`（29 条）、`ima/`（10 条）、`quarkclouddrive/`（22 条，含 base64 六段的 CLI）。改仓内原文后须回灌库内对应条目，否则快照过期。
+- **`jxx-mcp-design`**（`base/skills/engineering/`）、**`jxx-agnes-video` / `jxx-agnes-image` / `jxx-t2i-prompts`**（`base/skills/productivity/`）：2026-11-06 姜先生决定默认不安装，frontmatter 已标 `x-install: false`，旧副本已手工删净（11 处用户级技能目录共 29 个目录，含 `.codeartsdoer` 的 `huawei-cloud-codebuddy-` 前缀变体）。真源留仓，要临时用就手工拷或把该行改回 `true` 再 `ship install`。
 
 ### 临时文件
 

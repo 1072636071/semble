@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.0 — 2026-11-07
+
+### Added
+
+- **可选子树指令文件**：`init` / `sync-doc` / `template` 新增可重复 `--subtree <相对目录>`，程序接口 `runInit` / `runSyncDoc` / `buildTemplateOutput` 对应新增 `subtrees` 数组；每个已存在子树生成 `AGENTS.md` 与 `CODEBUDDY.md`。
+- 子树文件只写局部职责说明，并以相对当前子树的链接指回实际根指令文件（优先根 `AGENTS.md`，仅有 `CLAUDE.md` 时链接 `CLAUDE.md`，空仓库预览默认 `AGENTS.md`），不复制根规则。新增 `resolveSubtrees` 与 `buildSubtreeContent`。
+- 子树路径校验拒绝仓库根目录、绝对路径、`..` 穿越、普通文件、不存在的目录与解析到仓库外的链接目录；校验先于任何写入。子树内 `AGENTS.md` / `CODEBUDDY.md` 若为符号链接，记冲突且不跟随写入仓库外。
+- 子树文件沿用 `conflict` / `--overwrite` / `--force` / `--dry-run` 语义，重复运行幂等。测试从 51 例扩到 59 例，覆盖程序接口、真实 CLI、非法路径、AGENTS/CLAUDE 根链接、冲突保留、dry-run 与幂等。
+
 ## 1.5.0 — 2026-10-13
 
 ### Added

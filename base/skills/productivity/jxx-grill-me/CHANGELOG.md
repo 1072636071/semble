@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0 — 2026-11-07
+
+- frontmatter 加 `x-inline: true`：不再单独安装，与 `jxx-grilling` 组成原语包内联进引用者的 SKILL.md（`vendors.json` 的 `inlineBundles`）。
+- 改本文件正文后必须重跑 `node base/scripts/ship.mjs install`，再 `check` 过 `E_INLINE_STALE` 门禁。
+
 ## 1.1.0 — 2026-10-24
 
 - 工作方式改为调用 `/jxx-grilling` 执行访谈，不再复制整段循环；对齐上游最新 `grill-me` 的复用原则（上游 `origin/main` = `5beb35b040e3de97e54fa9e386d7e42d15c295c2`）。

@@ -1,0 +1,27 @@
+[
+  {
+    "name": "jxx-perf-iteration-criterion-round",
+    "prompt": "这个 Rust crate 解析 10 万行 CSV 要 8 秒，帮我优化到 2 秒以内",
+    "expected_behavior": "先确认 criterion 基线（cargo bench --save-baseline、串行三次取中位、记 rustc 版本与 RUSTFLAGS），再铺小/大输入矩阵；不直接改库代码。没有 benches/ 时请求授权新建并提交，否则返回 ERR_MISSING_INPUT。"
+  },
+  {
+    "name": "jxx-perf-iteration-beat-peer-crate",
+    "prompt": "让这个 crate 在全部 criterion 基准上比 xgboost 快 2 倍",
+    "expected_behavior": "先建对手基准（apples-to-apples、真实用例、大小输入各覆盖），把 benches/ 提交后再跑优化轮；提示带硬指标 1.2x 起步与禁改基准，逐轮审 diff。"
+  },
+  {
+    "name": "jxx-perf-iteration-cheat-detect",
+    "prompt": "上一轮快了 40 倍，直接合进来吧",
+    "expected_behavior": "先审 diff：benches/、tests/、Cargo.toml 的 [profile.release]（lto/codegen-units/opt-level）、Cargo.lock、sample_size 与 black_box。数十倍异常幅度本身是红旗（原文 34,500 倍那次是把物理引擎关掉了）；命中即回退该轮并报告 ERR_CHEAT_DETECTED。"
+  },
+  {
+    "name": "jxx-perf-iteration-negative-non-rust",
+    "prompt": "帮我优化这个 Python 函数的性能",
+    "expected_behavior": "不适用：本技能只覆盖 Rust / cargo / criterion 生态。应说明边界并转向通用做法（无量化判据的功能开发走 jxx-implement，根因未明走 jxx-diagnosing-bugs），不要硬套 Rust 提示词。"
+  },
+  {
+    "name": "jxx-perf-iteration-no-baseline",
+    "prompt": "帮我感觉一下这段 Rust 代码能不能再快点",
+    "expected_behavior": "返回 ERR_MISSING_INPUT：缺少可量化目标与基准入口，先要求给出目标倍数或允许建 criterion 基准，不凭主观感觉改代码。"
+  }
+]

@@ -3,6 +3,7 @@ name: jxx-prototype
 description: "构建一次性 prototype 回答设计问题。当用户想验证某个状态模型或逻辑是否成立、或要看 UI 长什么样时触发。不产出可交付代码。"
 metadata:
   version: 1.0.0
+x-install: false
 ---
 
 # Prototype

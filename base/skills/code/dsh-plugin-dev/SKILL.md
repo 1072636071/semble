@@ -2,7 +2,8 @@
 name: dsh-plugin-dev
 description: "开发、打包、发布 dsh 插件。当用户说 dsh 插件、Cordis、插件配置时触发。"
 metadata:
-  version: 1.2.2
+  version: 1.2.3
+x-install: false   # 2026-11-07 起默认不安装：真源留仓，要临时用就手工拷或改回 true 再 ship install
 ---
 
 # DSH 插件开发

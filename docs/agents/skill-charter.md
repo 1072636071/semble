@@ -34,7 +34,7 @@ Skill 描述同时服务两个读者：**人**读 `description` 决定何时调�
 - **好**：`用于从 PDF 中提取文本和表格、填充表单、合并文件。当用户上传 PDF、提到表单或文档提取时触发。`
 - **差**：`帮助处理 PDF。`
 
-判据：`name` 与目录名一致且非空；`description` 含触发语（「触发 / 当用户 / Use when」类）并给出具体触发词；长度落在 40–1024 字符——过短说不清何时用，过长是每轮都在花的常驻成本。
+判据：`name` 与目录名一致且非空；`description` 含触发语（「触发 / 当用户 / Use when」类）并给出具体触发词。自研技能的 `description` 以 JS `.length` 计不得超过 500；第三方原文超过 500 只告警，不改写、不阻断。过短或触发词不清由启发式评分提示。
 
 **描述只答「何时调用」，不写实现**：文件路径、CLI 参数、内部字段名一律下沉到正文或 `references/`。description 是每轮都在付的常驻成本，实现细节放在那里等于给每个会话加税（`sk-01c`）。
 
@@ -103,7 +103,7 @@ Skill 当代码管：标注 `version` / `author` / `license`，进 Git，记录�
 
 ### 零 · 机器前置 — `sk-00`
 
-`SKILL.src.md` / `SKILL.md` 解析不出 `name` / `description` ⇒ **P0**。这是唯一能挡住整条分发链的错误级别，其余规则只影响质量分。
+`SKILL.src.md` / `SKILL.md` 解析不出 `name` / `description` ⇒ **P0**。这是 `skill-lint` 挡住分发链的错误级别；`skill-contract` 另管下文的硬契约，二者不能互相替代。
 
 ---
 
@@ -130,7 +130,25 @@ version: 1.0.0
 
 ## 机器闸
 
-原则一至十中可程序断言的部分，由 `base/scripts/skill-lint.mjs` 一次扫完：
+### 硬契约：skill-contract
+
+`base/scripts/skill-contract.mjs` 判断可枚举的兼容性约束，不用分数折算：
+
+- 自研技能 `description.length > 500` 是硬错误；第三方技能只产生 warning，单独存在 warning 时退出码仍为 0。
+- `disable-model-invocation` 与 `user-invocable` 出现时必须是布尔值。
+- `disable-model-invocation: true` 定义为 manual-only；manual-only 不得同时声明 `user-invocable: false`。
+- 技能含 `agents/openai.yaml` 时，manual-only 要求 `policy.allow_implicit_invocation: false`，非 manual-only 要求 `true`；该 policy 省略时按 `true` 计。
+
+```bash
+node base/scripts/skill-contract.mjs                    # 文本报告；硬错误 exit 1
+node base/scripts/skill-contract.mjs --json --root .    # JSON；参数用法错误 exit 2
+```
+
+`ship check` 运行同一门禁，任一硬错误以 `E_SKILL_CONTRACT` 阻断。修复自研源或调用策略；不得为消除第三方 warning 而改第三方描述。
+
+### 启发式评分：skill-lint
+
+原则一至十中适合静态提示的部分，由 `base/scripts/skill-lint.mjs` 扫描：
 
 ```bash
 node base/scripts/skill-lint.mjs            # 摘要 + 最差 30 个，退出码 0
@@ -138,7 +156,7 @@ node base/scripts/skill-lint.mjs --strict   # 有 P0 则以非零退出（CI 用
 node base/scripts/skill-lint.mjs --json     # 机器可读全量结果
 ```
 
-**分数语义**：100 起扣，P0 −25、P1 −8、P2 −2、info 不扣，下限 0。分数不是 KPI，是排序工具——先修 P0/P1，别为了 +2 分改第三方技能。
+**分数语义**：100 起扣，P0 −25、P1 −8、P2 −2、info 不扣，下限 0。除既有 P0 外，P1/P2/info 是质量排序信号，不改写为硬契约。分数不是 KPI——先修 P0/P1，别为了 +2 分改第三方技能。
 
 **lint 不能替代人的判断**。它查的是「有没有写」，查不出「写得对不对」：触发词是否真能命中、边界是否真覆盖了失败路径、脚本分工是否合理，仍须读者判断。
 
@@ -158,7 +176,7 @@ node base/scripts/skill-lint.mjs --json     # 机器可读全量结果
 
 ## 自查清单（新增 / 修改 Skill 时）
 
-- [ ] `name` 与目录名一致；`description` 含触发词与边界，人读了知道何时调用，且没有路径/参数/字段名这类实现细节
+- [ ] `name` 与目录名一致；自研 `description.length` ≤500，含触发词与边界，且没有路径/参数/字段名这类实现细节
 - [ ] 这个技能只解决一类问题；多余职责已拆成兄弟技能
 - [ ] 正文 ≤500 行；超出的规则/脚本/素材已下沉 `references/`、`scripts/`
 - [ ] 正文用祈使句；能被代码强制的约束已下沉，没写成祈使句
@@ -168,4 +186,4 @@ node base/scripts/skill-lint.mjs --json     # 机器可读全量结果
 - [ ] 正例、反例、成功标准至少各一条（`evals/` 或 `tests/`）
 - [ ] `metadata.version` 与 `CHANGELOG.md` 同步递增，写了变更原因
 - [ ] 高风险动作写明确认主体与权限范围；防护落成代码
-- [ ] `node base/scripts/skill-lint.mjs` 无 P0，`node base/scripts/ship.mjs check` 通过
+- [ ] `node base/scripts/skill-contract.mjs` 无硬错误，`node base/scripts/skill-lint.mjs` 无 P0，`node base/scripts/ship.mjs check` 通过

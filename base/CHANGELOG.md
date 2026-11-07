@@ -1,5 +1,157 @@
 # mattpocock-skills
 
+## jxx-to-milestones 彻底删除 2026-11-07
+
+姜先生决定彻底删除，只留 git 历史（不做 `x-install: false` 卸载）。
+
+- 删真源 `base/skills/engineering/jxx-to-milestones/`（11 文件）、本源脚本 `base/scripts/milestones.mjs` 与 `base/scripts/test/milestones.test.mjs`；12 处副本（8 处用户级 + `ai-international-trade` 主仓与 2 个 worktree 的项目级）全部删净，删前逐个校验绝对路径 + `SKILL.md` 的 `name` 自证。
+- 活引用全清或收口：`jxx-to-tickets` SKILL.md 删「里程碑交付」整节、README/CHANGELOG 改口径（CHANGELOG 历史条目加退役标注）、`正常的工作流.md` 删该行、`安装.md` 表格与 `skills-catalog/index.html`（表格 + SVG 方框）删该行、`check-copies.mjs` 删 4 处登记（含「另外五个技能」改「四个」）。
+- `ai-international-trade` 三处跑 `sync-skills` 刷成 43 个技能、INDEX.md 手工删行；AGENTS/CODEBUDDY 仍逐字节一致。
+- 史料不动：`.workbuddy/memory/`、`.temp/` 归档、`base/CHANGELOG.md` 历史条目里的旧提及保留。
+- 验证：索引生成器不再列出该技能（本来就不在）；`ship check` / `check-copies`（43 处副本）/ `skill-lint --strict` / 46 条测试全绿。
+- 恢复：`git checkout HEAD -- base/skills/engineering/jxx-to-milestones base/scripts/milestones.mjs base/scripts/test/milestones.test.mjs`，再手工恢复引用与 `check-copies.mjs` 登记。
+
+## jxx-ask-matt 未安装技能索引 2026-11-07
+
+需求：用户只保留自己常用的 jxx 技能（省常驻 description），不常用的技能仍要能经 `jxx-ask-matt` 找到并使用。**不要求路由自动触发未装技能**，只在用户用路由时让 agent 找得到。
+
+- **方案 A（索引 + 按需读源）**：新增 `base/scripts/ask-matt-index.mjs`，从源状态自动判定「未安装」（`x-install: false` / `x-inline: true` / 桶不在 `vendors.json` 的 `buckets`），生成 `jxx-ask-matt/references/not-installed-skills.md`：当前 **22 个**技能，每行 name + 何时用（含触发线索）+ 仓内真源相对路径 + 附属资源目录 + 未装原因，约 6.4 KB。
+- 路由正文（升 1.3.0）新增「不常用技能：读索引，不去环境里找」节：用户点名或意图命中时，agent 按索引路径 `read` 仓内 `SKILL.md` / `SKILL.src.md` 全文，相对链接/脚本以真源目录为基准；索引写明仓根 `E:\\work\\sp\\JwikisSkills`，跨工作区可定位。不改 DSH、不临时安装。
+- **卸载后自动进索引**：以后再卸一个技能，重跑生成器它就进表；`ship check` 加 `E_ASK_MATT_INDEX` 门禁（`runAskMattIndexGate`）挡住过期索引。实测临时把 `jxx-retro` 改成 `x-install: false` → check 退出 1 报 1 条，恢复源 → 通过。
+- **为何不做 DSH 插件/2 级技能**：读 DSH 源码实证——`packages/skill/tool-skill/src/index.ts:138` 的 `skill({name})` 按 `ctx.skills.list()` 找且要求 `modelInvocable`，catalog 与 loader 共用注册表；`docs/subsystems/skills.md`、`2026-09-27-progressive-office-skills.md` 均记「隐藏子技能需要独立可见性策略」并被否决。插件 `registerProvider()` 注册的技能照样进 catalog，不省 token；真做需改 DSH 核心 + 全套 e2e。另 49 个 jxx 技能正文共 342 KB、32 个带 scripts/references/本地链接，整包内置进路由会让链接脚本断掉且每次加载多吃 95.7 KB。
+- 测试：`base/scripts/test/ask-matt-index.test.mjs` 4 条（三种未装判定、幂等、过期门禁、marker 外手写保留）；文档同步 `安装.md`、AGENTS/CODEBUDDY、路由 CHANGELOG。实测索引随 `ship install` 分发到 5 处安装副本。
+
+## jxx-wizard 停止自动安装 2026-11-07
+
+姜先生决定**卸载而非删除**，真源留仓。
+
+- `base/skills/engineering/jxx-wizard/SKILL.md` frontmatter 加 `x-install: false`（升 1.2.0）；真源 5 文件（含 `scripts/template.sh`）全留。
+- 12 处旧副本手工删净：9 处用户级（`.agents`、`.codebuddy`、`.codeartsdoer`、`.qoder-cn`、`.qoderworkcn`、`.qwenworkcn`、`.trae-cn`、`.workbuddy`、`.workbuddy-ai`）+ `ai-international-trade` 主仓与 2 个 worktree 的 `docs/agents/skills/`；对方三处 AGENTS/CODEBUDDY/README 跑 `sync-skills` 刷成 44 个技能、INDEX.md 手工删行。
+- `managedPrefixes` 含 `jxx-` 但源仍在仓里，残留清理不认它，故须显式删（与 `dsh-plugin-dev` 同款）。
+- 文档同步：`安装.md`、技能目录 HTML（安装列标 `false`）、`jxx-ask-matt` 路由条目（标注不再是独立技能）、AGENTS/CODEBUDDY「不默认安装的技能」节。史料与审计报告里的 `jxx-wizard` 提及不动。
+- 按姜先生指示**默认不验证**：未跑 check / lint / copies / 测试；仅做一次只读全盘复查（全盘只剩真源 1 处、对方三处清单 0 命中、AGENTS=CODEBUDDY 一致）。
+
+## dsh-plugin-dev 停止自动安装 2026-11-07
+
+姜先生决定**卸载而非删除**：仓内真源保留，环境里不再出现。
+
+- `base/skills/code/dsh-plugin-dev/SKILL.md` frontmatter 加 `x-install: false`（升 1.2.3）；真源 21 文件与 `references/` / `scripts/` / `assets/` / `evals/` 全部保留。
+- 9 处用户级旧副本已手工删净：`.agents`、`.codebuddy`、`.codeartsdoer`、`.qoder-cn`、`.qoderworkcn`、`.qwenworkcn`、`.trae-cn`、`.workbuddy`、`.workbuddy-ai`（删前逐个校验绝对路径 + `SKILL.md` 的 `name` 自证）。
+- **`ship install` 不会自动清**：`managedPrefixes` 不含 `dsh-` 前缀，且残留清理以「源中仍存在的技能名」为准，源留着就不算残留。恢复分发 = 把 `x-install` 改回 `true` 再 `ship install`。
+- 文档同步：`安装.md`（code 桶改为「默认不安装」）、`docs/guide/skills-catalog/index.html`（安装列标 `false`）、AGENTS/CODEBUDDY（「不默认安装的技能」节 + 删掉旧的「kimi 安装副本」误导句）。史料与 `studio-config-doctor.mjs` 白名单不动。
+- 验证：`ship install` 后 0 处回装、0 处残留；check / lint / copies / 35 条 ship 测试全绿。`.ship-installed.json` 仍记着这个名字（历史归属记录，不进技能列表、不触发重装，按纪律不手改）。
+
+## ship 内联源（x-inline）2026-11-07
+
+`jxx-grilling` / `jxx-grill-me` 改为内联源，环境里的技能列表少两项，引用技能自带原语全文。
+
+- **机制**：源 frontmatter 标 `x-inline: true` ⇒ `ship install` 不单独安装、主动清掉旧副本；把源正文（含 `inlineBundles` 配的伴随源、递归依赖）注入引用技能的 `SKILL.md` 末尾固定 marker 块，注入幂等。
+- **改动记忆**：块内 manifest 记每个源正文 hash；`ship check` 比对已安装副本，源改了没重跑 install 就报 `E_INLINE_STALE` 并提示「重跑 install 并复核依赖技能的描述与流程」。新增 `E_INLINE_ORPHAN`（源无宿主）/ `E_INLINE_BUNDLE`（bundle 配错）/ `E_INLINE_LOCAL_LINK`（源正文含本地相对链接）/ `E_INLINE_UNSUPPORTED`（源或消费者是 srcMode、源带 `<!--en-->`）。
+- **路由例外**：`vendors.json` 的 `inlineExcludeConsumers` 列出 `jxx-ask-matt` / `seo-router` / `kb-router` / `craft-router`，保持轻量指针清单，不注入。`vendors.kimi.json` / `vendors.loomy.json` 同步配置。
+- **配套**：`base/scripts/test/ship.test.mjs` 增 4 条回归；`base/skills/安装.md`、`jxx-skill-init/references/frontmatter.md`、AGENTS/CODEBUDDY 补口径。
+- **边界（同日实证）**：`ship install` 只清 `vendors.json` 声明的目标，不清「历史用户级目录」与「其它仓库的项目级技能」。实测 `jxx-grilling` / `jxx-grill-me` 曾在 4 个历史用户目录（`.config/codeartsdoer`、`*.config/opencode`、`.qoderworkcn`、`.workbuddy-ai` 共 8 份）与 `E:/work/sp/ai-international-trade` 的 `docs/agents/skills/`（主仓 + 2 个 worktree 共 6 份，已提交进那个仓库、其 AGENTS.md 明写「不需要 ship install」）残留，导致那边开新会话仍能看到这两个技能。已全部清掉并同步对方 AGENTS/CODEBUDDY/INDEX/README；全盘复查只剩本仓真源 2 处。**新会话出现已卸载技能时，先全盘扫目录，别只看当前 skills 根。**
+- **验收复盘（同日）**：实测 `~/.agents/skills`（当前会话目录）两个源已从技能列表消失；4 个受影响技能 frontmatter description 与源一致、内联块都在正文末尾且各 1 个。发现两个问题并修：① 引用技能正文仍写「运行 `/jxx-grilling` 技能」——该字样是安装器识别依赖的依据，不能删，故在注入块开头点明它是「依赖标记、指块内 `###` 段，不是调用外部技能」；② 只改 `ship.mjs` 注入逻辑时 manifest 只记源 hash、察觉不到——补 `template=` 指纹（取注入函数源码），改模板没重跑 install 同样触发 `E_INLINE_STALE`。另注意：4 个不在 `vendors.json` 分发目标里的历史目录（`.config/codeartsdoer` / `.config/opencode` / `.qoderworkcn` / `.workbuddy-ai`）各有 7–8 月旧副本，`ship` 从不碰，不影响当前会话，需彻底清就手工删。
+
+## Craft 子技能实测优化（13 份原文 + 路由）2026-10-28
+
+迁库之后的第二批：把 13 份「纸面配方」重做成**本机实测配方**，并补齐技能宪章缺口。`craft-router` 升 **v0.3.0**，13 个子技能升 **v0.2.0**（仍 `x-install: false`，不回装）。
+
+### 变更
+
+- **系统性旧错（全部 13 份都有）**：二进制路径写成 `D:\storytoldExe\FigCraft \figcraft-cli.exe`——**目录名尾随空格是错的**，照抄必 `No such file or directory`。全部改为 `D:\storytoldExe\<Dir>\<app>-cli.exe`（正文 + `x-vendors.description-en` 两处）。
+- **注册表条数复测**（方法：解析 `commands --json` 的 JSON 数组长度；`cadcraft`/`designcraft` 的 `commands` 本就是 JSON 文本；`deckcraft`/`soundcraft` 输出 `id — 描述` 文本；`pdfcraft` 用 `tools`）：figcraft 569、vectorcraft **792**（旧文档 569）、gridcraft 341、cadcraft 431、designcraft 521、deckcraft 321、soundcraft 480、filmcraft 701、effectcraft 731、photocraft **918**、lightcraft 371、pdfcraft **171 工具**、wordcraft 633。
+- **实测推翻的旧断言**：vectorcraft「常用命令族」整表虚构（`vector.flatten` 等 10 个 id 在 0.14.0 注册表里根本不存在）；designcraft「未知参数静默忽略」实为 `exit 1` 并列出可用参数；wordcraft 旧 `sh` 块用 PowerShell 的 `""text""` 转义、bash 下跑不通；pdfcraft「`run` 也吃 `--automation-*`」实为只有 `mcp` 吃；filmcraft 不传 `"wait":true` 则导出 job 随进程消失（`nowait.mp4` 永不出现）；effectcraft 的 `#1` 在 bash 里被当注释（`props - #1` 静默少参数）；gridcraft `cell.set` 收 `input` 不收 `range`（错键静默写进 A1）。
+- **每份补三节**：`## 输入`、`## 输出与校验`（产物落点 + 真实字节数/像素/时长）、`## 失败出口`（症状 / 原因 / 处置表，含 `ERR_*` 或「向用户追问 X」）；`description` 末尾加「不用于：…」边界语；`<!--en-->` 占位句换成真实英文摘要。
+- **路由改造（v0.3.0）**：新增「取原文三级」——L0 仓内真源、L1 库内确定性腿（`folder_path` → `knowledge/<id>`，bash 与 pwsh 各给一段实测片段）、L2 语义腿（`hybrid-search`，2026-10-28 实测 **500**：embedding 后端 `www.erp.sdcxslzj.com:11235` 拒连，故降级为可选）；坑清单加「launcher 是 GUI，启动即排队自动更新 13 个应用」「`describe` 只有 4 家」「围栏只属 `mcp`」「别数文本行/别 grep 字面」；新增「写库纪律」（覆写前后核对 id/title、回读比对、key 只打末 4 位）。
+
+### 验证
+
+- `node base/scripts/skill-lint.mjs --strict --json`：13 子技能 + 路由全部 **P0 0 / P1 0 / P2 1**（只剩 `sk-08` 无 evals，库快照型文档技能按此保留），`score 98`，正文 88–143 行。
+- `node base/scripts/ship.mjs install` + `check`：全部通过；10 处技能根复检无 craft 子技能回装，安装副本 `craft-router` 为 v0.3.0。
+- 库回灌：13 条 `craft-<app>` + 索引 `craft-技能索引` 全部 `PUT` 成功并回读比对长度（如 `craft-vectorcraft` 2,344B → 7,130B）。
+- 配方可复制性：各 app 的 `sh` 代码块从写入后的文件里原样抽出重放，产物字节数与正文一致。
+
+## jxx-to-questionnaire 停止自动安装 2026-10-28
+
+`jxx-to-questionnaire` 不再随 `ship install` 分发到任何平台。
+
+### 变更
+
+- `base/skills/productivity/jxx-to-questionnaire/SKILL.md` 的 frontmatter 加 `x-install: false`（原先无此字段，按缺省安装）。
+- 手工删掉 8 处旧副本：`~/.agents`、`~/.codebuddy`、`~/.workbuddy`、`~/.workbuddy-ai`、`~/.codeartsdoer`、`~/.qoder-cn`、`~/.qwenworkcn`、`~/.trae-cn` 的 `skills/jxx-to-questionnaire`。`ship install` 不会自动清（源还在，不算残留）。
+- 文档同步：`base/skills/安装.md` 把该行从「默认安装」表移到「默认不安装」表；`docs/guide/skills-catalog/index.html` 的安装列标 `false`；`AGENTS.md`（及 `CODEBUDDY.md`）新增「不默认安装的技能」一节。
+
+### 恢复
+
+删掉那行 `x-install: false`，再 `node base/scripts/ship.mjs install`。
+
+
+## Craft 子技能转库内分发 2026-10-28
+
+storytold/ArtCraft 的 13 个子技能不再装进任何 agent 技能目录：真源留仓，副本入 WeKnora 库，本地只剩路由。
+
+### 变更
+
+- **停止外装**：13 个 `base/skills/storytold/<app>/SKILL.src.md` 的 frontmatter 由 `x-install: true` 改为 `false`（figcraft / vectorcraft / gridcraft / cadcraft / designcraft / deckcraft / soundcraft / filmcraft / effectcraft / photocraft / lightcraft / pdfcraft / wordcraft）。`ship install` 只重装 `craft-router`，子技能不再落到厂商目录。
+- **清残留**：手工删掉 7 处技能根里的 91 个目录（含 `.codeartsdoer` 的 `huawei-cloud-codebuddy-*` 前缀变体）——`ship` 的残留清理以「源中仍存在的技能名」为准，源留则不清，只能手工删（与 `open-code-review` 同款约束）。
+- **入库**：13 份原文灌入知识库 `dfaaf6fc` 的 `craft/<app>` 目录，条目 `craft-<app>`，全 `publish` + `type:material`；另加自撰索引 `craft-技能索引` 留库根。
+- **路由改造**：`craft-router` 升 v0.2.0 —— 新增「子技能去哪了」节（真源 / 库内副本 / 两条取原文腿）、「自研资产口径」节（改真源 → `ship install` → `check` + `skill-lint` → 回灌库条目）、分流表第三列从相对链接改为库条目名（相对链接在子技能目录消失后必然断）、条目数口径由 17 改为 13 个子技能。
+
+### 理由
+
+这一套是本仓自研（Rust 净室重实现），要持续运行、修改、优化，所以**真源必须留在仓里**，不能像三方技能那样一删了之；
+但每次任务都要把 13 份配方全文拉进上下文也没必要。折中：仓内真源 + 库内快照供检索 + 单个路由技能常驻。
+
+### 已知约束
+
+- 库内是快照，不回灌就是过期文档 —— 维护口径写进了路由技能与 `tag-registry-skills.md`。
+- `craft-router` 仍标 `disable-model-invocation: true`（沿用原状）：不会被模型自动加载，需要显式点名。子技能撤出后若要「说画画就自动分流」，得把这一行去掉。
+
+
+## tool-intro 迁为本仓项目技能 2026-10-28
+
+`jxx-tool-intro` 不再是分发型技能：它产出的 `docs/guide/` 工具目录是本仓专用资产，按 7 家厂商铺到全局技能目录没有意义。
+
+### 变更
+
+- **路径**：`base/skills/engineering/jxx-tool-intro` → `docs/agents/skills/tool-intro`（`git mv`，仓库内只此一份）。
+- **改名**：技能名 `jxx-tool-intro` → `tool-intro`（去掉 `jxx-` 前缀，与「项目技能」定位一致）；入口 `SKILL.src.md` → `SKILL.md`，frontmatter 只留 `name` / `description` / `disable-model-invocation`，删掉 `x-install` 与 `x-vendors`（这两个字段只服务 ship 的厂商派生）。`assets/` `scripts/` `references/` `tests/` `evals/` 原样随迁。
+- **停止分发**：`ship` 只扫 `base/skills/**`，源目录迁走后该技能自动退出派生与安装；跑一次 `node base/scripts/ship.mjs` 即可清掉 `base/scripts/.generated/*/jxx-tool-intro/` 与各平台全局技能目录里的安装副本。
+- **引用同步**：`sync-html-template.mjs` 的 `TARGETS` 首项、`copies-parity.test.mjs` 的两处路径、`base/shared/html-template/DESIGN.md` 的命令示例与生成方式说明、`ship.mjs` 残留清理注释、`docs/report/skill-security-audit-2026-10-26.md` 的第 6 条，一并改到新路径/新名。
+- **清单接管**：`docs/agents/skills/` 交给 `jxx-setup-skills` 的受管清单（`AGENTS.md` 新增「项目技能（docs/agents/skills/）」小节）；同时把 `AGENTS.md` 原有「本仓库自己例外…应带 `--no-skills`」改写成例外说明——本仓唯一项目技能就是 `tool-intro`，其余技能真源仍在 `base/skills/**`，所以初始化仍带 `--no-skills`、只对项目技能跑 `sync-skills`。
+- **工具页重生成**：`node docs/agents/skills/tool-intro/scripts/gen-tool-page.mjs` 重渲染 `docs/guide/**`，页脚由「由 **jxx-tool-intro** 技能生成」改为「由 **tool-intro** 技能生成」，正文内容零漂移。
+
+### 理由
+
+技能的生产物（`docs/guide/` 工具目录）只在本仓成立，把它当跨厂商技能分发等于往 7 个目录塞一份本仓专用工具。项目技能位置 `docs/agents/skills/` 才是它的正确归属，也顺带消掉一个 `jxx-` 前缀与「本仓自研 jxx 系列」的语义冲突。
+
+## 三方技能外置到知识库（乐享 / IMA）2026-10-28
+
+乐享（lexiang）与 IMA（ima-skill）两个官方技能包不再常驻本地技能目录，原文迁入 WeKnora
+「第三方官方skills」知识库 `dfaaf6fc-1e5d-4385-a290-58c847d71bcb`，本地各留一个引导技能。
+
+### 变更
+
+- `base/skills/productivity/lexiang` 降级为**引导程序**（v2.1.0）：删 `references/tools.md`，正文只留卸载说明、连接信息（MCP 端点 / preset / 凭证入口）、两条取原文腿、分域对照表与规矩。原路由技能正文与工具目录存库。
+- 官方 6 个分域技能（`lexiang-setup` / `-search` / `-writer` / `-blocks` / `-files` / `-connectors`，29 个文件 ≈190 KB）从全部 agent 技能目录卸载；原文灌入知识库 `dfaaf6fc-1e5d-4385-a290-58c847d71bcb`，30 条 manual（含 1 条自撰索引），目录 `lexiang/<skill>`，全挂 `type:material`。
+- 迁移前完整副本：`.temp/backup/lexiang-20261028/`（31 个目录，本机留存，不随仓库分发）。
+
+### IMA（同日第二批）
+
+- 新增仓库源 `base/skills/productivity/ima-skill/`（v2.0.0），内容为**引导程序**：固定边界（Base URL `https://ima.qq.com`、凭证优先级、临时 COS 凭证）+ 两条取原文腿 + 模块决策表 + 规矩。此前 `ima-skill` 在本仓没有真源，只有各厂商技能目录里的安装副本（且 WorkBuddy 侧叫 `ima-skills`，版本还比 `~/.agents` 旧）。
+- IMA 官方技能包（入口 + `knowledge-base` + `notes`，10 个文件 ≈126 KB）从 `~/.agents/skills/ima-skill`、`~/.workbuddy/skills/ima-skills`、`~/.workbuddy-ai/skills/ima-skills` 卸载；原文灌入知识库 `ima/ima-skill`、`ima/knowledge-base`、`ima/notes` 三目录，11 条（10 原文 + 1 自撰索引），全挂 `type:material`。
+- **脚本也只在库里**：`ima_api.cjs` 与三个子脚本落为库内条目，引导技能要求先取到临时目录再 `node` 跑。
+- 迁移前完整副本：`.temp/backup/ima-20261028/`（3 个目录，本机留存，不随仓库分发）。
+
+### 理由
+
+三方技能包体积大、随官方升级频繁变动，且常驻技能目录要付每轮上下文成本。本地只留引导程序，取原文按需进行。
+
+### 已知问题
+
+`hybrid-search` 全库返 `code=1007`（外部 embedding 端点 `www.erp.sdcxslzj.com:11235` 拒连，与本库无关）。引导程序因此写明「确定腿」兜底：按 `folder_path` 列条目后 `GET /knowledge/<id>` 读 `metadata.content`。embedding 恢复后应对 30 条补 `reparse`。
+
+
 ## 技能宪章 + 机器闸 2026-10-26
 
 把「AI Skills 该怎么写」从散落的经验变成唯一权威源 + 可重复的机器信号。

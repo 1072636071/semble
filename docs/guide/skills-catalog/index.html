@@ -340,9 +340,6 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line);
           <text class="nm" x="130" y="496" text-anchor="middle">jxx-to-tickets</text>
           <text class="sub" x="130" y="514" text-anchor="middle">拆解 tracer-bullet 工单</text>
 
-          <rect x="250" y="470" width="200" height="60" rx="10" fill="var(--gold-soft)" stroke="var(--gold-line)"/>
-          <text class="nm" x="350" y="496" text-anchor="middle">jxx-to-milestones</text>
-          <text class="sub" x="350" y="514" text-anchor="middle">归组可上线里程碑</text>
         </g>
 
         <!-- 实现与审查（coral） -->
@@ -447,7 +444,6 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line);
           <tr><td class="sk">jxx-domain-modeling</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">构建与锐化领域模型：质疑术语、场景压测、更新 CONTEXT/ADR。</td></tr>
           <tr><td class="sk">jxx-to-spec</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">将当前对话转化为 spec 并发布到 issue tracker。</td></tr>
           <tr><td class="sk">jxx-to-tickets</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">计划/spec/对话拆解为一组 tracer-bullet 工单，声明阻塞边。</td></tr>
-          <tr><td class="sk">jxx-to-milestones</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">把已发布工单归组为可独立上线的里程碑并逐个交付。</td></tr>
           <tr><td class="sk">jxx-implement</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">基于 spec 或工单实现；内含 TDD 与交付前代码审查硬出口。</td></tr>
           <tr><td class="sk">jxx-implement-spec</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">按 spec 与工单任务图整轨实现：单分支交付一支 PR，后台子 agent 并发。</td></tr>
           <tr><td class="sk">jxx-ticket-board</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">把仓库开辟为多 worktree 并行工单公告板：领导者投卡、worker 领卡。</td></tr>
@@ -466,7 +462,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line);
           <tr><td class="sk">jxx-resolving-merge-conflicts</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">追溯冲突原始来源，保留双方意图逐 hunk 解决；绝不 --abort。</td></tr>
           <tr><td class="sk">jxx-git-auth</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-true">true</span></td><td class="desc">加载 cnb/GitHub/Gitee 访问令牌并注入 push/clone/API/gh 操作。</td></tr>
           <tr><td class="sk">jxx-caveman</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-true">true</span></td><td class="desc">极简输出模式：删全部废话留技术内容，安全场景自动恢复正常表达。</td></tr>
-          <tr><td class="sk">jxx-wizard</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">生成交互式 bash 向导，引导人完成手动多步流程并捕获值。</td></tr>
+          <tr><td class="sk">jxx-wizard</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-false">false</span></td><td class="desc">生成交互式 bash 向导，引导人完成手动多步流程并捕获值（2026-11-07 起默认不安装，真源留仓）。</td></tr>
           <tr><td class="sk">jxx-skill-init</td><td><span class="badge user">👤 用户</span></td><td><span class="badge i-true">true</span></td><td class="desc">本仓库新建技能：ship init 模板 + 桶选择 + frontmatter 规范，一次过 check 门禁。</td></tr>
           <tr><td class="sk">impeccable</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">前端界面设计/审查/打磨（工艺级视觉与 UX）；hook runner 待对齐四厂商。</td></tr>
         </tbody>
@@ -485,7 +481,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line);
           <tr><td class="sk">jxx-grilling</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">grill 访谈原语（与 engineering 桶同名技能同源）。</td></tr>
           <tr><td class="sk">jxx-handoff</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">把当前对话压缩成交接文档，供下一个 agent 续接。</td></tr>
           <tr><td class="sk">jxx-teach</td><td><span class="badge user">👤 用户</span></td><td><span class="badge i-false">false</span></td><td class="desc">以当前工作区为有状态工作区，跨会话教授新概念。</td></tr>
-          <tr><td class="sk">jxx-to-questionnaire</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">把待决策项转化为措辞中立的问卷，交给持有答案的人填写。</td></tr>
+          <tr><td class="sk">jxx-to-questionnaire</td><td><span class="badge user">👤 用户</span></td><td><span class="badge i-false">false</span></td><td class="desc">把待决策项转化为措辞中立的问卷，交给持有答案的人填写。</td></tr>
           <tr><td class="sk">jxx-wait-what</td><td><span class="badge user">👤 用户</span></td><td><span class="badge i-false">false</span></td><td class="desc">用户没听懂时，用简化技术语言重讲上一段回答。</td></tr>
           <tr><td class="sk">jxx-writing-for-agents</td><td><span class="badge user">👤 用户</span></td><td></td><td class="desc">为 agent 编写文档的参考：AGENTS.md / README / skill / issue。</td></tr>
           <tr><td class="sk">skill-creator</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-false">false</span></td><td class="desc">创建/改进高效 skill 的指南（含 evals → benchmark → viewer）。</td></tr>
@@ -559,7 +555,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line);
       <table>
         <thead><tr><th>技能</th><th>调用</th><th>安装</th><th>一句话</th></tr></thead>
         <tbody>
-          <tr><td class="sk">dsh-plugin-dev</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">DeepSeek Harness (dsh) 插件开发/打包/发布全流程，含模板与示例。</td></tr>
+          <tr><td class="sk">dsh-plugin-dev</td><td><span class="badge model">🤖 模型</span></td><td><span class="badge i-false">false</span></td><td class="desc">DeepSeek Harness (dsh) 插件开发/打包/发布全流程，含模板与示例（2026-11-07 起默认不安装，真源留仓）。</td></tr>
           <tr><td class="sk">mzg-init</td><td><span class="badge model">🤖 模型</span></td><td></td><td class="desc">为任意目录初始化 mzg（zvec-grep fork）代码索引：探测→建索引→就绪校验。</td></tr>
         </tbody>
       </table>

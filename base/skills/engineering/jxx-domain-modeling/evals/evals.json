@@ -31,12 +31,13 @@
   },
   {
     "name": "jxx-domain-modeling-adr-qualify",
-    "prompt": "我们决定用事件溯源来做订单写模型",
-    "expected_behavior": "应判断是否满足 ADR 三条件（难逆转、令人惊讶、真实权衡），若满足则建议创建 ADR",
+    "prompt": "我们决定用事件溯源来做订单写模型，而不是 CRUD 加审计表；因为争议追溯需要完整的状态变更历史",
+    "expected_behavior": "应判断是否满足 ADR 三条件（难逆转、令人惊讶、真实权衡），若满足则建议创建 ADR，并要求真实备选、取舍与后果",
     "assertions": [
       "引用 ADR 三条件进行判断",
-      "判定事件溯源符合条件（架构形状/难逆转）",
-      "给出创建 ADR 的明确结论"
+      "判定事件溯源符合三条件（架构形状/难逆转/真实权衡）",
+      "给出创建 ADR 的明确结论",
+      "要求 ADR 写出真实备选、选择/拒绝理由及后果"
     ]
   },
   {
@@ -122,11 +123,12 @@
   {
     "name": "jxx-domain-modeling-adr-deprecation",
     "prompt": "我们之前用单体读写方案（ADR-0001），现在想改成 CQRS",
-    "expected_behavior": "应在新 ADR 中引用旧 ADR 编号，在旧 ADR 顶部添加'已弃用 — 被 ADR-NNNN 取代'状态行",
+    "expected_behavior": "新增前读取同主题旧 ADR；新 ADR 明确完全取代并链接旧 ADR，旧 ADR 回链新 ADR，保留历史",
     "assertions": [
-      "新 ADR 引用旧 ADR 编号并说明取代原因",
-      "在旧 ADR 顶部添加'已弃用 — 被 ADR-NNNN 取代'状态行",
-      "不删除旧 ADR"
+      "新增前搜索并读取同主题旧 ADR",
+      "新 ADR 标记完全取代并用相对链接引用旧 ADR",
+      "旧 ADR 标记被完全取代并用相对链接回指新 ADR",
+      "不删除旧 ADR，也不创建额外归档或状态副本"
     ]
   },
   {
@@ -226,8 +228,29 @@
     "expected_behavior": "应触发领域建模技能，编辑既有 ADR 的取代状态并保留历史，不把该请求当作普通文本改写而跳过领域决策上下文",
     "assertions": [
       "读取并编辑指定 ADR，保留原决策内容",
-      "记录被 ADR-0002 取代的状态",
-      "核对新旧 ADR 的引用关系"
+      "记录被 ADR-0002 取代的状态与完全/部分范围",
+      "核对新旧 ADR 的双向相对链接"
+    ]
+  },
+  {
+    "name": "jxx-domain-modeling-adr-real-alternatives-required",
+    "prompt": "帮我把‘订单服务使用 PostgreSQL’创建为 accepted ADR；我们没有考虑过其他数据库，也还没开始改代码",
+    "expected_behavior": "应识别缺少真实权衡且决策尚未落地，不创建 accepted ADR；先追问真实备选与取舍，决策实际执行后才使用 accepted",
+    "assertions": [
+      "指出没有真实备选时不满足 ADR 三条件，不编造备选",
+      "要求记录真实备选、选择/拒绝理由及后果后才建 ADR",
+      "指出尚未实际执行的决策不能标为 accepted"
+    ]
+  },
+  {
+    "name": "jxx-domain-modeling-adr-partial-supersede",
+    "prompt": "ADR-0010 同时决定支付回调去重和签名校验。现在只把去重方案从状态检查改为幂等键，签名校验不变，请新增 ADR",
+    "expected_behavior": "新增前读取同主题旧 ADR；新 ADR 仅部分取代 ADR-0010 的去重决策，明确签名校验仍有效，新旧 ADR 双向互链",
+    "assertions": [
+      "新增前搜索并读取同主题旧 ADR",
+      "标记部分取代并写清失效与仍有效范围",
+      "新旧 ADR 使用相对链接互链",
+      "新 ADR 写明真实备选、取舍与后果"
     ]
   }
 ]

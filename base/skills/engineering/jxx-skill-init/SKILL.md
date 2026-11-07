@@ -19,7 +19,7 @@ x-vendors:
     license: MIT
   trae: {}
 metadata:
-  version: 1.1.0
+  version: 1.2.0
 ---
 
 # 新增 SKILL
@@ -61,6 +61,7 @@ node base/scripts/ship.mjs init --type skill --name <技能名> --bucket <桶>
 - `name`、`description`：必填；`description` 按四要素写（能力 + 场景 + 触发词 + 边界），模板见 [references/frontmatter.md](references/frontmatter.md) 的「description 四要素模板」
 - `x-vendors`：CodeArts 派生需要 `description-en`（5 行编号列表，英文）
 - `x-install`：分发控制（`true` / `project` / `false`）
+- 调用控制：`disable-model-invocation` / `user-invocable` 只写布尔值；manual-only 不得配 `user-invocable: false`。有 `agents/openai.yaml` 时同步设置 `policy.allow_implicit_invocation`，规则见上述字段文档
 
 ### 第 4 步 — 写正文
 
@@ -96,6 +97,7 @@ node base/scripts/ship.mjs init --type skill --name <技能名> --bucket <桶>
 ### 第 6 步 — 验证
 
 ```bash
+node base/scripts/skill-contract.mjs
 node base/scripts/ship.mjs check
 ```
 
@@ -103,6 +105,7 @@ node base/scripts/ship.mjs check
 - `E_CODEARTS_DESCRIPTION`：缺少 `x-vendors.codearts.description-en`
 - `E_CODEARTS_EN_BODY`：正文含中文且缺少 `<!--en-->` 英文块
 - `E_PARSE`：frontmatter YAML 解析失败
+- `E_SKILL_CONTRACT`：description 超预算或调用策略不一致；按 `skill-contract` 的具体错误码修复真源
 
 ### 第 7 步 — 回读确认
 

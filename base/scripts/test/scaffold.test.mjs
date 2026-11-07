@@ -15,6 +15,8 @@ import {
   LINTSTAGED_RC,
   PRETTIER_RC,
   runSetupPrecommit,
+  CONTEXT_TEMPLATE,
+  CHECKLIST_TEMPLATE,
 } from '../scaffold.mjs';
 
 let tmp;
@@ -53,9 +55,18 @@ test('memorial-init: 空目录创建 001-slug，目录结构 + context.md + chec
   assert.match(ctx, /状态：进行中/);
   assert.match(ctx, /^## 诉求/m);
   assert.match(ctx, new RegExp(subject), '诉求段保留用户原话');
+  assert.match(ctx, /^## 需求理解/m);
+  for (const field of ['核心目标', '使用场景', '明确要求', '约束', '明确偏好', '验收标准']) {
+    assert.equal(ctx.includes(`| ${field} `), true, `需求理解包含${field}`);
+  }
+  assert.match(ctx, /来源（用户明确 \/ 上下文推断）/);
+  assert.match(ctx, /真正缺失/);
   assert.match(ctx, /^## 追问记录/m);
   assert.match(ctx, /^## 决策汇总/m);
-  assert.match(ctx, /^## 待澄清/m);
+  assert.match(ctx, /级别（L1\/L2\/L3）/);
+  assert.match(ctx, /来源（自主\/用户）/);
+  assert.match(ctx, /易修正方式（L2）/);
+  assert.match(ctx, /^## 待澄清（仅未解决 L3）/m);
 });
 
 test('memorial-init: 递增编号（已有 001/002 → 003）', () => {
@@ -84,14 +95,36 @@ test('memorial-init: 同 slug 既有编号自动顺延到下一号（绝不覆�
   assert.equal(fs.existsSync(path.join(root, 'docs/memorial/001-dup')), true, '既有目录原样保留');
 });
 
-test('memorial-init: checklist.md 实例化 C1–C6 检查项', () => {
+test('memorial-init: checklist.md 实例化 C1–C9 自主决策收尾检查项', () => {
   const root = fixtureRoot('mem-check');
   const r = runMemorialInit({ root, subject: 'revise schema' });
   assert.equal(path.basename(r.dir), '001-revise-schema');
   const cl = read(root, 'docs/memorial/001-revise-schema/checklist.md');
   assert.match(cl, /^# Checklist 001-revise-schema/);
-  for (const id of ['C1', 'C2', 'C3', 'C4', 'C5', 'C6']) assert.match(cl, new RegExp(`\\| ${id} `));
-  assert.match(cl, /C6[^|]*\|[^|]*证据可复核/, 'C6 = 证据可复核（1.2.0 新增）');
+  for (const id of ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9']) {
+    assert.match(cl, new RegExp(`\\| ${id} `));
+  }
+  assert.match(cl, /\| C2 \|[^|]*\|[^|]*L1\/L2\/L3/, 'C2 检查决策级别与来源');
+  assert.match(cl, /\| C2 \|[^|]*\|[^|]*易修正方式/, 'C2 检查 L2 易修正方式');
+  assert.match(cl, /\| C4 \|[^|]*\|[^|]*当前阻塞的 L3/, 'C4 排除重复与非必要提问');
+  assert.match(cl, /\| C5 \|[^|]*\|[^|]*工作量、实现难度、Token\/时间或重构/, 'C5 禁止预过滤更优方案');
+  assert.match(cl, /显著扩大范围、显著增加成本或风险，或需要重大重构/, 'C5 只把显著取舍升级为 L3');
+  assert.match(cl, /已明确授权时记录授权原文与影响后由主 agent 代决/, 'C5 保留明确授权代决例外');
+  assert.match(cl, /\| C9 \|[^|]*\|[^|]*已授权相同范围记录授权原文与影响后直接回写，不重复询问/, 'C9 保留相同范围授权例外');
+  assert.match(cl, /C6[^|]*\|[^|]*证据可复核/, 'C6 = 证据可复核');
+});
+
+test('memorial-init: 四个 scaffold 副本共享同一 CONTEXT/CHECKLIST 模板', async () => {
+  const copies = [
+    new URL('../../skills/engineering/jxx-grill-with-memorial/scripts/scaffold.mjs', import.meta.url),
+    new URL('../../skills/misc/jxx-scaffold-exercises/scripts/scaffold.mjs', import.meta.url),
+    new URL('../../skills/misc/jxx-setup-pre-commit/scripts/scaffold.mjs', import.meta.url),
+  ];
+  for (const copy of copies) {
+    const mod = await import(copy.href);
+    assert.equal(mod.CONTEXT_TEMPLATE, CONTEXT_TEMPLATE, copy.pathname + ' 的 CONTEXT_TEMPLATE 应同步');
+    assert.equal(mod.CHECKLIST_TEMPLATE, CHECKLIST_TEMPLATE, copy.pathname + ' 的 CHECKLIST_TEMPLATE 应同步');
+  }
 });
 
 test('memorial-init: subject 为空抛错；--dry-run 不落盘', () => {

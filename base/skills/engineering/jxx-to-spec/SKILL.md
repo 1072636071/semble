@@ -3,7 +3,7 @@ name: jxx-to-spec
 description: "将当前对话转化为 spec 并发布到 issue tracker。当用户说写 spec、to spec 时触发。不访谈，只综合已有讨论。"
 disable-model-invocation: false
 metadata:
-  version: 1.6.0
+  version: 1.7.0
 ---
 
 本技能将当前对话上下文和代码库理解转化为规格文档（你可能称之为 PRD）。不要访谈用户——仅综合你已知的内容。
@@ -24,7 +24,7 @@ issue tracker 和 triage 标签词汇表应该已提供给你——如果没有�
 
 发布路径：在仓库根目录的 `.scratch/` 下创建功能目录 `<NN>-<feature-slug>/`，将规格文档写入 `.scratch/<NN>-<feature-slug>/PRD.md`。`<NN>` 为从 `01` 起的全局递增顺序号，按创建先后排列（如第一个功能为 `01-login/`）。具体目录与文件约定见 issue tracker 定义（`/jxx-setup-skills`）。
 
-4. 发布前自检（v1.3.0 起，不可跳过）：`node <本技能目录>/scripts/ac-audit.mjs <功能目录> --strict`（脚本随本技能分发，副本与 `jxx-to-tickets` 同源；万一缺失，按 `jxx-to-tickets/references/acceptance-criteria.md` 逐条自查，不得跳过）。
+4. 发布前自检（v1.3.0 起，不可跳过）：PRD 有 AC 行时，把 PRD 每条 AC 逐条落进 `.scratch/<NN>-<slug>/map.md` 的「## PRD AC 对照」表，一行一条、不用范围缩写，工单尚未拆出时「实施工单与 AC」列写 `—`（判据见 `jxx-to-tickets` 技能 `references/acceptance-criteria.md` §九）；随后跑 `node <本技能目录>/scripts/ac-audit.mjs <功能目录> --strict`（脚本随本技能分发，副本与 `jxx-to-tickets` 同源；万一缺失，按 `jxx-to-tickets/references/acceptance-criteria.md` 逐条自查，不得跳过）。
 
    - 退出码 `0` ⇒ 放行，可发布。
    - 退出码 `2`（`没有工单类文件`）⇒ **仅**在「PRD 全 defer、AC 交给工单层」时放行：发布说明写明落地位置「AC 落地位置：工单层（jxx-to-tickets）」。PRD 已写验收点节却零 AC 行 ⇒ 按硬问题处理，不得当 defer。

@@ -11,7 +11,7 @@
  * 用法：
  *   node sync-html-template.mjs                      # 全量同步
  *   node sync-html-template.mjs --check              # 只校验，不一致退出码 1
- *   node sync-html-template.mjs --skill jxx-tool-intro
+ *   node sync-html-template.mjs --skill tool-intro
  *   node sync-html-template.mjs --add <skill-dir>    # 追加目标技能（相对 base/skills 或绝对路径）
  */
 import fs from "node:fs";
@@ -24,7 +24,7 @@ const SRC_DIR = path.join(REPO_ROOT, "base", "shared", "html-template");
 
 // 目标技能：产出 HTML 的技能都要在册
 const TARGETS = [
-  "base/skills/engineering/jxx-tool-intro",
+  "docs/agents/skills/tool-intro",
   "base/skills/productivity/jxx-teach",
   "base/skills/engineering/jxx-prototype",
   "base/skills/engineering/jxx-improve-codebase-architecture",

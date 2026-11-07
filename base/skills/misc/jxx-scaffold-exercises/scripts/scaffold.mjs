@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // scaffold.mjs — 脚手架类技能的确定性流程 CLI（零第三方依赖，ESM）。
 // 子命令：
-//   memorial-init     grill-with-memorial 初始化：NNN 递增编号 + slug 目录脚手架 + context.md 模板 + C1–C6 checklist
+//   memorial-init     grill-with-memorial 初始化：NNN 递增编号 + slug 目录脚手架 + context.md 模板 + C1–C9 checklist
 //   memorial-archive  grill-with-memorial 归档：把已「已完成」的 memorial 目录移动到 archived/
 //   scaffold-exercises / setup-precommit 见 usage()
 // 注：jxx-setup-skills 的 detect/sync-doc 已迁移至该技能目录的 scripts/setup.mjs（自包含）。
@@ -16,7 +16,7 @@ import { renderTemplate } from './shared/render-template.mjs';
 // ------------------------------------------------------------------ 常量
 
 // grill-with-memorial：context.md 模板。{{id}} 为 NNN-slug，{{subject}} 为「诉求」用户原话。
-// 其余三段（追问记录 / 决策汇总 / 待澄清）在初始化时置空。
+// 需求理解区分用户明确表达、上下文推断与真正缺失；待澄清只收未解决 L3。
 export const CONTEXT_TEMPLATE = `# {{id}}
 
 状态：进行中
@@ -25,25 +25,44 @@ export const CONTEXT_TEMPLATE = `# {{id}}
 
 {{subject}}
 
+## 需求理解
+
+| 项目 | 理解 | 来源（用户明确 / 上下文推断） |
+|------|------|--------------------------------|
+| 核心目标 |  |  |
+| 使用场景 |  |  |
+| 明确要求 |  |  |
+| 约束 |  |  |
+| 明确偏好 |  |  |
+| 验收标准 |  |  |
+
+- 真正缺失：
+
 ## 追问记录
 
 ## 决策汇总
 
-## 待澄清
+| 决策 | 级别（L1/L2/L3） | 来源（自主/用户） | 关键假设与影响 | 易修正方式（L2） | 依据 |
+|------|-------------------|--------------------|----------------|-------------------|------|
+
+## 待澄清（仅未解决 L3）
 `;
 
-// grill-with-memorial：C1–C6 checklist 模板（阶段 3 收尾检查项，实例化后由模型逐项核对）。
-// C6 = 证据可复核（1.2.0 新增）：事实性论据必须带来源坐标，无来源的降级为「假设」。
+// grill-with-memorial：C1–C9 checklist 模板（阶段 3 收尾检查项，实例化后由模型逐项核对）。
+// 覆盖需求、决策分流、提问必要性、方案比较、证据、调查、ADR 与全局回写。
 export const CHECKLIST_TEMPLATE = `# Checklist {{id}}
 
 | # | 检查项 | 通过条件 | 状态 |
 |---|--------|---------|------|
-| C1 | 诉求回应 | 每个诉求点有对应决策或澄清 | ☐ |
-| C2 | 决策完备 | 无「待定」「暂缓」「未决」条目 | ☐ |
-| C3 | 待澄清清零 | 段落为空 | ☐ |
-| C4 | 调查闭环 | 所有 sub-task 状态「已完成」 | ☐ |
-| C5 | ADR 齐全 | 满足三条件的决策均有 ADR | ☐ |
-| C6 | 证据可复核 | 决策汇总与 ADR 的事实性论据均带来源坐标；无来源的降级为「假设」 | ☐ |
+| C1 | 需求覆盖 | 需求理解六项已填并区分来源；方案完整，每个诉求点有对应决策 | ☐ |
+| C2 | 决策分流 | 决策汇总标注 L1/L2/L3 与自主/用户；L1/L2 已自主处理，L2 已记录关键假设、影响与易修正方式；L3 已由用户确认，或具有明确授权的主 agent 代决记录 | ☐ |
+| C3 | 待澄清清零 | 无未解决 L3；待澄清不含事实欠账或 L1/L2 细节 | ☐ |
+| C4 | 提问必要 | 未重复询问已有信息或已确认决策；每次提问只含当前阻塞的 L3，并给推荐、理由与 2–3 个选项 | ☐ |
+| C5 | 方案比较完整 | 未因工作量、实现难度、Token/时间或重构预先否决更优方案；显著扩大范围、显著增加成本或风险，或需要重大重构的候选已记录收益、代价、可逆性与推荐，未授权时交用户决定，已明确授权时记录授权原文与影响后由主 agent 代决 | ☐ |
+| C6 | 证据可复核 | 决策汇总与 ADR 的事实性论据均带来源坐标；无来源的标为假设并记录影响 | ☐ |
+| C7 | 调查闭环 | 所有 sub-task 状态「已完成」且含结论与来源，context.md 已记录调查结果 | ☐ |
+| C8 | ADR 齐全 | 满足三条件的决策均有 ADR | ☐ |
+| C9 | 回写分流 | 有全局 CONTEXT/ADR 回写内容时，未授权范围只合并做一次明确范围确认；已授权相同范围记录授权原文与影响后直接回写，不重复询问；无内容时未询问 | ☐ |
 `;
 
 // ------------------------------------------------------------------ 工具
@@ -93,8 +112,8 @@ export function nextMemorialSeq(memorialRoot) {
  * 流程（SKILL.md 阶段 1）：
  *   1. NNN = 全局递增最大 +1（补零三位，含 archived/ 计数）；slug 从诉求提取 kebab-case（中文剥离，纯中文回落 untitled）。
  *   2. 创建 docs/memorial/NNN-slug/{context.md,adr/,sub-task/} 完整目录结构。
- *   3. context.md：状态「进行中」，诉求段保留用户原话，其余三段置空。
- *   4. 额外实例化 checklist.md（C1–C6 待核项，供收尾阶段核对）。
+ *   3. context.md：状态「进行中」，诉求段保留用户原话，按模板初始化需求理解、追问、决策与待澄清。
+ *   4. 额外实例化 checklist.md（C1–C9 待核项，供收尾阶段核对）。
  * 留模型：「这个编号是否该继续」的数字本身由脚本给，是否沿用由模型判断；slug 为纯中文时回落
  *   untitled，如需更贴切名称由模型在创建前自行决定。
  */
@@ -234,7 +253,7 @@ function usage() {
   return `用法: scaffold.mjs <子命令> [选项]
 
 子命令：
-  memorial-init      grill-with-memorial 初始化（NNN + slug 目录 + context.md + C1–C6 checklist）
+  memorial-init      grill-with-memorial 初始化（NNN + slug 目录 + context.md + C1–C9 checklist）
   memorial-archive   grill-with-memorial 归档（将「已完成」memorial 移到 archived/）
   scaffold-exercises jxx-scaffold-exercises 练习目录骨架（exercises/XX-section/XX.YY-exercise/...）
   setup-precommit    jxx-setup-pre-commit：检测包管理器 + 生成 .husky/pre-commit/.lintstagedrc/.prettierrc

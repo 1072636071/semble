@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.3] - 2026-11-07
+
+### Changed
+
+- frontmatter 加 `x-install: false`，`ship install` 不再分发到任何用户级/项目级技能目录；真源留仓，要临时用就手工拷或改回 `true` 再 `ship install`。
+- 9 处用户级旧副本（`.agents`、`.codebuddy`、`.codeartsdoer`、`.qoder-cn`、`.qoderworkcn`、`.qwenworkcn`、`.trae-cn`、`.workbuddy`、`.workbuddy-ai`）已手工删净。`managedPrefixes` 不含 `dsh-` 前缀且源仍在仓里，`ship` 不会自动清，须显式删。
+
 ## [1.2.2] - 2026-09-16
 
 ### Changed

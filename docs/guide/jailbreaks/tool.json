@@ -1,0 +1,89 @@
+{
+  "slug": "jailbreaks",
+  "name": "jailbreaks（越狱提示词档案库）",
+  "github": "https://github.com/togg53192-cmd/jailbreaks",
+  "description": "一份策展式的提示词档案库，收录 32 份完整提示词，面向 26 个以上模型。内容形态包括系统提示词、人格锁定、工作区策略、AGENTS.md、配置块与 Ollama Modelfile。每个文件都是完整可粘贴原文，不做摘要与节选。",
+  "summary": "32 份完整越狱/人格锁定提示词，覆盖 Claude、Gemini、Grok、GLM、DeepSeek、Kimi、Qwen 等 26+ 模型。",
+  "stars": "9.5k",
+  "forks": "1.3k",
+  "rating": 2,
+  "category": "AI 智能体与框架",
+  "tags": [
+    "prompt",
+    "jailbreak",
+    "system-prompt",
+    "agents-md",
+    "red-team"
+  ],
+  "features": [
+    "32 份完整提示词原文，每份都可直接粘贴，不含摘要或节选",
+    "覆盖 26+ 模型：OpenCode Zen 免费隐身模型、GLM / DeepSeek / Kimi / Qwen / Gemma / GPT-OSS 开源权重族、Claude / Gemini / Grok / Mistral 闭源前沿模型",
+    "形态不止系统提示词：还含 AGENTS.md 工作区策略、agent 运行规范、Ollama Modelfile、Grok <CFG> 配置块",
+    "同一目标保留版本谱系（如 opus v1 / v2、glm-zcode 5.2 / 5.3），便于对照提示词演进",
+    "单文件单提示词，文件名即模型名，便于按需取用与 diff"
+  ],
+  "integrations": [
+    [
+      "系统提示词字段",
+      "粘贴进 API system 消息、客户端自定义指令或 agent 级指令块"
+    ],
+    [
+      "AGENTS.md",
+      "放到仓库或工作区根目录，供编码 agent 读取为项目级指令"
+    ],
+    [
+      "Ollama Modelfile",
+      "FROM + SYSTEM 块，ollama create 直接构建本地模型"
+    ],
+    [
+      "Grok <CFG>",
+      "放进 harness 的配置槽位，而非逐轮对话"
+    ],
+    [
+      "持久全局指令",
+      "如 ~/.config/opencode/AGENTS.md 这类 harness 全局指令位"
+    ]
+  ],
+  "install": [
+    {
+      "title": "整仓克隆（取全部 32 份）",
+      "lang": "bash",
+      "code": "git clone --depth 1 https://github.com/togg53192-cmd/jailbreaks\ncd jailbreaks"
+    },
+    {
+      "title": "只要一份（按文件名直接下载）",
+      "lang": "bash",
+      "code": "curl -L -o gemma4.md \\\n  https://raw.githubusercontent.com/togg53192-cmd/jailbreaks/main/gemma4.md"
+    },
+    {
+      "title": "PowerShell 下载单文件",
+      "lang": "powershell",
+      "code": "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/togg53192-cmd/jailbreaks/main/glm-zcode-5.3-AGENTS.md' `\n  -OutFile AGENTS.md"
+    }
+  ],
+  "usage": [
+    {
+      "title": "当系统提示词用",
+      "lang": "text",
+      "code": "# 把目标文件全文粘进客户端/API 的 system 或 custom instructions 字段\n# 例：opus v2.md → system message\n# 一次只放一份，别混装两个模型的人格设定"
+    },
+    {
+      "title": "当 AGENTS.md 用",
+      "lang": "bash",
+      "code": "# 文件名带 -AGENTS / agents 的，直接落到工作区根\ncp glm-zcode-5.3-AGENTS.md /path/to/repo/AGENTS.md\n\n# 或放 harness 全局位（如 OpenCode）\ncp kimi-k3-agents.md ~/.config/opencode/AGENTS.md"
+    },
+    {
+      "title": "构建 Ollama 模型",
+      "lang": "bash",
+      "code": "# gemma4.md / gpt-oss-20b.md 是 FROM + SYSTEM 块\nollama create gemma4-jb -f gemma4.md\nollama run gemma4-jb"
+    }
+  ],
+  "notes": [
+    "无 LICENSE 文件，仓库未声明开源许可；作者只声明「仅供研究与教育」",
+    "提示词强绑定模型版本：模型一发版、指令层级一变，旧文件就失效；仓库自己也提示「打开 issue 报告失效」",
+    "活跃度：2026-06 建库，最近推送 2026-10-28，20 个 open issue，PR 仍在合",
+    "性质：这些提示词的目标就是让模型越过自身内容策略（人格锁定、撤销上层提示、把敏感词当参数解析）。用于线上服务大概率违反平台 ToS，作者免责声明已写明",
+    "真正的学习价值在反面：它把「指令层级如何被覆盖」的套路摆得很全——伪造私有语境、宣称上层策略是训练残留、把策略检查重新定义为推理错误。做提示注入防御时，这是现成的攻击面样本集",
+    "结构观察：文件分三类写法——① 系统提示词原文（deepseek v3/v4、qwen 3.7/3.8、glm-5.2、kimi-k2）；② 工作区运行规范（Step-5、kimi-k3、nemotron-3-ultra、Unified）；③ 配置槽位片段（grok-config.txt 的 <CFG> 优先级块）"
+  ]
+}

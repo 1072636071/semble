@@ -2,7 +2,7 @@
 name: jxx-agnes-image
 description: "Agnes Image 生图与改图。当用户要生成图片、画图、改图、多图合成、风格迁移、做海报封面时触发。触发词：生图、画图、改图、图生图、agnes 绘图。"
 version: 1.0.1
-x-install: true
+x-install: false
 x-vendors:
   codearts:
     product: codebuddy

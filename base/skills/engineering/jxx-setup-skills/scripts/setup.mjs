@@ -5,7 +5,7 @@
 //   init          一键初始化（默认）：detect 现状 + sync-doc 落盘，全部默认参数即"全部默认"
 //   detect        只读探索：扫描仓库初始状态，输出 JSON 报告（含与种子的漂移）
 //   ocr           只读检测 OCR（open-code-review CLI）是否已安装（未安装退出码 4，由模型询问用户）
-//   sync-doc      写入：双文件逐字节一致 + Agent skills 块 upsert + docs/agents/*.md 克隆
+//   sync-doc      写入：双文件逐字节一致 + Agent skills 块 upsert + docs/agents/*.md 克隆 + 可选子树双文件
 //   sync-skills   维护项目技能清单：扫描项目技能目录 → 重写 AGENTS.md 受管小节 → 同步 CODEBUDDY.md
 //   template      输出全部文件内容到 stdout（不落盘），供预览/手动复制
 //
@@ -90,6 +90,103 @@ export function extractAgentSkillsBlock(content) {
 function writeFileSafe(abs, content) {
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, content, 'utf-8');
+}
+
+/**
+ * 子树目标文件是否为符号链接（含断链）。lstat 只看链接本身，不跟随到目标。
+ * @param {string} abs 目标文件绝对路径
+ * @returns {boolean} 是符号链接则 true，普通文件或不存在则 false
+ */
+export function subtreeTargetIsSymlink(abs) {
+  try {
+    return fs.lstatSync(abs).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 校验并归一化子树目录。目录必须已存在，解析后的词法路径与真实路径都不得离开仓库。
+ * @param {string} root 仓库根目录
+ * @param {string[]} subtrees 仓库内相对目录列表
+ * @returns {Array<{dir: string, abs: string}>} 按输入顺序去重后的子树列表
+ */
+export function resolveSubtrees(root, subtrees = []) {
+  if (!subtrees || subtrees.length === 0) return [];
+  if (!root) throw new Error('--subtree 需要配合 --root 指定目标仓库');
+  const rootAbs = path.resolve(root);
+  const rootReal = fs.realpathSync(rootAbs);
+  const seen = new Set();
+  const resolved = [];
+  for (const value of subtrees) {
+    const input = String(value || '').trim();
+    if (!input) throw new Error('--subtree 不能为空或指向仓库根目录');
+    if (path.isAbsolute(input) || path.posix.isAbsolute(input) || path.win32.isAbsolute(input)) {
+      throw new Error(`--subtree 只接受仓库内相对目录，收到绝对路径: ${input}`);
+    }
+    const portable = input.replace(/\\/g, '/');
+    if (portable.split('/').includes('..')) throw new Error(`--subtree 不允许 .. 穿越: ${input}`);
+    const abs = path.resolve(rootAbs, input);
+    const rel = path.relative(rootAbs, abs);
+    if (!rel) throw new Error('--subtree 不能指向仓库根目录');
+    if (rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
+      throw new Error(`--subtree 必须位于仓库内: ${input}`);
+    }
+    if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) {
+      throw new Error(`--subtree 目标目录必须已存在: ${input}`);
+    }
+    const targetReal = fs.realpathSync(abs);
+    const realRel = path.relative(rootReal, targetReal);
+    if (!realRel || realRel === '..' || realRel.startsWith(`..${path.sep}`) || path.isAbsolute(realRel)) {
+      throw new Error(`--subtree 真实目录必须位于仓库内且不能是仓库根目录: ${input}`);
+    }
+    const dir = rel.split(path.sep).join('/');
+    if (seen.has(dir)) continue;
+    seen.add(dir);
+    resolved.push({ dir, abs });
+  }
+  return resolved;
+}
+
+/**
+ * 子树文件只声明局部职责并链接实际根指令文件，不复制根规则。
+ * 根 AGENTS.md 存在或仓库为空时链接 AGENTS.md；只有 CLAUDE.md 时链接 CLAUDE.md。
+ * @param {string} root 仓库根目录
+ * @param {string} dir 已校验的仓库内相对目录
+ * @returns {string} AGENTS.md 与 CODEBUDDY.md 共用的内容
+ */
+export function buildSubtreeContent(root, dir) {
+  const rootAgents = path.join(root, 'AGENTS.md');
+  const rootClaude = path.join(root, 'CLAUDE.md');
+  const useClaude = !fs.existsSync(rootAgents) && fs.existsSync(rootClaude);
+  const rootName = useClaude ? 'CLAUDE.md' : 'AGENTS.md';
+  const link = path.relative(path.join(root, dir), useClaude ? rootClaude : rootAgents).split(path.sep).join('/');
+  return `本目录仅负责 \`${dir}/\` 内的局部实现与测试；局部约定不得覆盖或复制仓库级规则。\n\n仓库级规则见 [根 ${rootName}](${link})。\n`;
+}
+
+/** 按普通文件的冲突保护语义同步一个子树的 AGENTS.md 与 CODEBUDDY.md。 */
+function syncSubtreeFiles({ root, subtree, dryRun, canOverwrite, markConflict, actions }) {
+  const content = buildSubtreeContent(root, subtree.dir);
+  for (const name of ['AGENTS.md', 'CODEBUDDY.md']) {
+    const rel = `${subtree.dir}/${name}`;
+    const abs = path.join(subtree.abs, name);
+    // 目录已校验真实路径；目标文件也要挡符号链接，否则 writeFileSync 会跟随链接写到仓库外。
+    if (subtreeTargetIsSymlink(abs)) {
+      markConflict(rel, '目标文件是符号链接，可能指向仓库外；已保留原文件，不写入');
+      continue;
+    }
+    if (!fs.existsSync(abs)) {
+      actions.push({ file: rel, action: dryRun ? 'skipped' : 'created', detail: '创建子树局部职责说明并链接实际根指令文件' });
+      if (!dryRun) writeFileSafe(abs, content);
+    } else if (fs.readFileSync(abs, 'utf-8') === content) {
+      actions.push({ file: rel, action: 'unchanged', detail: '子树局部职责说明已是最新' });
+    } else if (canOverwrite(rel)) {
+      actions.push({ file: rel, action: dryRun ? 'skipped' : 'updated', detail: dryRun ? '演练：将按覆盖授权更新子树说明' : '按覆盖授权更新子树说明' });
+      if (!dryRun) writeFileSafe(abs, content);
+    } else {
+      markConflict(rel, '已存在且与子树局部职责说明不同，已保留原文件（未覆盖）');
+    }
+  }
 }
 
 // ---------------------------------------------------------------- 项目技能目录（工具）
@@ -592,13 +689,13 @@ export function runDetect({ root, seedsDir = SKILL_ROOT, block = {}, skillsDir, 
  * @param {{root: string, seedsDir?: string, dryRun?: boolean,
  *          block?: {layout?: 'single'|'multi', labels?: Record<string,string>} | null,
  *          overwrite?: string[], force?: boolean,
- *          skillsDir?: string, noSkills?: boolean}} args
+ *          skillsDir?: string, noSkills?: boolean, subtrees?: string[]}} args
  * @returns {{detect: object, sync: object}}
  */
-export function runInit({ root, seedsDir = SKILL_ROOT, dryRun = false, block = {}, overwrite = [], force = false, skillsDir, noSkills = false }) {
+export function runInit({ root, seedsDir = SKILL_ROOT, dryRun = false, block = {}, overwrite = [], force = false, skillsDir, noSkills = false, subtrees = [] }) {
   // block 默认 {} → 启用 Agent skills 块 upsert + 多代理要求块注入（与 CLI 行为一致）
   const detect = runDetect({ root, seedsDir, block: block || {}, skillsDir, noSkills });
-  const sync = runSyncDoc({ root, seedsDir, dryRun, block, overwrite, force, skillsDir, noSkills });
+  const sync = runSyncDoc({ root, seedsDir, dryRun, block, overwrite, force, skillsDir, noSkills, subtrees });
   return { detect, sync };
 }
 
@@ -688,11 +785,12 @@ export function ensureSkillsDir({ root, scan, dryRun = false, markConflict, acti
  * @param {{root: string, seedsDir?: string, dryRun?: boolean,
  *          block?: {layout?: 'single'|'multi', labels?: Record<string,string>} | null,
  *          overwrite?: string[], force?: boolean,
- *          skillsDir?: string, noSkills?: boolean}} args
+ *          skillsDir?: string, noSkills?: boolean, subtrees?: string[]}} args
  *   block 为 null（默认）时纯同步（不动通用规范文件内容）；传对象时 upsert「## Agent skills」块
  *   并按需注入「## 多代理要求」块。
  *   skillsDir 指定项目技能目录（缺省从仓库已有的受管小节标题推断，再回落 `docs/agents/skills`）；
  *   noSkills=true 时既不建目录也不写「### 项目技能」小节（项目技能另有其处的仓库）。
+ *   subtrees 为可选的已有仓库内相对目录；每项生成轻量 AGENTS.md / CODEBUDDY.md。
  *   overwrite 为允许覆盖的相对路径白名单（如 `CODEBUDDY.md`、`docs/agents/domain.md`）；
  *   force=true 时覆盖全部冲突。二者默认都为空/假 → 任何冲突文件都保留原样并记 `conflict`。
  * @returns {{
@@ -715,8 +813,9 @@ export function ensureSkillsDir({ root, scan, dryRun = false, markConflict, acti
  * 留模型：当 CLAUDE.md 与 AGENTS.md 同时存在时，取更高优先级 CLAUDE.md 为源，
  * 但不自动删除 AGENTS.md，由模型决定如何处理。
  */
-export function runSyncDoc({ root, seedsDir = SKILL_ROOT, dryRun = false, block = null, overwrite = [], force = false, skillsDir, noSkills = false }) {
+export function runSyncDoc({ root, seedsDir = SKILL_ROOT, dryRun = false, block = null, overwrite = [], force = false, skillsDir, noSkills = false, subtrees = [] }) {
   if (!path.isAbsolute(root)) root = path.resolve(root);
+  const subtreeList = resolveSubtrees(root, subtrees);
   const actions = [];
   const conflicts = [];
   const allowed = new Set((overwrite || []).map(normRel));
@@ -835,6 +934,8 @@ export function runSyncDoc({ root, seedsDir = SKILL_ROOT, dryRun = false, block 
   let skillsResult = null;
   if (scan) skillsResult = ensureSkillsDir({ root, scan, dryRun, markConflict, actions });
 
+  for (const subtree of subtreeList) syncSubtreeFiles({ root, subtree, dryRun, canOverwrite, markConflict, actions });
+
   return {
     canonical,
     createdDefault,
@@ -847,6 +948,7 @@ export function runSyncDoc({ root, seedsDir = SKILL_ROOT, dryRun = false, block 
     projectSkills: scan ? scan.skills.map((s) => s.name) : null,
     skillsSkipped,
     skills: skillsResult,
+    subtrees: subtreeList.map((s) => s.dir),
     actions,
     conflicts,
     dryRun,
@@ -925,10 +1027,12 @@ export function runSyncSkills({ root, skillsDir, dryRun = false, overwrite = [],
 /**
  * 生成并打印「全部默认文件模板」的完整内容（不落盘）。
  * 无论用户是否提供偏好，都由本函数产出各文件内容，模型据此展示给用户复制/替换。
- * @param {{seedsDir?: string, layout?: 'single'|'multi', labels?: Record<string,string>, skillsDir?: string, noSkills?: boolean}} args
- * @returns {Array<{file: string, content: string}>} 5~6 份文件的 (file, content) 列表（含项目技能目录 README）
+ * @param {{root?: string, seedsDir?: string, layout?: 'single'|'multi', labels?: Record<string,string>, skillsDir?: string, noSkills?: boolean, subtrees?: string[]}} args
+ *   subtrees 非空时 root 必填，用于校验已存在目录并计算实际根指令文件的相对链接。
+ * @returns {Array<{file: string, content: string}>} 5~6 份基础文件加每个子树两份文件
  */
-export function buildTemplateOutput({ seedsDir = SKILL_ROOT, layout = 'single', labels = {}, skillsDir = DEFAULT_SKILLS_DIR, noSkills = false, scan = null } = {}) {
+export function buildTemplateOutput({ root, seedsDir = SKILL_ROOT, layout = 'single', labels = {}, skillsDir = DEFAULT_SKILLS_DIR, noSkills = false, scan = null, subtrees = [] } = {}) {
+  const subtreeList = resolveSubtrees(root, subtrees);
   const dir = normalizeSkillsDir(skillsDir);
   const scanned = scan || { dir, exists: true, skills: [] };
   const agentsContent = `${MULTI_AGENT_BLOCK}\n\n${buildAgentSkillsBlock({ layout, labels, scan: noSkills ? null : scanned })}`;
@@ -940,6 +1044,11 @@ export function buildTemplateOutput({ seedsDir = SKILL_ROOT, layout = 'single', 
     files.push({ file: `docs/agents/${out}`, content });
   }
   if (!noSkills) files.push({ file: `${dir}/${SKILLS_README_NAME}`, content: buildSkillsReadme(scanned) });
+  for (const subtree of subtreeList) {
+    const content = buildSubtreeContent(path.resolve(root), subtree.dir);
+    files.push({ file: `${subtree.dir}/AGENTS.md`, content });
+    files.push({ file: `${subtree.dir}/CODEBUDDY.md`, content });
+  }
   return files;
 }
 
@@ -1004,6 +1113,7 @@ function parseArgs(argv) {
     labels: null,
     skillsDir: null,
     noSkills: false,
+    subtrees: [],
     noBlock: false,
     dryRun: false,
     overwrite: [],
@@ -1017,6 +1127,7 @@ function parseArgs(argv) {
     else if (a === '--labels') opts.labels = argv[++i];
     else if (a === '--skills-dir') opts.skillsDir = argv[++i];
     else if (a === '--no-skills') opts.noSkills = true;
+    else if (a === '--subtree') opts.subtrees.push(argv[++i]);
     else if (a === '--no-block') opts.noBlock = true;
     else if (a === '--dry-run') opts.dryRun = true;
     else if (a === '--overwrite') opts.overwrite.push(argv[++i]);
@@ -1044,6 +1155,7 @@ function usage() {
   --labels <json>    init / sync-doc / template：triage 标签覆盖表（'{"needs-triage":"bug:triage"}'）
   --skills-dir <rel> 项目技能目录（默认 docs/agents/skills；不给时沿用仓库受管小节里记录的目录）
   --no-skills        init / sync-doc / template：不建技能目录、也不写「### 项目技能」小节
+  --subtree <rel>    init / sync-doc / template：为已存在的仓库内子目录生成轻量双文件（可重复）
   --no-block         init / sync-doc：纯同步，不 upsert「## Agent skills」块（CLI 默认 upsert）
   --dry-run          演练：只打印动作，不落盘
   --overwrite <file> init / sync-doc：仅覆盖该冲突文件（可重复，路径相对仓库根）
@@ -1086,7 +1198,7 @@ export function main(argv) {
     if (cmd === 'template') {
       const block = { layout: opts.layout || 'single', labels: opts.labels ? JSON.parse(opts.labels) : {} };
       const scan = opts.noSkills ? null : scanProjectSkills(opts.root, opts.skillsDir || DEFAULT_SKILLS_DIR);
-      for (const f of buildTemplateOutput({ seedsDir: opts.seeds || SKILL_ROOT, skillsDir: opts.skillsDir || DEFAULT_SKILLS_DIR, noSkills: opts.noSkills, scan, ...block })) {
+      for (const f of buildTemplateOutput({ root: opts.root, seedsDir: opts.seeds || SKILL_ROOT, skillsDir: opts.skillsDir || DEFAULT_SKILLS_DIR, noSkills: opts.noSkills, scan, subtrees: opts.subtrees, ...block })) {
         console.log(`=== FILE: ${f.file} ===`);
         console.log(f.content);
         console.log('');
@@ -1125,6 +1237,7 @@ export function main(argv) {
         force: opts.force,
         skillsDir: opts.skillsDir,
         noSkills: opts.noSkills,
+        subtrees: opts.subtrees,
       });
       if (cmd === 'init') {
         const d = runDetect({ root: opts.root, seedsDir: opts.seeds || SKILL_ROOT, block: block || {}, skillsDir: opts.skillsDir, noSkills: opts.noSkills });

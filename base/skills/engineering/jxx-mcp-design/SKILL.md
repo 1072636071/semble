@@ -2,7 +2,7 @@
 name: jxx-mcp-design
 description: "设计 MCP Server 的渐进式发现架构与工具分层。当用户要设计或重做 MCP、问工具该怎么分层、怎么被发现时触发。不实现业务逻辑。"
 disable-model-invocation: false
-x-install: true
+x-install: false
 x-vendors:
   codearts:
     product: codebuddy

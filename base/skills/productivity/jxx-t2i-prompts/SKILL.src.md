@@ -2,7 +2,7 @@
 name: jxx-t2i-prompts
 description: "文生图提示词模板库与组稿流程。当用户要文生图提示词、画图提示词、按平台改组稿时触发。触发词：文生图、提示词、AI 绘画、出图。"
 disable-model-invocation: false
-x-install: true
+x-install: false
 x-vendors:
   codearts:
     product: codebuddy

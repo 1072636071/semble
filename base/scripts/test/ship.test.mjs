@@ -548,3 +548,143 @@ test('foreignInstalled：上游维护的目标跳过、不覆盖、不算失败'
     fs.rmSync(userHome, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------- 内联源（x-inline）
+
+function makeInlineFixture(overrides = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-inline-'));
+  const userHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-inline-home-'));
+  const config = {
+    buckets: ['productivity'],
+    managedPrefixes: ['jxx-'],
+    skillsSource: 'skills',
+    inlineExcludeConsumers: ['jxx-router'],
+    inlineBundles: { 'jxx-primitive': ['jxx-companion'] },
+    vendors: {
+      opencode: { label: 'OpenCode', derive: true, user: { skills: '~/.agents/skills' } },
+      codebuddy: { label: 'CodeBuddy', derive: true, user: { skills: '~/.codebuddy/skills' } },
+      kimi: { label: 'Kimi Work', derive: true, user: { skills: '~/.agents/skills' } },
+    },
+    ...overrides,
+  };
+  writeFile(root, 'vendors.json', JSON.stringify(config, null, 2));
+  writeFile(root, 'skills/productivity/jxx-primitive/SKILL.md',
+    '---\nname: jxx-primitive\ndescription: primitive skill\nx-inline: true\n---\n\n# primitive\n\n原语正文 A。\n');
+  writeFile(root, 'skills/productivity/jxx-companion/SKILL.md',
+    '---\nname: jxx-companion\ndescription: companion skill\nx-inline: true\n---\n\n# companion\n\n伴随正文 B。\n');
+  writeFile(root, 'skills/productivity/jxx-consumer/SKILL.md',
+    '---\nname: jxx-consumer\ndescription: consumer skill\n---\n\n# consumer\n\n调用 /jxx-primitive 干活。\n');
+  writeFile(root, 'skills/productivity/jxx-router/SKILL.md',
+    '---\nname: jxx-router\ndescription: router skill\n---\n\n# router\n\n路由到 /jxx-primitive。\n');
+  return { root, userHome, configPath: path.join(root, 'vendors.json') };
+}
+
+function inlineRun(fx, args) { return run(args, fx.userHome, fx.configPath); }
+function inlineDest(fx, dir, name) { return path.join(fx.userHome, dir, name, 'SKILL.md'); }
+
+test('x-inline：源不单独安装、旧副本被清理、引用技能收到 bundle 全文、路由不注入', () => {
+  const fx = makeInlineFixture();
+  try {
+    // 预置一份「升级前已装过」的源旧副本，安装时应主动收走。
+    writeFile(fx.userHome, '.codebuddy/skills/jxx-primitive/SKILL.md',
+      '---\nname: jxx-primitive\ndescription: old copy\n---\n\nold\n');
+    const r = inlineRun(fx, ['install']);
+    assert.equal(r.code, 0, r.all);
+    assert.match(r.stdout, /inline jxx-consumer ← jxx-companion, jxx-primitive/);
+    for (const dir of ['.agents/skills', '.codebuddy/skills']) {
+      assert.ok(!fs.existsSync(path.dirname(inlineDest(fx, dir, 'jxx-primitive'))), `${dir} 不应再装 jxx-primitive`);
+      assert.ok(!fs.existsSync(path.dirname(inlineDest(fx, dir, 'jxx-companion'))), `${dir} 不应装 jxx-companion`);
+    }
+    assert.match(r.stdout, /cleaned inline-source jxx-primitive/);
+
+    for (const dir of ['.agents/skills', '.codebuddy/skills']) {
+      const text = fs.readFileSync(inlineDest(fx, dir, 'jxx-consumer'), 'utf-8');
+      assert.equal((text.match(/<!-- ship:inline:start -->/g) || []).length, 1, '恰好一个内联块');
+      assert.match(text, /ship:inline:manifest jxx-companion=.* jxx-primitive=.* template=[0-9a-f]{12}/);
+      assert.match(text, /依赖标记/, '引导语要点破 /name 不是调用外部技能');
+      assert.match(text, /### jxx-primitive/);
+      assert.match(text, /原语正文 A/);
+      assert.match(text, /### jxx-companion/);
+      assert.match(text, /伴随正文 B/, 'bundle 的伴随源也要有宿主');
+    }
+    // Kimi 与 OpenCode 共用 ~/.agents/skills：后写的 kimi 版同样带内联块。
+    assert.match(fs.readFileSync(inlineDest(fx, '.agents/skills', 'jxx-consumer'), 'utf-8'), /ship:inline:start/);
+    // 路由技能（inlineExcludeConsumers）保持轻量，不注入。
+    assert.doesNotMatch(fs.readFileSync(inlineDest(fx, '.codebuddy/skills', 'jxx-router'), 'utf-8'), /ship:inline:start/);
+
+    // 幂等：再装一次字节完全一致，不会叠第二个块。
+    const before = fs.readFileSync(inlineDest(fx, '.codebuddy/skills', 'jxx-consumer'));
+    assert.equal(inlineRun(fx, ['install']).code, 0);
+    assert.ok(before.equals(fs.readFileSync(inlineDest(fx, '.codebuddy/skills', 'jxx-consumer'))));
+  } finally {
+    fs.rmSync(fx.root, { recursive: true, force: true });
+    fs.rmSync(fx.userHome, { recursive: true, force: true });
+  }
+});
+
+test('x-inline：改源不重跑 install ⇒ check 报 E_INLINE_STALE；重跑后恢复', () => {
+  const fx = makeInlineFixture();
+  try {
+    assert.equal(inlineRun(fx, ['install']).code, 0);
+    const ok = inlineRun(fx, ['check']);
+    assert.equal(ok.code, 0, ok.all);
+
+    writeFile(fx.root, 'skills/productivity/jxx-primitive/SKILL.md',
+      '---\nname: jxx-primitive\ndescription: primitive skill\nx-inline: true\n---\n\n# primitive\n\n原语正文 A（改过）。\n');
+    const drift = inlineRun(fx, ['check']);
+    assert.equal(drift.code, 1, '源改了必须挡住');
+    assert.match(drift.stderr, /E_INLINE_STALE/);
+    assert.match(drift.stderr, /重跑 node base\/scripts\/ship.mjs install/);
+    assert.match(drift.stderr, /复核 jxx-consumer 的描述与流程/);
+
+    assert.equal(inlineRun(fx, ['install']).code, 0);
+    const fixed = inlineRun(fx, ['check']);
+    assert.equal(fixed.code, 0, fixed.all);
+    assert.match(fs.readFileSync(inlineDest(fx, '.codebuddy/skills', 'jxx-consumer'), 'utf-8'), /原语正文 A（改过）/);
+
+    // 改伴随源同样触发漂移（bundle 的意义）。
+    writeFile(fx.root, 'skills/productivity/jxx-companion/SKILL.md',
+      '---\nname: jxx-companion\ndescription: companion skill\nx-inline: true\n---\n\n# companion\n\n伴随正文 B（改过）。\n');
+    assert.match(inlineRun(fx, ['check']).stderr, /E_INLINE_STALE/);
+  } finally {
+    fs.rmSync(fx.root, { recursive: true, force: true });
+    fs.rmSync(fx.userHome, { recursive: true, force: true });
+  }
+});
+
+test('x-inline：无宿主的源与坏 bundle 配置都被 check 挡住', () => {
+  const fx = makeInlineFixture({ inlineBundles: {} });
+  try {
+    const orphan = inlineRun(fx, ['check']);
+    assert.equal(orphan.code, 1);
+    assert.match(orphan.stderr, /E_INLINE_ORPHAN/);
+    assert.match(orphan.stderr, /jxx-companion/);
+  } finally {
+    fs.rmSync(fx.root, { recursive: true, force: true });
+    fs.rmSync(fx.userHome, { recursive: true, force: true });
+  }
+
+  const bad = makeInlineFixture({ inlineBundles: { 'jxx-primitive': ['jxx-missing'] } });
+  try {
+    const r = inlineRun(bad, ['check']);
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /E_INLINE_BUNDLE/);
+  } finally {
+    fs.rmSync(bad.root, { recursive: true, force: true });
+    fs.rmSync(bad.userHome, { recursive: true, force: true });
+  }
+});
+
+test('x-inline：源正文含本地相对链接时 check 拒绝内联', () => {
+  const fx = makeInlineFixture();
+  try {
+    writeFile(fx.root, 'skills/productivity/jxx-primitive/SKILL.md',
+      '---\nname: jxx-primitive\ndescription: primitive skill\nx-inline: true\n---\n\n# primitive\n\n见 [详情](./detail.md)。\n');
+    const r = inlineRun(fx, ['check']);
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /E_INLINE_LOCAL_LINK/);
+  } finally {
+    fs.rmSync(fx.root, { recursive: true, force: true });
+    fs.rmSync(fx.userHome, { recursive: true, force: true });
+  }
+});

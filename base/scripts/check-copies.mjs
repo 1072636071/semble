@@ -64,12 +64,6 @@ const REGISTRY_SPEC = [
     skills: REPORT_SHARED,
     destRel: `scripts/shared/${f}`,
   })),
-  // jxx-to-milestones 只用到这两件
-  ...['fs-utils.mjs', 'render-template.mjs'].map((f) => ({
-    src: `base/scripts/shared/${f}`,
-    skills: ['engineering/jxx-to-milestones'],
-    destRel: `scripts/shared/${f}`,
-  })),
   // 顶层流水线脚本 → <skill>/scripts/
   {
     src: 'base/scripts/report-flow.mjs',
@@ -85,13 +79,12 @@ const REGISTRY_SPEC = [
     skills: ['engineering/jxx-grill-with-memorial', 'misc/jxx-scaffold-exercises', 'misc/jxx-setup-pre-commit'],
     destRel: 'scripts/scaffold.mjs',
   },
-  { src: 'base/scripts/milestones.mjs', skills: ['engineering/jxx-to-milestones'], destRel: 'scripts/milestones.mjs' },
   {
     src: 'base/scripts/issue-flow.mjs',
     skills: ['engineering/jxx-to-spec', 'engineering/jxx-to-tickets'],
     destRel: 'scripts/issue-flow.mjs',
   },
-  // 验收点机械闸：jxx-to-tickets 是规范与脚本的产地，另外五个技能各自**调用**它。
+  // 验收点机械闸：jxx-to-tickets 是规范与脚本的产地，另外四个技能各自**调用**它。
   // 分发是一次一个技能目录的，调用方拿不到邻居目录 ⇒ 只放产地时，
   // 「跑 ac-audit」在调用方装不到的部署里必然 missing（2026-10-26 修）。
   // 脚本零依赖、无状态，复制一份最省；规范正文仍只在 jxx-to-tickets 里。
@@ -103,7 +96,6 @@ const REGISTRY_SPEC = [
       'engineering/jxx-implement',
       'engineering/jxx-implement-spec',
       'engineering/jxx-to-spec',
-      'engineering/jxx-to-milestones',
     ],
     destRel: 'scripts/ac-audit.mjs',
   },

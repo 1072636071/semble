@@ -37,6 +37,9 @@ import {
   filesIdentical,
   findOnPath,
   detectOcr,
+  resolveSubtrees,
+  buildSubtreeContent,
+  subtreeTargetIsSymlink,
 } from '../scripts/setup.mjs';
 
 // 临时目录 fixture：name 命名隔离，结束即清
@@ -724,4 +727,233 @@ test('e2e: CLI sync-skills 输出清单摘要，幂等退出码 0', () => {
   assert.match(out, /\[updated\] AGENTS\.md/);
   assert.match(out, /技能清单已与目录一致/);
   assert.match(execFileSync(process.execPath, [SETUP_MJS, 'sync-skills', '--root', root], { encoding: 'utf-8' }), /\[unchanged\] AGENTS\.md/);
+});
+
+// ================================================================ 子树指令文件
+
+test('sync-doc: subtrees 为每个已存在目录生成轻量双文件与正确根链接', () => {
+  const root = fixtureRoot('subtree-sync');
+  const seeds = mkSeeds('subtree-sync');
+  fs.mkdirSync(path.join(root, 'packages/api'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'web'));
+  const rootAgents = `${MULTI_AGENT_BLOCK}\n\n## 仓库私有规则\n\n不得复制到子树。\n`;
+  write(root, 'AGENTS.md', rootAgents);
+
+  const r = runSyncDoc({ root, seedsDir: seeds, noSkills: true, subtrees: ['packages/api', 'web'] });
+
+  for (const [dir, link] of [['packages/api', '../../AGENTS.md'], ['web', '../AGENTS.md']]) {
+    const agents = read(root, `${dir}/AGENTS.md`);
+    assert.equal(read(root, `${dir}/CODEBUDDY.md`), agents);
+    assert.match(agents, new RegExp(dir.replace('/', '\\/')));
+    assert.ok(agents.includes(`[根 AGENTS.md](${link})`));
+    assert.equal(agents.includes('不得复制到子树'), false);
+    assert.equal(fs.existsSync(path.resolve(root, dir, link)), true);
+  }
+  assert.equal(read(root, 'AGENTS.md'), rootAgents, '仓库根 AGENTS.md 不受子树生成影响');
+  assert.deepEqual(r.subtrees, ['packages/api', 'web']);
+});
+
+test('sync-doc: CLAUDE-only 仓库的子树链接实际根指令文件', () => {
+  const root = fixtureRoot('subtree-claude-only');
+  const seeds = mkSeeds('subtree-claude-only');
+  fs.mkdirSync(path.join(root, 'packages/api'), { recursive: true });
+  const claude = '# 项目\n\n仅以 CLAUDE.md 为根指令。\n';
+  write(root, 'CLAUDE.md', claude);
+
+  runSyncDoc({ root, seedsDir: seeds, noSkills: true, subtrees: ['packages/api'] });
+
+  const agents = read(root, 'packages/api/AGENTS.md');
+  assert.ok(agents.includes('[根 CLAUDE.md](../../CLAUDE.md)'));
+  assert.equal(fs.existsSync(path.resolve(root, 'packages/api', '../../CLAUDE.md')), true);
+  assert.equal(fs.existsSync(path.join(root, 'AGENTS.md')), false);
+  assert.equal(read(root, 'CLAUDE.md'), claude);
+  assert.equal(read(root, 'packages/api/CODEBUDDY.md'), agents);
+});
+
+test('init: subtree dry-run 不落盘，实际运行与重复运行幂等', () => {
+  const root = fixtureRoot('subtree-init');
+  const seeds = mkSeeds('subtree-init');
+  fs.mkdirSync(path.join(root, 'packages/api'), { recursive: true });
+
+  const dry = runInit({ root, seedsDir: seeds, noSkills: true, subtrees: ['packages/api'], dryRun: true });
+  assert.deepEqual(dry.sync.subtrees, ['packages/api']);
+  assert.equal(fs.existsSync(path.join(root, 'packages/api/AGENTS.md')), false);
+  assert.equal(fs.existsSync(path.join(root, 'AGENTS.md')), false);
+
+  runInit({ root, seedsDir: seeds, noSkills: true, subtrees: ['packages/api'] });
+  const agents = read(root, 'packages/api/AGENTS.md');
+  const buddy = read(root, 'packages/api/CODEBUDDY.md');
+  const again = runInit({ root, seedsDir: seeds, noSkills: true, subtrees: ['packages/api'] });
+  const actions = Object.fromEntries(again.sync.actions.map((a) => [a.file, a.action]));
+  assert.equal(actions['packages/api/AGENTS.md'], 'unchanged');
+  assert.equal(actions['packages/api/CODEBUDDY.md'], 'unchanged');
+  assert.equal(read(root, 'packages/api/AGENTS.md'), agents);
+  assert.equal(read(root, 'packages/api/CODEBUDDY.md'), buddy);
+});
+
+test('subtree: 拒绝根目录、绝对路径、穿越、缺失目录与仓库外真实目录', () => {
+  const root = fixtureRoot('subtree-invalid');
+  const seeds = mkSeeds('subtree-invalid');
+  const outside = fixtureRoot('subtree-outside');
+  fs.mkdirSync(path.join(root, 'packages/api'), { recursive: true });
+  write(root, 'plain-file', 'not a directory\n');
+  fs.symlinkSync(outside, path.join(root, 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
+  const invalid = [
+    '',
+    '.',
+    './',
+    '..',
+    '../outside',
+    'packages/../api',
+    path.resolve(root, 'packages/api'),
+    'missing',
+    'plain-file',
+    'escape',
+  ];
+  for (const subtree of invalid) {
+    assert.throws(
+      () => runSyncDoc({ root, seedsDir: seeds, noSkills: true, subtrees: [subtree] }),
+      /--subtree/,
+      `应拒绝: ${subtree}`,
+    );
+  }
+  assert.equal(fs.existsSync(path.join(root, 'AGENTS.md')), false, '路径校验失败时不得先写根文件');
+  assert.equal(fs.existsSync(path.join(root, 'docs')), false, '路径校验失败时不得先写模板');
+});
+
+test('subtree: 冲突默认保留，overwrite 精确覆盖，force 覆盖剩余冲突', () => {
+  const root = fixtureRoot('subtree-conflict');
+  const seeds = mkSeeds('subtree-conflict');
+  fs.mkdirSync(path.join(root, 'packages/api'), { recursive: true });
+  write(root, 'packages/api/AGENTS.md', '手写 AGENTS\n');
+  write(root, 'packages/api/CODEBUDDY.md', '手写 CODEBUDDY\n');
+
+  const dry = runSyncDoc({ root, seedsDir: seeds, noSkills: true, subtrees: ['packages/api'], dryRun: true });
+  assert.deepEqual(dry.conflicts.map((c) => c.file), ['packages/api/AGENTS.md', 'packages/api/CODEBUDDY.md']);
+  assert.equal(read(root, 'packages/api/AGENTS.md'), '手写 AGENTS\n');
+  assert.equal(read(root, 'packages/api/CODEBUDDY.md'), '手写 CODEBUDDY\n');
+
+  const kept = runSyncDoc({ root, seedsDir: seeds, noSkills: true, subtrees: ['packages/api'] });
+  assert.deepEqual(kept.conflicts.map((c) => c.file), ['packages/api/AGENTS.md', 'packages/api/CODEBUDDY.md']);
+  assert.equal(read(root, 'packages/api/AGENTS.md'), '手写 AGENTS\n');
+  assert.equal(read(root, 'packages/api/CODEBUDDY.md'), '手写 CODEBUDDY\n');
+
+  const one = runSyncDoc({
+    root,
+    seedsDir: seeds,
+    noSkills: true,
+    subtrees: ['packages/api'],
+    overwrite: ['packages/api/AGENTS.md'],
+  });
+  assert.deepEqual(one.conflicts.map((c) => c.file), ['packages/api/CODEBUDDY.md']);
+  assert.notEqual(read(root, 'packages/api/AGENTS.md'), '手写 AGENTS\n');
+  assert.equal(read(root, 'packages/api/CODEBUDDY.md'), '手写 CODEBUDDY\n');
+
+  const all = runSyncDoc({ root, seedsDir: seeds, noSkills: true, subtrees: ['packages/api'], force: true });
+  assert.equal(all.conflicts.length, 0);
+  assert.equal(read(root, 'packages/api/CODEBUDDY.md'), read(root, 'packages/api/AGENTS.md'));
+});
+
+test('buildTemplateOutput: subtrees 输出双文件但不落盘', () => {
+  const root = fixtureRoot('subtree-template');
+  const seeds = mkSeeds('subtree-template');
+  fs.mkdirSync(path.join(root, 'services/api'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'web'));
+
+  const out = buildTemplateOutput({ root, seedsDir: seeds, noSkills: true, subtrees: ['services/api', 'web'] });
+  const files = out.map((f) => f.file);
+  assert.ok(files.includes('services/api/AGENTS.md'));
+  assert.ok(files.includes('services/api/CODEBUDDY.md'));
+  assert.ok(files.includes('web/AGENTS.md'));
+  assert.ok(files.includes('web/CODEBUDDY.md'));
+  assert.ok(out.find((f) => f.file === 'services/api/AGENTS.md').content.includes('[根 AGENTS.md](../../AGENTS.md)'));
+  assert.ok(out.find((f) => f.file === 'web/AGENTS.md').content.includes('[根 AGENTS.md](../AGENTS.md)'));
+  assert.equal(fs.existsSync(path.join(root, 'services/api/AGENTS.md')), false);
+  assert.equal(fs.existsSync(path.join(root, 'web/AGENTS.md')), false);
+  assert.throws(() => buildTemplateOutput({ seedsDir: seeds, subtrees: ['web'] }), /--root/);
+});
+
+test('e2e: CLI init/sync-doc/template 接受可重复 --subtree', () => {
+  const root = fixtureRoot('subtree-cli');
+  fs.mkdirSync(path.join(root, 'packages/api'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'web'));
+
+  const initOut = execFileSync(process.execPath, [
+    SETUP_MJS,
+    'init',
+    '--root', root,
+    '--no-skills',
+    '--subtree', 'packages/api',
+    '--subtree', 'web',
+  ], { encoding: 'utf-8' });
+  assert.match(initOut, /\[created\] packages\/api\/AGENTS\.md/);
+  assert.match(initOut, /\[created\] web\/CODEBUDDY\.md/);
+  assert.ok(read(root, 'packages/api/AGENTS.md').includes('[根 AGENTS.md](../../AGENTS.md)'));
+  assert.ok(read(root, 'web/AGENTS.md').includes('[根 AGENTS.md](../AGENTS.md)'));
+
+  const syncOut = execFileSync(process.execPath, [
+    SETUP_MJS,
+    'sync-doc',
+    '--root', root,
+    '--no-skills',
+    '--subtree', 'packages/api',
+  ], { encoding: 'utf-8' });
+  assert.match(syncOut, /\[unchanged\] packages\/api\/AGENTS\.md/);
+  assert.match(syncOut, /\[unchanged\] packages\/api\/CODEBUDDY\.md/);
+
+  const templateOut = execFileSync(process.execPath, [
+    SETUP_MJS,
+    'template',
+    '--root', root,
+    '--no-skills',
+    '--subtree', 'packages/api',
+    '--subtree', 'web',
+  ], { encoding: 'utf-8' });
+  assert.match(templateOut, /=== FILE: packages\/api\/AGENTS\.md ===/);
+  assert.match(templateOut, /=== FILE: packages\/api\/CODEBUDDY\.md ===/);
+  assert.match(templateOut, /=== FILE: web\/AGENTS\.md ===/);
+  assert.match(templateOut, /=== FILE: web\/CODEBUDDY\.md ===/);
+});
+
+test('e2e: CLI 非法 --subtree 退出 1 且不写文件', () => {
+  const root = fixtureRoot('subtree-cli-invalid');
+  let error;
+  try {
+    execFileSync(process.execPath, [SETUP_MJS, 'init', '--root', root, '--subtree', '../outside'], { encoding: 'utf-8' });
+  } catch (e) {
+    error = e;
+  }
+  assert.ok(error, '非法路径必须失败');
+  assert.equal(error.status, 1);
+  assert.match(error.stderr, /--subtree/);
+  assert.equal(fs.existsSync(path.join(root, 'AGENTS.md')), false);
+  assert.equal(fs.existsSync(path.join(root, 'docs')), false);
+});
+
+test('subtree: 目标文件是符号链接时不写入仓库外，记为冲突并保留链接', () => {
+  const root = fixtureRoot('subtree-target-symlink');
+  const seeds = mkSeeds('subtree-target-symlink');
+  fs.mkdirSync(path.join(root, 'packages/api'), { recursive: true });
+  const outside = fixtureRoot('subtree-target-symlink-outside');
+  const outsideFile = path.join(outside, 'victim.md');
+  write(outside, 'victim.md', 'ORIGINAL-OUTSIDE\n');
+  const linkAbs = path.join(root, 'packages/api/AGENTS.md');
+  let linked = false;
+  try {
+    fs.symlinkSync(outsideFile, linkAbs, 'file');
+    linked = true;
+  } catch {
+    // 平台禁止创建文件符号链接时不伪装成跑过；仍断言普通文件与不存在文件的判定。
+  }
+  if (linked) {
+    assert.equal(subtreeTargetIsSymlink(linkAbs), true);
+    const result = runInit({ root, seedsDir: seeds, noSkills: true, subtrees: ['packages/api'] });
+    assert.ok(result.sync.conflicts.some((c) => String(c.file || c).includes('packages/api/AGENTS.md')), '应把符号链接目标记为冲突');
+    assert.equal(fs.readFileSync(outsideFile, 'utf-8'), 'ORIGINAL-OUTSIDE\n', '不得跟随符号链接写到仓库外');
+    assert.equal(fs.lstatSync(linkAbs).isSymbolicLink(), true, '符号链接本身保持不变');
+  }
+  assert.equal(subtreeTargetIsSymlink(path.join(root, 'AGENTS.md')), false);
+  assert.equal(subtreeTargetIsSymlink(path.join(root, 'packages/api/NO-SUCH-FILE.md')), false);
+  assert.equal(resolveSubtrees(root, ['packages/api']).length, 1);
+  assert.match(buildSubtreeContent(root, 'packages/api'), /根 AGENTS\.md/);
 });

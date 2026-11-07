@@ -9,6 +9,7 @@
 //   6) reviews/ 下的审查报告不参与工单审计
 //   7) PRD 有验收点节却零 AC 行 = 硬问题
 //   8) 退出码 2（无工单类文件）与 3（用法错误）语义分离
+//   9) 「逐字节相等」不误判禁词；「等等」「等。」「若干」仍命中
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -302,6 +303,35 @@ test('--strict AC 引用核对：有覆盖闸节但缺 PRD AC 对照表 → exit
   const r = run([dir, '--strict']);
   assert.equal(r.status, 1);
   assert.match(r.stdout, /缺「PRD AC 对照」表/);
+});
+
+test('「逐字节相等」不误判禁词（等 前紧邻「相」不算模糊措辞）', () => {
+  const dir = makeDir({
+    '01-x.md': '# x\n\n' + HEAD
+      + '- [ ] AC-1 [主路径] 产物逐字节相等 —— 验证:机器 node tools/check-eol.mjs\n'
+      + ERR + REG + NEG,
+  });
+  const r = run([dir, '--json']);
+  assert.doesNotMatch(r.stdout, /命中禁词/, '「逐字节相等」不该被判模糊措辞：' + r.stdout);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+test('「等等」「等。」「若干」仍被判命中禁词', () => {
+  const dir = makeDir({
+    '01-a.md': '# a\n\n' + HEAD
+      + '- [ ] AC-1 [主路径] 返回 A、B 等等 —— 验证:机器 node tools/check-eol.mjs\n'
+      + ERR + REG + NEG,
+    '02-b.md': '# b\n\n' + HEAD
+      + '- [ ] AC-1 [主路径] 返回 A、B 等。 —— 验证:机器 node tools/check-eol.mjs\n'
+      + ERR + REG + NEG,
+    '03-c.md': '# c\n\n' + HEAD
+      + '- [ ] AC-1 [主路径] 返回若干条记录 —— 验证:机器 node tools/check-eol.mjs\n'
+      + ERR + REG + NEG,
+  });
+  const r = run([dir]);
+  assert.match(r.stdout, /命中禁词（等等/, r.stdout);
+  assert.match(r.stdout, /命中禁词（等）/, r.stdout);
+  assert.match(r.stdout, /命中禁词（若干）/, r.stdout);
 });
 
 test('--strict AC 引用核对：老目录（map.md 无覆盖闸节）不因引用核对判红', () => {

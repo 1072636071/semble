@@ -236,6 +236,211 @@ function stripXVendors(meta) {
   return out;
 }
 
+// ---------------------------------------------------------------- 内联源技能
+//
+// `x-inline: true` 的技能不单独安装：安装期把它的正文（含递归引用到的其它
+// inline 源）注入到引用它的技能 SKILL.md 末尾。两个目的：
+//   1. 技能列表里少一行常驻 description，省 context；
+//   2. 引用技能自带被依赖技能的原文，agent 不必再读第二个文件。
+// 注入块由固定 marker 界定，重复 install 幂等；块内 manifest 记录每个源的正文
+// hash 与注入模板 hash，`ship check` 据此做漂移门禁——改了源技能或注入逻辑
+// 却没重跑 install 就报 E_INLINE_STALE，提醒同步依赖技能。
+const INLINE_START = '<!-- ship:inline:start -->';
+const INLINE_END = '<!-- ship:inline:end -->';
+const INLINE_BLOCK_RE = /<!-- ship:inline:start -->[\s\S]*?<!-- ship:inline:end -->\r?\n?/;
+const INLINE_REF_RE = /(?<![\w/])(?:\/|`)([a-z][a-z0-9-]*)`?/g;
+const INLINE_MANIFEST_RE = /<!-- ship:inline:manifest ([^>]*) -->/;
+
+// x-inline 取值归一化沿用 x-install 的解析器（boolean / 带行尾注释都能认）。
+function getXInline(filePath) {
+  let meta = {};
+  try {
+    meta = parseFrontmatter(filePath).meta || {};
+  } catch {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+    if (fm) {
+      const line = fm[1].split(/\r?\n/).find((l) => /^\s*x-inline\s*:/.test(l));
+      if (line) return normalizeXInstallValue(line.split(/:/).slice(1).join(':').trim()) === 'true';
+    }
+    return false;
+  }
+  return normalizeXInstallValue(meta['x-inline']) === 'true';
+}
+
+// 内联源表：name → { name, body, hash, srcPath, srcMode }。
+// 结果挂在 config 上缓存，一次 install/check 只扫一遍源。
+function inlineSourceMap(config) {
+  if (config.inlineSourceCache) return config.inlineSourceCache;
+  const map = new Map();
+  for (const skill of listSkillDirs(config)) {
+    if (!getXInline(skill.srcPath)) continue;
+    let body;
+    try { body = parseFrontmatter(skill.srcPath).body; } catch { continue; }
+    map.set(skill.name, {
+      name: skill.name,
+      body,
+      hash: crypto.createHash('sha256').update(body, 'utf-8').digest('hex').slice(0, 12),
+      srcPath: skill.srcPath,
+      srcMode: skill.srcMode,
+    });
+  }
+  config.inlineSourceCache = map;
+  return map;
+}
+
+// 正文里指向本地文件的链接：内联进别的技能目录后必然断，check 要挡住。
+function inlineLocalLinks(body) {
+  return [...body.matchAll(/\]\(([^)]+)\)/g)]
+    .map((m) => m[1].trim())
+    .filter((u) => !/^(https?:|#|mailto:|\/|\{\{)/.test(u));
+}
+
+// 递归收集正文引用的 inline 源（`/name` 或反引号 `name` 形式），seen 防环、去重。
+// bundles：{ 被引源: [伴随源...] }——同一功能对的源（grilling + grill-me）一起注入，
+// 这样「本身没有独立引用者」的伴随源也有宿主，改它同样会让宿主的 manifest 过期。
+function inlineRefsIn(body, sources, seen = new Set(), bundles = {}) {
+  const found = new Map();
+  const visit = (name) => {
+    if (!sources.has(name) || seen.has(name)) return;
+    const src = sources.get(name);
+    seen.add(name);
+    found.set(name, src);
+    for (const extra of bundles[name] || []) visit(extra);
+    for (const [n, s] of inlineRefsIn(src.body, sources, seen, bundles)) found.set(n, s);
+  };
+  for (const m of body.matchAll(INLINE_REF_RE)) visit(m[1]);
+  return found;
+}
+
+// 注入模板自身的指纹：块文本、引导语、引用正则、幂等逻辑任一变更都算模板变更。
+// 纳入 manifest ⇒ 只改 ship 注入逻辑、没重跑 install 时也能被 E_INLINE_STALE 挡住。
+// 取相关函数的源码而非手维护版本号：改代码即改指纹，不会忘。
+function inlineTemplateHash() {
+  const sig = [
+    buildInlineBlock.toString(), finalizeSkillContent.toString(),
+    INLINE_START, INLINE_END, INLINE_REF_RE.source, INLINE_BLOCK_RE.source,
+  ].join('\u0000');
+  return crypto.createHash('sha256').update(sig, 'utf-8').digest('hex').slice(0, 12);
+}
+
+function inlineManifest(names, refs) {
+  const sources = [...names].map((n) => `${n}=${refs.get(n).hash}`).join(' ');
+  return `${sources} template=${inlineTemplateHash()}`;
+}
+
+// 生成注入块；无引用返回 null。names 按字典序固定，保证产物确定、可比对。
+function buildInlineBlock(body, sources, bundles = {}) {
+  const refs = inlineRefsIn(body, sources, new Set(), bundles);
+  if (refs.size === 0) return null;
+  const names = [...refs.keys()].sort();
+  const parts = [
+    INLINE_START,
+    `<!-- ship:inline:manifest ${inlineManifest(names, refs)} -->`,
+    '',
+    '## 内联技能原文（ship install 展开 · 勿手改）',
+    '',
+    '以下技能不单独安装，正文在此直接给出。按本段内容执行，不要再去找同名技能文件。',
+    `本技能正文与本段内出现的 ${names.map((n) => `\`/${n}\``).join('、')} 等字样是依赖标记，指本块对应的 \`###\` 段——不是要调用另一个技能文件，也不是要去加载同名技能；段与段之间互相引用同理。`,
+    '改这些源技能后必须重跑 `node base/scripts/ship.mjs install`，再跑 `check` 过门禁。',
+    '',
+  ];
+  for (const n of names) parts.push(`### ${n}`, '', refs.get(n).body.trim(), '');
+  parts.push(INLINE_END, '');
+  return { block: parts.join('\n'), names };
+}
+
+// 幂等注入：已有旧块先整块摘掉，再 append 当前块。
+// 路由技能（config.inlineExcludeConsumers）不接收注入——它们的价值是轻量指针清单。
+function finalizeSkillContent(content, body, skill, config) {
+  if ((config.inlineExcludeConsumers || []).includes(skill.name)) return { content, names: [] };
+  // srcMode 消费者不注入：CodeArts 派生会把正文换成英文块，掺入中文源会语言混杂。
+  if (skill.srcMode) return { content, names: [] };
+  const built = buildInlineBlock(body, inlineSourceMap(config), config.inlineBundles || {});
+  if (!built) return { content, names: [] };
+  const clean = content.replace(INLINE_BLOCK_RE, '').replace(/\s+$/, '');
+  return { content: `${clean}\n\n${built.block}\n`, names: built.names };
+}
+
+// 内联源旧副本的归属判定：源改了 frontmatter 后内容指纹会变，光靠指纹认不出，
+// 故补 name 自证（frontmatter / 正文）+ 安装清单 + 指纹三条腿，任一命中即认。
+function looksLikeInlineRetire(entryDir, name, manifest, knownHashes) {
+  const skillMd = path.join(entryDir, 'SKILL.md');
+  if (!fs.existsSync(skillMd)) return true;
+  if (manifest && manifest.has(name)) return true;
+  try {
+    const raw = fs.readFileSync(skillMd, 'utf-8');
+    const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (fm && new RegExp(`^name:\s*${name}\s*$`, 'm').test(fm[1])) return true;
+    if (raw.includes(`name: ${name}`) || raw.includes(`/${name}`)) return true;
+    return knownHashes.has(sha256(skillMd));
+  } catch { return false; }
+}
+
+// 漂移门禁：已安装副本里的 inline manifest 必须与当前源正文一致。
+// 副本不存在（未安装 / CI）时跳过——不把「还没装」误报成漂移。
+function checkInlineIntegrity(config) {
+  const errors = [];
+  const sources = inlineSourceMap(config);
+  if (sources.size === 0) return errors;
+  const bundles = config.inlineBundles || {};
+  for (const [trigger, extras] of Object.entries(bundles)) {
+    if (!sources.has(trigger)) errors.push(deriveError('E_INLINE_BUNDLE', trigger, '*', `inlineBundles 的键 ${trigger} 不是 x-inline 源`));
+    if (!Array.isArray(extras)) { errors.push(deriveError('E_INLINE_BUNDLE', trigger, '*', `inlineBundles.${trigger} 必须是数组`)); continue; }
+    for (const e of extras) if (!sources.has(e)) errors.push(deriveError('E_INLINE_BUNDLE', trigger, '*', `inlineBundles 的伴随源 ${e} 不是 x-inline 源`));
+  }
+  for (const [name, src] of sources) {
+    if (src.srcMode) errors.push(deriveError('E_INLINE_UNSUPPORTED', src.srcPath, '*', `inline 源 ${name} 必须是 plain SKILL.md（SKILL.src.md 派生版不内联）`));
+    if (extractEnBlock(src.body)) errors.push(deriveError('E_INLINE_UNSUPPORTED', src.srcPath, '*', `inline 源 ${name} 正文不得含 <!--en--> 块（派生版语言会混杂）`));
+    const links = inlineLocalLinks(src.body);
+    if (links.length) errors.push(deriveError('E_INLINE_LOCAL_LINK', src.srcPath, '*', `inline 源 ${name} 正文含本地相对链接 ${links.join(', ')}；内联进其它技能目录后链接会断`));
+  }
+  const exclude = new Set(config.inlineExcludeConsumers || []);
+  const candidates = listSkillDirs(config).filter((s) => !sources.has(s.name) && !exclude.has(s.name) && getXInstall(s.srcPath) !== false);
+  const checked = new Set();
+  const hosted = new Set();
+  for (const c of candidates) {
+    let body;
+    try { body = parseFrontmatter(c.srcPath).body; } catch { continue; }
+    const refs = inlineRefsIn(body, sources, new Set(), bundles);
+    if (refs.size === 0) continue;
+    // 派生型消费者拿不到中文内联块：直接挡住，避免静默丢依赖。
+    if (c.srcMode) {
+      errors.push(deriveError('E_INLINE_UNSUPPORTED', c.srcPath, '*', `依赖技能 ${c.name} 是 SKILL.src.md 派生型，不能接收内联源；改为 plain SKILL.md 或去掉对 ${[...refs.keys()].join(', ')} 的引用`));
+      continue;
+    }
+    for (const n of refs.keys()) hosted.add(n);
+    const expected = inlineManifest([...refs.keys()].sort(), refs);
+    // 同一消费者跨 7 家厂商只报一条：把过期目录收进同一句，不刷屏。
+    const stale = [];
+    let firstActual = null;
+    for (const vendor of config.vendors) {
+      for (const dir of [vendor.userSkills, vendor.projectSkills]) {
+        if (!dir) continue;
+        const dest = path.join(dir, c.name, 'SKILL.md');
+        if (checked.has(dest) || !fs.existsSync(dest)) continue;
+        checked.add(dest);
+        let raw;
+        try { raw = fs.readFileSync(dest, 'utf-8'); } catch { continue; }
+        const m = raw.match(INLINE_MANIFEST_RE);
+        if (!m || m[1].trim() !== expected) {
+          stale.push(dest);
+          if (firstActual === null) firstActual = m ? m[1].trim() : '无内联块';
+        }
+      }
+    }
+    if (stale.length) {
+      errors.push(deriveError('E_INLINE_STALE', stale[0], '*',
+        `依赖技能 ${c.name} 的内联副本在 ${stale.length} 处目标过期（期望 ${expected}，实际 ${firstActual}；例：${stale[0]}）。改源后重跑 node base/scripts/ship.mjs install，并复核 ${c.name} 的描述与流程是否仍与源一致`));
+    }
+  }
+  // 无宿主的 inline 源：改了没人知道，等于把内容弄丢。
+  for (const name of sources.keys()) {
+    if (!hosted.has(name)) errors.push(deriveError('E_INLINE_ORPHAN', sources.get(name).srcPath, '*', `inline 源 ${name} 没有任何已安装技能引用，正文不会出现在任何宿主里；补引用或把它改回普通技能`));
+  }
+  return errors;
+}
+
 // ---------------------------------------------------------------- 工具函数
 
 function sha256(filePath) {
@@ -429,6 +634,8 @@ function loadConfig(configPath, userHomeOverride) {
     foreignInstalled: raw.foreignInstalled && typeof raw.foreignInstalled === 'object' && !Array.isArray(raw.foreignInstalled) ? raw.foreignInstalled : {},
     skillsBase,
     agentsBase,
+    inlineExcludeConsumers: Array.isArray(raw.inlineExcludeConsumers) ? raw.inlineExcludeConsumers : [],
+    inlineBundles: raw.inlineBundles && typeof raw.inlineBundles === 'object' && !Array.isArray(raw.inlineBundles) ? raw.inlineBundles : {},
     vendors,
   };
 }
@@ -498,6 +705,7 @@ function normalizeXInstallValue(v) {
 
 // x-install 语义：缺省 / true → 'user'（用户级 + 项目级均装）；'project' → 仅项目级；false → 不装
 function getXInstall(filePath) {
+  if (getXInline(filePath)) return false; // x-inline 源不单独安装
   let meta = {};
   try {
     meta = parseFrontmatter(filePath).meta || {};
@@ -687,7 +895,7 @@ function runDerive(config, { dryRun }) {
       const d = deriveSkill(vendor, skill, config);
       derivedSkills.push({ skill, vendor, d });
       if (d.error) { errors.push(d.error); continue; }
-      plan.push({ kind: 'skill', skill: skill.name, vendor: vendor.id, file: `${d.name}/SKILL.md`, render: () => renderDerived(d) });
+      plan.push({ kind: 'skill', skill: skill.name, vendor: vendor.id, file: `${d.name}/SKILL.md`, render: () => finalizeSkillContent(renderDerived(d), d.body, skill, config).content });
     }
   }
   for (const agent of listAgents(config)) {
@@ -813,14 +1021,16 @@ function runInstall(config, { dryRun, project }) {
   const installed = []; // { dest, expectedHash }
   const skipped = [];
   const failures = [];
+  const inlined = []; // { skill, names }，供 CLI 打印内联摘要
 
   const allSkills = listSkillDirs(config);
   const skills = allSkills.filter((s) => shouldInstallForTarget(getXInstall(s.srcPath), project));
   // 残留清理依据“源中全部技能”，而非“本次应装的技能”，
   // 避免误删 x-install: project / false 的已装目录（它们在本次目标级别本就不装）。
   // 名字须按“该厂商的落盘名”算：src 技能经派生可能改名（如 CodeArts 的 huawei-cloud-<product>- 前缀），
-  // 只比源目录名会把刚装好的派生副本当残留删掉（本仓 jxx-tool-intro 踩过）。
-  const expectedNamesFor = (vendor) => new Set(allSkills.map((s) => {
+  // 只比源目录名会把刚装好的派生副本当残留删掉（本仓 tool-intro 迁移前踩过）。
+  // x-inline 源不进「当前应存在」集合：它已不再单独安装，旧副本由下方残留清理收走。
+  const expectedNamesFor = (vendor) => new Set(allSkills.filter((s) => !getXInline(s.srcPath)).map((s) => {
     if (!s.srcMode) return s.name;
     const d = deriveSkill(vendor, s, config);
     return d.error ? s.name : d.name;
@@ -847,6 +1057,7 @@ function runInstall(config, { dryRun, project }) {
   };
   // 危险操作护栏：禁止 rmrf 这些根目录自身或其祖先
   const guards = [config.configDir, config.projectRoot, config.skillsBase, config.agentsBase, config.userHome];
+  const inlineSourceNames = new Set(inlineSourceMap(config).keys());
 
   for (const vendor of config.vendors) {
     const skillsTarget = targetSkillsDir(config, vendor, project);
@@ -860,7 +1071,9 @@ function runInstall(config, { dryRun, project }) {
           }
           let content;
           try {
-            content = renderDerived(d);
+            const fin = finalizeSkillContent(renderDerived(d), d.body, skill, config);
+            content = fin.content;
+            if (fin.names.length) inlined.push({ skill: skill.name, names: fin.names });
           } catch (e) {
             failures.push({ code: 'E_RENDER', file: skill.srcPath, vendor: vendor.id, detail: `派生渲染失败: ${e.message}`, action: `skip ${vendor.label} install of ${skill.name}` });
             continue;
@@ -898,6 +1111,14 @@ function runInstall(config, { dryRun, project }) {
             }
           }
           const preserveRels = (config.preserveOnInstall || {})[skill.name] || [];
+          // 内联注入按「最终内容」算：srcMode / kimi / plain 三条路先得出应有文本，
+          // 再写盘并据此算 expectedHash；dry-run 也用同一份文本做预览基准。
+          const baseContent = kimiContent !== null ? kimiContent : fs.readFileSync(skill.srcPath, 'utf-8');
+          let baseBody;
+          try { baseBody = parseFrontmatter(skill.srcPath).body; } catch { baseBody = baseContent.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, ''); }
+          const fin = finalizeSkillContent(baseContent, baseBody, skill, config);
+          const finalContent = fin.content;
+          if (fin.names.length) inlined.push({ skill: skill.name, names: fin.names });
           let stashes = [];
           if (!dryRun) {
             try {
@@ -910,6 +1131,7 @@ function runInstall(config, { dryRun, project }) {
                 rmrf(destDir, guards);
                 copyDir(skill.dir, destDir);
               }
+              if (finalContent !== baseContent) fs.writeFileSync(path.join(destDir, 'SKILL.md'), finalContent, 'utf-8');
             } catch (e) {
               restorePreserved(destDir, stashes);
               failures.push({ code: 'E_INSTALL', file: destDir, vendor: vendor.id, detail: `安装失败: ${e.message}`, action: `skip ${vendor.label} install of ${skill.name}` });
@@ -917,9 +1139,7 @@ function runInstall(config, { dryRun, project }) {
             }
             restorePreserved(destDir, stashes);
           }
-          const expectedHash = kimiContent !== null
-            ? crypto.createHash('sha256').update(kimiContent, 'utf-8').digest('hex')
-            : sha256(skill.srcPath);
+          const expectedHash = crypto.createHash('sha256').update(finalContent, 'utf-8').digest('hex');
           installed.push({ dest: path.join(destDir, 'SKILL.md'), expectedHash, vendor: vendor.id, skillsTarget });
         }
       }
@@ -940,6 +1160,21 @@ function runInstall(config, { dryRun, project }) {
         if (expectedNames.has(entry.name)) { installedNames.push(entry.name); continue; }
         if (!config.managedPrefixes.some((p) => entry.name.startsWith(p))) continue;
         const entryDir = path.join(skillsTarget, entry.name);
+        // x-inline 源的旧副本：源已不再安装，这里主动收走（环境里的技能列表因此变少）。
+        // 归属判据比指纹宽一档：源改了 frontmatter 后指纹会变，靠 SKILL.md 的 name 自证。
+        if (inlineSourceNames.has(entry.name)) {
+          if (looksLikeInlineRetire(entryDir, entry.name, manifest, knownHashesFor(vendor))) {
+            try {
+              rmrf(entryDir, guards);
+              skipped.push(`cleaned inline-source ${entry.name} from ${vendor.label}（已内联进引用技能，不再单独安装）`);
+            } catch (e) {
+              failures.push({ code: 'E_CLEAN', file: entryDir, vendor: vendor.id, detail: `inline 源旧副本清理失败: ${e.message}`, action: 'continue' });
+            }
+          } else {
+            skipped.push(`keep ${entry.name} from ${vendor.label}（不像本仓 inline 源旧副本，视为用户自有技能）`);
+          }
+          continue;
+        }
         // 空目录 / 没有入口文件 ⇒ 必然是装了一半的残骸（用户技能一定带 SKILL.md）
         const hasEntry = fs.existsSync(path.join(entryDir, 'SKILL.md'));
         if (hasEntry) {
@@ -1018,7 +1253,9 @@ const skipVendorMap = new Map(allAgents.map((a) => [a.name, getSkipVendors(a.fil
     }
   }
 
-  return { installed, skipped, failures };
+  // 内联摘要按「技能 + 源集合」去重：多家厂商各装一次，只报一行。
+  const inlineSummary = [...new Map(inlined.map((i) => [`${i.skill}|${i.names.join(',')}`, i])).values()];
+  return { installed, skipped, failures, inlined: inlineSummary };
 }
 
 // ---------------------------------------------------------------- verify
@@ -1068,6 +1305,21 @@ function runVerify(config, installed) {
 
 // ---------------------------------------------------------------- check
 
+// 未安装技能索引新鲜度：卸载/新增技能或改过 description 后没重跑生成器，
+// jxx-ask-matt 的索引就会指向错的状态——归入 check 门禁挡住。
+// 用子进程保持生成器 CLI 可单独运行的契约。
+function runAskMattIndexGate() {
+  const tool = path.join(__dirname, 'ask-matt-index.mjs');
+  if (!fs.existsSync(tool)) return [];
+  const res = spawnSync(process.execPath, [tool, '--check'], { encoding: 'utf-8' });
+  if (res.status === 0) return [];
+  return [{
+    code: 'E_ASK_MATT_INDEX', vendor: '*',
+    file: path.join(__dirname, '..', 'skills', 'engineering', 'jxx-ask-matt', 'references', 'not-installed-skills.md'),
+    detail: `jxx-ask-matt 的未安装技能索引过期：${String(res.stdout || '').trim()}（跑 node base/scripts/ask-matt-index.mjs 刷新）`,
+  }];
+}
+
 // 技能宪章机器闸：ship check 顺带跑 skill-lint，任何 P0（frontmatter 解析不出
 // name/description、技能目录缺入口文件）都算分发链硬故障，必须挡住。
 // 用子进程而非 import：skill-lint 是独立 CLI，保持其可单独运行的契约不变。
@@ -1083,11 +1335,30 @@ function runSkillLintGate(config) {
   return [{ code: 'E_SKILL_P0', vendor: '*', file: skillsBase, detail: `skill-lint --strict 报 ${count} 条 P0（frontmatter 解析失败或技能目录缺入口文件），详见 node base/scripts/skill-lint.mjs --strict` }];
 }
 
+// description 预算与调用策略是独立硬契约；第三方 description 超长仅 warning，不进入 errors。
+function runSkillContractGate(config) {
+  const tool = path.join(__dirname, 'skill-contract.mjs');
+  if (!fs.existsSync(tool)) return [];
+  const res = spawnSync(process.execPath, [tool, '--root', config.skillsBase, '--json'], { encoding: 'utf-8' });
+  if (res.status === 0) return [];
+  let detail = String(res.stderr || res.stdout || res.error || 'skill-contract 执行失败').trim();
+  try {
+    const report = JSON.parse(res.stdout);
+    detail = report.errors.map((item) => `${item.code} ${item.skill || ''}: ${item.message}`).join('；');
+  } catch {
+    // 非 JSON 故障保留原输出，便于定位扫描或进程错误。
+  }
+  return [{ code: 'E_SKILL_CONTRACT', vendor: '*', file: config.skillsBase, detail }];
+}
+
 function runCheck(config) {
   const errors = [];
   const { errors: deriveErrors } = runDerive(config, { dryRun: true });
   errors.push(...deriveErrors);
+  errors.push(...checkInlineIntegrity(config));
+  errors.push(...runAskMattIndexGate());
   errors.push(...runSkillLintGate(config));
+  errors.push(...runSkillContractGate(config));
   return errors;
 }
 
@@ -1229,7 +1500,8 @@ async function main() {
 
   if (opts.cmd === 'install' || opts.cmd === 'all') {
     if (opts.dryRun) console.log('（dry-run 预览：OK=一致，MISSING=待安装，MISMATCH=内容待更新；不写入任何文件）');
-    const { installed, skipped, failures } = runInstall(config, { dryRun: opts.dryRun, project: opts.project });
+    const { installed, skipped, failures, inlined } = runInstall(config, { dryRun: opts.dryRun, project: opts.project });
+    for (const i of inlined || []) console.log(`inline ${i.skill} ← ${i.names.join(', ')}`);
     for (const s of skipped) console.log(`- ${s}`);
     for (const f of failures) {
       exit = 1;

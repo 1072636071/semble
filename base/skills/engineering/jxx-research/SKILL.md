@@ -2,7 +2,7 @@
 name: jxx-research
 description: "调研主题、收集资料、写报告、技术选型。当用户说调研、写报告、技术选型时触发。"
 metadata:
-  version: 2.3.0
+  version: 2.4.0
 ---
 
 # 调研与报告生成

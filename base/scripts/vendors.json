@@ -21,6 +21,15 @@
   "preserveOnInstall": {
     "quarkclouddrive": ["deepseek"]
   },
+  "inlineExcludeConsumers": [
+    "jxx-ask-matt",
+    "seo-router",
+    "kb-router",
+    "craft-router"
+  ],
+  "inlineBundles": {
+    "jxx-grilling": ["jxx-grill-me"]
+  },
   "skillsSource": "../skills",
   "agentsSource": "../agent",
   "vendors": {

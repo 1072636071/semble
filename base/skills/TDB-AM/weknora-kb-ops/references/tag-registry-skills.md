@@ -12,13 +12,13 @@
 
 | name | tag id | color | sort_order | 用途 | 当前引用数 |
 |---|---|---|---|---|---|
-| `type:material` | `7b162c17-660c-4d65-b9d9-44ae4c0016bf` | `#34a853` | 100 | 通用类型标：项目使用到的资料——第三方官方 SKILL.md 原文（主技能「通用类型标」节） | 57 |
+| `type:material` | `7b162c17-660c-4d65-b9d9-44ae4c0016bf` | `#34a853` | 100 | 通用类型标：项目使用到的资料——第三方官方 SKILL.md 原文 + 本仓自研 craft 子技能快照（主技能「通用类型标」节） | 113 |
 | `type:experience` | `3c6f9c9a-ba11-44aa-8dc6-3ebd5081a867` | `#4285f4` | 101 | 通用类型标：项目自身的踩坑 / 接入实录——本库自身的接入与灌装记录 | 1 |
 
 **本库暂无来源标**（`文档上传` / `灵枢记忆`）与领域主题标（2026-10-20 快照）。原因见「待挂清单与判据」。
 后续新增主题标在此登记，`sort_order` **接续**现有档位（类型两标占 100/101，主题标从 200 起，别再撞）。
 
-## 已入库条目（2026-10-20 快照 · 灌装中）
+## 已入库条目·Hostinger（2026-10-20 快照 · 灌装中）
 
 REST `GET /knowledge-bases/{kb}/knowledge` 全量翻页回读：**57 条，全部 `type=manual`、`parse_status=finalizing`、
 `source=manual`、`channel=web`、`metadata.status=publish`、`tags` 原为全 null（一条都没挂标签）**。
@@ -41,9 +41,122 @@ headless 子树 `hostinger/headless/steps/…` 随迁不变），为后续其他
 操作走 `PUT /knowledge-bases/{kb}/knowledge/folders` 的 `{from, to}` 整目录重命名（15/15 成功，
 moved 合计 56，仅调整归类不重解析）。后续新厂商技能灌库时按同口径建 `<vendor>/` 顶层目录。
 
+## 已入库条目·乐享 lexiang（2026-10-28 灌装 · 30 条）
+
+姜先生 2026-10-28 指示：乐享（lexiang）相关技能全部卸载，原文放入本库，本地只留一个引导程序。
+实际执行 30 条 manual（29 条技能原文 + 1 条自撰索引），全部 `publish`、全挂 `type:material`：
+
+| 类 | 条数 | 说明 |
+|---|---|---|
+| 自撰索引 | 1 | `lexiang-技能索引`（`6f932043-…`，留库根）——目录布局、条目命名、两条取原文腿、域对照、恢复本地技能口径 |
+| 顶层技能原文 | 7 | `lexiang`（路由）+ `lexiang-setup` / `lexiang-search` / `lexiang-writer` / `lexiang-blocks` / `lexiang-files` / `lexiang-connectors`，各 1 条 = 原 `SKILL.md` |
+| 附属文件 | 22 | `<技能名>-aux-NN-<相对路径>`（路径 `/` 写 `__`、去扩展名）：block schema / 主题 / 示例 / markdown 转换 / 上传脚本 / 常见错误 / doc 模板 等 |
+
+**目录布局**：`lexiang/<技能名>`（7 个文件夹，与 `hostinger/<skill>` 同口径），索引留库根
+（`root_document_count=2`；全库 87 条 = hostinger 56 + 根 1 + lexiang 30）。落盘走
+`POST /knowledge/folder`，body `{kb_id, knowledge_ids, folder_path:"lexiang/<技能名>"}`（目标目录不存在自动建；
+每批上限 200 条；空路径 = 回库根）。
+
+### 两个必记的坑（2026-10-28 实测）
+
+1. **manual 建条目缺 `status` 落 `draft`，不进索引**。payload 是 `types.ManualKnowledgePayload`
+   （`title` / `content` / `status` / `tag_ids` / `channel`），`status` 取值 `draft|publish`，
+   **不传即 draft**（`parse_status=draft`、`file_size=0`、`GET /chunks/<id>` 空集）。
+   补救：`PUT /knowledge/manual/<id>` 带 `{title, content, status:"publish"}` → `parse_status` 转 `pending` 并入队。
+   注意字段是 **`tag_ids` 数组**，老口径的单数 `tag_id` 会被静默忽略（首轮 30 条 tags 全 null 就是这么来的）。
+2. **挂标批量上限 20 条**：`PUT /knowledge/tags` 一次超过 20 个 `knowledge_ids` 返
+   `400 {"message":"at most 20 documents"}`，按 20 一批切。
+
+### 检索现状（2026-10-28 15:4x）
+
+向量腿全局不可用：`POST /knowledge-bases/<kb>/hybrid-search` 返
+`code=1007 embedding ... Post "http://www.erp.sdcxslzj.com:11235/v1/embeddings": connection refused`
+（外部 embedding 端点宕，**与本库无关，全库通用**）；`GET /knowledge/search` 因此在分块未落定时返空集。
+兜底腿：`GET /knowledge-bases/<kb>/knowledge?folder_path=lexiang/<技能名>` 列条目 →
+`GET /knowledge/<id>` 读 `metadata.content`（原文全文存这里，不依赖分块与向量，恒可读）。
+embedding 恢复后应对 30 条补 `POST /knowledge/<id>/reparse` 让分块与向量落定。
+
+## 已入库条目·IMA ima-skill（2026-10-28 灌装 · 11 条）
+
+同口径迁入（入口技能 + 两个子模块 + 脚本），全部 `publish`、全挂 `type:material`：
+
+| 类 | 条数 | 说明 |
+|---|---|---|
+| 自撰索引 | 1 | `ima-技能索引`（`7b959c62-…`，留库根）——目录布局、条目总表、两条取原文腿、运行时要点 |
+| 顶层技能原文 | 1 | `ima-skill`（入口：全局规则 / 模块决策表 / 易混淆场景 / 跨模块读序 / 凭证 / 调用模板） |
+| 入口附属 | 2 | `ima-skill-aux-01-ima_api`（= `ima_api.cjs`，两子模块共用的调用助手）、`-aux-06-meta`（`meta.json` 运行时依赖） |
+| knowledge-base 模块 | 4 | `ima-knowledge-base` + `references/api.md` + `scripts/cos-upload.cjs` + `scripts/preflight-check.cjs` |
+| notes 模块 | 3 | `ima-notes` + `references/api.md` + `scripts/note-images.cjs` |
+
+**目录布局**：`ima/ima-skill`（3 条）、`ima/knowledge-base`（4 条）、`ima/notes`（3 条），索引留库根。
+全库 98 条 = hostinger 57 + 根 3（三条自撰索引）+ lexiang 29 + ima 10。
+
+**与 lexiang 的差异**：IMA 是真要跑脚本的技能（4 个 `.cjs`），本地卸载后 `ima_api.cjs` 也得从
+`ima-skill-aux-01-ima_api` 取出来落临时目录再 `node` 跑。引导技能 `ima-skill` 已写明这一步，
+否则 agent 会去 `./ima_api.cjs` 找不存在的文件。
+
+## 已入库条目·quarkclouddrive 夸克网盘（2026-11-06 灌装 · 22 条）
+
+姜先生 2026-11-06 决定：quarkclouddrive / lexiang / ima-skill 三者**全局卸载**，仓内保留原文、库内留检索快照
+（这三者不常用）。夸克这批是本库唯一**含可执行 CLI 的第三方技能**，因此比 lexiang/ima 多一条踩坑记录。
+
+| 类 | 条数 | 说明 |
+|---|---|---|
+| 自撰索引 | 1 | `quarkclouddrive-技能索引`（`7260fb2e-…`，留库根，另挂 `type:experience`） |
+| 原文 | 1 | `quarkclouddrive` = 原 `SKILL.md`（319 行 / 39,953 B） |
+| references | 12 | `quarkclouddrive-aux-01..12-references__*`（auth / assistant / file-ops / file-read / file-search / file-share / file-upload / file-rename / file-saveas / file-organize / file-batch-organize / membership-benefits） |
+| scripts | 3 + 6 | `aux-13/14/20-scripts__*`（hash-worker.cjs / install.sh / uninstall.sh）+ `quark-drive.cjs.b64-part01..06` |
+
+**目录布局**：`quarkclouddrive`（根 1）、`quarkclouddrive/references`（12）、`quarkclouddrive/scripts`（9），
+索引留库根。全库 136 条。
+
+### 必记的坑：manual 通道会内容过滤掉 minified JS 并**直接断连**
+
+`scripts/quark-drive.cjs`（645,910 B，esbuild 单行 minified）原样 POST 到
+`/knowledge-bases/<kb>/knowledge/manual` 返回的不是错误码，是 **TCP ECONNRESET**——服务端读完 body 直接关连接，
+客户端只看到 `fetch failed`。multipart 的 `/knowledge/file` 同样断。
+
+排查结论（2026-11-06 实测，逐条可复现）：
+
+| 变量 | 实测 |
+|---|---|
+| 体积 | **无关**。`A`×1,200,000 纯填充走 multipart 200；该文件只 2,000 B 前缀也 RESET |
+| 扩展名 | 无关。同样内容各扩展名都同样断 |
+| 内容 | **相关**。同一文件换 base64 后，120,000 rune/段全部 200 |
+| 稳定性 | 同一 payload 连测 5 次，5 次全 RESET；干净 payload 5 次全 200 —— 不是抖动/限流 |
+
+所以处置是：**base64 存储，分段 ≤160,000 rune**（manual 上限 200,000 rune，留头部说明的余量），
+每段头部写段号 + 全文 sha256 + 重组口径。**不要**尝试"再传一遍"或加 retry —— 它一定会失败。
+
+还原：取 6 段 `metadata.content` → 删掉每段头部 4 行 `>` → 按序**首尾相连（不插换行）** → `base64 -d`。
+2026-11-06 已按此法回读重组，`sha256=b19755822486…`，645,910 B，与仓内文件逐字节一致。
+
+**同类风险**：以后往本库传任何 minified JS / 单行超长文件的原文，先按 base64 处理，别先怀疑体积。
+
+### 登录态
+
+删除安装副本前已把 `.agents/skills/quarkclouddrive/deepseek/config.json` 备份到
+`~/.quarkclouddrive/backup/config-deepseek-20261106.json`（与既有的 `~/.quarkclouddrive/login-deepseek.json` 同源同 size）。
+临时用成套技能时放回 `<副本>/deepseek/config.json` 即可免重新授权。
+
+## 已入库条目·Craft 自研子技能（2026-10-28 灌装 · 13 条）
+
+storytold/ArtCraft 是本仓自研套件（Adobe/Office 工具的 Rust 净室重实现）。13 个子技能不再外装，
+真源留仓（`base/skills/storytold/<app>/SKILL.src.md`，frontmatter 标 `x-install: false`），
+原文副本入本库 **目录 `craft/<app>`、条目 `craft-<app>`**，全 `publish`、全挂 `type:material`：
+figcraft / vectorcraft / gridcraft / cadcraft / designcraft / deckcraft / soundcraft / filmcraft /
+effectcraft / photocraft / lightcraft / pdfcraft / wordcraft（各 1 条）。索引 `craft-技能索引`（`dab1d23d-…`）留库根。
+
+**与另外三批的差别**：本批**不是三方技能**，是本仓可改可优化的自研资产 —— 库内是**快照**，
+改行为改仓内真源，改完 `ship install` 并用 `PUT /api/v1/knowledge/manual/<id>` 带
+`{title, content, status:"publish"}` 回灌对应条目；否则库里就是过期文档，agent 照过期配方干活。
+
+**消费路径**：`craft-router`（v0.2.0，唯一本地安装的 craft 技能）负责分流 + 取原文两条腿 + 维护口径；
+13 个子技能目录已从 7 处技能根（含 `.codeartsdoer` 的 `huawei-cloud-codebuddy-*` 前缀变体）删净，共 91 个目录。
+
 ## 待挂清单与判据
 
-**无待挂类型标的条目**（57/57 已挂 `type:material`）。但有两条**待补**项，判据如下：
+**无待挂类型标的条目**（113/113 已挂 `type:material`，其中 lexiang 30 条 + IMA 11 条 + craft 13 条于 2026-10-28 批量挂载）。但有两条**待补**项，判据如下：
 
 1. **来源标未建、条目未挂来源标**——本库 57 条 `tags` 原为全 null，连上传腿的来源标都没有
    （该库的灌装腿未走灵枢 / 批量文档上行通道，是直接 manual 建条目）。

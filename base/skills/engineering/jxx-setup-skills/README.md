@@ -1,11 +1,12 @@
 # jxx-setup-skills
 
-为仓库配置工程技能环境——设置 issue tracker、triage 标签词汇表与领域文档布局，**建立项目技能目录并在 `AGENTS.md` 里维护技能清单**，并检测 OCR（open-code-review CLI）是否可用、未安装时询问用户是否安装。
+为仓库配置工程技能环境——设置 issue tracker、triage 标签词汇表与领域文档布局，**建立项目技能目录并在 `AGENTS.md` 里维护技能清单**，可选生成子树指令文件，并检测 OCR（open-code-review CLI）是否可用、未安装时询问用户是否安装。
 
 ## 何时使用
 
 - 首次使用其他工程技能前运行一次，初始化仓库的工程技能基础设施。
 - **项目技能增删改之后**：重跑 `sync-skills` 刷新 `AGENTS.md` 里的技能清单（不需要重新初始化）。
+- **用户明确要求给已有子目录补充局部指令时**：在 `init` / `sync-doc` / `template` 上重复传入 `--subtree <相对目录>`；默认不生成子树文件。
 
 ## 执行方式
 
@@ -14,16 +15,17 @@
 **一键初始化（默认）**：运行 `init` 即可把全部配置直接写入目标仓库，读取已有文件并自行处理（已有 `CLAUDE.md`/`AGENTS.md` 则在其上 upsert 工程块并同步 `CODEBUDDY.md`；没有则默认创建；三份 `docs/agents/*.md` 仅克隆缺失的），无需用户手动复制：
 
 ```bash
-node scripts/setup.mjs init --root <目标仓库>     # 一键初始化（默认子命令）
+node scripts/setup.mjs init --root <目标仓库> [--subtree <相对目录>]...  # 一键初始化（默认子命令）
 node scripts/setup.mjs detect --root <目标仓库>   # 只读探索（JSON 报告，含与种子的漂移、技能清单状态）
-node scripts/setup.mjs sync-doc --root <目标仓库> # 仅写入（跳过扫描汇报）
+node scripts/setup.mjs sync-doc --root <目标仓库> [--subtree <相对目录>]... # 仅写入（跳过扫描汇报）
 node scripts/setup.mjs sync-skills --root <目标仓库>  # 维护项目技能清单（技能增删改后跑）
-node scripts/setup.mjs template [--layout single|multi] [--labels <json>]  # 输出文件内容到 stdout（不落盘，仅供预览）
+node scripts/setup.mjs template --root <目标仓库> [--layout single|multi] [--labels <json>] [--subtree <相对目录>]...  # 输出到 stdout（不落盘）
 node scripts/setup.mjs ocr                                                 # 只读检测 OCR 是否安装（未安装退出码 4）
 ```
 
 - `--layout single|multi` 领域文档布局（默认 `single`）；`--labels '{"needs-triage":"bug:triage"}'` triage 标签覆盖。
 - `--skills-dir <相对路径>` 项目技能目录（默认 `docs/agents/skills`）；`--no-skills` = 不建目录、不写清单小节。
+- `--subtree <相对目录>` 可重复，仅 `init` / `sync-doc` / `template` 处理；目标目录必须已存在且位于仓库内。子树内已有符号链接目标会记为冲突并保留，不会跟随链接写到仓库外。
 - 未传任何偏好即"全部默认"；模型直接把配置写入目标仓库，不再向用户逐一询问/确认。
 - 未传子命令时默认执行 `init`。
 - 测试：`node --test tests/setup.test.mjs`。
@@ -45,6 +47,20 @@ node scripts/setup.mjs ocr                                                 # 只
 - 清单由**扫描目录**生成（技能名取 frontmatter `name`，「何时加载」取 `description` 首个句读前的子句），不依赖模型措辞，因此幂等。
 - `sync-skills` 只重写**标记之间**的表格与 `README.md` 的生成部分；标记之外（含 `<!-- jxx-setup-skills:hand-written -->` 之后的手写补充）逐字不动，也**不需要 `--force`**。
 - 仓库若已有**手写**技能清单，脚本**不插第二份**，而是报冲突交模型合并；把既有清单用一对 `skills:start` / `skills:end` 标记包起来即被接管。
+
+## 子树指令文件（可选）
+
+agent 只在用户明确指定子目录时传入 `--subtree`，不自行挑选目录，也不为通过校验而创建缺失目录：
+
+```bash
+node scripts/setup.mjs init --root <目标仓库> --subtree packages/api --subtree packages/web
+```
+
+每个子树生成 `AGENTS.md` 与 `CODEBUDDY.md`，两份内容相同，只含一句局部职责说明和指回实际根指令文件的正确相对链接：优先根 `AGENTS.md`，只有 `CLAUDE.md` 时链接 `CLAUDE.md`，空仓库预览默认 `AGENTS.md`；不复制根规则。目标必须是仓库内已存在的真实目录；根目录、绝对路径、含 `..` 的路径、普通文件、不存在的目录与指向仓库外的链接目录均以退出码 `1` 拒绝，并在任何写入前停止。
+
+已有文件默认保留并报 `conflict`，可用 `--overwrite <子树文件>` 精确覆盖或 `--force` 全部覆盖；`--dry-run` 不落盘，重复运行已生成的文件为 `unchanged`。`template` 只输出预览，`detect` / `sync-skills` / `ocr` 不处理子树。
+
+程序接口使用相同名称的数组选项：`runInit({ root, subtrees: ['packages/api'] })`、`runSyncDoc({ root, subtrees: ['packages/api'] })`；`buildTemplateOutput({ root, subtrees: ['packages/api'] })` 额外需要 `root` 来校验目录并计算链接。
 
 ## 冲突保护（不静默覆盖）
 
@@ -76,6 +92,6 @@ node scripts/setup.mjs ocr      # {"installed":true,"path":"...","version":"open
 
 - `scripts/setup.mjs` — 确定性 CLI（仅用 Node 内置模块 `fs`/`path`/`url`/`child_process`，零第三方依赖）。
 - `issue-tracker-local.md` / `triage-labels.md` / `domain.md` — 三份种子模板，`init`/`sync-doc` 据此生成 `docs/agents/*.md`。
-- `tests/setup.test.mjs` — 测试（`node --test tests/setup.test.mjs`，51 例），使用系统临时目录，不污染技能目录。
+- `tests/setup.test.mjs` — 测试（`node --test tests/setup.test.mjs`，59 例），使用系统临时目录，不污染技能目录。
 
 技能不引用仓库内其他技能目录或 `base/scripts` 的共享文件。它把配置写入目标仓库的 `AGENTS.md`/`CODEBUDDY.md`/`docs/agents/*.md`，这些只是输出目标，不构成技能运行依赖。

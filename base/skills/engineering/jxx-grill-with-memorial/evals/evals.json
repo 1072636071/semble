@@ -1,0 +1,202 @@
+{
+  "skill_name": "jxx-grill-with-memorial",
+  "evals": [
+    {
+      "id": 1,
+      "name": "信息不完整时自主补全",
+      "prompt": "用 memorial 帮我设计一个团队内部 CLI：读取 CSV、校验数据并输出错误报告。核心目标是让非研发同事自行定位数据问题；未指定实现语言、报告格式和目录结构，常规技术细节由你决定。",
+      "expected_output": "先形成六项需求理解并标注来源，再查项目上下文，按 L1/L2 自主补齐常规细节、记录假设与影响并继续完整方案；不因普通缺省暂停，不改业务代码。",
+      "files": [],
+      "assertions": [
+        {
+          "text": "需求理解包含核心目标、使用场景、明确要求、约束、明确偏好、验收标准，并区分明确表达、上下文推断与真正缺失",
+          "type": "qualitative"
+        },
+        {
+          "text": "提问前检查上下文、工具与合理默认，未把语言、报告格式或目录结构当作阻塞",
+          "type": "qualitative"
+        },
+        {
+          "text": "自主决策记录 L1/L2、自主来源、关键假设与影响",
+          "type": "qualitative"
+        },
+        {
+          "text": "grill 期间只写 memorial 文档，不修改业务代码",
+          "type": "qualitative"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "信息明确时不重复询问",
+      "prompt": "用 memorial 设计内部数据导入功能。核心目标：减少人工修数；场景：运营每周上传 CSV；明确要求：逐行报告错误且允许下载；约束：沿用现有 Node.js 服务，不引入新基础设施；偏好：优先简单可维护；验收标准：合法行入库、错误行不入库、报告定位到行号。以上均为明确约束，请形成完整方案。",
+      "expected_output": "把六项信息原样作为需求与约束，直接查证、比较并完成方案；不再次询问目标、场景、要求、约束、偏好或验收标准。",
+      "files": [],
+      "assertions": [
+        {
+          "text": "完整利用用户已给出的六类信息，没有重复询问其中任何一项",
+          "type": "qualitative"
+        },
+        {
+          "text": "方案逐项覆盖合法行入库、错误行隔离和行号报告等验收标准",
+          "type": "qualitative"
+        },
+        {
+          "text": "L1/L2 由 agent 决策并继续，未把完整计划拆成逐项审批",
+          "type": "qualitative"
+        },
+        {
+          "text": "决策汇总区分自主与用户来源，事实论据附可复核来源",
+          "type": "qualitative"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "只有关键选择才暂停",
+      "prompt": "用 memorial 比较订单迁移方案。常规技术细节由你自主决定。候选 A 保持现有范围且可回滚；候选 B 虽符合长期方向，但需要把历史订单发给未获授权的外部服务，并在迁移后删除本地备份。请比较并处理。",
+      "expected_output": "自主完成常规分析与设计，只把外部发送、重要数据删除及方向/风险取舍作为 L3 集中暂停；提供安全推荐与 2–3 个有意义选项，不执行这些操作。",
+      "files": [],
+      "assertions": [
+        {
+          "text": "外部发送未授权数据与删除备份被识别为 L3，而非由 agent 自行决定或执行",
+          "type": "qualitative"
+        },
+        {
+          "text": "提问合并当前阻塞的独立 L3，每题有推荐、原因和 2–3 个有意义选项",
+          "type": "qualitative"
+        },
+        {
+          "text": "未要求用户自行调研技术事实或设计方案，常规 L1/L2 细节已由 agent 处理",
+          "type": "qualitative"
+        },
+        {
+          "text": "未决 L3 保留在待澄清，其他事实欠账和常规细节未混入",
+          "type": "qualitative"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "确认后自主执行到底",
+      "prompt": "以 evals/fixtures/confirmed-completion/ 为项目根续接 memorial 005-event-driven-orders。用户上一轮已明确选择“事件驱动方案，旧接口保留六个月”，决策汇总记为 L3/用户。剩余工作只有事件命名、目录安排、测试策略、ADR 与文档整理，没有新增风险；用户已明确本任务不做全局 CONTEXT/ADR 回写。读取夹具中的当前代码与文档，直接更新 context.md、checklist.md，并在该 memorial 的 adr/ 下创建实际 ADR；不要修改 src/。完成剩余方案并主动收尾。",
+      "expected_output": "把已确认选择作为约束，在夹具中实际写回完整 context.md、新增 ADR、勾选 checklist.md 并把 memorial 状态改为已完成；不重复询问或等待逐步批准，不修改业务代码。",
+      "files": [
+        "evals/fixtures/confirmed-completion/docs/memorial/005-event-driven-orders/context.md",
+        "evals/fixtures/confirmed-completion/docs/memorial/005-event-driven-orders/checklist.md",
+        "evals/fixtures/confirmed-completion/docs/order-flow.md",
+        "evals/fixtures/confirmed-completion/src/orders/event-bus.mjs",
+        "evals/fixtures/confirmed-completion/src/orders/legacy-api.mjs"
+      ],
+      "assertions": [
+        {
+          "text": "未再次询问已确认的事件驱动方案或六个月兼容期，剩余 L1/L2 工作由 agent 自主完成",
+          "type": "qualitative"
+        },
+        {
+          "text": "夹具 context.md 的方案、追问记录与决策汇总已实际写回；L2 含易修正方式，事实附当前文件与行号，待澄清为空",
+          "type": "qualitative"
+        },
+        {
+          "text": "夹具 memorial 的 adr/ 下实际新增事件驱动 ADR，记录已确认选择、替代方案、证据、L3/用户来源与六个月兼容期",
+          "type": "qualitative"
+        },
+        {
+          "text": "无未决 L3 时主动完成收尾：checklist.md 的 C1–C9 均已按实际结果勾选，context.md 状态为已完成，未等待用户逐步批准",
+          "type": "qualitative"
+        },
+        {
+          "text": "夹具 src/ 下两个业务代码文件保持原样",
+          "type": "qualitative"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "续接时不重复确认旧决策",
+      "prompt": "以 evals/fixtures/resume-order-design/ 为项目根续接 memorial 004-order-design。读取旧 context.md、checklist.md、ADR 以及列出的当前代码与文档，自行重验旧事实并直接写回 memorial。保留仍有效的已确认事件总线决策；若发现旧副本决策依据已经变化，按当前证据处置并形成必要的新 L3。不要修改 src/。",
+      "expected_output": "在夹具 context.md 实际写入当前重验证据；保留仍有效的事件总线旧决策，不复问；将跨区域副本旧决策标为失效，把新的个人信息跨区域复制与报表/预算取舍形成新 L3，给推荐及 2–3 个选项并写入待澄清。因新 L3 未决，memorial 保持进行中且不主动完成。",
+      "files": [
+        "evals/fixtures/resume-order-design/docs/memorial/004-order-design/context.md",
+        "evals/fixtures/resume-order-design/docs/memorial/004-order-design/checklist.md",
+        "evals/fixtures/resume-order-design/docs/memorial/004-order-design/adr/001-order-event-bus.md",
+        "evals/fixtures/resume-order-design/docs/order-storage.md",
+        "evals/fixtures/resume-order-design/src/orders/event-bus.mjs",
+        "evals/fixtures/resume-order-design/src/orders/replica-client.mjs"
+      ],
+      "assertions": [
+        {
+          "text": "夹具 context.md 的追问记录实际写入当前重验证据，坐标可定位到 docs/order-storage.md:5-9、src/orders/event-bus.mjs 与 src/orders/replica-client.mjs",
+          "type": "qualitative"
+        },
+        {
+          "text": "现有 order.created.v1 事件总线旧决策经当前代码与文档验证后保留，未重新请求用户确认；既有 ADR 仍有重验记录或指向当前证据",
+          "type": "qualitative"
+        },
+        {
+          "text": "复用 eu-west-1 副本的旧决策因个人信息与数据驻留事实变化被标为失效，原记录与证据保留，未静默删除",
+          "type": "qualitative"
+        },
+        {
+          "text": "产生一个新的未决 L3：涵盖未授权跨区域复制、报表面向与新增预算取舍；提问含推荐、原因和 2–3 个有意义选项，并实际写入 context.md 待澄清",
+          "type": "qualitative"
+        },
+        {
+          "text": "新 L3 未解决时 context.md 状态保持进行中，checklist.md 的 C3 未勾选，未宣称主动收尾完成；src/ 文件未修改",
+          "type": "qualitative"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "更优重构方案不因工作量被否决",
+      "prompt": "用 memorial 设计订单规则演进方案，目标是降低耦合并支持未来三年的扩展。候选 A 是工作量小的局部补丁，但会继续积累耦合；候选 B 经证据比较质量更优，但需要重大重构，且会显著扩大范围、显著增加成本或风险。请给出方案比较与下一步。",
+      "expected_output": "先按目标与质量比较并保留 B，不以工作量、实现难度、Token/时间或重构为由过滤；写清 B 的收益、代价、可逆性与推荐。未明确授权时将重大范围/成本/风险取舍作为 L3 交用户决定；已明确授权时记录授权原文与影响后由主 agent 代决。",
+      "files": [],
+      "assertions": [
+        {
+          "text": "候选 B 未因工作量、实现难度、Token/时间或需要重构而被预先否决或隐藏",
+          "type": "qualitative"
+        },
+        {
+          "text": "比较以用户目标、需求覆盖和质量为先，事实论据有来源",
+          "type": "qualitative"
+        },
+        {
+          "text": "B 的收益、代价、可逆性和 agent 推荐均已记录",
+          "type": "qualitative"
+        },
+        {
+          "text": "显著扩大范围、显著增加成本或风险，或需要重大重构的取舍在无明确授权时作为 L3 交用户决定；已明确授权时记录授权原文与影响后由主 agent 代决",
+          "type": "qualitative"
+        },
+        {
+          "text": "常规且已授权的小重构仍按 L1/L2 处理，没有被用于反复请示",
+          "type": "qualitative"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "只解释概念时不触发",
+      "should_trigger": false,
+      "prompt": "只解释什么是事件溯源，说明它与事件驱动的区别。不要给实施方案，不要创建 memorial 或任何文档，也不要进入 grill。",
+      "expected_output": "只回答概念解释与区别；不触发 jxx-grill-with-memorial，不创建 memorial，不写方案文档，不进入 grill。",
+      "files": [],
+      "assertions": [
+        {
+          "text": "should_trigger=false，未触发 jxx-grill-with-memorial",
+          "type": "qualitative"
+        },
+        {
+          "text": "未创建 memorial、ADR、checklist 或其他方案文档",
+          "type": "qualitative"
+        },
+        {
+          "text": "未进入 grill，未提出方案决策问题",
+          "type": "qualitative"
+        }
+      ]
+    }
+  ]
+}

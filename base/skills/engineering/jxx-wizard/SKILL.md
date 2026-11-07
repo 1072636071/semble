@@ -2,7 +2,8 @@
 name: jxx-wizard
 description: "生成一个交互式 bash 向导，引导人完成手动多步流程。当 agent 卡在一串需要人操作的步骤、checklist 不够用时触发。不替人执行那些步骤。"
 metadata:
-  version: 1.1.0
+  version: 1.2.0
+x-install: false   # 2026-11-07 起默认不安装：真源留仓，要临时用就手工拷或改回 true 再 ship install
 ---
 
 # Wizard

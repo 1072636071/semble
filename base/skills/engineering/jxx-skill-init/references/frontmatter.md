@@ -11,7 +11,7 @@
 
 ### description 四要素模板
 
-判据源：[技能宪章](../../../../docs/agents/skill-charter.md) 原则一。按这个顺序写，四段缺一不可：
+判据源：[技能宪章](../../../../../docs/agents/skill-charter.md) 原则一。按这个顺序写，四段缺一不可：
 
 ```yaml
 description: <能力：做什么>。当用户<场景 / 输入类型>时触发，触发词：<词1>、<词2>。不包含<边界：不做什么、交给谁>。
@@ -21,17 +21,22 @@ description: <能力：做什么>。当用户<场景 / 输入类型>时触发，
 - **场景 + 触发词**：写用户会真实说出口的词，中英文都放；`agent` 靠它判断该不该加载。
 - **边界**：写「不包含什么、交给哪个技能」。这一句同时防误触发和越界，缺了它 `skill-lint` 会记 `sk-01b`。
 
+自研技能的 `description` 以 JS `.length` 计不得超过 500，超过时 `skill-contract` 报硬错误。第三方原文超过 500 只告警，不为消警改描述。完整判据见[技能宪章](../../../../../docs/agents/skill-charter.md)「硬契约：skill-contract」。
+
 ## 调用控制
 
 | 字段 | 取值 | 效果 |
 |------|------|------|
-| `disable-model-invocation` | `true` / 省略 | `true` = 用户调用（零 context load，只能人触发）；省略 = 模型调用（agent 可自主触达） |
+| `disable-model-invocation` | `true` / `false` / 省略 | `true` = manual-only，只能由用户显式调用；`false` 或省略 = 允许模型调用。字段出现时必须写布尔值 |
+| `user-invocable` | `true` / `false` / 省略 | 字段出现时必须写布尔值；manual-only 不得写 `false`，否则模型与用户都不能调用 |
+| `agents/openai.yaml` 的 `policy.allow_implicit_invocation` | `true` / `false` / 省略 | manual-only 必须配 `false`；非 manual-only 必须配 `true`。省略按 `true` 计，因此 manual-only 不能省略该 policy |
 
 ## 分发控制
 
 | 字段 | 取值 | 效果 |
 |------|------|------|
 | `x-install` | `true` / `project` / `false` | `true` = 用户级+项目级都装；`project` = 仅项目级；`false` = 不装（仅作派生源） |
+| `x-inline` | `true` / 省略 | `true` = 内联源：不单独安装，`ship install` 把正文注入引用它的技能；源正文不得含本地相对链接或 `<!--en-->` 块，且必须是 plain `SKILL.md`。改源后必须重跑 `ship install` + `check`（`E_INLINE_STALE` 门禁）。配套配置见 `base/scripts/vendors.json` 的 `inlineBundles` / `inlineExcludeConsumers` |
 
 ## 派生字段（x-vendors）
 
@@ -51,6 +56,7 @@ description: <能力：做什么>。当用户<场景 / 输入类型>时触发，
 name: jxx-example
 description: 一句话说明技能范围与触发分支（前导词前置，每个分支一次）。
 disable-model-invocation: true
+user-invocable: true
 x-install: true
 x-vendors:
   codearts:

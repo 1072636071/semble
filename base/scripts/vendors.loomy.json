@@ -11,6 +11,8 @@
     "tdai-"
   ],
   "skillsSource": "../skills",
+  "inlineExcludeConsumers": ["jxx-ask-matt", "seo-router", "kb-router", "craft-router"],
+  "inlineBundles": { "jxx-grilling": ["jxx-grill-me"] },
   "vendors": {
     "opencode": {
       "label": "OpenCode (Loomy)",

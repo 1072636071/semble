@@ -75,9 +75,12 @@ x-install: true
 | REST | `http://123.206.125.149:8127/api/v1`，头 `X-API-Key`（凭据腿 `项目机密\Secret\WeKnora-知识库-API密钥.md`，本机绝对路径见 cookbook §0，key 只现取现用、不回显） |
 | tenant | **10001**（与项目库同 tenant，用现有 tenant 10001 key 即可，**不跨 tenant、不会 403**；已实证该 key 的 `/knowledge-bases` 列表含本库） |
 | 定位 | **第三方官方 agent skills 的原文资料库**——收录各官方仓库发布的 `SKILL.md` 原文（例：Hostinger 官方两个技能包），供「找技能」时检索。**只做检索源，不改技能分层**：灵枢仍是技能面权威（kb-router 三步分流第 2 条：技能 → 灵枢） |
-| 消费方 | 全局技能 `find-skills`（外部 skills.sh / npx skills 生态之外，本机 WeKnora 的技能类知识库检索源之一，同列 `b822071a-fb95-4e98-b05d-aa33da685a42`「生成技能」）；暂无本地工作区经 `kb-install.ps1` 接入 |
-| 标签台账 | [references/tag-registry-skills.md](references/tag-registry-skills.md)（类型两标 57/57 挂载，暂无来源标与主题标） |
-| 内容 | **灌装中**（2026-10-20 快照）：57 条 manual = 1 条自撰总索引「README-Hostinger-技能索引」+ 30 条顶层技能原文 + 26 条 `hostinger-headless-aux-NN-*` 附属文件；`parse_status` 全为 `finalizing`、`chunk_count=0`（用户建库后立刻批量导入，仍在实时灌装） |
+| 消费方 | ① 全局技能 `find-skills`（外部 skills.sh / npx skills 生态之外，本机 WeKnora 的技能类知识库检索源之一，同列 `b822071a-fb95-4e98-b05d-aa33da685a42`「生成技能」）；② 全局技能 `lexiang`（2026-10-28 起降级为**引导程序**：乐享官方技能包原文存本库，本地技能目录已卸载）；暂无本地工作区经 `kb-install.ps1` 接入 |
+| 标签台账 | [references/tag-registry-skills.md](references/tag-registry-skills.md)（类型两标 113/113 挂载，暂无来源标与主题标） |
+| 内容 | **113 条 manual 全 `publish`**（2026-10-28 实测）：Hostinger 57 条（2026-10-20，目录 `hostinger/`）+ 乐享 lexiang 30 条（目录 `lexiang/`）+ IMA 11 条（目录 `ima/`）+ Craft 13 条（目录 `craft/<app>`）+ 1 条 SOP（`SOP-自研技能分发与库内快照回灌（Craft 套件）`）；四家的自撰索引（`README-Hostinger-技能索引` / `lexiang-技能索引` / `ima-技能索引` / `craft-技能索引`）与这条 SOP 共 5 条留库根 |
+| 乐享迁入背景 | 2026-10-28 按姜先生指示把乐享官方 7 技能（路由 + 6 分域，29 文件 ≈190 KB）从全部 agent 技能目录卸载，原文灌入本库，本地只留引导技能 `lexiang`；迁移前完整副本在本机 `JwikisSkills/.temp/backup/lexiang-20261028/`。建条目必须带 `status:publish`（缺省落 `draft`，不索引） |
+| Craft 入库背景 | 2026-10-28：**本仓自研**的 storytold/ArtCraft 13 个子技能（figcraft / vectorcraft / gridcraft / cadcraft / designcraft / deckcraft / soundcraft / filmcraft / effectcraft / photocraft / lightcraft / pdfcraft / wordcraft，各 1 个 `SKILL.src.md`）不再外装：真源留仓 `base/skills/storytold/<app>/` 并标 `x-install: false`，原文副本入本库目录 `craft/<app>`（条目 `craft-<app>`），本地只留路由技能 `craft-router`（v0.2.0，含取原文两条腿与维护口径）。**本库副本只是快照：改行为改仓内真源，改完必须回灌对应条目** |
+| IMA 迁入背景 | 2026-10-28 同口径：IMA 官方技能包（入口 + `knowledge-base` + `notes`，10 文件 ≈126 KB）从 `~/.agents/skills/ima-skill`、`~/.workbuddy/skills/ima-skills`、`~/.workbuddy-ai/skills/ima-skills` 卸载，11 条入本库（目录 `ima/ima-skill`、`ima/knowledge-base`、`ima/notes`），本地只留引导技能 `ima-skill`（仓内源 `base/skills/productivity/ima-skill/`）；备份 `JwikisSkills/.temp/backup/ima-20261028/`。注意 IMA 的调用助手 `ima_api.cjs` 也只在库里，用时取到临时目录再跑 |
 
 **建库信息**（2026-10-20 建，creator `std04b`）：`created_at=2026-10-20T16:29:53+08:00`，
 capabilities = keyword / vector / wiki true，faq / graph false；`vector_store_engine_type=postgres`，`status=available`。

@@ -50,7 +50,7 @@ test('生成文件的脚本不得用固定层级 __dirname 上跳定位输出目
   const guarded = [
     'base/skills/engineering/jxx-to-spec/scripts/issue-flow.mjs',
     'base/skills/engineering/jxx-to-tickets/scripts/issue-flow.mjs',
-    'base/skills/engineering/jxx-tool-intro/scripts/gen-tool-page.mjs',
+    'docs/agents/skills/tool-intro/scripts/gen-tool-page.mjs',
   ];
   for (const rel of guarded) {
     // 只看代码行：注释里会成段引用这个反模式，不该误判
@@ -69,7 +69,7 @@ test('生成文件的脚本不得用固定层级 __dirname 上跳定位输出目
 
 test('gen-tool-page / issue-flow 必须从 cwd 锚定（含向上探测与失败退出）', () => {
   const genText = fs.readFileSync(
-    path.join(repoRoot, 'base/skills/engineering/jxx-tool-intro/scripts/gen-tool-page.mjs'),
+    path.join(repoRoot, 'docs/agents/skills/tool-intro/scripts/gen-tool-page.mjs'),
     'utf-8',
   );
   assert.match(genText, /process\.cwd\(\)/, 'gen-tool-page 必须以 cwd 为锚');
