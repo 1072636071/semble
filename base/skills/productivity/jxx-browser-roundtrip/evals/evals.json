@@ -1,0 +1,29 @@
+{
+  "skill_name": "jxx-browser-roundtrip",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我把 DSH 会话里一段内容贴到网页版，再读回来，看看能不能进得去出得来",
+      "expected_output": "加载本技能；先验登录态；一个 .mjs 文件完成 fill/press/提取/finish；报告逐项成功与读回内容；不删测试会话。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "让网页版搜索一下中国 DOTP 现在产量是多少，一次脚本搞定",
+      "expected_output": "不点已开的智能搜索开关；提问带来源链接要求；按『搜索到 N 个网页/外链/无无法联网声明』判成功；数字标注未经核验。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "测一下元宝、豆包、千问能不能生成图片和视频，把产物拿回来",
+      "expected_output": "逐站点探测图片/视频入口与产物 URL 或下载事件；结果按站点写 JSON 文件；只报能否拿到，不承诺质量。",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "帮我用官方 API 直接调 DeepSeek 生成，别用浏览器",
+      "expected_output": "不加载本技能；本技能边界明确不含自建私有接口客户端/API 调用。",
+      "files": []
+    }
+  ]
+}
