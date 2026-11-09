@@ -16,7 +16,21 @@
   外链 `a[href^=http]` 里出现非 deepseek.com 域名、思考链里没有「无法网络 / 凭知识」。
 - 失败形态：多点开关后，模型思考链写「我们无法网络，但可凭知识」「不能瞎编」，给的数字是估算，无外链。
 
-## 三、多媒体探测（待实测，骨架）
+## 三、多媒体探测（2026-11-09 实证）
+
+| 站点 | 图片 | 视频 | 备注 |
+| --- | --- | --- | --- |
+| 元宝 yuanbao.tencent.com | ✅ 拿到 2 个 `cdn-pro.yuanbao.tencent.com/public/pro/*.webp` 链接，约 3s | 未测 | 首页有「AI 生图」按钮；输入框是 `div.ql-editor[contenteditable]` |
+| 豆包 doubao.com | ✅ 拿到 6 个 `p*-flow-imagex-sign.byteimg.com/*.png` 链接，约 100s | 未测 | 输入框是 `div.tiptap.ProseMirror`；回答明确「已生成：…」；签名 URL 带 `x-expires` 会过期 |
+| 千问 qianwen.com | ✅ 拿到 2 个 `images.quark.cn/.../*.webp` 链接，约 9s | ⏳ 排队未完成 | 「AI生视频」入口可点进；发请求后页面报「当前访问火爆，正在排队中…预计 2-5 分钟…消耗 30 积分…剩余积分 8」，120s 内未出 `<video>`/mp4 链接 |
+
+要点：
+- 图片 URL 都是**页面 DOM 里 `img[src]` 的新增值**（对比生成前快照 + 排除 icon/logo/avatar 域名），不需要下载事件即可拿到链接。
+- 视频在千问是**异步排队 + 积分消耗**，等 2–5 分钟且要够积分；脚本超时不等于没有产物。
+- 三站输入框都不是 `<textarea>`：用 `div[contenteditable=true]`，`page.click` → `keyboard.insertText` → `page.press(..., "Enter")`。
+- 判断「新产物」用生成前 URL 快照做差集，别把页面自带的装饰图当产物。
+
+## 三·旧、多媒体探测骨架（保留作模板）
 
 对每个目标站点分别判：
 1. 输入框附近有无「图片 / 视频 / 生成」入口（snapshot 取 ref）。
