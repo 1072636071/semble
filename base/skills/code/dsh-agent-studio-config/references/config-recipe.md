@@ -195,3 +195,77 @@ AgentSchema（config.js:62-82）：`id / name / note / model{provider,model,reas
 **回滚口径**：重新 GET live 快照，把上表 5 处「新句→旧句」反向替换（旧句逐字见本条），六池全量 POST 回去。备份 `.temp/output/cfg/backup-live-fresh.json`（不入库，丢了按本节文本重建）。
 
 **顺带**：本次同时实测确认「配置文本变化触发 reconcile 会顺带换上新 `lib/` 模块」（AGENTS.md 2026-10-27 那节）——改 prompt 与改代码都靠同一次 patch 文本变化生效。
+
+### 2026-11-07 · 清 7 个幽灵技能引用（agent 中心技能集对拍 live /skills）
+
+**动因**：姜先生指出 `dsh-plugin-dev` 技能已失效，要求在 agent 中心移除，并检查其他技能是否还有该新增/该移除的。以 `studio-config-doctor.mjs`（脚本注释即「agent 中心配置体检」）为准取证：live doctor 报 7 条 error，全是「幽灵技能」——配置里引用、但 `GET /skills` 解析面（source=live，90 个）找不到，静默不注入（坑⑥）。`dsh-plugin-dev` 是其中之一，只在 `lead-skills`。7 个在 `~/.agents/skills` 一级目录都不存在；`jxx-to-milestones` 连 JwikisSkills 真源仓都无残留目录，其余 6 个真源仓有旧目录但未 ship 到本机。
+
+**改动范围**（只动 4 个 skillSets 的 `skills` 数组；未动 agents / promptSets / toolSets / bindings / runtimeContextOff；id / name / note 逐字未动）：
+
+| skillSet id | 清理前 → 后 | 去掉的幽灵 |
+|---|---|---|
+| lead-skills | 45 → 38 | dsh-plugin-dev、ima-skill、jxx-grill-me、jxx-grilling、jxx-prototype、jxx-to-milestones、jxx-wizard |
+| architect-skills | 11 → 8 | jxx-grill-me、jxx-grilling、jxx-to-milestones |
+| integrator-skills | 7 → 6 | jxx-to-milestones |
+| scribe-skills | 8 → 7 | jxx-to-milestones |
+
+**执行链**（六步全过，SKILL.md 标准流）：`studio-config-get.mjs` 重取新备份（坑⑰）→ 六池全量构造 proposed（剥壳、不发 version/createdPresets）→ `validate`（error 0，warning 1 = 53 个引用平台预设段的常规提示）→ `doctor --file`（报「与 live 有 4 处差异」= 本次要改的 4 个集，属预期；`--file` 不联网故幽灵检查跳过）→ `post dry-run` → `--apply`（HTTP 200 ok:true）→ `verify --backup --typo-scan`（六池 PASS + bindings 与备份逐字一致 + 变化清单只含 4 个 skillSet + 错字扫描无误）→ `doctor(live)` error 0 / warn 0。最终独立 GET 复核：`dsh-plugin-dev` 及另 6 个名字在 live config 残留 0 次，lead-skills 38 个全部可解析。
+
+**POST 服务端 warnings**：20 条全是「技能正文提到别的技能、但该技能不在同一集」的交叉引用提示，属既有配置状态、与本次改动无关，逐条判「不必须」，未处理（与 2026-10-27 两条记录的处置一致）。本地复算得 11 个被提及但未同集的名字：`commands` / `craft-router` / `find-skills` / `impeccable` / `jxx-code-review` / `jxx-domain-modeling` / `jxx-grill-with-docs` / `jxx-to-spec` / `jxx-to-tickets` / `jxx-writing-for-agents` / `kb-router`；其中 `craft-router` / `kb-router` / `find-skills` 等本身可解析，只是未挂到引用方的集里。
+
+**核对口径**：幽灵 = `skillSets[].skills`（去重 57 个）与 `GET /skills`（90 个）的 A−B 差集，用 `studio-config-doctor.mjs` 的 findings 作权威判定，不凭记忆。反向「新增」= B−A（40 个未被任何集引用），其中 6 个是用户级技能 `agent-reach` / `archify` / `craft-router` / `dbx` / `dsh-add-mcp` / `mcp-hostinger`，其余 34 个是项目级 / custom 技能（跨仓不一定可用，坑⑥）——**是否补挂由姜先生定，本次未擅自新增**。
+
+**回滚口径**：备份不在也能重建——重新 GET live，把上表 4 个集的 `skills` 数组按「清理前」列补回 7 个名字（幂等判据 = 集内是否含这些名字），六池全量 POST 回去。本次备份 `.temp/output/skill-audit-backup.json`（不入库）。
+
+### 2026-11-09 · U1 会话总结分治改（jxx-lead / summarizer 两份角色段）
+
+**动因**：姜先生授权 agent 全权决策，要求「参考业界主流方案」后自己拍板。旧纪律是 4 个硬触发器命中即派 summarizer 后台全量总结整段区间（含所有子会话），而子代理结算语料会丢、closing message 残缺且未必是最终结论、工具面无 session_end / onFinalize 钩子 ⇒ 「任务结束统一收口」无机器触发点。改造采用分头出料：子代理自报局部要点（回包为唯一交件口径）→ lead 落暂存区（append-only jsonl）→ 任务结束派 summarizer 只读暂存区合并落库。
+
+**改动范围**（只动 4 份 text，未动 id / name / note / 三面装载 / bindings）：
+
+| 代理 id | 段名 | 所在 promptSet id | 两处 |
+|---|---|---|---|
+| jxx-lead | studio:memory-reminder（952 → 2116 字） | jxx-lead-rules | agents[].orderedSections + promptSets[].sections |
+| summarizer | studio:role-summarizer（1194 → 1644 字） | summarizer-rules | 同上 |
+
+未动：studio:role-summarizer-session-digest（3550 字，整理轮 session_digest 契约，属另一条线）、toolSets / skillSets / bindings / runtimeContextOff、cordis.patch.yml 其余行、线上服务、记忆与知识库。
+
+**条款正文**（逐字见 `.temp/output/u1-new-lead-text.txt` 与 `u1-new-summ-text.txt`，本仓 `.temp/output/` 不入库，故逐字要点在此）：
+- lead 段：① 子代理自报 ≤5 行「本子会话要点」（goal / 关键步骤 / 失败与返工 / 最终结论 / 被否方案），回包是唯一交件口径，不要求子代理写文件；② lead 用 write/edit 把要点追加进 `.temp/output/session-summary-staging/<lead-session-id>/<session-id>.jsonl`，一会话一文件、追加不改写；子代理零落盘/回帖丢失/被 interrupt 时写 `status:missing` 行，收口保留缺口不臆造；③ 「任务结束」机器判定 = update_goal(action=complete) 之后 / 姜先生明说结束收工 / 看板全 done 无 in_progress / compress 过一轮（compress 时先写告警不丢）；命中才派 summarizer 收口。④ 旧三触发器（卡 done / 审查裁定 / 话题切换）降级为「lead 写一行自己的局部要点」，不再触发全量总结。⑤ 落库带 no_atomize:true + session 标签 + type:experience；收口后暂存归档不硬删。
+- summarizer 段：任务二改为「会话总结收口（只读暂存区）」——触发字样 + 暂存目录 + 覆盖区间；只读 jsonl、合并同区间重复要点、缺哪条标缺口；写入新建条目不回改；不负责归档暂存文件。新增任务三指针：带「整理归档会话/总结会话」字样时按 studio:role-summarizer-session-digest 段的 session_digest 契约执行，与任务二互斥，两种字样同时出现以「整理归档会话」为准。
+
+**两处都改**（坑⑮）：agents[].orderedSections[].text（真正生效那份）与 promptSets[].sections[].text（同步防旧路回潮）；改前实测两份逐字相等（lead 952/952、summ 1194/1194）。
+
+**执行链**（六步全过，均为本会话实证）：studio-config-get 取 live 快照（`.temp/output/studio-config-backup-20261109.json`，179364 字节）→ 六池全量构造 proposed（剥壳，不发 version/createdPresets，213704 字节）→ validate（error 0，warning 1 = 53 个引用平台预设段的常规提示）→ doctor --file（15 条幽灵技能为 --file 模式口径差，用同一备份跑 --file 对照同为 15 条逐条一致 ⇒ 既有状态非本次引入）→ post dry-run → **--apply（HTTP 200 `{"ok":true}`，20 条 warnings 全是既有技能互指，逐条判「不必须」）** → verify --backup --typo-scan（六池全 PASS、bindings 3 条与备份逐字一致、变化清单恰好 `agents: jxx-lead/summarizer` + `promptSets: jxx-lead-rules/summarizer-rules`、错字扫描无误）→ doctor(live) **error 0 / warn 0** → 独立 GET 复核：lead 两份 2417/2417 逐字相等、summ 两份 1735/1735 逐字相等，旧句「**会话总结**（硬触发器…」/「**任务二 · 会话总结**」零残留，新特征 `append`/`finalize`/`只读暂存区`/任务三指针全在，`studio:role-summarizer-session-digest` 段仍在，bindings 未动。坑⑮ 探针子代理 `ea1a6cc9` 回包**逐字抄回的正是新文**（含「任务二 · 会话总结收口（只读暂存区）」「任务三 · 全量读会话总结」「不自己扫 jsonl 目录」），零旧句残留 ⇒ 实投复验通过（GET 回读只证明写进去了，探针证明投递的是这份）。
+
+**配套**（已交付并由 lead 独立复跑，不在本次 POST 内）：`.temp/scripts/session-summary-staging.mjs`（append / append-missing / read / list-missing / finalize / --help / --selftest），16444 字节、ESM、LF、UTF-8 无 BOM、纯 `node:` 内置，`.gitignore:119` 忽略 `.temp/` 未入库；dev-staging 产出 → lead 独立取证：`node --check` EXIT=0、`--help` EXIT=0、**主代理独立复跑 `--selftest` RESULT PASS 13/13**（时间戳 09:31 与子代理自报 09:29 不同，是真复跑）、机械闸 CR=0/LF=431/无 require/无三方 import。裁定通过，task-1 completed。lead 段据此改为「调脚本 append / append-missing / read / finalize」并指定暂存目录真源 = `.temp/output/session-summary-staging/`（仓内相对路径）。
+
+**回滚口径**（备份不在了也照样能用）：重新 GET live，把上述 4 份 text 反向替换回旧文（旧文逐字见 2026-11-09 交接文档 §四 U1 与本文档 2026-10-27 记录所引原段），六池全量 POST 回去；幂等判据 = 段内含「会话总结 · 分头出料、收口落库」/「任务二 · 会话总结收口（只读暂存区）」即已改过。本次备份 `.temp/output/studio-config-backup-20261109.json`（不入库，丢了按本条重建）。
+
+
+**决策依据 · 业界主流方案（检索日期 2026-11-09，出处 URL 见下）**
+
+结论：**档 1 与主流同向，档 2 是反模式、档 3 属超范围重构**。主流三层证据：
+
+1. **分层/归并摘要是主流，且「压缩有损」被反复点名**：Claude Code 的 auto-compact 按 token 阈值触发（不是定时器也不是会话结束），把早期历史压成结构化摘要，明确「保决定/状态/意图，丢逐字原文、推理链、被否方案、完整工具输出」——[claudecode.ac.cn/docs/en/context-window](https://claudecode.ac.cn/docs/en/context-window)、[gigarag.com auto-compact](https://gigarag.com/blog/context-left-until-auto-compact)；官方口径给的缓解正是「把关键状态在过程中写到外部记忆层，别等压缩回捞」。LangGraph 的 summarize_conversation 节点把 `summary` 作为独立 state 键增量扩展（用旧 summary 作上下文再吃新消息），[LangGraph memory 概念](https://github.com/langchain-ai/langgraph/blob/a7e59c9e54e0537012581aafa155342820c3e11a/docs/docs/concepts/memory.md)；Claude Code 文档还实证「子代理在独立上下文里做研究，只回摘要和少量元数据，不把大读取灌进主上下文」——与档 1 的「子代理自报 ≤5 行要点、主侧汇总」逐字同构。
+
+2. **记忆分层：episodic（原始/无损）→ semantic（派生/可改）是主流**：Zep/Graphiti 三层 = episode subgraph（原始消息全量无损真源）→ semantic entity subgraph → community subgraph，且 bi-temporal 追踪 provenance 与有效期，过时事实被 deprecate 而非硬删（[S&P/451 Research 2026-04-10 报告](https://www.getzep.com/research/sp-global-market-intelligence-zep-coverage/)）。A-MEM 的 Zettelkasten 原子笔记 + 链接 + memory evolution（新记忆触发旧笔记属性更新）明确会「改写历史条目」，其自身风险清单点名「没有版本历史时难 debug 且不安全」（[DAIR.AI Academy A-MEM](https://academy.dair.ai/papers/agentic-memory-for-llm-agents)、[A-Mem 论文笔记](https://github.com/lhl/agentic-memory/blob/HEAD/references/xu-a-mem.md)）。Letta 的 Core Memory blocks 是**原地可编辑**、recursive summarization 自动压历史（[Letta ADE](https://www.letta.com/blog/introducing-the-agent-development-environment)）；mem0 明确「update or merge entries, not just append」（[mem0 用户记忆指南](https://mem0.ai/library/agent-memory/build-an-ai-agent-that-remembers-your-users)）；CrewAI 的 Memory 由 LLM 在 save 时推断 scope/importance、composite scoring 召回（[CrewAI memory docs](https://docs.crewai.com/edge/en/concepts/memory)）。
+
+   **对本仓的裁决**：本会话硬约束「增量独立条目、不并发改写、不回改既有同一条」与 mem0/A-MEM/Letta 的原地 upsert **不同源**，但**不冲突**——本仓的「暂存 jsonl（无损 episode 层，append-only）+ 收口后写独立条目（semantic 层，不回改）」正好落在 Zep 的 episode→semantic 分层上，只是把「更新」实现成「追加新条目 + 旧条目自然过时」，用可审计性换掉原地改写。这是**有意识的取舍，照抄主流反而会破坏本仓归档链路的已写跳过判据**（简报 mem_1794213023328_40e443）。
+
+3. **触发时机：主流用 token 阈值或显式会话原语，没有 session_end 钩子就别造**：Claude Code = token 剩余量阈值 + 手动 /compact 在自然断点触发；OpenAI Agents SDK 用 `session` 对象（SQLiteSession 等）在 **run 边界**自动读写，runner 循环直到 final answer 才结束（[OpenAI Running agents](https://platform.openai.com/docs/guides/agents/running-agents)、[Agents SDK Sessions](https://openai.github.io/openai-agents-python/sessions/)）；LangGraph 明确「hot path 更新 vs 独立进程更新」两种，整理型工作放独立进程。本仓工具面只有 get_goal/update_goal、无 session_end（L3282-3283 实证）⇒ 档 1 把「任务结束」定义为 goal complete / 用户明说结束 / 看板全 done / compress 四类**可机器判定**条件，比硬造一个不存在的钩子更贴近主流；同时保留 compress 兜底（对齐 Claude Code 阈值触发）。
+
+4. **暂存载体与落盘责任**：CrewAI 在 task 边界「after each task 自动抽取离散事实入库、before each task 召回注入」；Claude Code 子代理只回摘要不回大读取；整理轮本仓已有「产物回最终消息、编排侧落盘摄取」契约（`session-digest-round` SKILL L103-106、简报 L15-16）。⇒ **落盘责任在编排侧，不在子代理**——这正是档 1 让 lead 调 append、不让子代理写文件的原因；档 2「只靠回帖、要点丢了就没了」被这些实践一致否定。
+
+5. **失败兜底**：Zep 的 episode 层「complete, lossless source of truth」+ bi-temporal deprecate、OpenAI Sessions 的 `session_input_callback`/`SessionSettings(limit=N)` 都是「不丢真源、按需取用」；本仓对应 = append-only jsonl + `status:missing` 缺口登记 + finalize 移动归档不硬删 + 收口失败保留暂存下轮补收口。**不照搬**：A-MEM 的无版本 memory evolution、mem0 的静默 merge/upsert、依赖子代理可靠落盘——三者都与本仓「可审计 / 子代理零落盘老坑 / 不回改既有条目」冲突。
+
+**档位 × 业界对齐度**：档 2（最小改）= 反模式（依赖易失的回帖，无任何持久 episode 层）；档 1（中改，**采纳**）= 对齐 Claude Code 子代理摘要 + Zep episode→semantic 分层 + LangGraph 增量 summary 节点 + 本仓既有回包摄取契约，收益（不丢子代理要点、收口有机器触发点、可审计）大于代价（新增一个脚本 + 两份提示词），可逆（备份 + 回滚口径具备，POST 可反向替换）；档 3（重构）= 与现有整理轮台账同源但动 core 与判据，超出「改总结纪律」范围，风险最高，本次不做——**不因重构成本预先否决，只因范围与可逆性不占优而不选**。
+
+**检索缺口（不编造）**：本轮未取到 AutoGen 会话摘要、`session_end`/`onFinalize` 显式生命周期钩子在多 agent 框架中的权威出处；上述 5 问结论由已列 8 个出处交叉支撑，未查到的一律不补。调研子代理 `d208c299` 若回包带补充出处，由 lead 并入本节，不改既有结论。
+**调研回包校正（子代理 `d208c299` 2026-11-09 回帖，只读、零写入）**：结论不推翻，档 1 维持；三处口径收紧 ——
+- **权威出处升级**：一手资料优先用 Claude Code 官方文档 [code.claude.com/docs/en/hooks.md](https://code.claude.com/docs/en/hooks.md)（有 `SessionEnd` / `SubagentStop` / `PreCompact` / `PostCompact` / `Stop` / `TaskCompleted`，明确 hooks 给 deterministic control）、[context-window.md](https://code.claude.com/docs/en/context-window.md)、[model-config.md](https://code.claude.com/docs/en/model-config.md)；Anthropic 工程博客 [multi-agent-research-system](https://www.anthropic.com/engineering/multi-agent-research-system)（「Subagent output to a filesystem to minimize the game of telephone」+ LeadResearcher 综合）、[effective-context-engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)；Zep 论文 [arxiv 2501.13956v1](https://arxiv.org/html/2501.13956v1)、MemGPT [2310.08560](https://ar5iv.labs.arxiv.org/html/2310.08560)、Mem0 论文 [2504.19413](https://ar5iv.labs.arxiv.org/html/2504.19413) 与 Platform v3 [migration v2→v3](https://docs.mem0.ai/migration/platform-v2-to-v3)、A-MEM [2502.12110v10](https://arxiv.org/html/2502.12110v10)、Generative Agents [2304.03442](https://ar5iv.labs.arxiv.org/html/2304.03442)；LangMem [summarization guide](https://langchain-ai.github.io/langmem/guides/summarization/)（阈值触发 + running_summary 覆盖前一份 + 必须 checkpointer）、CrewAI [checkpointing.md](https://docs.crewai.com/en/concepts/checkpointing.md)（默认 `task_completed` 事件驱动写 checkpoint）、OpenAI [Sessions](https://openai.github.io/openai-agents-python/sessions/) / [Lifecycle](https://openai.github.io/openai-agents-python/ref/lifecycle/)（`on_agent_end` 在 final output 时触发）。
+- **「增量独立条目」不是全业界唯一主流**：主流按记忆层分开 —— append/ADD-only 层有 MemGPT recall storage + FIFO evict 的 recursive summary、Letta archival memory `archival_memory_insert`（agent-immutable）、Generative Agents memory stream、Mem0 **Platform v3**（官方改 single-pass ADD-only，「memories accumulate instead of being overwritten」）；原地合并/演化层有 Mem0 论文/v2 的 `ADD/UPDATE/DELETE/NOOP`、Letta memory blocks rewrite、A-MEM replace、Zep `t_invalid` 失效旧边、LangMem running_summary 覆盖。**两处 Mem0 官方正文冲突（论文 vs Platform v3），不代裁、不引作唯一依据**。⇒ 本仓「暂存 jsonl append-only + 收口写独立条目不回改」精确落在 **raw/episode 层**，与主流之一同向；把它套到 core/semantic 层则不是主流，本仓因归档链路已写跳过判据而有意不套——**这是取舍，不是「业界都这样」**。
+- **落盘责任与触发口径再确认**：Claude host / CrewAI runtime / OpenAI SDK 都由框架侧写盘；Anthropic 允许子代理写 external artifact 但必须回轻量引用。⇒ 档 1 让 **lead 调 append**、不让子代理写文件，与之一致（本会话据此把 lead 段从「用 write/edit 追加」改成「调脚本 append / append-missing / read / finalize」）。触发上「token 阈值 / cron 只解决上下文压力与补收，不判定任务完成」；本仓无 `session_end`/`onFinalize`，故用现有 `update_goal` 可判完成状态 + 看板全 done + 用户明说结束 + compress 兜底，**不发明钩子**。
+- **不该照搬（调研补充）**：① 依赖宿主内部 transcript 格式（Claude 官方警告 entry format 会变，脚本别直接 parse）；② 依赖子代理可靠自写或 closing message；③ 要求原地改写长期记忆（与本仓 AGENTS.md 冲突，以本仓为准）；④ 把 token 阈值/cron 当任务结束；⑤ 收口后硬删 scratch（Zep 用 `t_invalid` 逻辑失效、Mem0 v3 不 delete）；⑥ 把「全量总结整个区间」当持久化多代理记忆。
+- **仍待确认（不写成默认）**：proposed 的「任务结束」close 标记由谁写、重复触发的幂等键、存档重放判据——本轮未定义，留待下一轮按实证补；调研未读 proposed 实现，不对其代码正确性下结论，冲突时以 proposed 本地校验与 live 回读为准。
+- **没查到（不编造）**：AutoGen 0.2 官方 `MessageSummaryTransformer` 一手正文；Claude Code `/compact` 是否换 session id 与 summary 精确注入协议；Generative Agents 正文「append-only」原句；blackboard 作为当前主流框架默认载体的权威一手来源；业界统一 staging 归档/幂等键规范。
