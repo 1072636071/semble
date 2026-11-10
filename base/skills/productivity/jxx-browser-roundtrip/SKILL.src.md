@@ -56,6 +56,7 @@ model rather than verified sources.
 - Do not build or run a private-API client, solve PoW, or parse SSE frames.
 - Do not paste user profile data, tokens, cookies, or credentials to any web chat.
 - Do not claim a number is true because the page printed it; mark it as unverified.
+- Media output: report whether a link or download is obtainable; do not promise quality, copyright, or availability. **When a page says a video is ready but exposes no direct URL or download control, report it and stop — hand the session to the user to download manually.** Do not keep polling, swapping selectors, or probing the player. Confirmed by the user on 2026-11-10.
 - On `EGO_TASK_SPACE_NAME_IN_USE` pick another space name; never start a second space
   to recover from a stuck page.
 - Long rounds run as background jobs; collect them with `job_list` before the final answer.
@@ -102,6 +103,7 @@ model rather than verified sources.
 - `EGO_TASK_SPACE_NAME_IN_USE` ⇒ 换空间名，或问用户是否接管；不擅自 claim。
 - 网页端改版导致选择器失效 ⇒ 报 `ERR_SELECTOR_CHANGED`，附当前 snapshot，不猜新选择器。
 - 多媒体产物只判断「能否拿到链接 / 能否下载」，不承诺画质、版权或可用性。
+- **取不到就停**：页面确认已生成、但 DOM 里没有直链/下载按钮时，回报「已生成、产物需用户自行下载」，把会话留给用户操作。不轮询、不换选择器重试、不深挖播放器内部——继续试不改变结果。用户已确认这条边界（2026-11-10）。
 
 ## 参考
 
