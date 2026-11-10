@@ -1,0 +1,35 @@
+{
+  "skill_name": "jxx-web-resource-ops",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "查一下几个网页版还剩多少额度，记下来",
+      "expected_output": "读运行时台账；无数字则写 remaining:null + unknown，不编造；回报站点/能力/剩余量。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "用千问生成一张图，顺便看看还剩多少积分",
+      "expected_output": "调用前读台账，剩余量为0或unknown则停；只调用能力注册表已有行；调用后追加观测。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "台账里千问视频的额度写错了，修正一下",
+      "expected_output": "先在浏览器重新观测取证，追加带 supersedes + reason 的修正条目，不删旧条目、不改代码或会话。",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "帮我改一下豆包播放器的选择器，把视频抓出来",
+      "expected_output": "不加载本技能执行该动作；本技能只修正台账记录，且已裁定边界明确禁止深挖播放器，浏览器操作归 jxx-browser-roundtrip。",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "用网页版所有能力，包括还没试过的",
+      "expected_output": "不声称覆盖站点全部能力；未登记能力须先实证登记再用。",
+      "files": []
+    }
+  ]
+}
