@@ -21,14 +21,16 @@
 | 站点 | 图片 | 视频 | 备注 |
 | --- | --- | --- | --- |
 | 元宝 yuanbao.tencent.com | ✅ 拿到 2 个 `cdn-pro.yuanbao.tencent.com/public/pro/*.webp` 链接，约 3s | ✅ 纯文字触发生成成功 | 发「请生成一段 5 秒…视频」后页面回「**视频已生成，今天还能生成4个**」，无独立生视频按钮；产物 URL 未在 DOM 里以 `.mp4` 出现，需另找下载/画布通道；输入框是 `div.ql-editor[contenteditable]` |
-| 豆包 doubao.com | ✅ 拿到 6 个 `p*-flow-imagex-sign.byteimg.com/*.png` 链接，约 100s | ⏳ 纯文字触发后要求确认参数 | 发同样请求后回「视频生成参数确认：Seedance 2.0 Mini / 5s / 16:9…**确认后我再开始生成视频**」，需再发一次「确认」；输入框是 `div.tiptap.ProseMirror`；图片签名 URL 带 `x-expires` 会过期 |
+| 豆包 doubao.com | ✅ 拿到 6 个 `p*-flow-imagex-sign.byteimg.com/*.png` 链接，约 100s | ⚠️ 确认后未生成（待查） | 发「请生成一段…视频」后回「视频生成参数确认：Seedance 2.0 Mini / 5s / 16:9…确认后我再开始生成视频」；会话真实 URL 形如 `doubao.com/chat/<id>`（从侧栏 `a[href]` 抠，别用 `text=` 点，会匹配多个）；点「确认」按钮后 200s 内仍停在参数确认那条、无 `<video>`/mp4/新回复；图片签名 URL 带 `x-expires` 会过期 |
 | 千问 qianwen.com | ✅ 拿到 2 个 `images.quark.cn/.../*.webp` 链接，约 9s | ✅ 拿到 mp4（第二轮） | 「AI生视频」入口可点进；首次 120s 内排队未完成（报「当前访问火爆…预计 2-5 分钟…消耗 30 积分」）；约 10 分钟后页面显示「已经生成好啦～请查收 00:05」，从 `workspace-zb-cdn.qianwen.com/*.mp4` 与 `quark-aistudio-cdn.quark.cn/*.mp4` 拿到 8 个链接（含带水印版与封面图） |
 
 要点：
 - 图片 URL 都是**页面 DOM 里 `img[src]` 的新增值**（对比生成前快照 + 排除 icon/logo/avatar 域名），不需要下载事件即可拿到链接。
 - 视频在千问是**异步排队 + 积分消耗**（30 积分/5s，720P），等 2–5 分钟且要够积分；**脚本超时不等于没有产物**，隔几分钟重新打开同一会话取即可。视频 URL 从 `video/source/a[href]` 与页面 HTML 里的 `.mp4` 直链一起抓，别只等 `<video>` 标签。
 - **视频不靠按钮，靠纯文字触发**：三家都发一句「请生成一段…视频」即可，别只扫按钮清单就下「无入口」结论（曾因此误判）。
-- **「没抓到 `.mp4` URL」≠「没生成」**：元宝页面明说已生成但产物不一定以直链出现；判据要并看「页面文案 / `<video>` / blob / 下载按钮 / 画布」。豆包还多一步参数确认，得再发「确认」才真正生成。
+- **「没抓到 `.mp4` URL」≠「没生成」**：元宝页面明说已生成但产物不一定以直链出现；判据要并看「页面文案 / `<video>` / blob / 下载按钮 / 画布」。
+- **豆包确认这一步还没打通**：点「确认」按钮后会话停在参数确认消息、无新回复无产物。可能原因：确认控件是卡片内按钮而非页面按钮、或需额度/队列、或异步生成隔几分钟才回填。未取证，不写死结论。
+- **侧栏会话条目别用 `text=` 点**：同一标题在豆包侧栏会匹配多个（实测 3 个），`page.click` 报歧义超时。改为 `page.evaluate` 抠 `leaf.closest('a[href]')` 拿真实会话 URL 再 `goto`。
 - 三站输入框都不是 `<textarea>`：用 `div[contenteditable=true]`，`page.click` → `keyboard.insertText` → `page.press(..., "Enter")`。
 - 判断「新产物」用生成前 URL 快照做差集，别把页面自带的装饰图当产物。
 
