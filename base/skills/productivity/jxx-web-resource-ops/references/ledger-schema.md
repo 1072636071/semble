@@ -30,7 +30,7 @@
 ## 写纪律
 
 1. **只追加**：`entries.push(newEntry)` 后整份写回；不 splice、不覆盖旧对象。
-2. **不编造**：`remaining` 只能来自本次 `observed` 原话里的数字。模型自述的数字标 `reported`，不写进 `remaining`。
+2. **不编造**：`remaining` 只能来自本次 `observed` 原话里的数字，且带时点与来源。模型自述的数字标 `reported`，不写进 `remaining`；错误码（如 `403 insufficient_user_quota`）只判「无配额」这一定性，不反推具体剩余数值。
 3. **原子写**：先写同目录临时文件再重命名，避免半截 JSON。
 4. **修正不删旧**：矛盾时追加新条目 + `supersedes` + `reason`，旧条目原样保留。
 5. **不回写技能仓**：台账是运行时状态，任何情况下都不 commit 进仓库。

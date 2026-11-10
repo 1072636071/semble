@@ -61,7 +61,8 @@ dispatched, the new observation, and any correction. State `unknown` explicitly
 when no number was observed.
 
 ## Boundaries and failures
-- No invented numbers, no placeholder values, no copied browser recipes.
+- No invented numbers, no placeholder values, no copied browser recipes. Quota numbers come only from current page wording with a timestamp and source; a model's self-reported number is not a quota reading.
+- Classify failures before retrying: `403`-style quota exhaustion stops and hands off; `503`-style site-wide queue allows at most one backoff; a changed selector raises `ERR_SELECTOR_CHANGED` with the current snapshot instead of guessing.
 - `ERR_LEDGER_UNREADABLE`: ledger file cannot be read; report and stop, do not
   recreate it with guessed values.
 - `ERR_QUOTA_EXHAUSTED`: remaining is 0; stop before dispatch.
@@ -103,7 +104,8 @@ when no number was observed.
 
 ## 边界与失败
 
-- 不写死额度数字；不写占位值；不复制往返技能的脚本正文。
+- 不写死额度数字；不写占位值；不复制往返技能的脚本正文。额度数字只认现场页面原话，带时点与来源；模型自述的数字不当额度（参考 `jxx-agnes-video` 的 `403 insufficient_user_quota` 定性口径）。
+- **失败按性质分流，不盲目重试**：`403` 类配额不足 → 停止并转人工；`503` 类全站排队 → 最多一轮退避即停；选择器失效 → `ERR_SELECTOR_CHANGED` 附当前 snapshot，不猜新选择器。一次调试结论不进本技能正文。
 - `ERR_LEDGER_UNREADABLE`：台账读不到 → 回报并停，不用猜的值重建。
 - `ERR_QUOTA_EXHAUSTED`：剩余量为 0 → 调用前停止。
 - `ERR_CAPABILITY_UNREGISTERED`：能力未登记 → 先实证登记再用。
