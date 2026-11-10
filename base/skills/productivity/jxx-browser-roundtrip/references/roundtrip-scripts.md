@@ -20,8 +20,8 @@
 
 | 站点 | 图片 | 视频 | 备注 |
 | --- | --- | --- | --- |
-| 元宝 yuanbao.tencent.com | ✅ 拿到 2 个 `cdn-pro.yuanbao.tencent.com/public/pro/*.webp` 链接，约 3s | ✅ 纯文字触发生成成功 | 发「请生成一段 5 秒…视频」后页面回「**视频已生成，今天还能生成4个**」，无独立生视频按钮；产物 URL 未在 DOM 里以 `.mp4` 出现，需另找下载/画布通道；输入框是 `div.ql-editor[contenteditable]` |
-| 豆包 doubao.com | ✅ 拿到 6 个 `p*-flow-imagex-sign.byteimg.com/*.png` 链接，约 100s | ⚠️ 确认后未生成（待查） | 发「请生成一段…视频」后回「视频生成参数确认：Seedance 2.0 Mini / 5s / 16:9…确认后我再开始生成视频」；会话真实 URL 形如 `doubao.com/chat/<id>`（从侧栏 `a[href]` 抠，别用 `text=` 点，会匹配多个）；点「确认」按钮后 200s 内仍停在参数确认那条、无 `<video>`/mp4/新回复；图片签名 URL 带 `x-expires` 会过期 |
+| 元宝 yuanbao.tencent.com | ✅ 拿到 2 个 `cdn-pro.yuanbao.tencent.com/public/pro/*.webp` 链接，约 3s | ✅ 已生成，产物未取出 | 发「请生成一段 5 秒…视频」后页面回「**视频已生成，今天还能生成4个**」；反复实证：DOM 里无 `<video>`/mp4/下载按钮/播放器 class，媒体不在页面元素上。侧栏会话条目既无 `a[href]` 也无 snapshot ref，点不进历史会话；输入框是 `div.ql-editor[contenteditable]` |
+| 豆包 doubao.com | ✅ 拿到 6 个 `p*-flow-imagex-sign.byteimg.com/*.png` 链接，约 100s | ✅ 已生成，产物未取出 | 原会话点「确认」不触发生成；**新对话直接发完整参数句**（含「无需确认，直接开始生成」）→ 回「本次使用 Seedance 2.0 Mini…约 1-3 分钟…消耗每日免费额度」→ 约 2 分钟后「**你的视频生成好了**」。但播放器是懒加载自定义组件（`block-video-*` / `video-player-*`），只有封面 `aka.doubaocdn.com/s/…`，点播放也不注入 `<video>`，无 mp4/下载按钮。会话 URL 形如 `doubao.com/chat/<id>`（侧栏 `a[href]` 可抠）；图片签名 URL 带 `x-expires` 会过期 |
 | 千问 qianwen.com | ✅ 拿到 2 个 `images.quark.cn/.../*.webp` 链接，约 9s | ✅ 拿到 mp4（第二轮） | 「AI生视频」入口可点进；首次 120s 内排队未完成（报「当前访问火爆…预计 2-5 分钟…消耗 30 积分」）；约 10 分钟后页面显示「已经生成好啦～请查收 00:05」，从 `workspace-zb-cdn.qianwen.com/*.mp4` 与 `quark-aistudio-cdn.quark.cn/*.mp4` 拿到 8 个链接（含带水印版与封面图） |
 
 要点：
@@ -29,7 +29,8 @@
 - 视频在千问是**异步排队 + 积分消耗**（30 积分/5s，720P），等 2–5 分钟且要够积分；**脚本超时不等于没有产物**，隔几分钟重新打开同一会话取即可。视频 URL 从 `video/source/a[href]` 与页面 HTML 里的 `.mp4` 直链一起抓，别只等 `<video>` 标签。
 - **视频不靠按钮，靠纯文字触发**：三家都发一句「请生成一段…视频」即可，别只扫按钮清单就下「无入口」结论（曾因此误判）。
 - **「没抓到 `.mp4` URL」≠「没生成」**：元宝页面明说已生成但产物不一定以直链出现；判据要并看「页面文案 / `<video>` / blob / 下载按钮 / 画布」。
-- **豆包确认这一步还没打通**：点「确认」按钮后会话停在参数确认消息、无新回复无产物。可能原因：确认控件是卡片内按钮而非页面按钮、或需额度/队列、或异步生成隔几分钟才回填。未取证，不写死结论。
+- **豆包的「确认」不用点**：点确认按钮不触发生成。改为**新对话发一句完整参数 + 「无需确认，直接开始生成」**，它会进 1-3 分钟队列并回「视频生成好了」。等足 2 分钟以上再回同一会话取。
+- **「视频生成好了」≠「能拿到文件」**：实测三家里只有千问把 mp4 直链写进 DOM；元宝、豆包都把视频封在自定义播放器/异步卡片里，页面文案确认生成，但 `.mp4`/`<video>`/下载按钮/blobs 全程为空。点播放、深度扒 shadow root、hover 按钮都试过，仍取不到。这条是**当前工具面的硬边界**，别再靠等或换选择器硬试；要文件得走站点自身的「保存到云盘/下载」交互或改抓网络层。
 - **侧栏会话条目别用 `text=` 点**：同一标题在豆包侧栏会匹配多个（实测 3 个），`page.click` 报歧义超时。改为 `page.evaluate` 抠 `leaf.closest('a[href]')` 拿真实会话 URL 再 `goto`。
 - 三站输入框都不是 `<textarea>`：用 `div[contenteditable=true]`，`page.click` → `keyboard.insertText` → `page.press(..., "Enter")`。
 - 判断「新产物」用生成前 URL 快照做差集，别把页面自带的装饰图当产物。
