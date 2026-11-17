@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.2.0 — 2026-11-17
+
+Findings became machine-readable and phase order became checkable, driven by the 157
+local-memory-lifecycle review (11 attempted rounds, 6 sealed changes_required, three
+mechanisms re-reported across 4–6 consecutive rounds, two duplicate-target rounds).
+
+- Add a findings ledger: `seal --findings <ledger.json>` takes the machine-readable form of
+  the consolidated report (`{findings:[{id,severity,mechanism,state,title,evidence,fix}]}`),
+  refuses `--open-findings` that disagrees with it (`ERR_FINDINGS_MISMATCH`), records
+  `finding_counts`, and derives `backlog_nits` from Nit findings instead of a hand-typed number.
+- Add mechanism-stall blocking: with `--histories <rounds-dir>`, a mechanism still open in the
+  immediately preceding ledger fails the seal with `ERR_MECHANISM_STALLED` unless the user
+  accepts it via `--accept-mechanism <slug> --reason "<why>"`. This is what turns the v1.1.0
+  mechanism-closure rule from advice into a gate.
+- Add duplicate-round detection to `init`: a round that already sealed the same target SHA-256
+  is refused with `ERR_DUPLICATE_ROUND` (`--force-duplicate-round "<reason>"` overrides and
+  records `duplicate_of`). Reviewing identical bytes twice produced no new findings in practice.
+- Add `status` command: one read-only pass over all round directories returning per-round
+  status, open findings, stalls, duplicate target hashes, and whether the current target is
+  already bound by a round (`resume` vs `new_round`). Replaces hand-written traversal scripts.
+- Add gate checks C8 `deliverable-carried` and C9 `phase-order`, driven by
+  `gate-config.json` → `boundary`: an AC whose evidence file no phase owns is red, and an AC
+  gated at Pn whose evidence file is only created at a later phase is red. Phase gates are read
+  from the target's own gate table unless `boundary.gates` overrides them; ACs marked
+  `本地部分`/`服务器部分` at a phase are exempt from C9 at that phase. Both checks skip when
+  no `boundary` config exists.
+
 ## 1.1.0 — 2026-11-17
 
 Convergence and anti-rework upgrades, driven by the 039 blog-backend PRD post-mortem (11 rounds, 6 sealed changes_required, ~half the findings were rework on the same mechanisms).

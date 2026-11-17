@@ -228,6 +228,87 @@ for (const sc of sidecars) {
 }
 addCheck('C5', 'sidecars', sidecarFindings.length ? 'fail' : 'pass', sidecarFindings);
 
+// ---- C8/C9: phase boundary table (opt-in via config.boundary) ----
+// Phases name deliverables and the phase that gates them. Two defect classes are fully
+// deterministic once that table exists, and both were historically found by hand late:
+//  - C8 deliverable-not-carried: an AC names evidence file the boundary table never assigns
+//    to any phase, or a phase gate requires an AC no phase owns.
+//  - C9 phase-order: an AC is gated at phase Pn while its evidence file is only created in a
+//    later phase, so Pn can never pass.
+function phaseTable() {
+  const cfg = config.boundary;
+  if (!cfg || !Array.isArray(cfg.phases)) return null;
+  const order = cfg.phases.map(String);
+  const boundary = new Map();
+  for (const row of docLines.get(target) || []) {
+    const m = row.match(cfg.rowPattern ? new RegExp(cfg.rowPattern) : /^\|\s*(P[0-9]+[a-z]?)\s*\|\s*([^|]+?)\s*\|\s*`([^`]+)`\s*\|/);
+    if (!m) continue;
+    const key = cfg.basename === false ? m[3] : path.basename(m[3]);
+    if (!boundary.has(key)) boundary.set(key, []);
+    boundary.get(key).push({ phase: m[1], action: m[2], full: m[3] });
+  }
+  return { order, boundary };
+}
+const phaseFindings = [];
+const table = phaseTable();
+if (table) {
+  const acLine = new Map();
+  (docLines.get(target) || []).forEach((text, i) => {
+    const m = text.match(/^\s*- \[ \] AC-(\d+)/);
+    if (m) acLine.set(Number(m[1]), i + 1);
+  });
+  const testRefs = (lineText) => [...lineText.matchAll(/`([\w./-]+\.test\.(?:js|mjs)|test_[\w]+\.py)(?:::[\w]+)?`/g)].map((m) => path.basename(m[1]));
+  const rankOf = (phase) => table.order.indexOf(String(phase));
+  // C8: every AC's evidence file must be owned by some phase.
+  const c8 = [];
+  for (const [id, line] of acLine) {
+    for (const ref of testRefs(docLines.get(target)[line - 1] || '')) {
+      if (!table.boundary.has(ref)) c8.push(finding('fail', target, line, `AC-${id} evidence ${ref} is not assigned to any phase in the boundary table`));
+    }
+  }
+  // C9: an AC gated at phase P must not depend on evidence created only in a later phase.
+  const gatePhaseFor = new Map();
+  const partialAt = new Set(); // `${phase}#${id}` — AC gated only partially at that phase (本地部分/服务器部分)
+  const gateRows = Array.isArray(config.boundary.gates)
+    ? config.boundary.gates.map((g) => ({ phase: String(g.phase), acs: String(g.acs || ''), line: 0 }))
+    : (docLines.get(target) || []).flatMap((text, i) => {
+        const m = text.match(config.boundary.gateRowPattern ? new RegExp(config.boundary.gateRowPattern) : /^\|\s*(P[0-9]+[a-z]?)\s*\|\s*`npm[^`]*`\s*\|\s*([^|]+)\|/);
+        return m ? [{ phase: m[1], acs: m[2], line: i + 1 }] : [];
+      });
+  for (const gate of gateRows) {
+    const phase = gate.phase;
+    for (const m of gate.acs.matchAll(/(\d+)(?:\s*[～~-]\s*(\d+))?\s*(本地部分|服务器部分|local 部分|server 部分|局部|部分)?/g)) {
+      const a = Number(m[1]);
+      const b = m[2] ? Number(m[2]) : a;
+      for (let n = a; n <= b; n++) {
+        if (!gatePhaseFor.has(n)) gatePhaseFor.set(n, phase);
+        if (m[3]) partialAt.add(phase + '#' + n);
+      }
+    }
+  }
+  const c9 = [];
+  for (const [id, phase] of gatePhaseFor) {
+    if (partialAt.has(phase + '#' + id)) continue; // AC gated only in part at this phase; its other parts gate later by design
+    const line = acLine.get(id);
+    if (!line) continue;
+    for (const ref of testRefs(docLines.get(target)[line - 1] || '')) {
+      const owners = table.boundary.get(ref) || [];
+      const created = owners.find((o) => /^create$/i.test(o.action));
+      if (!created) continue;
+      if (rankOf(created.phase) > rankOf(phase)) {
+        c9.push(finding('fail', target, line, `AC-${id} is gated at ${phase} but its evidence ${ref} is only created at ${created.phase}`));
+      }
+    }
+  }
+  const all = [...c8, ...c9];
+  addCheck('C8', 'deliverable-carried', c8.length ? 'fail' : 'pass', c8);
+  addCheck('C9', 'phase-order', c9.length ? 'fail' : 'pass', c9);
+  if (all.length === 0) phaseFindings.push(finding('info', target, 1, `${acLine.size} ACs and ${table.boundary.size} boundary rows agree`));
+} else {
+  addCheck('C8', 'deliverable-carried', 'skip', [finding('info', target, 1, 'config.boundary absent; phase checks skipped')]);
+  addCheck('C9', 'phase-order', 'skip', []);
+}
+
 // ---- C6: stale phrases ----
 const staleFindings = [];
 for (const sp of list(config.stalePatterns)) {

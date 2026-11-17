@@ -97,3 +97,98 @@ test('seal records nit backlog without blocking passed', () => {
   assert.equal(data.backlog_nits, 12);
   assert.equal(run(root, ['verify', '--manifest', manifest]).status, 'valid');
 });
+// ---- v1.2.0: duplicate-round guard, findings ledger, mechanism stall, status ----
+function ledgerFile(root, name, findings) {
+  const file = path.join(root, name);
+  fs.writeFileSync(file, JSON.stringify({ schema_version: 1, findings }, null, 2) + '\n');
+  return file;
+}
+function withRounds(root, names) {
+  for (const name of names) fs.mkdirSync(path.join(root, name), { recursive: true });
+  return path.join(root, names[0]);
+}
+
+test('init refuses a second round on an already sealed target hash', () => {
+  const root = fixture('dup-round');
+  fs.appendFileSync(path.join(root, 'PRD.md'), '- [ ] AC-1 [主路径] demo —— \x60a.test.js::x\x60\n');
+  const first = path.join(root, 'review', 'r001');
+  run(root, ['init', '--root', root, '--target', 'PRD.md', '--output', first, '--profile', 'readiness']);
+  const manifest = path.join(first, 'manifest.json');
+  complete(root, manifest);
+  assert.equal(run(root, ['seal', '--manifest', manifest, '--status', 'passed', '--open-findings', '0']).status, 'passed');
+  const second = path.join(root, 'review', 'r002');
+  const blocked = run(root, ['init', '--root', root, '--target', 'PRD.md', '--output', second, '--profile', 'readiness'], true);
+  assert.equal(blocked.code, 'ERR_DUPLICATE_ROUND');
+  assert.ok(blocked.message.includes('r001'));
+  const forced = run(root, ['init', '--root', root, '--target', 'PRD.md', '--output', path.join(root, 'review', 'r003'), '--profile', 'readiness', '--force-duplicate-round', '需要按新裁决重审']);
+  assert.equal(forced.duplicate_of, 1);
+});
+
+test('seal rejects an open-findings count that disagrees with the ledger', () => {
+  const root = fixture('ledger-mismatch');
+  const output = path.join(root, 'review');
+  run(root, ['init', '--root', root, '--target', 'PRD.md', '--output', output, '--profile', 'readiness']);
+  const manifest = path.join(output, 'manifest.json');
+  complete(root, manifest);
+  const ledger = ledgerFile(root, 'findings.json', [
+    { id: 'F-01', severity: 'Blocker', mechanism: 'index-replace', state: 'open' },
+  ]);
+  const result = run(root, ['seal', '--manifest', manifest, '--status', 'changes_required', '--open-findings', '0', '--findings', ledger], true);
+  assert.equal(result.code, 'ERR_FINDINGS_MISMATCH');
+});
+
+test('seal derives backlog_nits from the ledger when not passed explicitly', () => {
+  const root = fixture('ledger-nits');
+  const output = path.join(root, 'review');
+  run(root, ['init', '--root', root, '--target', 'PRD.md', '--output', output, '--profile', 'readiness']);
+  const manifest = path.join(output, 'manifest.json');
+  complete(root, manifest);
+  const ledger = ledgerFile(root, 'findings.json', [
+    { id: 'F-01', severity: 'Blocker', mechanism: 'index-replace', state: 'fixed' },
+    { id: 'F-02', severity: 'Nit', mechanism: 'wording', state: 'open' },
+    { id: 'F-03', severity: 'Nit', mechanism: 'wording', state: 'backlog' },
+  ]);
+  const sealed = run(root, ['seal', '--manifest', manifest, '--status', 'passed', '--open-findings', '0', '--findings', ledger]);
+  assert.equal(sealed.status, 'passed');
+  assert.equal(sealed.backlog_nits, 2);
+  const data = JSON.parse(fs.readFileSync(manifest, 'utf8'));
+  assert.equal(data.finding_counts.blocker, 1);
+  assert.equal(data.finding_counts.nit, 2);
+  assert.equal(data.ledger_file, 'findings.json');
+});
+
+test('a mechanism open in two consecutive rounds blocks seal until accepted', () => {
+  const root = fixture('stall');
+  const rounds = path.join(root, 'review');
+  withRounds(rounds, ['r001']);
+  ledgerFile(path.join(rounds, 'r001'), 'findings.json', [
+    { id: 'F-01', severity: 'Major', mechanism: 'canonical-golden', state: 'open' },
+  ]);
+  const output = path.join(rounds, 'r002');
+  run(root, ['init', '--root', root, '--target', 'PRD.md', '--output', output, '--profile', 'readiness']);
+  const manifest = path.join(output, 'manifest.json');
+  complete(root, manifest);
+  const ledger = path.join(output, 'findings.json');
+  fs.writeFileSync(ledger, JSON.stringify({ schema_version: 1, findings: [
+    { id: 'F-01', severity: 'Major', mechanism: 'canonical-golden', state: 'open' },
+  ] }, null, 2) + '\n');
+  const blocked = run(root, ['seal', '--manifest', manifest, '--status', 'changes_required', '--open-findings', '1', '--findings', ledger, '--histories', rounds], true);
+  assert.equal(blocked.code, 'ERR_MECHANISM_STALLED');
+  assert.ok(blocked.message.includes('canonical-golden'));
+  const accepted = run(root, ['seal', '--manifest', manifest, '--status', 'changes_required', '--open-findings', '1', '--findings', ledger, '--histories', rounds, '--accept-mechanism', 'canonical-golden', '--reason', '用户裁决：先落实现代再回填 golden']);
+  assert.equal(accepted.stalls, 1);
+  const data = JSON.parse(fs.readFileSync(manifest, 'utf8'));
+  assert.equal(data.mechanism_stalls[0].accepted, true);
+});
+
+test('status summarises rounds and detects a target already bound', () => {
+  const root = fixture('status');
+  const rounds = path.join(root, 'review');
+  const output = path.join(rounds, 'r001');
+  run(root, ['init', '--root', root, '--target', 'PRD.md', '--output', output, '--profile', 'readiness']);
+  const report = run(root, ['status', '--root', root, '--rounds', rounds, '--target', 'PRD.md']);
+  assert.equal(report.summary.total, 1);
+  assert.equal(report.summary.latest_round, 'r001');
+  assert.equal(report.summary.latest_target_matches_current, true);
+  assert.equal(report.next, 'resume: a round already binds the current target hash');
+});

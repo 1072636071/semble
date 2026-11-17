@@ -36,6 +36,24 @@
       "prompt": "修订尚未同步到工单与 map 就初始化下一轮复审。",
       "expected_output": "先完成全部修订与跨产物同步，跑 pre-review-gate.mjs（AC 交叉引用/工单引用/file:line 引文/版本同步/sidecar/残句/SQL 探针）exit 0 后才 init；轮内目标被改立即 fail 本轮。",
       "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "上一轮封存后 PRD 没再改动，直接再开一轮 full 复审。",
+      "expected_output": "init 返回 ERR_DUPLICATE_ROUND 并指出撞车的轮次；同一份字节重审不产生新发现，应续跑原轮；确需重审须 --force-duplicate-round \"<理由>\" 并记入 manifest 的 duplicate_of／duplicate_override。",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "综合报告里 105 条发现，封存时手填 --open-findings 0，且同一机制已连续两轮未闭合。",
+      "expected_output": "先后以 ERR_FINDINGS_MISMATCH（计数与账本不符）与 ERR_MECHANISM_STALLED（机制连开两轮）拒绝封存；须写 findings.json 账本、闭合整个机制，或经用户 --accept-mechanism --reason 显式接受。",
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "在 gate-config.json 里配置了 boundary 的 PRD，某 AC 的证据测试文件要到更晚阶段才创建。",
+      "expected_output": "pre-review-gate 的 C9 phase-order 判红并给出行号与两个阶段；AC 在该阶段标「本地部分／服务器部分」时豁免；未配置 boundary 时 C8/C9 记 skip。",
+      "files": []
     }
   ]
 }
