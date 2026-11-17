@@ -482,7 +482,9 @@ function copyAuxFiles(srcDir, destDir) {
     if (entry.name === 'SKILL.src.md' || entry.name === 'AGENT.src.md') continue;
     const s = path.join(srcDir, entry.name);
     const d = path.join(destDir, entry.name);
-    if (fs.existsSync(d)) continue;
+    // 覆盖写：此前的 `if (fs.existsSync(d)) continue` 让技能附件（scripts/、tests/、references/）
+    // 在重复安装时永不更新——实测改了源码跑 install 后，安装副本仍是旧版 CHANGELOG 与旧脚本，
+    // 而 runVerify 只校验 SKILL.md 哈希，于是「装完了」与「装对了」不是一回事（2026-11-17 回顾 P2）。
     if (entry.isDirectory()) copyDir(s, d);
     else fs.copyFileSync(s, d);
   }
