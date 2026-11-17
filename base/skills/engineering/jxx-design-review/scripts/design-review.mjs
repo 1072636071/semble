@@ -4,6 +4,9 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
+// 跨处事实一致性核对（与 tools/lib/fact-consistency-core.mjs 同源；技能自带副本以免依赖项目仓）
+import { checkFacts as checkFactConsistency } from './fact-consistency-core.mjs';
+
 const UPSTREAM = 'e9e1f06aa4e26e95cd4ed37210a0632202c429e9';
 const STAGES = [
   { id: 'initial-zoom-out', report: '01-initial-zoom-out.md', reviewers: ['egm-zoom-out', 'egm-inventive-catalyst', 'egm-synthesizer'] },
@@ -346,6 +349,25 @@ try {
     manifest.__file = file;
     assertCurrentTarget(manifest, 'seal');
     validateComplete(manifest);
+    // P4（2026-11-17 复盘）：封存前跨处事实自检。门禁 C1-C9 只查"引文指向的文件存在"，
+    // 查不出"同一事实三处三个值"。实测七轮复审中 AC 总数出现 97/94/93 三值、quota 变量两个
+    // 名字、枚举新值只进主 PRD 而 DDL 的 CHECK 未同步——修复准确率仅 25%。传入 --facts 时
+    // 强制核对；未传只告警不阻断（facts 表按功能目录存在，属可选增强）。
+    if (args.facts && args.facts !== true) {
+      const factsFile = path.resolve(String(args.facts));
+      if (!fs.existsSync(factsFile)) fail('ERR_MISSING_FACTS', `--facts file not found: ${args.facts}`);
+      let declaration;
+      try { declaration = readJson(factsFile); } catch (error) { fail('ERR_INVALID_FACTS', `${args.facts}: ${error.message}`); }
+      const factRoot = declaration.root ? path.resolve(declaration.root) : path.dirname(factsFile);
+      const result = checkFactConsistency({ root: factRoot, declaration });
+      manifest.fact_consistency = { file: relative(manifest.root, factsFile), ok: result.ok, sites: result.summary.sites, drifting: result.summary.drifting };
+      if (!result.ok) {
+        const detail = result.summary.drifting.map((d) => d.id + ': ' + d.sites.map((s) => s.file + ' expect=' + s.expect + ' actual=' + (s.actual === null ? '—' : s.actual)).join('; ')).join(' | ');
+        fail('ERR_FACT_DRIFT', `cross-site fact drift, sealing refused: ${detail}`);
+      }
+    } else if (args['require-facts']) {
+      fail('ERR_MISSING_FACTS', '--require-facts given but no --facts file supplied');
+    }
     const status = need(args, 'status');
     if (!['passed', 'changes_required'].includes(status)) fail('ERR_INVALID_STATUS', status);
     const declared = Number(need(args, 'open-findings'));

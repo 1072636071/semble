@@ -5,7 +5,7 @@ disable-model-invocation: false
 user-invocable: true
 x-install: true
 metadata:
-  version: 1.3.1
+  version: 1.4.0
   license: Apache-2.0
 x-vendors:
   codearts:
@@ -50,7 +50,8 @@ Fresh context means no parent turns, author summary, implementation conclusions,
 6. Record each completed stage with `record`. Preserve the comprehension paraphrase and the finding-to-action traceability matrix.
 7. Resolve findings in the main session, and keep the findings machine-readable: write the consolidated report's findings to a ledger (`{findings:[{id,severity,mechanism,state,title,evidence,fix}]}`, `state` in `open`/`fixed`/`rejected`/`accepted`/`backlog`, `mechanism` a stable slug naming the mechanism rather than the sentence that reported it) and seal with `--findings <ledger.json>`. Mechanism closure rule: each FIX cluster must close the whole mechanism — answer the next question an implementer or reviewer would ask about it (formula, boundary conditions, read/write channels, failure modes, bilingual symmetry, write order) and pin it in the same revision; never patch only the cited sentence. Severity discipline: Blocker = unsound architecture or a design decision forced on the implementer's first step; Major = a mechanism gap causing wrong behavior or blocking a ticket; Nit = wording, consistency, formatting, cross-references. Wording and consistency findings are always Nit, never Major; the synthesizer must downgrade inflated severities. Accepted trade-offs require an explicit user decision and rationale. Never auto-accept residual findings because a retry limit was reached.
 8. Round budget: a target gets at most `--max-rounds` sealed rounds (default 3). Once spent with no open Blocker left, `init` refuses (`ERR_ROUND_BUDGET_EXHAUSTED`) — fix the residual Majors/Nits and seal, do not open another full round. An open Blocker unlocks one more round only with `--approval "<user decision text>"`.
-9. Seal with `passed` when open Blockers and Majors are zero (fixed or explicitly user-accepted); `open_findings` counts unresolved Blockers and Majors only, and must equal the ledger's count (`ERR_FINDINGS_MISMATCH`). Pass `--histories <rounds-dir>` so that a mechanism still open in the immediately preceding ledger blocks the seal with `ERR_MECHANISM_STALLED` unless the user accepts it via `--accept-mechanism <slug> --reason "<why>"` — a mechanism open twice is a reworded sentence, not a closed mechanism. `status --root <root> --rounds <rounds-dir>` gives the read-only overview (per-round state, stalls, duplicate hashes, whether the current target is already bound). Nits go to an implementation backlog (recorded in TRIAGE and tickets) via `seal --backlog-nits N` and do not trigger a new round; a SOUND-architecture round with only Nits left seals passed instead of re-running full stages. Otherwise seal with `changes_required`. Run `verify` before publication or ticket generation; a changed target hash is stale and requires a new round.
+9. Before sealing, run the cross-site fact check: `seal --facts <facts.json>` verifies that a fact appearing in several places holds the same value, and refuses with `ERR_FACT_DRIFT` on any drift. C1–C9 only check that citations resolve; they cannot see "the same fact has three different values". A real case shipped 33 green gates while the AC total read 97/94/93 in three places and a quota env var had two names; only 3 of 12 fixes in that round were fully correct.
+10. Seal with `passed` when open Blockers and Majors are zero (fixed or explicitly user-accepted); `open_findings` counts unresolved Blockers and Majors only, and must equal the ledger's count (`ERR_FINDINGS_MISMATCH`). Pass `--histories <rounds-dir>` so that a mechanism still open in the immediately preceding ledger blocks the seal with `ERR_MECHANISM_STALLED` unless the user accepts it via `--accept-mechanism <slug> --reason "<why>"` — a mechanism open twice is a reworded sentence, not a closed mechanism. `status --root <root> --rounds <rounds-dir>` gives the read-only overview (per-round state, stalls, duplicate hashes, whether the current target is already bound). Nits go to an implementation backlog (recorded in TRIAGE and tickets) via `seal --backlog-nits N` and do not trigger a new round; a SOUND-architecture round with only Nits left seals passed instead of re-running full stages. Otherwise seal with `changes_required`. Run `verify` before publication or ticket generation; a changed target hash is stale and requires a new round.
 
 ## Stage ownership
 
@@ -160,6 +161,12 @@ node <本技能目录>/scripts/design-review.mjs record --manifest <manifest路�
 **轮内禁改目标**：record/seal 报 `ERR_STALE_REVIEW` 时立即 `fail` 本轮（incomplete），不得继续派 reviewer；完成修订与跨产物同步后开新轮。
 
 ### 4. 封存与发布门禁
+
+**封存前跨处事实自检（v1.4.0）**：`seal --facts <facts.json>` 在封存前核对「同一事实在多处的取值」是否一致，不一致即 `ERR_FACT_DRIFT` 拒绝封存，并把结果记进 manifest 的 `fact_consistency`。
+
+为什么需要：门禁 C1–C9 只查「引文指向的文件存在」，查不出「同一事实三处三个值」。实测 PRD 157 七轮复审中，33 条治理闸全绿的同时存在 AC 总数 97／94／93 三值并存、quota 变量两个名字、枚举新值只进主 PRD 而 DDL 的 CHECK 未同步——那一轮 12 项修复只有 3 项完全正确（25%），根因全是「改一处漏一处」。
+
+facts.json 格式与判据见 `scripts/fact-consistency-core.mjs` 头部。发现未登记位点用 `check-fact-consistency.mjs --discover <值> --keyword <词>`（人的动作，不是闸的动作）。`--require-facts` 可强制必须提供。
 
 ```bash
 node <本技能目录>/scripts/design-review.mjs seal --manifest <manifest路径> --status passed --open-findings 0 [--backlog-nits N]

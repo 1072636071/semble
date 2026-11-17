@@ -316,3 +316,46 @@ test("fail unfreezes the target so the next round may edit it", () => {
   fs.writeFileSync(path.join(root, "PRD.md"), "# PRD\n\neditable again\n");
   assert.ok(fs.readFileSync(path.join(root, "PRD.md"), "utf8").includes("editable again"));
 });
+
+// ---- v1.4.0: seal refuses when a cross-site fact drifts ----
+test("seal refuses on cross-site fact drift and records the attempt", () => {
+  const root = fixture("facts-drift");
+  fs.writeFileSync(path.join(root, "S1.md"), "本节只列 97 条 AC\n");
+  fs.writeFileSync(path.join(root, "S2.json"), JSON.stringify({ p6: "AC-1～93" }));
+  fs.writeFileSync(path.join(root, "facts.json"), JSON.stringify({
+    schema_version: 1,
+    facts: [{ id: "ac-total", canonical: 97, sites: [
+      { file: "S1.md", pattern: "本节只列 (\\d+) 条 AC" },
+      { file: "S2.json", json: "p6", pattern: "AC-1～(\\d+)" },
+    ] }],
+  }));
+  const output = path.join(root, "review");
+  run(root, ["init", "--root", root, "--target", "PRD.md", "--output", output, "--profile", "readiness"]);
+  const manifest = path.join(output, "manifest.json");
+  complete(root, manifest);
+  const blocked = run(root, ["seal", "--manifest", manifest, "--status", "passed", "--open-findings", "0", "--facts", path.join(root, "facts.json")], true);
+  assert.equal(blocked.code, "ERR_FACT_DRIFT");
+  assert.match(blocked.message, /ac-total/);
+});
+
+test("seal passes when every cross-site fact agrees", () => {
+  const root = fixture("facts-ok");
+  fs.writeFileSync(path.join(root, "S1.md"), "本节只列 97 条 AC\n");
+  fs.writeFileSync(path.join(root, "S2.json"), JSON.stringify({ p6: "AC-1～97" }));
+  fs.writeFileSync(path.join(root, "facts.json"), JSON.stringify({
+    schema_version: 1,
+    facts: [{ id: "ac-total", canonical: 97, sites: [
+      { file: "S1.md", pattern: "本节只列 (\\d+) 条 AC" },
+      { file: "S2.json", json: "p6", pattern: "AC-1～(\\d+)" },
+    ] }],
+  }));
+  const output = path.join(root, "review");
+  run(root, ["init", "--root", root, "--target", "PRD.md", "--output", output, "--profile", "readiness"]);
+  const manifest = path.join(output, "manifest.json");
+  complete(root, manifest);
+  const sealed = run(root, ["seal", "--manifest", manifest, "--status", "passed", "--open-findings", "0", "--facts", path.join(root, "facts.json")]);
+  assert.equal(sealed.status, "passed");
+  const after = JSON.parse(fs.readFileSync(manifest, "utf8"));
+  assert.equal(after.fact_consistency.ok, true);
+  assert.equal(after.fact_consistency.sites, 2);
+});

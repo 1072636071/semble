@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.0 — 2026-11-17
+
+Cross-site fact consistency, so "same fact, several places" cannot drift unnoticed.
+
+- Add `seal --facts <facts.json>`: before sealing, verify that a declared fact holds the same
+  value at every site that carries it. Drift refuses the seal with `ERR_FACT_DRIFT` and is
+  recorded in `manifest.fact_consistency`. `--require-facts` makes the file mandatory.
+- Add `scripts/fact-consistency-core.mjs`: zero-dependency checker (regex site + JSON-path site,
+  per-site `expect` override, duplicate-id guard) plus a `discoverSites` helper that finds
+  unregistered copies of a value near a keyword.
+- Why: C1–C9 only prove citations resolve. In a real seven-round review, 33 governance gates were
+  green while the AC total read 97 / 94 / "AC-1～93" in three places, a quota env var had two
+  names, and a new enum value landed in the spec but not in the DDL CHECK. Only 3 of 12 fixes that
+  round were fully correct (25%); every miss was "changed one copy, left the others".
+
 ## 1.3.1 — 2026-11-17
 
 Review and edit are now strictly serial, enforced rather than documented.
