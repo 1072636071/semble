@@ -103,7 +103,8 @@ function loadLedger(file, manifest) {
   });
   const openCounted = findings.filter((f) => COUNTED_OPEN.has(f.state) && f.severity !== 'Nit');
   const nitBacklog = findings.filter((f) => f.severity === 'Nit' && f.state !== 'fixed');
-  return { file: relative(manifest.root, resolved), findings, openFindings: openCounted.length, nitBacklog: nitBacklog.length };
+  const openBlockers = findings.filter((f) => COUNTED_OPEN.has(f.state) && f.severity === 'Blocker').length;
+  return { file: relative(manifest.root, resolved), findings, openFindings: openCounted.length, nitBacklog: nitBacklog.length, openBlockers };
 }
 function priorLedgers(manifest, histories) {
   const scanned = [];
@@ -188,6 +189,38 @@ try {
           }
         } catch { /* ignore unreadable siblings */ }
       }
+    }
+    // ---- 轮次预算（v1.3.0，用户 2026-11-17 裁决）----
+    // 同一 target 默认最多 3 轮；只有上一轮仍有未处置 Blocker 时才允许第 4 轮及以后。
+    // 依据：连续多轮审查的边际收益递减，且每轮都会把同类发现再报一遍。
+    const maxRounds = args['max-rounds'] === undefined ? 3 : Number(args['max-rounds']);
+    if (!Number.isInteger(maxRounds) || maxRounds < 1) fail('ERR_INVALID_ROUND_BUDGET', '--max-rounds must be a positive integer');
+    const priorRounds = [];
+    for (const dir of [path.dirname(output), ...list(args.histories).map((d) => path.resolve(String(d)))]) {
+      if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const sibling = path.join(dir, entry.name, 'manifest.json');
+        if (!fs.existsSync(sibling)) continue;
+        try {
+          const other = readJson(sibling);
+          if (path.resolve(other.root ?? '') !== root) continue;
+          // 用 resolve 比对绝对路径：relative() 出的是正斜杠，path.normalize 在 Windows 上会把 / 转成 \，
+          // 直接比字符串永远不等（v1.3.0 初版踩过，导致预算恒不触发）。
+          if (path.resolve(root, other.target ?? '') !== path.resolve(target)) continue;
+          priorRounds.push({ round: entry.name, status: other.status, blockers: other.blocker_count ?? null });
+        } catch { /* ignore */ }
+      }
+    }
+    // 已消耗的轮次 = 所有非 in_progress 的轮次。incomplete / not_run 同样花掉了一轮的成本，
+    // 不计入会让「每轮都作废再开一轮」无限循环——这正是真实案例踩过的坑（r016–r019 全部作废）。
+    const sealedPrior = priorRounds.filter((r) => ['passed', 'changes_required', 'incomplete', 'not_run'].includes(r.status));
+    const lastSealedHasBlocker = sealedPrior.length > 0 && (sealedPrior[sealedPrior.length - 1].blockers ?? 0) > 0;
+    if (sealedPrior.length >= maxRounds && !lastSealedHasBlocker) {
+      fail('ERR_ROUND_BUDGET_EXHAUSTED', `target already has ${sealedPrior.length} sealed round(s) (${sealedPrior.map((r) => r.round + ':' + r.status + '/B' + (r.blockers ?? '?')).join(', ')}); the last round left no open Blocker, so another full round is not authorised. Fix the residual Majors/Nits and seal them, or pass --max-rounds <n> with a user decision text in --approval`);
+    }
+    if (sealedPrior.length >= maxRounds && lastSealedHasBlocker && !(args.approval && args.approval !== true)) {
+      fail('ERR_ROUND_BUDGET_EXHAUSTED', `round budget (${maxRounds}) reached but the last round still has ${sealedPrior[sealedPrior.length - 1].blockers} open Blocker(s); pass --approval "<user decision text>" to authorise one more round`);
     }
     if (duplicateOf.length > 0 && !(args['force-duplicate-round'] && args['force-duplicate-round'] !== true)) {
       fail('ERR_DUPLICATE_ROUND', `target ${targetHash.slice(0, 12)} already sealed in ${duplicateOf.map((d) => d.round + '(' + d.status + ')').join(', ')}; pass --force-duplicate-round "<reason>" to override`);
@@ -277,6 +310,7 @@ try {
         nit: ledger.findings.filter((f) => f.severity === 'Nit').length,
         open: ledger.openFindings,
       };
+      manifest.findings_summary = { open_blockers: ledger.openBlockers, open_total: ledger.openFindings };
       if (backlog === null) backlog = ledger.nitBacklog;
       const stalls = stalledMechanisms(ledger.findings, priorLedgers(manifest, args.histories), manifest);
       const accepted = list(args['accept-mechanism']).map(String);
@@ -294,6 +328,9 @@ try {
     manifest.status = status;
     manifest.open_findings = open;
     manifest.backlog_nits = backlog === null ? 0 : backlog;
+    // 轮次预算判据（v1.3.0）：blocker_count 是"还值不值得再开一轮"的唯一依据。
+    // 从账本统计未处置 Blocker；未传账本时退化为 0（此时轮次预算一律不追加轮次）。
+    manifest.blocker_count = (manifest.findings_summary && manifest.findings_summary.open_blockers) || 0;
     manifest.error = null;
     manifest.sealed_at = new Date().toISOString();
     writeJson(file, manifest);

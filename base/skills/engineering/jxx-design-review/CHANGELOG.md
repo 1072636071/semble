@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.0 — 2026-11-17
+
+Round budget: review rounds are now capped, because the marginal value of another full round
+collapses once no Blocker is left. Driven by a real case that ran r016–r019 back to back on the
+same target without converging (each round re-reported the same mechanisms under new IDs).
+
+- Add `init` round budget: at most `--max-rounds` (default 3) sealed rounds per target. Once the
+  budget is spent and the last sealed round left **no open Blocker**, `init` refuses with
+  `ERR_ROUND_BUDGET_EXHAUSTED` — fix the residual Majors/Nits and seal them instead of opening
+  another full round.
+- An open Blocker in the last sealed round unlocks one more round, but only with an explicit
+  `--approval "<user decision text>"`; severity is read from the sealed round's ledger
+  (`finding_counts.blocker` / `findings_summary.open_blockers`), not from a hand-typed number.
+- `seal` now persists `findings_summary.open_blockers` and `blocker_count` so the budget is
+  auditable after the fact.
+
 ## 1.2.1 — 2026-11-17
 
 Two C1 false-positive fixes found while gating a split PRD (main PRD as index, AC bodies in tickets).

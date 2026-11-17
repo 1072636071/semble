@@ -192,3 +192,58 @@ test('status summarises rounds and detects a target already bound', () => {
   assert.equal(report.summary.latest_target_matches_current, true);
   assert.equal(report.next, 'resume: a round already binds the current target hash');
 });
+
+// ---- v1.3.0: round budget (default max 3; no new round once the last round left no Blocker) ----
+function sealRound(root, out, findings, status, open) {
+  const manifest = path.join(out, "manifest.json");
+  complete(root, manifest);
+  const ledger = path.join(out, "findings.json");
+  fs.writeFileSync(ledger, JSON.stringify({ schema_version: 1, findings }, null, 2) + "\n");
+  const sealed = run(root, ["seal", "--manifest", manifest, "--status", status, "--open-findings", String(open), "--findings", ledger]);
+  assert.equal(sealed.status, status);
+  return manifest;
+}
+function newRound(root, name, extra = []) {
+  fs.appendFileSync(path.join(root, "PRD.md"), "\nrevision for " + name + "\n");
+  const out = path.join(root, "review", name);
+  run(root, ["init", "--root", root, "--target", "PRD.md", "--output", out, "--profile", "readiness", ...extra]);
+  return out;
+}
+
+test("round budget blocks a fourth round when the last round left no Blocker", () => {
+  const root = fixture("budget-exhausted");
+  for (const name of ["r001", "r002", "r003"]) {
+    sealRound(root, newRound(root, name), [{ id: "F-" + name, severity: "Major", mechanism: "m", state: "open" }], "changes_required", 1);
+  }
+  fs.appendFileSync(path.join(root, "PRD.md"), "\nrevision for r004\n");
+  const blocked = run(root, ["init", "--root", root, "--target", "PRD.md", "--output", path.join(root, "review", "r004"), "--profile", "readiness"], true);
+  assert.equal(blocked.code, "ERR_ROUND_BUDGET_EXHAUSTED");
+  assert.match(blocked.message, /no open Blocker/);
+});
+
+test("round budget allows one more round only with an open Blocker plus approval", () => {
+  const root = fixture("budget-blocker");
+  for (const name of ["r001", "r002", "r003"]) {
+    sealRound(root, newRound(root, name), [{ id: "B-" + name, severity: "Blocker", mechanism: "blk", state: "open" }], "changes_required", 1);
+  }
+  fs.appendFileSync(path.join(root, "PRD.md"), "\nrevision for r004\n");
+  const noApproval = run(root, ["init", "--root", root, "--target", "PRD.md", "--output", path.join(root, "review", "r004"), "--profile", "readiness"], true);
+  assert.equal(noApproval.code, "ERR_ROUND_BUDGET_EXHAUSTED");
+  assert.match(noApproval.message, /Blocker/);
+  fs.appendFileSync(path.join(root, "PRD.md"), "\nrevision for r005\n");
+  const approved = run(root, ["init", "--root", root, "--target", "PRD.md", "--output", path.join(root, "review", "r005"), "--profile", "readiness", "--approval", "用户批准第 4 轮：仍有未处置 Blocker"]);
+  assert.equal(approved.ok, true);
+});
+
+test("round budget honours an explicit --max-rounds", () => {
+  const root = fixture("budget-raise");
+  for (const name of ["r001", "r002"]) {
+    sealRound(root, newRound(root, name), [{ id: "F-" + name, severity: "Major", mechanism: "m", state: "open" }], "changes_required", 1);
+  }
+  fs.appendFileSync(path.join(root, "PRD.md"), "\nrevision for r003\n");
+  const blocked = run(root, ["init", "--root", root, "--target", "PRD.md", "--output", path.join(root, "review", "r003"), "--profile", "readiness", "--max-rounds", "2"], true);
+  assert.equal(blocked.code, "ERR_ROUND_BUDGET_EXHAUSTED");
+  fs.appendFileSync(path.join(root, "PRD.md"), "\nrevision for r004\n");
+  const raised = run(root, ["init", "--root", root, "--target", "PRD.md", "--output", path.join(root, "review", "r004"), "--profile", "readiness", "--max-rounds", "5"]);
+  assert.equal(raised.ok, true);
+});

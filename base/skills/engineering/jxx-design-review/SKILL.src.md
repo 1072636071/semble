@@ -5,7 +5,7 @@ disable-model-invocation: false
 user-invocable: true
 x-install: true
 metadata:
-  version: 1.2.1
+  version: 1.3.0
   license: Apache-2.0
 x-vendors:
   codearts:
@@ -48,7 +48,8 @@ Fresh context means no parent turns, author summary, implementation conclusions,
 4. Read only the persona and standard needed for the current stage from `references/upstream/`. Do not load the whole snapshot into the main context.
 5. Record each completed stage with `record`. Preserve the comprehension paraphrase and the finding-to-action traceability matrix.
 6. Resolve findings in the main session, and keep the findings machine-readable: write the consolidated report's findings to a ledger (`{findings:[{id,severity,mechanism,state,title,evidence,fix}]}`, `state` in `open`/`fixed`/`rejected`/`accepted`/`backlog`, `mechanism` a stable slug naming the mechanism rather than the sentence that reported it) and seal with `--findings <ledger.json>`. Mechanism closure rule: each FIX cluster must close the whole mechanism — answer the next question an implementer or reviewer would ask about it (formula, boundary conditions, read/write channels, failure modes, bilingual symmetry, write order) and pin it in the same revision; never patch only the cited sentence. Severity discipline: Blocker = unsound architecture or a design decision forced on the implementer's first step; Major = a mechanism gap causing wrong behavior or blocking a ticket; Nit = wording, consistency, formatting, cross-references. Wording and consistency findings are always Nit, never Major; the synthesizer must downgrade inflated severities. Accepted trade-offs require an explicit user decision and rationale. Never auto-accept residual findings because a retry limit was reached.
-7. Seal with `passed` when open Blockers and Majors are zero (fixed or explicitly user-accepted); `open_findings` counts unresolved Blockers and Majors only, and must equal the ledger's count (`ERR_FINDINGS_MISMATCH`). Pass `--histories <rounds-dir>` so that a mechanism still open in the immediately preceding ledger blocks the seal with `ERR_MECHANISM_STALLED` unless the user accepts it via `--accept-mechanism <slug> --reason "<why>"` — a mechanism open twice is a reworded sentence, not a closed mechanism. `status --root <root> --rounds <rounds-dir>` gives the read-only overview (per-round state, stalls, duplicate hashes, whether the current target is already bound). Nits go to an implementation backlog (recorded in TRIAGE and tickets) via `seal --backlog-nits N` and do not trigger a new round; a SOUND-architecture round with only Nits left seals passed instead of re-running full stages. Otherwise seal with `changes_required`. Run `verify` before publication or ticket generation; a changed target hash is stale and requires a new round.
+7. Round budget: a target gets at most `--max-rounds` sealed rounds (default 3). Once spent with no open Blocker left, `init` refuses (`ERR_ROUND_BUDGET_EXHAUSTED`) — fix the residual Majors/Nits and seal, do not open another full round. An open Blocker unlocks one more round only with `--approval "<user decision text>"`.
+8. Seal with `passed` when open Blockers and Majors are zero (fixed or explicitly user-accepted); `open_findings` counts unresolved Blockers and Majors only, and must equal the ledger's count (`ERR_FINDINGS_MISMATCH`). Pass `--histories <rounds-dir>` so that a mechanism still open in the immediately preceding ledger blocks the seal with `ERR_MECHANISM_STALLED` unless the user accepts it via `--accept-mechanism <slug> --reason "<why>"` — a mechanism open twice is a reworded sentence, not a closed mechanism. `status --root <root> --rounds <rounds-dir>` gives the read-only overview (per-round state, stalls, duplicate hashes, whether the current target is already bound). Nits go to an implementation backlog (recorded in TRIAGE and tickets) via `seal --backlog-nits N` and do not trigger a new round; a SOUND-architecture round with only Nits left seals passed instead of re-running full stages. Otherwise seal with `changes_required`. Run `verify` before publication or ticket generation; a changed target hash is stale and requires a new round.
 
 ## Stage ownership
 
@@ -153,6 +154,7 @@ node <本技能目录>/scripts/design-review.mjs seal --manifest <manifest路径
 node <本技能目录>/scripts/design-review.mjs verify --manifest <manifest路径>
 ```
 
+- **轮次预算**：同一目标最多 `--max-rounds` 轮（默认 3）。用尽且末轮**无未处置 Blocker** 时，`init` 以 `ERR_ROUND_BUDGET_EXHAUSTED` 拒绝再开全量轮——此时应修完剩余 Major／Nit 并封存，不再重审。末轮仍有 Blocker 时允许再加一轮，但须传 `--approval "<用户裁决原文>"`。严重度取自已封存轮次的账本，不接受手填数字。
 - `open_findings` 只计未处置 **Blocker＋Major**。两者清零（已修复，或已由用户明确接受并记录取舍）即可 `passed`；该数值必须与发现账本一致。
 - **机制停滞阻断**：传 `--histories <轮次目录>` 后，若某机制在紧邻上一轮账本里仍为 open、本轮仍为 open，`seal` 以 `ERR_MECHANISM_STALLED` 拒绝——连开两轮说明只改了被引用的那句话，机制没闭合。用户明确接受时用 `--accept-mechanism <slug> --reason "<理由>"` 放行，接受记录进 manifest 的 `mechanism_stalls`。
 - **全局读数**：`node <本技能目录>/scripts/design-review.mjs status --root <仓库根> --rounds <轮次目录>` 一次列出各轮状态、未封闭数、停滞机制、重复目标哈希，并判定当前目标是被已有轮次绑定（`resume`）还是需要开新轮（`new_round`）。
