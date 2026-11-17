@@ -74,7 +74,10 @@ for (const f of docs) {
   const set = new Set();
   const dup = [];
   docLines.get(f).forEach((text, i) => {
-    const m = text.match(/(?:^|\s)- \[[ xX]\] AC-(\d+)/) || text.match(/^\|\s*AC-(\d+)\s*\|/) || text.match(/^\s*\*{0,2}AC-(\d+)\*{0,2}[:：]/);
+    // A definition is a checkbox or a headed AC line. A bare table row "| AC-N | phase | evidence |"
+    // is a traceability projection of an already-defined AC, not a second definition — treating it
+    // as one made every "definition + evidence table" ticket look duplicated.
+    const m = text.match(/(?:^|\s)- \[[ xX]\] AC-(\d+)/) || text.match(/^\s*\*{0,2}AC-(\d+)\*{0,2}[:：]/);
     if (m) { const id = Number(m[1]); if (set.has(id)) dup.push(finding('fail', f, i + 1, `AC-${id} defined twice`)); set.add(id); }
   });
   defined.set(f, set);
@@ -106,8 +109,15 @@ for (const f of docs) {
         // Tickets may reference PRD-level ACs unqualified (039 convention); PRD->ticket refs must be qualified.
         if (isTicket(f) && !qualifier && defined.get(target)?.has(id)) continue;
         if (f === mapFile && !qualifier && [...defined.values()].some((s) => s.has(id))) continue;
+        // acHome=tickets: the split topology, where the target is an index and the AC bodies live in
+        // exactly one ticket each. An unqualified AC-M in the target then resolves to its owning ticket.
+        if (config.acHome === 'tickets' && f === target && !qualifier) {
+          const owners = ticketFiles.filter((t) => defined.get(t)?.has(id));
+          if (owners.length === 1) continue;
+          if (owners.length > 1) { acFindings.push(finding('fail', f, i + 1, `AC-${id} defined in more than one ticket: ${owners.map((o) => rel(root, o)).join(', ')}`)); continue; }
+        }
         const hint = !qualifier && f === target && [...ticketFiles].some((t) => defined.get(t)?.has(id))
-          ? ' (cross-space ref must be qualified as 工单 NN AC-M)' : '';
+          ? (config.acHome === 'tickets' ? ' (acHome=tickets: AC must be defined in exactly one ticket)' : ' (cross-space ref must be qualified as 工单 NN AC-M)') : '';
         acFindings.push(finding('fail', f, i + 1, `AC-${id} not defined in ${rel(root, space)}${hint}`));
       }
     }

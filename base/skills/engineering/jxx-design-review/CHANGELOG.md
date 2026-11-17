@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.1 — 2026-11-17
+
+Two C1 false-positive fixes found while gating a split PRD (main PRD as index, AC bodies in tickets).
+
+- Stop treating a bare table row `| AC-N | phase | evidence |` as a second AC definition. It is a
+  traceability projection; only checkbox and headed lines define an AC. This made every ticket
+  that pairs definitions with an evidence table report "AC-N defined twice".
+- Add `acHome` config. With `acHome: "tickets"` the target may reference `AC-N` unqualified and
+  the gate resolves it to the single ticket that defines it; the same AC defined in two tickets
+  is still red. This covers the split topology where the PRD carries an AC index instead of bodies.
+
 ## 1.2.0 — 2026-11-17
 
 Findings became machine-readable and phase order became checkable, driven by the 157
