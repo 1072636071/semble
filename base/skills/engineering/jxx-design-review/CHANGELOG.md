@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.1 — 2026-11-17
+
+Review and edit are now strictly serial, enforced rather than documented.
+
+- `init` physically freezes the target (Windows `attrib +R`, POSIX strips write bits). A plain write
+  during a round fails with `EPERM`.
+- `record`/`seal`/`verify` re-check the hash every time. A mismatch aborts with
+  `ERR_TARGET_MUTATED_DURING_ROUND` (replacing the vague `ERR_STALE_REVIEW` for this case), sets the
+  round to `incomplete`, and appends to `target_mutations[]` (detected_at / detected_by /
+  expected_sha256 / observed_sha256) — append-only, so "edited mid-round" stays auditable.
+- `fail` and `seal` unfreeze the target, so review and edit alternate instead of overlapping.
+- Add `guard` command: read-only health check reporting `intact` or `TARGET MUTATED DURING ROUND`;
+  `--strict` exits non-zero. It never mutates state.
+- Orchestration discipline: run all stages → seal/fail → only then consolidate findings and edit in
+  one pass → next round. Interleaving edits between stages is forbidden.
+
 ## 1.3.0 — 2026-11-17
 
 Round budget: review rounds are now capped, because the marginal value of another full round

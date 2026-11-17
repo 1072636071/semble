@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 
 const UPSTREAM = 'e9e1f06aa4e26e95cd4ed37210a0632202c429e9';
 const STAGES = [
@@ -47,10 +48,59 @@ function readJson(file) { return JSON.parse(fs.readFileSync(file, 'utf8')); }
 function writeJson(file, value) { fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n'); }
 function hashFile(file) { return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'); }
 function manifestPath(value) { return path.resolve(value); }
-function assertCurrentTarget(manifest) {
+/**
+ * 目标冻结（v1.3.1，用户 2026-11-17 裁决：审查与修改必须串行，审查过程中不得修改目标）。
+ *
+ * 两层保护：
+ *  ① 物理冻结——写只读位，使误改在文件系统层直接失败（Windows 用 attrib +R / POSIX chmod a-w）；
+ *     这是硬约束，不是提示。审查方读到 EPERM 即知目标已冻结。
+ *  ② 变更审计——无论冻结是否被绕过（如外部编辑器强删只读位），每次 record/seal/verify/guard
+ *     都比对 hash 并把不符记进 manifest.target_mutations，使「轮内改过」可事后追责而非静默重开。
+ *
+ * fail / seal 结束该轮时解冻，让下一轮可以正常修订——审查与修改交替，不重叠。
+ */
+function freezeTarget(file) {
+  if (process.platform === 'win32') {
+    const r = spawnSync('attrib', ['+R', file], { stdio: 'ignore' });
+    return r.status === 0;
+  }
+  try { fs.chmodSync(file, fs.statSync(file).mode & ~0o222); return true; } catch { return false; }
+}
+function unfreezeTarget(file) {
+  if (process.platform === 'win32') {
+    const r = spawnSync('attrib', ['-R', file], { stdio: 'ignore' });
+    return r.status === 0;
+  }
+  try { fs.chmodSync(file, fs.statSync(file).mode | 0o644); return true; } catch { return false; }
+}
+/** 记录一次「轮内目标被改」，append-only，不清理。 */
+function recordMutation(manifest, observedHash, where) {
+  manifest.target_mutations = manifest.target_mutations || [];
+  manifest.target_mutations.push({
+    detected_at: new Date().toISOString(),
+    detected_by: where,
+    expected_sha256: manifest.target_sha256,
+    observed_sha256: observedHash,
+  });
+}
+function assertCurrentTarget(manifest, where = 'unknown') {
   const target = resolveInside(manifest.root, manifest.target);
   if (!fs.existsSync(target)) fail('ERR_MISSING_TARGET', manifest.target);
-  if (hashFile(target) !== manifest.target_sha256) fail('ERR_STALE_REVIEW', 'Target changed; start a new review round');
+  const observed = hashFile(target);
+  if (observed !== manifest.target_sha256) {
+    recordMutation(manifest, observed, where);
+    manifest.status = 'incomplete';
+    manifest.error = { code: 'ERR_TARGET_MUTATED_DURING_ROUND', message: `target changed during the round (detected by ${where}); the round is void — finish or fail it before editing the target` };
+    try { writeJson(manifestPath(manifest.__file || ''), manifest); } catch { /* __file may be unset */ }
+    fail('ERR_TARGET_MUTATED_DURING_ROUND', `target changed during the round (detected by ${where}); edits during review are forbidden — the round is void, seal or fail it first`);
+  }
+  if (manifest.frozen === true && process.platform === 'win32') {
+    // 只读位被剥掉也算违反冻结约定（外部强改），不减阻断，但要留下证据
+    const st = spawnSync('attrib', [target], { encoding: 'utf8' });
+    if (st.status === 0 && !/\bR\b/.test(st.stdout.trim().split(/\s+/)[0] || '')) {
+      manifest.freeze_violations = (manifest.freeze_violations || 0) + 1;
+    }
+  }
 }
 function selectedStage(manifest, id) {
   const stage = manifest.stages.find((entry) => entry.id === id);
@@ -257,8 +307,11 @@ try {
         report: relative(root, path.join(output, stage.report)),
       })),
     };
+    // 冻结：init 之后目标只读，任何修改在文件系统层失败；seal/fail 解冻。
+    const frozen = freezeTarget(target);
+    manifest.frozen = frozen;
     writeJson(manifestFile, manifest);
-    console.log(JSON.stringify({ ok: true, manifest: manifestFile, stages: manifest.stages.length, duplicate_of: duplicateOf.length }));
+    console.log(JSON.stringify({ ok: true, manifest: manifestFile, stages: manifest.stages.length, duplicate_of: duplicateOf.length, frozen }));
   } else if (command === 'fail') {
     const file = manifestPath(need(args, 'manifest'));
     const manifest = readJson(file);
@@ -266,12 +319,16 @@ try {
     manifest.status = code === 'ERR_FRESH_CONTEXT_UNAVAILABLE' ? 'not_run' : 'incomplete';
     manifest.error = { code, message: String(args.message || code) };
     manifest.updated_at = new Date().toISOString();
+    manifest.__file = file;
+    // 结束一轮即解冻，让修订可以开始——审查与修改交替进行，不重叠。
+    manifest.unfrozen = manifest.frozen === true ? unfreezeTarget(resolveInside(manifest.root, manifest.target)) : null;
     writeJson(file, manifest);
-    console.log(JSON.stringify({ ok: true, status: manifest.status, code }));
+    console.log(JSON.stringify({ ok: true, status: manifest.status, code, unfrozen: manifest.unfrozen }));
   } else if (command === 'record') {
     const file = manifestPath(need(args, 'manifest'));
     const manifest = readJson(file);
-    assertCurrentTarget(manifest);
+    manifest.__file = file;
+    assertCurrentTarget(manifest, 'record:' + String(args.stage));
     const stage = selectedStage(manifest, need(args, 'stage'));
     const reviewers = list(args.reviewer).sort();
     if (JSON.stringify([...stage.expected_reviewers].sort()) !== JSON.stringify(reviewers)) fail('ERR_REVIEWER_MISMATCH', stage.id);
@@ -287,7 +344,7 @@ try {
     const file = manifestPath(need(args, 'manifest'));
     const manifest = readJson(file);
     manifest.__file = file;
-    assertCurrentTarget(manifest);
+    assertCurrentTarget(manifest, 'seal');
     validateComplete(manifest);
     const status = need(args, 'status');
     if (!['passed', 'changes_required'].includes(status)) fail('ERR_INVALID_STATUS', status);
@@ -333,8 +390,44 @@ try {
     manifest.blocker_count = (manifest.findings_summary && manifest.findings_summary.open_blockers) || 0;
     manifest.error = null;
     manifest.sealed_at = new Date().toISOString();
+    manifest.unfrozen = manifest.frozen === true ? unfreezeTarget(resolveInside(manifest.root, manifest.target)) : null;
     writeJson(file, manifest);
     console.log(JSON.stringify({ ok: true, status, open_findings: open, backlog_nits: manifest.backlog_nits, ledger: manifest.ledger_file, stalls: manifest.mechanism_stalls.length }));
+  } else if (command === 'guard') {
+    // 只读体检：确认目标仍是 init 时那份、且冻结位完好。不改 manifest、不改目标。
+    const file = manifestPath(need(args, 'manifest'));
+    const manifest = readJson(file);
+    manifest.__file = file;
+    const target = resolveInside(manifest.root, manifest.target);
+    const exists = fs.existsSync(target);
+    const observed = exists ? hashFile(target) : null;
+    const frozen = manifest.frozen === true;
+    let readOnly = null;
+    if (exists && process.platform === 'win32') {
+      const st = spawnSync('attrib', [target], { encoding: 'utf8' });
+      readOnly = st.status === 0 ? /\bR\b/.test(st.stdout.trim()) : null;
+    } else if (exists) {
+      readOnly = (fs.statSync(target).mode & 0o200) === 0;
+    }
+    const drift = observed !== null && observed !== manifest.target_sha256;
+    const out = {
+      ok: !drift,
+      manifest: file,
+      status: manifest.status,
+      target: manifest.target,
+      expected_sha256: manifest.target_sha256,
+      observed_sha256: observed,
+      target_changed: drift,
+      frozen_declared: frozen,
+      target_readonly: readOnly,
+      mutations_recorded: (manifest.target_mutations || []).length,
+      verdict: drift
+        ? 'TARGET MUTATED DURING ROUND — the round is void; seal or fail it before editing'
+        : (frozen && readOnly === false ? 'FROZEN BUT WRITABLE — read-only bit was stripped; restore it or finish the round' : 'intact'),
+    };
+    console.log(JSON.stringify(out));
+    // 默认只报告（exit 0），--strict 才把漂移判成非零——体检命令不该因为发现坏消息就中断调用方。
+    if (drift && args.strict) process.exit(1);
   } else if (command === 'status') {
     const root = path.resolve(need(args, 'root'));
     const roundsDir = path.resolve(need(args, 'rounds'));
@@ -384,12 +477,13 @@ try {
   } else if (command === 'verify') {
     const file = manifestPath(need(args, 'manifest'));
     const manifest = readJson(file);
-    assertCurrentTarget(manifest);
+    manifest.__file = file;
+    assertCurrentTarget(manifest, 'verify');
     validateComplete(manifest);
     if (manifest.status !== 'passed') fail('ERR_REVIEW_NOT_PASSED', manifest.status);
     console.log(JSON.stringify({ ok: true, status: 'valid', target: manifest.target, target_sha256: manifest.target_sha256, ledger: manifest.ledger_file || null }));
   } else {
-    fail('ERR_USAGE', 'Use init, fail, record, seal, status, or verify');
+    fail('ERR_USAGE', 'Use init, fail, record, seal, status, guard, or verify');
   }
 } catch (error) {
   fail('ERR_EXECUTION', error instanceof Error ? error.message : String(error));

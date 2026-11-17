@@ -43,7 +43,7 @@ test('sealed review becomes stale when the target changes', () => {
   assert.equal(run(root, ['verify', '--manifest', manifest]).status, 'valid');
   fs.appendFileSync(path.join(root, 'PRD.md'), '\nChanged after review.\n');
   const result = run(root, ['verify', '--manifest', manifest], true);
-  assert.equal(result.code, 'ERR_STALE_REVIEW');
+  assert.equal(result.code, 'ERR_TARGET_MUTATED_DURING_ROUND');
 });
 
 test('fresh-context failure is not_run and cannot verify', () => {
@@ -246,4 +246,73 @@ test("round budget honours an explicit --max-rounds", () => {
   fs.appendFileSync(path.join(root, "PRD.md"), "\nrevision for r004\n");
   const raised = run(root, ["init", "--root", root, "--target", "PRD.md", "--output", path.join(root, "review", "r004"), "--profile", "readiness", "--max-rounds", "5"]);
   assert.equal(raised.ok, true);
+});
+
+// ---- v1.3.1: review and edit are strictly serial — the target is frozen during a round ----
+// 冻结是物理的：直接 writeFileSync 会被 EPERM 拒绝。要模拟"外部强改"必须先剥掉只读位。
+function forceWrite(file, content) {
+  try { fs.chmodSync(file, 0o644); } catch { /* ignore */ }
+  if (process.platform === "win32") {
+    try { require("node:child_process").execFileSync("attrib", ["-R", file], { stdio: "ignore" }); } catch { /* ignore */ }
+  }
+  fs.writeFileSync(file, content);
+}
+
+test("init physically freezes the target: a plain write is refused", () => {
+  const root = fixture("freeze-physical");
+  const output = path.join(root, "review");
+  const res = run(root, ["init", "--root", root, "--target", "PRD.md", "--output", output, "--profile", "readiness"]);
+  assert.equal(res.frozen, true);
+  let refused = false;
+  try { fs.writeFileSync(path.join(root, "PRD.md"), "# PRD\n\nedited\n"); } catch (error) { refused = error.code === "EPERM" || error.code === "EACCES"; }
+  assert.equal(refused, true, "frozen target must refuse a plain write");
+  const guard = run(root, ["guard", "--manifest", path.join(output, "manifest.json")]);
+  assert.equal(guard.ok, true);
+  assert.equal(guard.verdict, "intact");
+});
+
+test("guard detects a forced edit and reports the round void", () => {
+  const root = fixture("freeze-guard");
+  const output = path.join(root, "review");
+  run(root, ["init", "--root", root, "--target", "PRD.md", "--output", output, "--profile", "readiness"]);
+  forceWrite(path.join(root, "PRD.md"), "# PRD\n\nforced edit\n");
+  const guard = run(root, ["guard", "--manifest", path.join(output, "manifest.json")]);
+  assert.equal(guard.ok, false);
+  assert.equal(guard.target_changed, true);
+  assert.match(guard.verdict, /TARGET MUTATED DURING ROUND/);
+  // --strict 时 exit 1，但报告仍写在 stdout
+  const strictOut = (() => {
+    try { return JSON.parse(execFileSync(process.execPath, [script, "guard", "--manifest", path.join(output, "manifest.json"), "--strict"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })); }
+    catch (error) { return JSON.parse(error.stdout); }
+  })();
+  assert.equal(strictOut.ok, false);
+});
+
+test("record refuses a forced mid-round edit and stamps the mutation", () => {
+  const root = fixture("freeze-record");
+  const output = path.join(root, "review");
+  run(root, ["init", "--root", root, "--target", "PRD.md", "--output", output, "--profile", "readiness"]);
+  const manifest = path.join(output, "manifest.json");
+  forceWrite(path.join(root, "PRD.md"), "# PRD\n\nmid-round edit\n");
+  const stage = JSON.parse(fs.readFileSync(manifest, "utf8")).stages[0];
+  fs.writeFileSync(path.join(root, stage.report), "x\n");
+  const args = ["record", "--manifest", manifest, "--stage", stage.id, "--report", stage.report];
+  for (const r of stage.expected_reviewers) args.push("--reviewer", r);
+  const blocked = run(root, args, true);
+  assert.equal(blocked.code, "ERR_TARGET_MUTATED_DURING_ROUND");
+  const after = JSON.parse(fs.readFileSync(manifest, "utf8"));
+  assert.equal(after.status, "incomplete");
+  assert.equal(after.target_mutations.length, 1);
+  assert.equal(after.target_mutations[0].detected_by.startsWith("record:"), true);
+});
+
+test("fail unfreezes the target so the next round may edit it", () => {
+  const root = fixture("freeze-unfreeze");
+  const output = path.join(root, "review");
+  run(root, ["init", "--root", root, "--target", "PRD.md", "--output", output, "--profile", "readiness"]);
+  const manifest = path.join(output, "manifest.json");
+  const failed = run(root, ["fail", "--manifest", manifest, "--code", "ERR_STAGE_FAILED", "--message", "stop"]);
+  assert.equal(failed.unfrozen, true);
+  fs.writeFileSync(path.join(root, "PRD.md"), "# PRD\n\neditable again\n");
+  assert.ok(fs.readFileSync(path.join(root, "PRD.md"), "utf8").includes("editable again"));
 });
