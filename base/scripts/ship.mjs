@@ -463,10 +463,14 @@ function rmrf(p, guards = []) {
   fs.rmSync(resolved, { recursive: true, force: true });
 }
 
+// 不随技能分发的目录：测试产物（含被冻结的只读 fixture 文件）与依赖目录。
+const SKIP_COPY_DIRS = new Set(['.temp', 'node_modules', '.git']);
+
 function copyDir(src, dest) {
   if (!fs.existsSync(src)) throw new Error(`源目录不存在: ${src}`);
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    if (SKIP_COPY_DIRS.has(entry.name)) continue;
     const s = path.join(src, entry.name);
     const d = path.join(dest, entry.name);
     if (entry.isDirectory()) copyDir(s, d);

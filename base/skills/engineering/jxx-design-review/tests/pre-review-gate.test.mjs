@@ -165,3 +165,39 @@ test('C3 honors citationIgnore for external package sources', () => {
   assert.equal(code, 0);
   assert.equal(check(report, 'C3').status, 'pass');
 });
+// ---- v1.3.2: PRD AC 对照表的首列是「定义」不是「引用」 ----
+// 背景：拆工时后 AC 编号在工单内自 1 起（跨工单必然重复），PRD AC 对照表首列写源 PRD 编号。
+// gate 若扫描首列，会把定义当引用而在重编号下误报。
+test('C1 ignores the definition column of the PRD AC table in map.md', () => {
+  const root = path.join(base, 'prd-ac-col-' + Date.now());
+  fs.mkdirSync(path.join(root, 'issues'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'PRD.md'), ['# PRD: demo', '', 'Version: v1.0', '', '本文件只留 AC 索引。', ''].join('\n'));
+  fs.writeFileSync(path.join(root, 'issues/03-core.md'), [
+    '# 03 core', '', 'Version: v1.0', '',
+    '- [ ] AC-1 [主路径] 当保存时回读一致 —— 验证:机器 node .test/a.mjs', '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(root, 'map.md'), [
+    '# demo — 映射', '',
+    '## PRD AC 对照', '',
+    '| PRD AC | 条目 | 工单与 AC | 判定 |',
+    '| --- | --- | --- | --- |',
+    '| AC-7 | 源 PRD 第 7 条 | 03：AC-1（工单 03） | covered |',
+    '| AC-8 | 源 PRD 第 8 条 | 03：AC-1（工单 03） | covered |',
+    '',
+  ].join('\n'));
+  const { report } = run(root);
+  assert.equal(check(report, 'C1').status, 'pass');
+});
+
+test('C1 still flags an undefined ref outside the PRD AC table', () => {
+  const root = path.join(base, 'prd-ac-outside-' + Date.now());
+  fs.mkdirSync(path.join(root, 'issues'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'PRD.md'), ['# PRD: demo', '', 'Version: v1.0', '', '正文引用 AC-99。', ''].join('\n'));
+  fs.writeFileSync(path.join(root, 'issues/03-core.md'), [
+    '# 03 core', '', 'Version: v1.0', '',
+    '- [ ] AC-1 [主路径] 当保存时回读一致 —— 验证:机器 node .test/a.mjs', '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(root, 'map.md'), '# demo — 映射\n');
+  const { report } = run(root);
+  assert.equal(check(report, 'C1').status, 'fail');
+});

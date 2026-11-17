@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.1 — 2026-11-17
+
+Gate respects the split topology: the PRD AC table's first column is a definition, not a reference.
+
+- `pre-review-gate` C1 now skips the data rows of `map.md`'s `## PRD AC 对照` table. Its first column
+  holds **source PRD AC numbers** (definitions), while the ticket column carries `NN：AC-M` references.
+  Scanning the definition column made every row look like an unqualified reference — and once
+  per-ticket AC numbering restarts at 1 (a hard requirement of `jxx-to-tickets`), those "references"
+  could never resolve, so C1 reported one false failure per PRD AC.
+- The table's own structure and reference consistency stay enforced by `jxx-to-tickets`'s
+  `ac-audit --strict`; the gate only checks that references land in a defined space.
+- Add two regression tests: the definition column is ignored, and an undefined reference elsewhere in
+  `map.md` still fails C1.
+
 ## 1.4.0 — 2026-11-17
 
 Cross-site fact consistency, so "same fact, several places" cannot drift unnoticed.
@@ -14,6 +28,7 @@ Cross-site fact consistency, so "same fact, several places" cannot drift unnotic
   green while the AC total read 97 / 94 / "AC-1～93" in three places, a quota env var had two
   names, and a new enum value landed in the spec but not in the DDL CHECK. Only 3 of 12 fixes that
   round were fully correct (25%); every miss was "changed one copy, left the others".
+
 
 ## 1.3.1 — 2026-11-17
 

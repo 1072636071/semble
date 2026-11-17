@@ -84,12 +84,32 @@ for (const f of docs) {
   if (dup.length) addCheck('C1', 'ac-refs', 'fail', dup);
 }
 const acFindings = [];
+// map.md 的「PRD AC 对照」表首列是**定义**（源 PRD 编号），不是引用：
+// 同一行的其余列才携带「工单 NN AC-M」引用。若不屏蔽首列，第一行的 AC-N 会被误当裸引用
+// 而在重编号（工单内自 1 起）后必然解析失败。
+const prdAcTableLines = new Set();
+{
+  const mapLines = docLines.get(mapFile);
+  if (mapLines) {
+    let inTable = false;
+    mapLines.forEach((line, idx) => {
+      if (/^#{1,6}\s.*PRD\s*AC/.test(line)) { inTable = true; return; }
+      if (inTable && /^#{1,6}\s/.test(line)) { inTable = false; return; }
+      if (inTable && /^\|\s*AC-\d+\s*\|/.test(line)) prdAcTableLines.add(idx);
+    });
+  }
+}
 const REF = /(工单\s*(\d{2})\s*|PRD\s*|本单\s*|该族\s*)?AC-(\d+)((?:\s*[\/、，,]\s*(?:AC-)?\d+)*)(?:\s*[…–]\s*(\d+))?/g;
 for (const f of docs) {
   docLines.get(f).forEach((text, i) => {
+    // PRD AC 对照表整行跳过：首列是 PRD 级**定义**（不是引用），工单列用「NN：AC-M」形式，
+    // 其结构与引用一致性由 jxx-to-tickets 的 ac-audit --strict 负责校验。gate 在这里只做
+    // 「引用必须落在已定义空间」的检查，对定义表无从判定，强行扫描会把定义当引用而误报。
+    if (f === mapFile && prdAcTableLines.has(i)) return;
+    const scanText = text;
     REF.lastIndex = 0;
     let m;
-    while ((m = REF.exec(text)) !== null) {
+    while ((m = REF.exec(scanText)) !== null) {
       const [, qualifier, ticketNo, first, chain, rangeEnd] = m;
       const ids = [Number(first)];
       if (chain) for (const c of chain.matchAll(/(\d+)/g)) ids.push(Number(c[1]));
@@ -99,7 +119,7 @@ for (const f of docs) {
       else if (qualifier && qualifier.trim() === 'PRD') space = target;
       else if (qualifier && /^(本单|该族)/.test(qualifier.trim())) space = f;
       else {
-        const lineTicket = text.match(/工单\s*(\d{2})/);
+        const lineTicket = scanText.match(/工单\s*(\d{2})/);
         space = lineTicket && isTicket(f) === false && f !== target ? ticketByNo.get(lineTicket[1]) : defaultSpace(f);
         if (lineTicket && f === mapFile) space = ticketByNo.get(lineTicket[1]) || target;
       }
