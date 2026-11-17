@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "_readme": [
+    "facts.json 模板 —— 声明「同一事实在多处的取值」，供 seal --facts 与 tools/check-fact-consistency.mjs 核对。",
+    "放哪儿：功能目录下（如 .scratch/<NN>-<slug>/fact-consistency.json），由该目录的托管者维护。",
+    "root：相对仓库根或绝对路径；省略时取本文件所在目录。",
+    "每个 fact：id（唯一）、canonical（规范值）、sites[]（该事实出现的位点）。",
+    "每个 site：file（相对 root）、pattern（含一个捕获组，取第 1 组）、expect（省略则用 canonical）、",
+    "          json（可选，先按 JSON 路径取值再跑 pattern）、flags（可选，默认 m）。",
+    "发现未登记位点：node <仓>/tools/check-fact-consistency.mjs --discover <值> --keyword <词> --root <目录>"
+  ],
+  "root": ".scratch/000-example",
+  "facts": [
+    {
+      "id": "ac-total",
+      "description": "验收点总数（正文、裁决表、阶段配置三处必须一致）",
+      "canonical": 97,
+      "sites": [
+        {
+          "file": "main-prd.md",
+          "pattern": "本节只列 (\\d+) 条 AC"
+        },
+        {
+          "file": "main-prd.md",
+          "pattern": "统一为 AC-1～(\\d+)"
+        },
+        {
+          "file": "rollout-config.json",
+          "json": "phases[phase=P6].acs[0]",
+          "pattern": "AC-1～(\\d+)"
+        }
+      ]
+    },
+    {
+      "id": "enum-value-in-both-places",
+      "description": "枚举新值必须同时出现在规格与 DDL 的 CHECK 约束里",
+      "canonical": "abandon",
+      "sites": [
+        {
+          "file": "main-prd.md",
+          "pattern": "conflict_resolve／\\*\\*(abandon)\\*\\*"
+        },
+        {
+          "file": "schema.sql",
+          "pattern": "'conflict_resolve', '(abandon)'"
+        }
+      ]
+    }
+  ]
+}

@@ -166,7 +166,7 @@ node <本技能目录>/scripts/design-review.mjs record --manifest <manifest路�
 
 为什么需要：门禁 C1–C9 只查「引文指向的文件存在」，查不出「同一事实三处三个值」。实测 PRD 157 七轮复审中，33 条治理闸全绿的同时存在 AC 总数 97／94／93 三值并存、quota 变量两个名字、枚举新值只进主 PRD 而 DDL 的 CHECK 未同步——那一轮 12 项修复只有 3 项完全正确（25%），根因全是「改一处漏一处」。
 
-facts.json 格式与判据见 `scripts/fact-consistency-core.mjs` 头部。发现未登记位点用 `check-fact-consistency.mjs --discover <值> --keyword <词>`（人的动作，不是闸的动作）。`--require-facts` 可强制必须提供。
+facts.json 格式与判据见 `scripts/fact-consistency-core.mjs` 头部；可直接复制 `references/facts.example.json` 起手（内含两条真实形态：跨文件数值一致、枚举值在规格与 DDL 的 CHECK 双写）。发现未登记位点用 `check-fact-consistency.mjs --discover <值> --keyword <词>`（人的动作，不是闸的动作）。`--require-facts` 可强制必须提供。
 
 ```bash
 node <本技能目录>/scripts/design-review.mjs seal --manifest <manifest路径> --status passed --open-findings 0 [--backlog-nits N]
